@@ -270,7 +270,7 @@ export function preparer(regles) {
     raccourcisseurs: regles.raccourcisseurs ?? [],
     surs: regles.domaines_surs ?? [],
     appats,
-    appatParSq: new Map(appats.map((a) => [a.sq, a.mot])),
+    appatParSq: new Map([...appats].reverse().map((a) => [a.sq, a.mot])), // le premier de la liste l'emporte
     marques: (regles.marques ?? []).map((m) => ({ ...m, strict: false })),
     seuils: regles.seuils,
     textes: regles.textes,

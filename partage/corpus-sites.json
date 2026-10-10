@@ -196,6 +196,25 @@
     { "adresse": "xn--mgasin-3nf.com", "categorie": "alphabets_melanges", "marque": null }
   ],
 
+  "comparaison_seule": [
+    "оrbispay.example", "orbispαy.example", "orbíspay.example", "ORBISPAY.example.", "a.b.orbispay.example",
+    "https://ORBISPAY-verification.example:8443/connexion?compte=42#x", "orbispai.example", "orbisspay.example",
+    "orbspay.example", "orbispya.example", "orbsipay.com", "orb1spay.example", "orbi5pay.example", "www.orbispay.fr",
+    "orbispay.co.uk", "verification-orbispay.com", "login.orbispay.example.evil.co.uk", "0rbispay-support.net",
+    "orbispay-partenaires.fr", "o-r-b-i-s-p-a-y.net", "verif.0rb1spay.example", "fleuriste.example", "exemple.fr",
+    "orbistravel.com", "wikipedia.org", "orbis.com", "pay.example", "127.0.0.1", "[::1]", "localhost", "10.0.0.4",
+    "192.168.1.20:8080", "", "   ", "http://", "about:blank", "file:///Users/test/page.html", "foo bar.com",
+    "big-apple-pizza.com", "amazonia.org", "apple-support.com", "apple-music.xyz", "apple.com.musique.example",
+    "fleuriste.top", "photos.online", "https://www.paypal.com@verif.example/connexion",
+    "http://compte.securise.fr@203.0.113.9/", "https://camille@orbispay.example/", "https://a:b@Exemple.FR.:443/x?y#z",
+    "googie.fr", "paypay.jp", "gmail.fr", "outlook.fr", "laposte.info", "impots.fr", "doctolib.com", "leboncoin.com",
+    "http://[fe80::1]/", "http://[fd00::2]:8080/", "http://172.20.1.1/", "http://100.64.0.1/", "http://169.254.1.1/",
+    "http://8.8.8.8/", "société.example", "bücher.de", "xn--80ak6aa92e.com", "pаypal-login.com", "paypai-login.com",
+    "https://evil.example\\@paypal.com/", "mabanque.bnpparibas", "x.y.google", "docs.google.com",
+    "secure-login.example", "verification-compte-client.net", "a.b.c.example.top", "login.a.b.example.com",
+    "xn--mgasin-3nf.com", "xn--invalide-!!.com", "http://user@localhost:5173/"
+  ],
+
   "raccourcis": [
     "https://bit.ly/3xYzAbc",
     "tinyurl.com/demo-dedale",
