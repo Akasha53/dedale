@@ -71,7 +71,7 @@ final class FenetreTelechargement: NSObject {
         boutons.orientation = .horizontal
         boutons.distribution = .fillEqually
         boutons.spacing = 10
-        let note = Gabarit.paragraphe("Mis de côté, le fichier reste récupérable depuis le menu Dédale.",
+        let note = Gabarit.paragraphe("Dans les deux cas, l'équipe sécurité reçoit le type du fichier, son origine et votre choix. Jamais son contenu ni son nom.",
                                       taille: 11, couleur: Teinte.discret, largeur: w)
 
         zoneFin.orientation = .vertical

@@ -1170,13 +1170,14 @@ Le menu ouvre un panneau qui liste les modules, ce que chacun lit, ce qui part �
 
 | Module | Lit | Envoie à la SOC |
 |---|---|---|
-| Mails | Les mails de la boîte de démo et le verdict de l'analyseur : expéditeur, objet, raisons. | Votre choix devant un mail frauduleux, et le mail que vous signalez, désarmé. |
+| Mails | Le verdict du serveur de messagerie sur chaque mail reçu : expéditeur, objet, raisons. Jamais la messagerie du Mac. | Le type d'alerte et votre choix, que vous annuliez ou continuiez. La copie désarmée d'un mail vient du serveur de messagerie, pas de ce poste. |
 | Sites | L'adresse des pages ouvertes, pour repérer un site sosie. Jamais leur contenu ni vos formulaires. | Le nom du site sosie, si vous passez outre l'avertissement. |
-| Téléchargements | Les nouveaux fichiers du dossier Téléchargements : leur nom, la provenance notée par macOS et leur structure (macros, chiffrement). | Le type du fichier, son domaine d'origine, son empreinte SHA-256 et votre choix. Jamais son contenu ni son nom. |
+| Téléchargements | Les nouveaux fichiers du dossier Téléchargements : leur nom, la provenance notée par macOS et leur structure (macros, chiffrement). | Le type du fichier, son domaine d'origine, son empreinte SHA-256 et votre choix, quel qu'il soit. Jamais son contenu ni son nom. |
 | Agents IA | Les fichiers de configuration MCP des assistants connus (Claude, Cursor, VS Code, Windsurf…) : le nom de chaque serveur et sa commande de lancement. | Le nom de chaque serveur, son type et ses droits risqués. Jamais les jetons, les clés ni les variables d'environnement. |
 
 Ce que l'app ne lit jamais : le presse-papiers, les frappes au clavier, les captures d'écran, le contenu des pages, l'historique de navigation.
 
+- Les pop-ups disent la même chose : « Dans les deux cas, l'équipe sécurité reçoit le type d'alerte et votre choix. Jamais le contenu de votre poste. » (alerte), et pour un téléchargement « Dans les deux cas, l'équipe sécurité reçoit le type du fichier, son origine et votre choix. Jamais son contenu ni son nom. ». Annuler et Mettre de côté envoient bien un événement (`choix: "annuler"`).
 - Un module coupé ne lit plus rien et n'envoie plus rien. Les interrupteurs restent sur le Mac (`modules.json` dans le dossier d'état). `DEDALE_MODULES_COUPES=sites,agents` coupe des modules au lancement.
 - Pour le module Sites, branché ailleurs dans l'app : `ReglagesModules.partage.actif(.sites)` dit s'il est allumé, et la notification `ReglagesModules.changement` (le module en `object`) annonce chaque bascule.
 - La barre de menus n'a qu'une icône. En tête du menu : « Protégé » (tous les modules allumés, SOC joignable), « Protégé, SOC hors ligne », « Protection partielle (N modules sur 4) » ou « Protection en pause », puis le compteur des pièges évités. `GET 127.0.0.1:8712/etat` porte aussi `poste`, `modules`, `telechargements` et `agents_ia`.

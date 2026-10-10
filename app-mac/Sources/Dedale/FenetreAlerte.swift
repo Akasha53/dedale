@@ -107,7 +107,7 @@ final class FenetreAlerte: NSObject {
 
         let note = Gabarit.paragraphe(
             a.quatreYeux ? "Geste sensible : Dédale le relit avant qu'il parte, et la SOC voit sa décision."
-                         : "Si vous continuez, l'équipe sécurité est prévenue.",
+                         : "Dans les deux cas, l'équipe sécurité reçoit le type d'alerte et votre choix. Jamais le contenu de votre poste.",
             taille: 11, couleur: Teinte.discret, largeur: w)
 
         zoneFin.orientation = .vertical

@@ -27,7 +27,7 @@ enum ModulePoste: String, CaseIterable {
     var lit: String {
         switch self {
         case .mails:
-            return "Les mails de la boîte de démo et le verdict de l'analyseur : expéditeur, objet, raisons."
+            return "Le verdict du serveur de messagerie sur chaque mail reçu : expéditeur, objet, raisons. Jamais la messagerie du Mac."
         case .sites:
             return "L'adresse des pages ouvertes, pour repérer un site sosie. Jamais leur contenu ni vos formulaires."
         case .telechargements:
@@ -40,11 +40,11 @@ enum ModulePoste: String, CaseIterable {
     var envoie: String {
         switch self {
         case .mails:
-            return "Votre choix devant un mail frauduleux, et le mail que vous signalez, désarmé."
+            return "Le type d'alerte et votre choix, que vous annuliez ou continuiez. La copie désarmée d'un mail vient du serveur de messagerie, pas de ce poste."
         case .sites:
             return "Le nom du site sosie, si vous passez outre l'avertissement."
         case .telechargements:
-            return "Le type du fichier, son domaine d'origine, son empreinte SHA-256 et votre choix. Jamais son contenu ni son nom."
+            return "Le type du fichier, son domaine d'origine, son empreinte SHA-256 et votre choix, quel qu'il soit. Jamais son contenu ni son nom."
         case .agents:
             return "Le nom de chaque serveur, son type et ses droits risqués. Jamais les jetons, les clés ni les variables d'environnement."
         }
