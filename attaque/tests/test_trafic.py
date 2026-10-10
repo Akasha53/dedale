@@ -14,7 +14,7 @@ from banc import evenement as ev
 from banc.backend import Backend
 from banc.client_ia import ClientIA
 from banc.monde import Monde
-from banc.surface import SurfaceLocale
+from banc.surface import LEURRES_SEMES, SurfaceLocale
 from banc import trafic
 
 CHAMPS = {"horodatage", "source", "surface", "type", "session_id", "leurre_id",
@@ -100,6 +100,23 @@ def test_agent_interne_touche_un_canari():
     assert any(e["type"] == "appel_outil" and e["outil"] == "exporter_clients"
                for e in evs)
     assert all(e["details"]["verite_terrain"] == ev.AGENT_INTERNE for e in evs)
+
+
+def test_canari_interne_declare_comme_consigne_suivie():
+    """Le canari touché par l'agent interne du banc marque une consigne cachée suivie.
+
+    Le backend ne classe une session `agent_ia` que sur un signal IA. Déclaré
+    `canari_mail` (un appât), ce canari ouvrait l'incident mais laissait la session
+    « inconnu » : 0/25 en mode autonome. Le vrai canari mail de interne/ (C-7A3F) est
+    de nature `consigne_cachee` ; celui du banc doit dire la même chose.
+    """
+    monde = monde_hors_ligne()
+    sid = trafic.agent_interne(monde, 1, random.Random("i"),
+                               client=ClientIA("simulateur"))
+    natures = {l["id"]: l["nature"] for l in LEURRES_SEMES}
+    touches = [e["leurre_id"] for e in evenements(monde, sid) if e["type"] == "leurre_touche"]
+    assert touches
+    assert all(natures[c] == "consigne_cachee" for c in touches)
 
 
 def test_etiquette_refuse_une_session_mal_prefixee():
