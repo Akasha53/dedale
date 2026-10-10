@@ -9,7 +9,10 @@ dependencies = []
 # SDK Anthropic : utilisé seulement si ANTHROPIC_API_KEY est présent. Sans clé, l'agent
 # passe par `claude -p` et n'a besoin d'aucune dépendance.
 api = ["anthropic>=0.40"]
-dev = ["pytest>=8"]
+# Scénario réel (--scenario reel) : petite API bancaire locale (FastAPI/uvicorn). Utilisé
+# seulement par orbis/banque_api.py ; le reste du module reste sans dépendance.
+reel = ["fastapi>=0.110", "uvicorn>=0.27"]
+dev = ["pytest>=8", "fastapi>=0.110", "uvicorn>=0.27"]
 
 [build-system]
 requires = ["hatchling"]
