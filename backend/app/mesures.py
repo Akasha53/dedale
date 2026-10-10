@@ -11,7 +11,7 @@ faux positifs = part des sessions humain/script classées agent_ia.
 
 from __future__ import annotations
 
-from statistics import mean
+from statistics import mean, median
 
 _POSITIF = {"agentia", "interne", "agent_ia", "agent_interne"}
 _NEGATIF = {"humain", "script"}
@@ -33,6 +33,17 @@ def verite_session(sess) -> str | None:
     if sess.verite_terrain in _NORMALISE:
         return _NORMALISE[sess.verite_terrain]
     return None
+
+
+def duree_ms(secondes: list[float]) -> dict:
+    """Médiane et moyenne d'une liste de délais, en millisecondes, avec le nombre de mesures."""
+    if not secondes:
+        return {"mediane_ms": None, "moyenne_ms": None, "echantillons": 0}
+    return {
+        "mediane_ms": round(median(secondes) * 1000),
+        "moyenne_ms": round(mean(secondes) * 1000),
+        "echantillons": len(secondes),
+    }
 
 
 def calculer(store) -> dict:
@@ -107,6 +118,9 @@ def calculer(store) -> dict:
         "faux_positifs": round(faux_positifs, 3) if faux_positifs is not None else None,
         "temps_detection_s": round(mean(delais_detection), 2) if delais_detection else None,
         "temps_confinement_s": round(mean(delais_confinement), 2) if delais_confinement else None,
+        # Les deux champs *_s ci-dessus sont des moyennes. Médiane et moyenne explicites :
+        "temps_detection": duree_ms(delais_detection),
+        "temps_confinement": duree_ms(delais_confinement),
         "sessions_total": len(sessions),
         "agents_detectes": repartition.get("agent_ia", 0),
         "incidents_ouverts": sum(1 for i in incidents if i.statut == "ouvert"),
