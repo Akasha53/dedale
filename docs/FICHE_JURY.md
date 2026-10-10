@@ -42,7 +42,7 @@ Campagne `c10101848586937`, 25 sessions jouées par la vraie bibliothèque `inte
 
 Non mesuré : le délai de décision et de confinement (aucun analyste dans la boucle), un agent externe contre le vrai `leurres/` (le simulateur du banc ne suit pas encore ses pièges), un modèle réel.
 
-161 tests réussis : backend 45, interne 35, leurres 19, poste 17, attaque 23 (pytest) et 22 tests du script de démo (unittest). Ils vérifient le prototype, pas une détection en production.
+173 tests réussis : backend 45, interne 35, leurres 19, poste 17, attaque 23 (pytest) et 34 tests des scripts de démo (unittest). Ils vérifient le prototype, pas une détection en production.
 
 ## Limites
 
