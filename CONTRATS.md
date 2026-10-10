@@ -336,3 +336,24 @@ droits trop larges (virement hors jeton bloqué, incident `interne_droits`). `GE
 expose le surplus de droits par session ; `GET /api/mesures` reste cohérent
 (`taux_detection` 1.0, `faux_positifs` 0.0 : les sessions internes V2 n'ont pas de vérité
 terrain, elles n'altèrent pas le taux).
+
+## Avenant « humain, le maillon faible » (10 octobre 2026, virage de Guilhem)
+
+Nouveau pilier et tête d'affiche : Dédale protège aussi le SALARIÉ, pas seulement les agents IA. Même moteur (détection → boîte noire → décision humaine → SIEM). On ajoute une source `humain` et, à terme, une source `physique`. Les protections d'agents IA (V0-V4) restent, en second pilier. L'attaquant externe reste en réserve.
+
+### Nouvelle source et surfaces (tout module → backend, schéma d'événement existant)
+- `source`: "humain" (le poste du salarié) ou "physique" (accès aux locaux/serveurs), en plus de "interne"/"externe".
+- `surface`: "poste" (action sur le PC du salarié), "physique" (accès à un actif-leurre physique).
+
+### Nouveaux types d'incident (affichés par la console)
+- `humain_secret` — le salarié colle/expose un secret (mot de passe, clé API) dans un chat, un site, une IA.
+- `humain_mail_externe` — envoi de données sensibles à un destinataire externe.
+- `humain_upload_ia` — dépôt d'un fichier confidentiel vers une IA non autorisée / un cloud perso.
+- `humain_phishing` — clic sur un lien de phishing ou ouverture d'une pièce jointe piégée.
+- `humain_intrusion_physique` — accès à un serveur-leurre / port-leurre par un intrus (canari physique).
+
+### Le garde du corps sur le poste
+Un agent local observe l'action risquée AVANT qu'elle n'aboutisse et émet un événement `type: avertissement` avec le choix du salarié (`continuer` / `annuler`). Non bloquant par défaut : il prévient, laisse choisir, et escalade au SOC si répétition ou gravité. Rien ne sort du poste au-delà de l'événement. Le détail de la détection et le texte de la pop-up sont des données inertes, échappés comme les canaris.
+
+### Argument de pitch (donné par l'équipe)
+« Vous faites déjà des faux tests de phishing à vos salariés, et malgré tous vos avertissements ils tombent dedans tous les jours. Dédale les attrape au moment du clic, pas après. » Cible : grandes entreprises (la data y vaut le plus cher, et l'humain y est le vrai trou).
