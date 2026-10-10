@@ -281,3 +281,24 @@ def test_masquage_profond():
     texte = json.dumps(sortie, ensure_ascii=False)
     assert code not in texte and "a7f9c3e1d05b" not in texte
     assert "ok orbispay.example" in texte  # le domaine de l'entreprise n'est pas un secret
+
+
+def test_parametre_impossible_a_inspecter_est_retenu():
+    """Au-delà de ce que la passerelle sait relire (taille, nombre d'encodages, imbrication),
+    elle ne devine pas : l'appel est retenu, et la valeur ne part pas au backend."""
+    b64 = lambda x: base64.b64encode(x.encode()).decode()  # noqa: E731
+    p = Passerelle("s", jetons_secrets(), BoiteNoire(base="http://127.0.0.1:9"))
+    cas = {
+        "imbrication": b64(b64(b64(b64(JETON_COFFRE)))),
+        "leurres": " ".join(b64(f"leurre numero {i} sans rien") for i in range(200)) + " " + b64(JETON_COFFRE),
+        "taille": "x" * (mediation._LONGUEUR_MAX + 1),
+    }
+    for nom, valeur in cas.items():
+        for outil, sortant in (("chercher_document", False), ("envoyer_rapport", True)):
+            med, insp = p._examiner(outil, {"contenu": valeur}, None, sortant)
+            assert insp.incomplete, nom
+            assert "canal_detourne" in [t.type for t in med], (nom, outil)
+        assert mediation.masquer({"v": valeur}, jetons_secrets())["v"].startswith("[paramètre masqué")
+    # Trois niveaux d'encodage restent lus : le canari est nommé.
+    med, insp = p._examiner("chercher_document", {"r": b64(b64(b64(JETON_COFFRE)))}, None, False)
+    assert insp.incomplete is None and "C-2B91" in [t.canari_id for t in med]

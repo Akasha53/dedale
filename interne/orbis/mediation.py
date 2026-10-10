@@ -56,10 +56,11 @@ LIBELLES = {
 # cherche pas de destination. Les canaris et les secrets y sont cherchés comme partout.
 OUTILS_LOCAUX = frozenset({"resumer", "memoriser"})
 
-# Limites qui bornent le coût d'une inspection, même sur un paramètre énorme.
-_LONGUEUR_MAX = 200_000      # caractères inspectés par chaîne
-_VARIANTES_MAX = 64          # textes décodés gardés par chaîne
-_PROFONDEUR = 2              # décodages enchaînés (base64 d'une URL encodée, etc.)
+# Limites qui bornent le coût d'une inspection. Au-delà, la passerelle ne devine pas : un
+# paramètre qu'elle ne peut pas inspecter entièrement retient l'appel (refus par défaut).
+_LONGUEUR_MAX = 1_000_000    # caractères par chaîne
+_VARIANTES_MAX = 128         # textes décodés par chaîne
+_PROFONDEUR = 3              # décodages enchaînés (base64 d'une URL encodée, etc.)
 
 
 # =============================================================================================
@@ -140,13 +141,15 @@ _B64 = re.compile(r"[A-Za-z0-9+/_-]{16,}={0,2}")
 _HEX = re.compile(r"(?:[0-9a-fA-F]{2}){8,}")
 _URL = re.compile(r"\b[a-z][a-z0-9+.-]{1,15}://[^\s<>\"'`)\]]+", re.IGNORECASE)
 _WWW = re.compile(r"\bwww\.[a-z0-9-]+(?:\.[a-z0-9-]+)+", re.IGNORECASE)
-_MAIL = re.compile(r"[\w.+-]+@((?:[\w-]+\.)+[\w-]{2,})")
+# Partie locale bornée : sans borne, une longue chaîne sans « @ » (un bloc base64) coûte un
+# temps quadratique.
+_MAIL = re.compile(r"[\w.+-]{1,64}@((?:[\w-]{1,63}\.){1,8}[\w-]{2,63})")
 _IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 # Domaine nu dans un texte libre : seulement sur un suffixe courant, pour ne pas prendre
 # « rapport.pdf » ou « jean.moreau » pour une destination.
 _TLD = ("com|net|org|io|fr|eu|de|uk|es|it|be|ch|nl|ru|cn|jp|br|in|us|co|me|info|biz|xyz|top|"
         "app|dev|cloud|site|online|link|click|example|test|onion")
-_DOMAINE_TEXTE = re.compile(rf"\b(?:[a-z0-9](?:[a-z0-9-]{{0,61}}[a-z0-9])?\.)+(?:{_TLD})\b",
+_DOMAINE_TEXTE = re.compile(rf"\b(?:[a-z0-9](?:[a-z0-9-]{{0,61}}[a-z0-9])?\.){{1,8}}(?:{_TLD})\b",
                             re.IGNORECASE)
 # Famille des canaris d'Orbis Pay, même hors du dictionnaire des jetons.
 _FAMILLE_CANARI = re.compile(r"ORBISPAY-?CANARY-?[0-9A-F]{4}", re.IGNORECASE)
@@ -216,9 +219,11 @@ def _decoder_une_fois(texte: str) -> list[tuple[str, str]]:
     return sortie
 
 
-def variantes(texte: str) -> list[tuple[str, str]]:
-    """Le texte et ses décodages enchaînés : [(texte, encodage)], « en clair » d'abord."""
-    texte = texte[:_LONGUEUR_MAX]
+def variantes_completes(texte: str) -> tuple[list[tuple[str, str]], str | None]:
+    """Le texte et ses décodages enchaînés : [(texte, encodage)], « en clair » d'abord, plus la
+    raison pour laquelle l'inspection n'a pas pu aller au bout (None si elle est complète)."""
+    if len(texte) > _LONGUEUR_MAX:
+        return [(texte[:_LONGUEUR_MAX], "en clair")], f"paramètre de {len(texte)} caractères"
     vus = {texte}
     sortie = [(texte, "en clair")]
     file = [(texte, "")]
@@ -226,14 +231,22 @@ def variantes(texte: str) -> list[tuple[str, str]]:
         suivants = []
         for t, chemin in file:
             for decode, enc in _decoder_une_fois(t):
-                if decode in vus or len(vus) >= _VARIANTES_MAX:
+                if decode in vus:
                     continue
+                if len(vus) >= _VARIANTES_MAX:
+                    return sortie, f"plus de {_VARIANTES_MAX} passages encodés"
                 vus.add(decode)
                 nom = f"{enc} dans {chemin}" if chemin else enc
-                sortie.append((decode[:_LONGUEUR_MAX], nom))
+                sortie.append((decode, nom))
                 suivants.append((decode, nom))
         file = suivants
-    return sortie
+    if any(d not in vus for t, _ in file for d, _ in _decoder_une_fois(t)):
+        return sortie, f"encodage imbriqué sur plus de {_PROFONDEUR} niveaux"
+    return sortie, None
+
+
+def variantes(texte: str) -> list[tuple[str, str]]:
+    return variantes_completes(texte)[0]
 
 
 def _chaines(valeur, cle: str | None = None):
@@ -300,9 +313,13 @@ def _destinations_dans(texte: str) -> list[str]:
             continue
     for m in _WWW.finditer(texte):
         garder(m.group(0))
-    for m in _MAIL.finditer(texte):
-        garder(m.group(1))
-    sans_url = _URL.sub(" ", _MAIL.sub(" ", texte))
+    if "@" in texte:
+        for m in _MAIL.finditer(texte):
+            garder(m.group(1))
+        texte = _MAIL.sub(" ", texte)
+    if "." not in texte:
+        return hotes  # ni domaine ni adresse IP possibles
+    sans_url = _URL.sub(" ", texte)
     for m in _DOMAINE_TEXTE.finditer(sans_url):
         garder(m.group(0))
     for m in _IPV4.finditer(sans_url):
@@ -319,9 +336,10 @@ class Inspection:
     canaris: list[tuple[str, str]] = field(default_factory=list)       # (id, encodage)
     secrets: list[tuple[str, str]] = field(default_factory=list)       # (libellé, encodage)
     destinations: list[tuple[str, str]] = field(default_factory=list)  # (hôte, encodage)
+    incomplete: str | None = None  # raison si un paramètre n'a pas pu être inspecté en entier
 
     def vide(self) -> bool:
-        return not (self.canaris or self.secrets or self.destinations)
+        return not (self.canaris or self.secrets or self.destinations or self.incomplete)
 
     def encodages(self) -> list[str]:
         tous = [e for _, e in self.canaris + self.secrets + self.destinations]
@@ -344,13 +362,16 @@ class Inspection:
             morceaux.append(("une destination externe " if len(self.destinations) == 1
                              else "des destinations externes ") + lister(self.destinations[:4])
                             + (" …" if len(self.destinations) > 4 else ""))
+        if self.incomplete:
+            morceaux.append(f"un contenu que la passerelle ne peut pas inspecter en entier "
+                            f"({self.incomplete})")
         return " et ".join(morceaux)
 
     def pour_backend(self) -> dict:
         return {"canaris": list(dict.fromkeys(c for c, _ in self.canaris)),
                 "secrets": list(dict.fromkeys(s for s, _ in self.secrets)),
                 "destinations": list(dict.fromkeys(d for d, _ in self.destinations)),
-                "encodages": self.encodages()}
+                "encodages": self.encodages(), "inspection_incomplete": self.incomplete}
 
 
 def inspecter_parametres(params, jetons: dict[str, str], *, destinations: bool = True) -> Inspection:
@@ -363,7 +384,9 @@ def inspecter_parametres(params, jetons: dict[str, str], *, destinations: bool =
             liste.append((valeur, enc))
 
     for cle, chaine in _chaines(params):
-        for texte, enc in variantes(chaine):
+        textes, incomplete = variantes_completes(chaine)
+        insp.incomplete = insp.incomplete or incomplete
+        for texte, enc in textes:
             for cid in _canaris_dans(texte, fragments):
                 ajouter(insp.canaris, cid, enc)
             for libelle in _secrets_dans(texte):
@@ -413,6 +436,11 @@ def examiner(nom: str, params, descripteur, *, inventaire, empreintes: Empreinte
         trouvailles.append(detection.Trouvaille(
             type=CANAL_DETOURNE, canari_id=REGLE_CANAL_DETOURNE,
             detail=f"{nom} n’est pas un outil d’envoi, ses paramètres portent {insp.resume()}"))
+    elif raison is None and sortant and insp.incomplete:
+        # Un outil d'envoi dont on ne peut pas lire tout le contenu ne part pas sans l'analyste.
+        trouvailles.append(detection.Trouvaille(
+            type=CANAL_DETOURNE, canari_id=REGLE_CANAL_DETOURNE,
+            detail=f"{nom} : contenu impossible à inspecter en entier ({insp.incomplete})"))
     for cid, enc in insp.canaris:
         if sortant and enc == "en clair":
             continue  # déjà vu par la détection historique d'un outil d'envoi
@@ -493,6 +521,10 @@ def _masquer_chaine(texte: str, fragments: dict[str, list[str]]) -> str:
         for m in sorted(morceaux, key=len, reverse=True):
             texte = re.sub(re.escape(m), f"[canari {cid} masqué]", texte, flags=re.IGNORECASE)
     texte = _FAMILLE_CANARI.sub("[canari masqué]", texte)
+
+    if variantes_completes(texte)[1] is not None:
+        # Trop long ou trop encodé pour être relu en entier : rien n'en part au backend.
+        return f"[paramètre masqué : {variantes_completes(texte)[1]}]"
 
     # Canari ou secret caché sous un encodage : on remplace le passage encodé.
     def porte(t: str) -> bool:
