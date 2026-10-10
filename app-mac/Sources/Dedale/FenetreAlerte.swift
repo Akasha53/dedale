@@ -108,7 +108,7 @@ final class FenetreAlerte: NSObject {
         boutons.spacing = 10
 
         let note = Gabarit.paragraphe(
-            a.note ?? (a.quatreYeux ? "Geste sensible : Dédale le relit avant qu'il parte, et la SOC voit sa décision."
+            a.note ?? (a.quatreYeux ? "Geste sensible : Dédale le vérifie avant qu'il parte, et l'équipe sécurité voit sa décision."
                          : "Dans les deux cas, l'équipe sécurité reçoit le type d'alerte et votre choix. Jamais le contenu de votre poste."),
             taille: 11, couleur: Teinte.discret, largeur: w)
 
