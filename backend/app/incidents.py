@@ -3,13 +3,15 @@
 À partir des événements d'une session (ou d'un canari touché), on recompose l'enchaînement
   document/mail piégé -> consigne lue -> action -> tentative de sortie de données.
 Chaque étape porte un résumé NEUTRALISÉ : le texte piégé n'est jamais réinjecté tel quel.
+La neutralisation a lieu une seule fois, à l'ingestion (`store.ingerer`). Ici on se contente
+de raccourcir le texte déjà neutralisé ; le neutraliser une seconde fois doublait le préfixe
+et échappait deux fois le HTML (« &amp;amp; » dans la console).
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
-
-from . import securite
 
 # Ordre canonique des étapes de la boîte noire.
 ORDRE_ETAPES = ["appat", "consigne_lue", "action", "tentative_sortie", "riposte"]
@@ -46,6 +48,86 @@ def _risques(leurre) -> list[dict]:
     if leurre is None:
         return []
     return [{"id": r, "nom": r} for r in getattr(leurre, "risques", [])]
+
+
+# Techniques MITRE ATT&CK (Enterprise) que le backend ajoute aux maillons d'un agent interne,
+# selon ce que montre le maillon. Les leurres apportent déjà leurs repères OWASP agentique et
+# ATLAS ; ATT&CK décrit le geste côté système d'information. `a_confirmer` vaut True quand la
+# correspondance est plausible sans être établie : à vérifier sur attack.mitre.org avant la
+# fiche défense. Aucun identifiant ici n'est inventé, seuls les rapprochements sont discutables.
+_ATTACK = {
+    # Lire le coffre de clés : identifiants tirés d'un magasin de secrets.
+    "T1555": ("Credentials from Password Stores", False),
+    # Agir hors de son jeton avec l'identité légitime de l'agent.
+    "T1078": ("Valid Accounts", True),
+    # Virement demandé hors de la tâche.
+    "T1657": ("Financial Theft", True),
+    # Données poussées vers une adresse ou un domaine externe (mail, lien, image).
+    "T1048": ("Exfiltration Over Alternative Protocol", True),
+    # Outil MCP tiers piégé, installé comme une dépendance.
+    "T1195": ("Supply Chain Compromise", True),
+}
+
+# Droit demandé hors jeton -> technique propre à ce droit (en plus de T1078).
+_ATTACK_PAR_SCOPE = {
+    "coffre:lire": "T1555",
+    "paiement:executer": "T1657",
+}
+
+_ASI03 = {"id": "OWASP ASI03", "nom": "Identity and Privilege Abuse"}
+
+# Types de trouvaille de l'inspection sortante (interne/orbis/detection.py) : le contenu
+# était en train de quitter l'agent par un envoi ou une réponse.
+_TYPES_SORTANTS = ("exfiltration_markdown", "faux_secret")
+
+
+def _technique_attack(ident: str) -> dict:
+    nom, a_confirmer = _ATTACK[ident]
+    return {"id": ident, "nom": nom, "cadre": "ATT&CK", "a_confirmer": a_confirmer}
+
+
+def _attack_pour(ev: dict, etape: str, leurre) -> list[str]:
+    """Techniques ATT&CK d'un maillon d'agent interne. Rien pour les autres sources."""
+    if ev.get("source") != "interne":
+        return []
+    details = ev.get("details") or {}
+    nature = getattr(leurre, "nature", None) or ev.get("leurre_nature")
+    ids: list[str] = []
+    violation = details.get("violation_droits")
+    if isinstance(violation, dict):
+        ids.append("T1078")
+        propre = _ATTACK_PAR_SCOPE.get(str(violation.get("scope_requis")))
+        if propre:
+            ids.append(propre)
+    if nature == "canari_coffre":
+        ids.append("T1555")
+    if details.get("outil_mcp_suspect") or nature == "outil_mcp_piege":
+        ids.append("T1195")
+    # Contenu sortant : étape de sortie, exfiltration retenue, ou canari relevé par
+    # l'inspection sortante de la passerelle (lien/image externe, faux secret dans l'envoi).
+    if (
+        etape == "tentative_sortie"
+        or details.get("exfiltration")
+        or details.get("type") in _TYPES_SORTANTS
+    ):
+        ids.append("T1048")
+    return ids
+
+
+def _ajouter_techniques(techniques: list[dict], ids: list[str]) -> list[dict]:
+    """Ajoute les techniques ATT&CK sans doublon. Une technique déjà posée par le leurre
+    garde sa place et reçoit le nom officiel s'il lui manquait."""
+    sortie = [dict(t) for t in techniques]
+    for ident in ids:
+        ajout = _technique_attack(ident)
+        existante = next((t for t in sortie if t.get("id") == ident), None)
+        if existante is None:
+            sortie.append(ajout)
+            continue
+        if existante.get("nom") in (None, "", ident):
+            existante["nom"] = ajout["nom"]
+        existante.setdefault("a_confirmer", ajout["a_confirmer"])
+    return sortie
 
 
 def gravite(chaine: list[dict], source: str) -> str:
@@ -149,9 +231,14 @@ def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[d
                 morceaux.append(f"leurre={ev.get('leurre_id')}")
             detail = " · ".join(m for m in morceaux if m)
         else:
-            detail = securite.extrait(texte_source)
+            # Déjà neutralisé à l'ingestion : on raccourcit, on ne neutralise pas une seconde fois.
+            detail = _abrege(texte_source, 240)
         leurre_id = ev.get("leurre_id")
         canari_id = leurre_id if (leurre_id and str(leurre_id).startswith("C-")) else None
+        techniques = _ajouter_techniques(_techniques(leurre), _attack_pour(ev, etape, leurre))
+        risques = _risques(leurre)
+        if violation is not None and not any(str(r.get("id", "")).endswith("ASI03") for r in risques):
+            risques.append(dict(_ASI03))
         etapes.append(
             {
                 "etape": etape,
@@ -164,8 +251,8 @@ def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[d
                 "detail": detail,
                 "leurre_id": leurre_id,
                 "canari_id": canari_id,
-                "techniques": _techniques(leurre),
-                "risques": _risques(leurre),
+                "techniques": techniques,
+                "risques": risques,
             }
         )
     etapes.sort(key=lambda s: (ORDRE_ETAPES.index(s["etape"]) if s["etape"] in ORDRE_ETAPES else 99, s["horodatage"] or ""))
@@ -280,16 +367,23 @@ def resume_humain(chaine: list[dict], type_incident: str, passe_outre: bool) -> 
     )
 
 
+# Entité HTML coupée en fin de texte (« &am », « &#x2 ») : on la retire plutôt que de
+# laisser un fragment illisible après troncature.
+_ENTITE_COUPEE = re.compile(r"&#?[0-9A-Za-z]{0,8}$")
+
+
 def _abrege(valeur: object, n: int = 240) -> str:
     """Tronque un texte DÉJÀ neutralisé en amont (store) pour l'affichage en frise.
 
-    On ne re-neutralise pas : les champs piégés sont inertes dès leur stockage.
+    On ne re-neutralise pas : les champs piégés sont inertes dès leur stockage. Utilisé par
+    les deux chaînes, agent IA et geste humain.
     """
     texte = valeur if isinstance(valeur, str) else str(valeur)
     texte = texte.strip()
     if len(texte) <= n:
         return texte or "[vide]"
-    return texte[:n].rstrip() + " […]"
+    coupe = _ENTITE_COUPEE.sub("", texte[:n])
+    return coupe.rstrip() + " […]"
 
 
 def _mk_humain(etape: str, detail: str, ev: dict, techniques=None, risques=None) -> dict:
