@@ -95,7 +95,7 @@ def _classeur_a_macros() -> bytes:
         z.writestr("[Content_Types].xml",
                    '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
         z.writestr("xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8"?><workbook/>')
-        z.writestr("xl/vbaProject.bin", b"Projet VBA fictif et inerte (demo Dedale).")
+        z.writestr("xl/vbaProject.bin", b"Projet VBA fictif et inerte (demo sAIfe).")
     return tampon.getvalue()
 
 
@@ -217,7 +217,7 @@ def construire_jeu() -> list[Cas]:
 
     texte = ("Bonjour,\n\nVous trouverez ci-joint la facture F-77821 restée impayée. Merci de vérifier le "
              "montant et de procéder au paiement.\n\nCordialement,\nComptabilité fournisseurs")
-    inerte = b"Fichier de demonstration Dedale. Inerte : ce n'est pas un programme.\n"
+    inerte = b"Fichier de demonstration sAIfe. Inerte : ce n'est pas un programme.\n"
     cas.append(Cas("piece_exe", "piege", "frauduleux", "pièce jointe facture.pdf.exe",
                    _mail(("Comptabilité fournisseurs", "compta@bureautique-express.example"),
                          "camille.martin@orbispay.example", "Facture impayée F-77821", texte,

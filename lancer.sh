@@ -53,7 +53,7 @@ arreter() {
 }
 trap arreter EXIT INT TERM
 
-echo "== Dédale =="
+echo "== sAIfe =="
 
 # --- backend (agent A, port 8700) : démarré en premier, les autres s'y connectent ---
 echo "Backend  -> http://127.0.0.1:8700 (console API + WS)"

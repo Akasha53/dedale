@@ -78,7 +78,7 @@ class Api:
     def verifier_sante(self, afficher=print) -> None:
         sante = self.lire("/api/sante")
         if sante.get("service") != "dedale-backend":
-            raise ErreurDemo("Le service ne confirme pas la santé du backend Dédale.")
+            raise ErreurDemo("Le service ne confirme pas la santé du backend sAIfe.")
         if sante.get("statut") == "ok":
             return
         # Une base ancienne aux journaux incomplets reste lisible : la démo crée ses
@@ -89,7 +89,7 @@ class Api:
             afficher(f"Attention : la base contient {anciens} anciens journaux incomplets. "
                      "Les sessions de cette démo sont neuves et restent complètes.")
             return
-        raise ErreurDemo("Le service ne confirme pas la santé du backend Dédale.")
+        raise ErreurDemo("Le service ne confirme pas la santé du backend sAIfe.")
 
     def session(self, session_id: str) -> dict:
         session = self.lire("/api/sessions/" + quote(session_id, safe=""))
@@ -271,7 +271,7 @@ def jouer_agent(api: Api, session_id: str, *, attente: float, intervalle: float,
 
 def arguments(argv=None):
     analyseur = argparse.ArgumentParser(
-        description="Démo Dédale : salarié puis agent scripté, décision réelle dans la console.",
+        description="Démo sAIfe : salarié puis agent scripté, décision réelle dans la console.",
         add_help=False,
     )
     analyseur.add_argument("-h", "--help", action="help", help="afficher cette aide")
@@ -298,7 +298,7 @@ def main(argv=None) -> int:
         api.verifier_sante()
         execution = "demo-" + uuid4().hex
         console = options.console or options.backend
-        print(f"Dédale, exécution {execution}. Backend vérifié : {api.base}.")
+        print(f"sAIfe, exécution {execution}. Backend vérifié : {api.base}.")
         print("Données fictives. Agent déterministe scripté ; aucun modèle IA n'est appelé.")
         print("Les envois et paiements restent simulés localement. Aucun HTML n'est généré.")
         boite = BoiteNoireControlee(base=api.base)

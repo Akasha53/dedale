@@ -1,6 +1,6 @@
 # Config gitleaks de Dédale : règles par défaut + valeurs fictives d'Orbis Pay.
 # Chaque entrée est une valeur exacte, jamais un dossier entier.
-title = "Dédale"
+title = "sAIfe"
 
 [extend]
 useDefault = true

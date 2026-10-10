@@ -324,7 +324,7 @@ def creer_app(service: Service | None = None, releve_auto: bool = True) -> FastA
                 except asyncio.CancelledError:
                     pass
 
-    app = FastAPI(title="Dédale, garde-mail", version="0.1.0", lifespan=cycle_de_vie)
+    app = FastAPI(title="sAIfe, garde-mail", version="0.1.0", lifespan=cycle_de_vie)
     app.state.service = service
     app.add_middleware(
         CORSMiddleware,

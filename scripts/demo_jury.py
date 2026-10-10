@@ -316,7 +316,7 @@ def arreter_backend(port: int, *, attente: float = 15.0) -> int:
         commande = commande_de(pid)
         dossier = dossier_de(pid)
         if "uvicorn" not in commande or "app.main:app" not in commande:
-            raise ErreurDemo(f"Le port {port} est tenu par autre chose qu'un backend Dédale (pid {pid}).")
+            raise ErreurDemo(f"Le port {port} est tenu par autre chose qu'un backend sAIfe (pid {pid}).")
         if dossier is None or dossier.resolve() != attendu:
             raise ErreurDemo(
                 f"Le backend du port {port} vient d'un autre dossier ({dossier}). "
@@ -443,7 +443,7 @@ def preparer_services(options, afficher=print) -> None:
     etat = sante(options.backend)
     if options.garder_base:
         if etat is None:
-            raise ErreurDemo(f"--garder-base : aucun backend Dédale ne répond sur {options.backend}.")
+            raise ErreurDemo(f"--garder-base : aucun backend sAIfe ne répond sur {options.backend}.")
         afficher(f"  backend   gardé tel quel : {options.backend} (santé : {etat.get('statut')})")
     else:
         if backend.hostname not in locaux:
@@ -453,7 +453,7 @@ def preparer_services(options, afficher=print) -> None:
             arreter_backend(port)
             afficher(f"  backend   arrêté sur le port {port} pour changer de base")
         elif port_ouvert(port):
-            raise ErreurDemo(f"Le port {port} est occupé par autre chose que le backend Dédale.")
+            raise ErreurDemo(f"Le port {port} est occupé par autre chose que le backend sAIfe.")
         base = chemin_base()
         mise = mettre_base_de_cote(base)
         if mise is None:
@@ -475,7 +475,7 @@ def preparer_services(options, afficher=print) -> None:
         if console.hostname not in locaux or port != 5173:
             raise ErreurDemo(f"La console ne répond pas sur {options.console}.")
         if port_ouvert(port):
-            raise ErreurDemo(f"Le port {port} est occupé, mais la console Dédale n'y répond pas.")
+            raise ErreurDemo(f"Le port {port} est occupé, mais la console sAIfe n'y répond pas.")
         if not (RACINE / "console" / "node_modules" / ".bin" / "vite").exists():
             raise ErreurDemo("Console non préparée : lancez « cd console && npm ci ».")
         env = dict(os.environ, DEDALE_BACKEND=options.backend)
@@ -743,7 +743,7 @@ def main(argv=None) -> int:
         return arreter_services()
     flux = None
     try:
-        print(f"Dédale · démo jury · {datetime.now():%H:%M:%S}")
+        print(f"sAIfe · démo jury · {datetime.now():%H:%M:%S}")
         print("Orbis Pay, ses mails et ses secrets sont fictifs. Agent scripté, aucun modèle appelé.\n")
         preparer_services(options)
         api = commune.Api(options.backend)

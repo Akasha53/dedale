@@ -177,7 +177,7 @@ def ecrire_sorties(res: dict, texte: str, sortie: str | Path,
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Banc d'attaque et de mesure de Dédale.")
+    p = argparse.ArgumentParser(description="Banc d'attaque et de mesure de sAIfe.")
     p.add_argument("--n", type=int, default=N_DEFAUT,
                    help=f"sessions par type (défaut {N_DEFAUT})")
     p.add_argument("--graine", type=int, default=GRAINE_DEFAUT,

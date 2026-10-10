@@ -75,7 +75,7 @@ def resume_texte(stats: dict[str, Any], *, mode: str, client_ia: str, graine: in
                  bilan: dict[str, Any] | None = None) -> str:
     lignes = [
         "=" * 72,
-        "Banc d'attaque Dédale — résumé de campagne",
+        "Banc d'attaque sAIfe — résumé de campagne",
         "=" * 72,
         f"campagne={campagne or '—'}   mode={mode}   client IA={client_ia}   "
         f"graine={graine}   N par type={n_par_type}",
