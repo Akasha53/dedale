@@ -23,6 +23,12 @@ struct Avertissement {
         "upload_ia": "Fichier vers une IA",
         "intrusion_physique": "Accès physique",
     ]
+    /// Gestes sensibles précisés par l'appelant : ils changent le libellé et le conseil du coach,
+    /// pas la catégorie envoyée au backend.
+    static let gestes: [String: String] = [
+        "virement": "Virement",
+        "export_clients": "Export de données clients",
+    ]
     static let gravites: Set<String> = ["faible", "moyenne", "haute", "critique"]
     static let sessionParDefaut = "poste-mac-demo"
 
@@ -34,8 +40,31 @@ struct Avertissement {
     let gravite: String?
     let cible: String?
     let lien: String?
+    /// `virement` ou `export_clients`, facultatif.
+    var geste: String? = nil
+    /// Le mail jugé frauduleux par l'analyseur de la boîte de démo, s'il y en a un.
+    var mail: MailResume? = nil
+    /// Raisons du verdict, une ou deux phrases courtes.
+    var raisons: [String] = []
+    /// Conseil donné par l'analyseur pour repérer ce piège la prochaine fois.
+    var conseil: String? = nil
+    /// Codes des signaux de l'analyseur (`lien_menteur`, `sosie_domaine`…).
+    var codes: [String] = []
 
-    var libelleCategorie: String { Self.categories[categorie] ?? "Geste à risque" }
+    var libelleCategorie: String {
+        geste.flatMap { Self.gestes[$0] } ?? Self.categories[categorie] ?? "Geste à risque"
+    }
+
+    /// Un geste critique (virement, export de données clients) ne passe pas sur le seul
+    /// « Continuer » du salarié : un analyste du SOC doit l'accorder.
+    var quatreYeux: Bool { gravite == "critique" }
+
+    /// Préfixe des PNG écrits avec DEDALE_CAPTURE.
+    var prefixeCapture: String {
+        if let geste { return geste.replacingOccurrences(of: "_", with: "-") }
+        if mail != nil { return "mail" }
+        return quatreYeux ? "quatre-yeux" : "popup"
+    }
 
     /// Alerte d'exemple du menu « Tester une alerte ». Domaines en .example, tout est fictif.
     static func exemple() -> Avertissement {
@@ -88,7 +117,8 @@ struct Avertissement {
 
         let session = d["session_id"] as? String ?? ""
         let gravite = d["gravite"] as? String
-        return Avertissement(
+        let geste = (d["geste"] as? String).flatMap { gestes[$0] != nil ? $0 : nil }
+        var a = Avertissement(
             id: nouvelIdentifiant(),
             categorie: categorie,
             message: message,
@@ -98,6 +128,46 @@ struct Avertissement {
             cible: (d["cible"] as? String).map { nettoyer($0, max: 200) },
             lien: (d["lien"] as? String).map { nettoyer($0, max: 300) }
         )
+        a.geste = geste
+        return a
+    }
+
+    /// Alerte tirée d'un verdict de l'analyseur de la boîte de démo (`messagerie/`).
+    static func depuisVerdict(_ v: VerdictMail) -> Avertissement {
+        var a = Avertissement(
+            id: nouvelIdentifiant(),
+            categorie: "phishing",
+            message: v.titre.map { nettoyer($0, max: 90) } ?? "Ce mail est sûrement frauduleux.",
+            detail: resumerRaisons(v.raisons),
+            // Même session que le signalement de `messagerie/` (« mail reçu ») : le choix du
+            // salarié complète la boîte noire de ce mail au lieu d'en ouvrir une autre.
+            sessionId: v.sessionSignalement.map { identifiantSur($0) } ?? "mail-" + identifiantSur(v.mail.id),
+            gravite: v.gravite ?? "haute",
+            cible: v.mail.adresse.isEmpty ? nil : v.mail.adresse,
+            lien: v.lien
+        )
+        a.mail = v.mail
+        a.raisons = Array(v.raisons.prefix(2))
+        a.conseil = v.conseil
+        a.geste = v.geste
+        a.codes = v.codes
+        return a
+    }
+
+    /// Une ou deux raisons : la seconde seulement si l'ensemble reste court.
+    private static func resumerRaisons(_ raisons: [String]) -> String {
+        guard let premiere = raisons.first else { return "" }
+        if raisons.count > 1, premiere.count + raisons[1].count <= 220 {
+            return premiere + " " + raisons[1]
+        }
+        return premiere
+    }
+
+    /// Réduit un identifiant venu d'ailleurs aux caractères admis dans un session_id.
+    static func identifiantSur(_ brut: String) -> String {
+        let admis = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_.:"))
+        let propre = String(brut.unicodeScalars.filter { $0.isASCII && admis.contains($0) }.prefix(40))
+        return propre.isEmpty ? nouvelIdentifiant() : propre
     }
 
     /// Texte affiché tel quel, jamais interprété : on retire les caractères de contrôle,
@@ -117,7 +187,7 @@ struct Avertissement {
         return s.unicodeScalars.allSatisfy { $0.isASCII && admis.contains($0) }
     }
 
-    private static func nouvelIdentifiant() -> String {
+    static func nouvelIdentifiant() -> String {
         String(UUID().uuidString.prefix(8)).lowercased()
     }
 }

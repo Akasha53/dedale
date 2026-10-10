@@ -1,152 +1,51 @@
 import AppKit
 
-// MARK: - Teintes (thème clair)
-
-extension NSColor {
-    convenience init(hex: UInt32, alpha: CGFloat = 1) {
-        self.init(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
-                  green: CGFloat((hex >> 8) & 0xFF) / 255,
-                  blue: CGFloat(hex & 0xFF) / 255,
-                  alpha: alpha)
-    }
-}
-
-enum Teinte {
-    static let encre = NSColor(hex: 0x0B1220)
-    static let texte = NSColor(hex: 0x3F4859)
-    static let discret = NSColor(hex: 0x6B7385)
-    static let bord = NSColor(hex: 0xE3E6EB)
-    static let puce = NSColor(hex: 0xF1F3F6)
-    static let cyan = NSColor(hex: 0x22D3EE)
-    static let cyanPresse = NSColor(hex: 0x1BB8D1)
-    static let cyanSurvol = NSColor(hex: 0x3ADBF2)
-    static let cyanFonce = NSColor(hex: 0x0E7490)
-    static let rouge = NSColor(hex: 0xB42318)
-    static let rougeBord = NSColor(hex: 0xF2D0CC)
-    static let rougeFond = NSColor(hex: 0xFEF3F2)
-}
-
-// MARK: - Bouton
-
-/// Bouton plat aux coins arrondis. `.protege` (Annuler) porte l'accent cyan,
-/// `.risque` (Continuer) reste blanc avec un texte rouge sobre.
-final class BoutonDedale: NSButton {
-    enum Style { case protege, risque }
-
-    private let style: Style
-    private var enfonce = false
-    private var survole = false
-
-    init(titre: String, style: Style, cible: AnyObject, action: Selector) {
-        self.style = style
-        super.init(frame: .zero)
-        title = titre
-        target = cible
-        self.action = action
-        isBordered = false
-        focusRingType = .none
-        wantsLayer = true
-        layer?.cornerRadius = 10
-        translatesAutoresizingMaskIntoConstraints = false
-        heightAnchor.constraint(equalToConstant: 36).isActive = true
-        majApparence()
-    }
-
-    required init?(coder: NSCoder) { fatalError("non utilisé") }
-
-    override var isEnabled: Bool { didSet { majApparence() } }
-
-    override func mouseDown(with event: NSEvent) {
-        enfonce = true
-        majApparence()
-        super.mouseDown(with: event)
-        enfonce = false
-        majApparence()
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-                                       owner: self, userInfo: nil))
-    }
-
-    override func mouseEntered(with event: NSEvent) { survole = true; majApparence() }
-    override func mouseExited(with event: NSEvent) { survole = false; majApparence() }
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
-
-    private func majApparence() {
-        let fond: NSColor
-        let texte: NSColor
-        switch style {
-        case .protege:
-            fond = enfonce ? Teinte.cyanPresse : (survole ? Teinte.cyanSurvol : Teinte.cyan)
-            texte = Teinte.encre
-            layer?.borderWidth = 0
-        case .risque:
-            fond = (enfonce || survole) ? Teinte.rougeFond : .white
-            texte = Teinte.rouge
-            layer?.borderWidth = 1
-            layer?.borderColor = Teinte.rougeBord.cgColor
-        }
-        layer?.backgroundColor = fond.cgColor
-        alphaValue = isEnabled ? 1 : 0.5
-        let paragraphe = NSMutableParagraphStyle()
-        paragraphe.alignment = .center
-        attributedTitle = NSAttributedString(string: title, attributes: [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: texte,
-            .paragraphStyle: paragraphe,
-        ])
-    }
-}
-
-// MARK: - Panneau
-
-/// Fenêtre flottante sans bord, au-dessus de tout, sur tous les bureaux.
-final class PanneauAlerte: NSPanel {
-    var surEchap: (() -> Void)?
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
-    override func cancelOperation(_ sender: Any?) { surEchap?() }
-}
-
-// MARK: - Pop-up
-
-/// La pop-up d'un geste à risque : verre clair, message, détail, Annuler / Continuer.
+/// La pop-up d'un geste à risque, en verre clair. Elle passe par plusieurs états :
+/// - le choix : message, raisons, « Voir le mail » pour un mail, puis Annuler / Continuer ;
+/// - le coach, après Annuler : ce qui était piégé, comment le repérer, « Compris » ;
+/// - l'attente des quatre yeux, après Continuer sur un geste critique, puis Accordé ou Refusé ;
+/// - la confirmation, après Continuer sur un geste ordinaire.
 final class FenetreAlerte: NSObject {
     static let largeur: CGFloat = 400
-    static let rayon: CGFloat = 14
+    private static let interieur = largeur - 48
+
+    enum Etat { case choix, coach, attente, fin }
 
     let avertissement: Avertissement
     /// Appelé une seule fois, avec "annuler" ou "continuer".
     var surChoix: ((String) -> Void)?
+    /// Appelé quand le salarié demande à voir le mail.
+    var surVoirMail: (() -> Void)?
     /// Appelé quand la pop-up a disparu.
     var surFermeture: (() -> Void)?
 
-    private let panneau: PanneauAlerte
+    private(set) var etat: Etat = .choix
     private let racine = NSView()
+    private let panneau: PanneauAlerte
     private let pile = NSStackView()
+    private var choixVues: [NSView] = []
     private var boutonAnnuler: BoutonDedale!
     private var boutonContinuer: BoutonDedale!
-    private let zoneBoutons = NSStackView()
-    private let note: NSTextField
-    private let ligneEtat = NSStackView()
-    private let iconeEtat = NSImageView()
-    private let texteEtat: NSTextField
+    private var boutonVoir: BoutonDedale?
+    private var boutonCompris: BoutonDedale?
+    private let zoneFin = NSStackView()
+    private var texteAttente: NSTextField?
     private var choisi = false
+    private var fermee = false
     /// Entrée et Échap n'agissent qu'une seconde après l'apparition : quelqu'un qui tape
     /// dans une autre fenêtre ne ferme pas l'alerte sans l'avoir vue.
     private var clavierActif = false
+    /// Étapes de clic automatique (DEDALE_CLIC_AUTO), consommées dans l'ordre.
+    private var etapesAuto: [String]
+
+    var cadre: NSRect { panneau.frame }
 
     init(_ a: Avertissement) {
         avertissement = a
-        panneau = PanneauAlerte(contentRect: NSRect(x: 0, y: 0, width: Self.largeur, height: 220),
-                                styleMask: [.borderless, .nonactivatingPanel],
-                                backing: .buffered, defer: false)
-        note = NSTextField(wrappingLabelWithString: "Si vous continuez, l'équipe sécurité est prévenue.")
-        texteEtat = NSTextField(wrappingLabelWithString: "")
+        panneau = PanneauAlerte.carte(largeur: Self.largeur, racine: racine)
+        etapesAuto = (ProcessInfo.processInfo.environment["DEDALE_CLIC_AUTO"] ?? "")
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { ["voir", "annuler", "continuer", "compris"].contains($0) }
         super.init()
         construire()
     }
@@ -154,48 +53,15 @@ final class FenetreAlerte: NSObject {
     // MARK: Construction
 
     private func construire() {
-        panneau.isFloatingPanel = true
-        panneau.level = .statusBar
-        panneau.isOpaque = false
-        panneau.backgroundColor = .clear
-        panneau.hasShadow = true
-        panneau.hidesOnDeactivate = false
-        panneau.isReleasedWhenClosed = false
-        panneau.isMovableByWindowBackground = true
-        panneau.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panneau.appearance = NSAppearance(named: .aqua)
         panneau.surEchap = { [weak self] in
             guard let self, self.clavierActif else { return }
-            self.choisir("annuler")
+            switch self.etat {
+            case .choix: self.choisir("annuler")
+            case .coach: self.compris()
+            default: break
+            }
         }
 
-        racine.wantsLayer = true
-        panneau.contentView = racine
-
-        // Verre clair : flou de ce qui est derrière, voile blanc, bord fin gris clair.
-        let verre = NSVisualEffectView()
-        verre.material = .popover
-        verre.blendingMode = .behindWindow
-        verre.state = .active
-        verre.maskImage = Self.masqueArrondi(rayon: Self.rayon)
-        let voile = NSView()
-        voile.wantsLayer = true
-        voile.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.86).cgColor
-        voile.layer?.cornerRadius = Self.rayon
-        voile.layer?.borderWidth = 1
-        voile.layer?.borderColor = Teinte.bord.cgColor
-        for v in [verre, voile] {
-            v.translatesAutoresizingMaskIntoConstraints = false
-            racine.addSubview(v)
-            NSLayoutConstraint.activate([
-                v.leadingAnchor.constraint(equalTo: racine.leadingAnchor),
-                v.trailingAnchor.constraint(equalTo: racine.trailingAnchor),
-                v.topAnchor.constraint(equalTo: racine.topAnchor),
-                v.bottomAnchor.constraint(equalTo: racine.bottomAnchor),
-            ])
-        }
-
-        let interieur = Self.largeur - 48
         pile.orientation = .vertical
         pile.alignment = .leading
         pile.spacing = 10
@@ -207,59 +73,64 @@ final class FenetreAlerte: NSObject {
             pile.trailingAnchor.constraint(equalTo: racine.trailingAnchor),
             pile.topAnchor.constraint(equalTo: racine.topAnchor),
             pile.bottomAnchor.constraint(equalTo: racine.bottomAnchor),
-            racine.widthAnchor.constraint(equalToConstant: Self.largeur),
         ])
 
-        // En-tête : badge bouclier, « Dédale », catégorie du geste.
-        let badge = Self.badgeBouclier()
-        let nom = Self.etiquette("Dédale", taille: 13, graisse: .semibold, couleur: Teinte.encre)
-        let categorie = Self.puce(avertissement.libelleCategorie)
-        let ressort = NSView()
-        ressort.setContentHuggingPriority(.init(1), for: .horizontal)
-        let entete = NSStackView(views: [badge, nom, ressort, categorie])
-        entete.orientation = .horizontal
-        entete.alignment = .centerY
-        entete.spacing = 8
-        entete.setCustomSpacing(10, after: badge)
+        let a = avertissement
+        let w = Self.interieur
+        let entete = Gabarit.entete(titre: "Dédale", puce: a.libelleCategorie)
+        let message = Gabarit.paragraphe(a.message, taille: 17, graisse: .semibold, couleur: Teinte.encre, largeur: w)
 
-        let message = Self.paragraphe(avertissement.message, taille: 17, graisse: .semibold,
-                                      couleur: Teinte.encre, largeur: interieur)
-        let detail = Self.paragraphe(avertissement.detail, taille: 13, graisse: .regular,
-                                     couleur: Teinte.texte, largeur: interieur)
-        detail.isHidden = avertissement.detail.isEmpty
+        // Pour un mail : « objet » · expéditeur, sur une ligne, désarmés.
+        var ligneMail: NSTextField?
+        if let m = a.mail {
+            let exp = m.adresse.isEmpty ? "" : " · \(Messagerie.desarmerLigne(m.adresse, max: 60))"
+            let t = Gabarit.paragraphe("« \(Messagerie.desarmerLigne(m.objet, max: 80)) »\(exp)", taille: 12,
+                                       couleur: Teinte.discret, largeur: w)
+            t.maximumNumberOfLines = 2
+            t.cell?.truncatesLastVisibleLine = true
+            ligneMail = t
+        }
+        let detail = Gabarit.paragraphe(a.detail, taille: 13, couleur: Teinte.texte, largeur: w)
+        detail.isHidden = a.detail.isEmpty
+
+        if a.mail != nil {
+            boutonVoir = BoutonDedale(titre: "Voir le mail", style: .lien, cible: self, action: #selector(voir))
+        }
 
         boutonContinuer = BoutonDedale(titre: "Continuer", style: .risque, cible: self, action: #selector(continuer))
         boutonAnnuler = BoutonDedale(titre: "Annuler", style: .protege, cible: self, action: #selector(annuler))
-        zoneBoutons.setViews([boutonContinuer, boutonAnnuler], in: .leading)
-        zoneBoutons.orientation = .horizontal
-        zoneBoutons.distribution = .fillEqually
-        zoneBoutons.spacing = 10
+        let boutons = NSStackView(views: [boutonContinuer, boutonAnnuler])
+        boutons.orientation = .horizontal
+        boutons.distribution = .fillEqually
+        boutons.spacing = 10
 
-        note.font = .systemFont(ofSize: 11)
-        note.textColor = Teinte.discret
-        note.preferredMaxLayoutWidth = interieur
+        let note = Gabarit.paragraphe(
+            a.quatreYeux ? "Geste sensible : un analyste de la SOC doit le valider avant."
+                         : "Si vous continuez, l'équipe sécurité est prévenue.",
+            taille: 11, couleur: Teinte.discret, largeur: w)
 
-        texteEtat.font = .systemFont(ofSize: 13, weight: .medium)
-        texteEtat.textColor = Teinte.encre
-        texteEtat.preferredMaxLayoutWidth = interieur - 28
-        iconeEtat.translatesAutoresizingMaskIntoConstraints = false
-        iconeEtat.widthAnchor.constraint(equalToConstant: 20).isActive = true
-        iconeEtat.heightAnchor.constraint(equalToConstant: 20).isActive = true
-        ligneEtat.setViews([iconeEtat, texteEtat], in: .leading)
-        ligneEtat.orientation = .horizontal
-        ligneEtat.alignment = .centerY
-        ligneEtat.spacing = 8
-        ligneEtat.isHidden = true
+        zoneFin.orientation = .vertical
+        zoneFin.alignment = .leading
+        zoneFin.spacing = 8
+        zoneFin.isHidden = true
 
-        for v in [entete, message, detail, zoneBoutons, note, ligneEtat] as [NSView] {
+        var vues: [NSView] = [entete, message]
+        if let ligneMail { vues.append(ligneMail) }
+        vues.append(detail)
+        if let boutonVoir { vues.append(boutonVoir) }
+        vues += [boutons, note, zoneFin]
+        for v in vues {
             pile.addArrangedSubview(v)
-            v.widthAnchor.constraint(equalToConstant: interieur).isActive = true
+            if v !== boutonVoir { v.widthAnchor.constraint(equalToConstant: w).isActive = true }
         }
         pile.setCustomSpacing(14, after: entete)
-        pile.setCustomSpacing(20, after: detail)
-        pile.setCustomSpacing(20, after: message)
-        if !detail.isHidden { pile.setCustomSpacing(6, after: message) }
-        pile.setCustomSpacing(10, after: zoneBoutons)
+        pile.setCustomSpacing(ligneMail != nil ? 4 : (detail.isHidden ? 20 : 6), after: message)
+        if let ligneMail { pile.setCustomSpacing(detail.isHidden ? 20 : 10, after: ligneMail) }
+        pile.setCustomSpacing(boutonVoir != nil ? 6 : 20, after: detail)
+        if let boutonVoir { pile.setCustomSpacing(14, after: boutonVoir) }
+        pile.setCustomSpacing(10, after: boutons)
+        // Ce qui disparaît quand on quitte l'état de choix.
+        choixVues = [boutons, note] + (boutonVoir.map { [$0] } ?? [])
     }
 
     // MARK: Affichage
@@ -279,71 +150,165 @@ final class FenetreAlerte: NSObject {
             self.boutonAnnuler.keyEquivalent = "\r"
         }
         journal("pop-up affichée : \(avertissement.categorie), « \(avertissement.message) »")
-        crochetsDeTest(etape: "popup")
-
-        // Démo filmée sans souris : DEDALE_CLIC_AUTO=continuer|annuler appuie sur le vrai
-        // bouton (performClick) après DEDALE_CLIC_DELAI secondes.
-        let env = ProcessInfo.processInfo.environment
-        if let auto = env["DEDALE_CLIC_AUTO"], ["continuer", "annuler"].contains(auto) {
-            let delai = Double(env["DEDALE_CLIC_DELAI"] ?? "") ?? 2
-            DispatchQueue.main.asyncAfter(deadline: .now() + delai) { [weak self] in
-                guard let self, !self.choisi else { return }
-                journal("clic automatique (test) sur « \(auto == "continuer" ? "Continuer" : "Annuler") »")
-                (auto == "continuer" ? self.boutonContinuer : self.boutonAnnuler)?.performClick(nil)
-            }
-        }
+        capturer("")
+        planifierAuto()
     }
 
     @objc private func annuler() { choisir("annuler") }
     @objc private func continuer() { choisir("continuer") }
+    @objc private func voir() { surVoirMail?() }
+
+    @objc private func compris() {
+        guard etat == .coach else { return }
+        journal("coach : compris")
+        fermer()
+    }
 
     private func choisir(_ choix: String) {
         guard !choisi else { return }
         choisi = true
         boutonAnnuler.isEnabled = false
         boutonContinuer.isEnabled = false
+        boutonAnnuler.keyEquivalent = ""
         journal("choix du salarié : \(choix)")
         surChoix?(choix)
     }
 
-    /// Montre l'issue du choix, puis ferme la pop-up.
-    func confirmer(choix: String, remonte: Bool) {
-        let symbole: String
-        let couleur: NSColor
-        if choix == "annuler" {
-            symbole = "checkmark.circle.fill"
-            couleur = Teinte.cyanFonce
-            texteEtat.stringValue = "C'est annulé. Vous êtes protégé."
-        } else if remonte {
-            symbole = "exclamationmark.triangle.fill"
-            couleur = Teinte.rouge
-            texteEtat.stringValue = "Vous avez continué. L'équipe sécurité est prévenue."
-        } else {
-            symbole = "exclamationmark.triangle.fill"
-            couleur = Teinte.rouge
-            texteEtat.stringValue = "Vous avez continué. Le SOC est injoignable, rien n'a été signalé."
+    /// Le coach, après « Annuler » : trois lignes au plus, puis « Compris ».
+    func montrerCoach(_ fiche: Coach.Fiche) {
+        let w = Self.interieur
+        let titre = NSStackView(views: [
+            Gabarit.icone("checkmark.circle.fill", taille: 16, couleurs: [.white, Teinte.cyanFonce]),
+            Gabarit.etiquette("C'est annulé.", taille: 15, graisse: .semibold, couleur: Teinte.encre),
+        ])
+        titre.orientation = .horizontal
+        titre.alignment = .centerY
+        titre.spacing = 8
+        let piege = Gabarit.ligneLibellee("Le piège", fiche.piege, largeur: w)
+        let repere = Gabarit.ligneLibellee("La prochaine fois", fiche.repere, largeur: w)
+        let bouton = BoutonDedale(titre: "Compris", style: .protege, cible: self, action: #selector(compris))
+        bouton.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        boutonCompris = bouton
+        let basDePage = NSStackView(views: [Gabarit.ressort(), bouton])
+        basDePage.orientation = .horizontal
+        changerEtat(.coach, cacherMessage: true, vues: [titre, piege, repere, basDePage], espaces: [12, 6, 16])
+        panneau.makeFirstResponder(bouton)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self, self.etat == .coach else { return }
+            self.clavierActif = true
+            bouton.keyEquivalent = "\r"
         }
-        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [.white, couleur]))
-        iconeEtat.image = NSImage(systemSymbolName: symbole, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config)
-        zoneBoutons.isHidden = true
-        note.isHidden = true
-        ligneEtat.isHidden = false
-        ajusterTaille(garderLeHaut: true)
-        crochetsDeTest(etape: "popup-\(choix)")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) { [weak self] in self?.fermer() }
+        // Le coach ne bloque pas la file des alertes : il se ferme seul au bout de 30 s.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self, self.etat == .coach else { return }
+            self.fermer()
+        }
+        planifierAuto()
     }
 
-    private func fermer() {
-        NSAnimationContext.runAnimationGroup({ ctx in
+    /// Quatre yeux : la demande part au SOC, la pop-up attend la décision.
+    func montrerAttente(restant: Int) {
+        let texte = Gabarit.paragraphe(Self.texteRestant(restant), taille: 12, couleur: Teinte.discret,
+                                       largeur: Self.interieur - 28)
+        texteAttente = texte
+        let ligne = NSStackView(views: [
+            Gabarit.icone("hourglass", taille: 15, couleurs: [Teinte.cyanFonce]),
+            Gabarit.etiquette("Demande envoyée à la SOC…", taille: 14, graisse: .semibold, couleur: Teinte.encre),
+        ])
+        ligne.orientation = .horizontal
+        ligne.alignment = .centerY
+        ligne.spacing = 8
+        let decale = NSStackView(views: [texte])
+        decale.edgeInsets = NSEdgeInsets(top: 0, left: 28, bottom: 0, right: 0)
+        changerEtat(.attente, cacherMessage: false, vues: [ligne, decale], espaces: [2])
+    }
+
+    func majAttente(restant: Int) {
+        texteAttente?.stringValue = Self.texteRestant(restant)
+    }
+
+    private static func texteRestant(_ s: Int) -> String {
+        "Un analyste valide ce geste. Sans réponse dans \(s) s, il est refusé."
+    }
+
+    /// Issue des quatre yeux, puis fermeture.
+    func montrerIssue(_ issue: DemandeQuatreYeux.Issue) {
+        let accorde = issue == .accorde
+        let sousTitre: String
+        switch issue {
+        case .accorde: sousTitre = "La SOC a validé ce geste. Vous pouvez continuer."
+        case .refuse: sousTitre = "La SOC a refusé ce geste. Il n'aura pas lieu."
+        case .expire: sousTitre = "Pas de réponse de la SOC à temps. Le geste n'aura pas lieu."
+        case .injoignable: sousTitre = "La SOC est injoignable. Le geste n'aura pas lieu."
+        }
+        montrerFin(symbole: accorde ? "checkmark.circle.fill" : "xmark.circle.fill",
+                   couleur: accorde ? Teinte.cyanFonce : Teinte.rouge,
+                   titre: accorde ? "Accordé" : "Refusé", sousTitre: sousTitre,
+                   capture: accorde ? "accorde" : (issue == .expire ? "expire" : "refuse"), duree: 3.5)
+    }
+
+    /// Montre l'issue d'un « Continuer » ordinaire, puis ferme la pop-up.
+    func confirmer(remonte: Bool) {
+        montrerFin(symbole: "exclamationmark.triangle.fill", couleur: Teinte.rouge, titre: nil,
+                   sousTitre: remonte ? "Vous avez continué. L'équipe sécurité est prévenue."
+                                      : "Vous avez continué. La SOC est injoignable, rien n'a été signalé.",
+                   capture: "continuer", duree: 2.4)
+    }
+
+    private func montrerFin(symbole: String, couleur: NSColor, titre: String?, sousTitre: String,
+                            capture: String, duree: Double) {
+        let w = Self.interieur - 28
+        let textes = NSStackView()
+        textes.orientation = .vertical
+        textes.alignment = .leading
+        textes.spacing = 2
+        if let titre {
+            textes.addArrangedSubview(Gabarit.etiquette(titre, taille: 15, graisse: .semibold, couleur: Teinte.encre))
+        }
+        textes.addArrangedSubview(Gabarit.paragraphe(sousTitre, taille: titre == nil ? 13 : 12,
+                                                     graisse: titre == nil ? .medium : .regular,
+                                                     couleur: titre == nil ? Teinte.encre : Teinte.texte, largeur: w))
+        let ligne = NSStackView(views: [Gabarit.icone(symbole, taille: 16, couleurs: [.white, couleur]), textes])
+        ligne.orientation = .horizontal
+        ligne.alignment = titre == nil ? .centerY : .top
+        ligne.spacing = 8
+        changerEtat(.fin, cacherMessage: false, vues: [ligne], espaces: [], capture: capture)
+        DispatchQueue.main.asyncAfter(deadline: .now() + duree) { [weak self] in self?.fermer() }
+    }
+
+    private func changerEtat(_ nouvel: Etat, cacherMessage: Bool, vues: [NSView], espaces: [CGFloat],
+                             capture: String? = nil) {
+        etat = nouvel
+        clavierActif = false
+        choixVues.forEach { $0.isHidden = true }
+        if cacherMessage {
+            // Le coach remplace tout sauf l'en-tête.
+            for v in pile.arrangedSubviews.dropFirst() where v !== zoneFin { v.isHidden = true }
+        }
+        zoneFin.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        for (i, v) in vues.enumerated() {
+            zoneFin.addArrangedSubview(v)
+            v.widthAnchor.constraint(equalToConstant: Self.interieur).isActive = true
+            if i < espaces.count { zoneFin.setCustomSpacing(espaces[i], after: v) }
+        }
+        zoneFin.isHidden = false
+        ajusterTaille(garderLeHaut: true)
+        capturer("-" + (capture ?? "\(nouvel)"))
+    }
+
+    func fermer() {
+        guard !fermee else { return }
+        fermee = true
+        NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
             panneau.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            guard let self else { return }
-            self.panneau.orderOut(nil)
-            self.surFermeture?()
-        })
+        }
+        // Pas de completionHandler : il ne vient pas toujours quand la fermeture part d'un clic
+        // (performClick). Un délai fixe libère la file à coup sûr.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [self] in
+            panneau.orderOut(nil)
+            surFermeture?()
+        }
     }
 
     private func ajusterTaille(garderLeHaut: Bool) {
@@ -361,150 +326,41 @@ final class FenetreAlerte: NSObject {
         panneau.invalidateShadow()
     }
 
-    // MARK: Capture (test)
+    // MARK: Test : captures et clics automatiques
 
-    /// DEDALE_CAPTURE=<dossier> : l'application écrit un PNG de sa propre pop-up
-    /// (aucun droit d'enregistrement d'écran nécessaire, elle ne lit que sa fenêtre).
-    private func crochetsDeTest(etape: String) {
-        guard let dossier = ProcessInfo.processInfo.environment["DEDALE_CAPTURE"], !dossier.isEmpty else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            guard let self else { return }
-            let url = URL(fileURLWithPath: dossier).appendingPathComponent("\(etape).png")
-            if Capture.ecrire(self.racine, vers: url) { journal("capture écrite : \(url.path)") }
-        }
+    /// DEDALE_CAPTURE=<dossier> : l'application écrit un PNG de sa propre pop-up (aucun droit
+    /// d'enregistrement d'écran nécessaire, elle ne lit que sa fenêtre).
+    private func capturer(_ suffixe: String) {
+        Gabarit.capturer(racine, nom: avertissement.prefixeCapture + suffixe)
     }
 
-    // MARK: Fabriques
-
-    private static func etiquette(_ texte: String, taille: CGFloat, graisse: NSFont.Weight, couleur: NSColor) -> NSTextField {
-        let t = NSTextField(labelWithString: texte)
-        t.font = .systemFont(ofSize: taille, weight: graisse)
-        t.textColor = couleur
-        return t
-    }
-
-    private static func paragraphe(_ texte: String, taille: CGFloat, graisse: NSFont.Weight,
-                                   couleur: NSColor, largeur: CGFloat) -> NSTextField {
-        let t = NSTextField(wrappingLabelWithString: texte)
-        t.font = .systemFont(ofSize: taille, weight: graisse)
-        t.textColor = couleur
-        t.preferredMaxLayoutWidth = largeur
-        t.isSelectable = false
-        return t
-    }
-
-    private static func puce(_ texte: String) -> NSView {
-        let fond = NSView()
-        fond.wantsLayer = true
-        fond.layer?.backgroundColor = Teinte.puce.cgColor
-        fond.layer?.cornerRadius = 6
-        fond.layer?.borderWidth = 1
-        fond.layer?.borderColor = Teinte.bord.cgColor
-        let t = etiquette(texte, taille: 11, graisse: .medium, couleur: Teinte.texte)
-        t.translatesAutoresizingMaskIntoConstraints = false
-        fond.addSubview(t)
-        NSLayoutConstraint.activate([
-            t.leadingAnchor.constraint(equalTo: fond.leadingAnchor, constant: 8),
-            t.trailingAnchor.constraint(equalTo: fond.trailingAnchor, constant: -8),
-            t.topAnchor.constraint(equalTo: fond.topAnchor, constant: 3),
-            t.bottomAnchor.constraint(equalTo: fond.bottomAnchor, constant: -3),
-        ])
-        fond.setContentHuggingPriority(.required, for: .horizontal)
-        fond.setContentCompressionResistancePriority(.required, for: .horizontal)
-        return fond
-    }
-
-    private static func badgeBouclier() -> NSView {
-        let fond = NSView()
-        fond.wantsLayer = true
-        fond.layer?.backgroundColor = Teinte.cyan.withAlphaComponent(0.16).cgColor
-        fond.layer?.cornerRadius = 8
-        fond.translatesAutoresizingMaskIntoConstraints = false
-        fond.widthAnchor.constraint(equalToConstant: 28).isActive = true
-        fond.heightAnchor.constraint(equalToConstant: 28).isActive = true
-        let icone = NSImageView()
-        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [Teinte.cyanFonce]))
-        icone.image = NSImage(systemSymbolName: "shield.lefthalf.filled", accessibilityDescription: "Dédale")?
-            .withSymbolConfiguration(config)
-        icone.translatesAutoresizingMaskIntoConstraints = false
-        fond.addSubview(icone)
-        NSLayoutConstraint.activate([
-            icone.centerXAnchor.constraint(equalTo: fond.centerXAnchor),
-            icone.centerYAnchor.constraint(equalTo: fond.centerYAnchor),
-        ])
-        return fond
-    }
-
-    private static func masqueArrondi(rayon: CGFloat) -> NSImage {
-        let cote = rayon * 2 + 1
-        let image = NSImage(size: NSSize(width: cote, height: cote), flipped: false) { r in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: r, xRadius: rayon, yRadius: rayon).fill()
-            return true
-        }
-        image.capInsets = NSEdgeInsets(top: rayon, left: rayon, bottom: rayon, right: rayon)
-        image.resizingMode = .stretch
-        return image
-    }
-}
-
-// MARK: - Capture d'une vue en PNG
-
-enum Capture {
-    /// Rend la vue (et ses calques) sur un fond clair façon bureau, avec une ombre douce.
-    /// Le flou du verre n'apparaît pas dans ce rendu : seul le voile blanc est dessiné.
-    @discardableResult
-    static func ecrire(_ vue: NSView, vers url: URL) -> Bool {
-        guard let couche = vue.layer else { return false }
-        let echelle: CGFloat = 2
-        let marge: CGFloat = 56
-        let taille = vue.bounds.size
-        let largeur = Int((taille.width + marge * 2) * echelle)
-        let hauteur = Int((taille.height + marge * 2) * echelle)
-        guard let espace = CGColorSpace(name: CGColorSpace.sRGB),
-              let ctx = CGContext(data: nil, width: largeur, height: hauteur, bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: espace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            return false
-        }
-        ctx.scaleBy(x: echelle, y: echelle)
-        let toile = CGRect(x: 0, y: 0, width: taille.width + marge * 2, height: taille.height + marge * 2)
-        if let degrade = CGGradient(colorsSpace: espace,
-                                    colors: [NSColor(hex: 0xF6F7F9).cgColor, NSColor(hex: 0xE6EAF0).cgColor] as CFArray,
-                                    locations: [0, 1]) {
-            ctx.drawLinearGradient(degrade, start: CGPoint(x: 0, y: toile.maxY), end: CGPoint(x: toile.maxX, y: 0), options: [])
-        }
-        let carte = CGRect(x: marge, y: marge, width: taille.width, height: taille.height)
-        let chemin = CGPath(roundedRect: carte, cornerWidth: FenetreAlerte.rayon, cornerHeight: FenetreAlerte.rayon, transform: nil)
-        ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 36, color: NSColor(white: 0.05, alpha: 0.16).cgColor)
-        ctx.addPath(chemin)
-        ctx.setFillColor(NSColor(hex: 0xFBFCFD).cgColor)
-        ctx.fillPath()
-        ctx.restoreGState()
-
-        ctx.saveGState()
-        ctx.addPath(chemin)
-        ctx.clip()
-        ctx.translateBy(x: marge, y: marge)
-        if couche.isGeometryFlipped {
-            ctx.translateBy(x: 0, y: taille.height)
-            ctx.scaleBy(x: 1, y: -1)
-        }
-        couche.render(in: ctx)
-        ctx.restoreGState()
-
-        guard let image = ctx.makeImage(),
-              let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
-            return false
-        }
-        do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try png.write(to: url)
-            return true
-        } catch {
-            journal("capture impossible : \(error.localizedDescription)")
-            return false
+    /// Démo filmée sans souris : DEDALE_CLIC_AUTO liste des boutons à presser, dans l'ordre,
+    /// séparés par des virgules (`voir`, `annuler`, `continuer`, `compris`). Chaque clic passe
+    /// par le vrai bouton (performClick) après DEDALE_CLIC_DELAI secondes. Une étape qui ne
+    /// s'applique pas à l'état courant est sautée.
+    private func planifierAuto() {
+        let env = ProcessInfo.processInfo.environment
+        let delai = Double(env["DEDALE_CLIC_DELAI"] ?? "") ?? 2
+        while let etape = etapesAuto.first {
+            let bouton: NSButton?
+            switch (etape, etat) {
+            case ("voir", .choix): bouton = boutonVoir
+            case ("annuler", .choix): bouton = boutonAnnuler
+            case ("continuer", .choix): bouton = boutonContinuer
+            case ("compris", .coach): bouton = boutonCompris
+            case ("compris", _): bouton = nil; if etat == .choix { return }
+            default: bouton = nil
+            }
+            etapesAuto.removeFirst()
+            guard let bouton else { continue }
+            let etatPrevu = etat
+            DispatchQueue.main.asyncAfter(deadline: .now() + delai) { [weak self] in
+                guard let self, self.etat == etatPrevu, !self.fermee else { return }
+                journal("clic automatique (test) sur « \(bouton.title) »")
+                bouton.performClick(nil)
+                if etape == "voir" { self.planifierAuto() }
+            }
+            return
         }
     }
 }

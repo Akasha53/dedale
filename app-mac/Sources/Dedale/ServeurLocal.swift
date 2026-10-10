@@ -61,7 +61,8 @@ struct Requete {
 /// Petit serveur HTTP sur 127.0.0.1:8712, pour la démo seulement. Il reçoit les gestes
 /// envoyés par le simulateur `poste/` (ou un curl) et ne lit rien d'autre sur le Mac.
 final class ServeurLocal {
-    static let port: UInt16 = 8712
+    /// 8712 par défaut ; `DEDALE_PORT_LOCAL` en choisit un autre (tests isolés).
+    static let port: UInt16 = UInt16(ProcessInfo.processInfo.environment["DEDALE_PORT_LOCAL"] ?? "") ?? 8712
 
     /// Appelé sur le fil principal à chaque `POST /avertir` valide.
     var surAvertissement: ((Avertissement) -> ReponseHTTP)?

@@ -1,21 +1,44 @@
 import AppKit
 
-/// Application de barre de menus : icône discrète, état du SOC, file des alertes.
+/// Application de barre de menus : icône discrète, état du SOC et de la boîte de démo,
+/// compteur de la semaine, signalement d'un mail, file des alertes.
 final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let fileMax = 10
+    private static let mailsAuMenu = 8
 
     private var element: NSStatusItem!
     private let menu = NSMenu()
-    private let ligneSoc = NSMenuItem(title: "Recherche du SOC…", action: nil, keyEquivalent: "")
+    private let ligneSoc = NSMenuItem(title: "Recherche de la SOC…", action: nil, keyEquivalent: "")
+    private let ligneBoite = NSMenuItem(title: "Recherche de la boîte de démo…", action: nil, keyEquivalent: "")
     private let ligneEcoute = NSMenuItem(title: "Alertes locales : démarrage…", action: nil, keyEquivalent: "")
+    private let ligneCompteur = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let entreeSignaler = NSMenuItem(title: "Signaler un mail suspect…", action: nil, keyEquivalent: "")
+    private let sousMenuSignaler = NSMenu()
 
     private let backend = Backend()
+    private let messagerie = Messagerie()
+    private lazy var flux = FluxVerdicts(base: messagerie.base)
     private let serveur = ServeurLocal()
+    private let compteur = Compteur()
     private var file: [Avertissement] = []
     private var fenetre: FenetreAlerte?
+    private var apercu: FenetreApercu?
+    private var demande: DemandeQuatreYeux?
     private var socConnecte: Bool?
     private var ecouteOk = false
-    private var minuteur: Timer?
+    private var minuteurs: [Timer] = []
+
+    // Boîte de démo
+    private var boiteEnLigne: Bool?
+    private var premierReleve = true
+    private var releveEnCours = false
+    /// Mails déjà montrés en alerte (ou déjà là au démarrage, voir DEDALE_MAILS_AU_DEMARRAGE).
+    private var mailsVus: Set<String> = []
+    private var verdicts: [String: VerdictMail] = [:]
+    private var mailsRecents: [MailResume] = []
+    private var mailsSignales: Set<String> = []
+    private var signalementAutoFait = false
+    private var captureMenuPrevue: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let id = Bundle.main.bundleIdentifier,
@@ -31,11 +54,17 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.autoenablesItems = false
         menu.delegate = self
-        ligneSoc.isEnabled = false
-        ligneEcoute.isEnabled = false
+        for ligne in [ligneSoc, ligneBoite, ligneEcoute, ligneCompteur] { ligne.isEnabled = false }
+        ligneBoite.image = Self.pastille(Teinte.gris)
         menu.addItem(ligneSoc)
+        menu.addItem(ligneBoite)
         menu.addItem(ligneEcoute)
         menu.addItem(.separator())
+        menu.addItem(ligneCompteur)
+        menu.addItem(.separator())
+        sousMenuSignaler.autoenablesItems = false
+        entreeSignaler.submenu = sousMenuSignaler
+        menu.addItem(entreeSignaler)
         let tester = NSMenuItem(title: "Tester une alerte", action: #selector(testerAlerte), keyEquivalent: "t")
         tester.target = self
         menu.addItem(tester)
@@ -44,6 +73,8 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         quitter.target = self
         menu.addItem(quitter)
         element.menu = menu
+        majCompteur()
+        majSousMenu()
 
         serveur.surAvertissement = { [weak self] a in
             self?.recevoir(a) ?? .erreur(503, "application pas prête")
@@ -55,15 +86,24 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.ligneEcoute.title = ok
                 ? "Alertes locales sur le port \(ServeurLocal.port)"
                 : "Port \(ServeurLocal.port) occupé, alertes locales coupées"
+            self.prevoirCaptureMenu()
         }
         serveur.demarrer()
 
         sonder()
-        minuteur = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.sonder() }
-        journal("Dédale démarré, backend \(backend.base.absoluteString)")
+        releverBoite()
+        minuteurs = [
+            Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.sonder() },
+            Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.releverBoite() },
+        ]
+        minuteurs.forEach { RunLoop.main.add($0, forMode: .common) }
+        journal("Dédale démarré, backend \(backend.base.absoluteString), boîte de démo \(messagerie.base.absoluteString)")
     }
 
-    func menuWillOpen(_ menu: NSMenu) { sonder() }
+    func menuWillOpen(_ menu: NSMenu) {
+        sonder()
+        majCompteur()
+    }
 
     // MARK: SOC
 
@@ -73,10 +113,12 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func majSoc(_ ok: Bool) {
         if socConnecte != ok { journal(ok ? "SOC connecté" : "SOC hors ligne") }
+        let change = socConnecte != ok
         socConnecte = ok
-        ligneSoc.title = ok ? "Connecté au SOC" : "Hors ligne"
-        ligneSoc.image = Self.pastille(ok ? Teinte.cyan : NSColor(hex: 0x9AA1AE))
+        ligneSoc.title = ok ? "Connecté à la SOC" : "SOC hors ligne"
+        ligneSoc.image = Self.pastille(ok ? Teinte.cyan : Teinte.gris)
         majIcone()
+        if change { prevoirCaptureMenu() }
     }
 
     private func majIcone() {
@@ -89,11 +131,175 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func etat() -> [String: Any] {
         [
             "application": "dedale-mac",
-            "version": "0.1",
+            "version": "0.2",
             "soc": socConnecte.map { $0 ? "connecte" : "hors_ligne" } ?? "inconnu",
+            "boite_demo": boiteEnLigne.map { $0 ? "en_ligne" : "hors_ligne" } ?? "inconnu",
             "alerte_affichee": fenetre != nil,
             "en_file": file.count,
+            "quatre_yeux_en_attente": demande != nil,
+            "pieges_evites_semaine": compteur.cetteSemaine(),
         ]
+    }
+
+    // MARK: Boîte de démo
+
+    /// Relève les verdicts de l'analyseur toutes les 3 s. Chaque nouveau mail jugé frauduleux
+    /// devient une alerte. Les mails déjà là au premier relevé ne sont pas rejoués, sauf avec
+    /// DEDALE_MAILS_AU_DEMARRAGE=alerter.
+    private func releverBoite() {
+        guard !releveEnCours else { return }
+        releveEnCours = true
+        messagerie.verdicts { [weak self] liste in
+            guard let self else { return }
+            guard let liste else {
+                self.releveEnCours = false
+                self.majBoite(enLigne: false)
+                return
+            }
+            if self.premierReleve {
+                self.premierReleve = false
+                let fraudes = liste.filter(\.frauduleux)
+                let rejouer = ProcessInfo.processInfo.environment["DEDALE_MAILS_AU_DEMARRAGE"] == "alerter"
+                if !rejouer { self.mailsVus.formUnion(fraudes.map(\.mail.id)) }
+                journal("boîte de démo : \(liste.count) verdict(s), \(fraudes.count) frauduleux, "
+                        + (rejouer ? "rejoués" : "déjà là, pas d'alerte"))
+                // Le flux ne s'ouvre qu'après ce premier relevé : il n'apporte que du neuf.
+                self.flux.surVerdict = { [weak self] v in self?.traiter([v], source: "flux") }
+                self.flux.demarrer()
+            }
+            self.traiter(liste, source: "relevé")
+            self.messagerie.mails { [weak self] mails in
+                guard let self else { return }
+                self.releveEnCours = false
+                let recents = mails ?? liste.map(\.mail)
+                self.majBoite(enLigne: true, mails: recents)
+            }
+        }
+    }
+
+    /// Chaque mail jugé frauduleux et pas encore montré devient une alerte (une seule fois).
+    private func traiter(_ liste: [VerdictMail], source: String) {
+        for v in liste { verdicts[v.mail.id] = v }
+        for v in liste where v.frauduleux && !mailsVus.contains(v.mail.id) {
+            if recevoir(.depuisVerdict(v)).code == 202 {
+                mailsVus.insert(v.mail.id)
+                journal("verdict frauduleux (\(source)) : mail \(v.mail.id)")
+            }
+        }
+    }
+
+    private func majBoite(enLigne: Bool, mails: [MailResume]? = nil) {
+        if boiteEnLigne != enLigne { journal(enLigne ? "boîte de démo en ligne" : "boîte de démo hors ligne") }
+        var change = boiteEnLigne != enLigne
+        boiteEnLigne = enLigne
+        if let mails {
+            let tries = Self.trier(mails)
+            change = change || tries != mailsRecents
+            mailsRecents = tries
+        }
+        let n = mailsRecents.count
+        ligneBoite.title = enLigne ? "Boîte de démo : \(n) mail\(n > 1 ? "s" : "")" : "Boîte de démo hors ligne"
+        ligneBoite.image = Self.pastille(enLigne ? Teinte.cyan : Teinte.gris)
+        if change {
+            majSousMenu()
+            prevoirCaptureMenu()
+        }
+    }
+
+    /// Plus récent d'abord quand chaque mail porte une date ISO, sinon l'ordre de la boîte.
+    private static func trier(_ mails: [MailResume]) -> [MailResume] {
+        guard mails.allSatisfy({ $0.date != nil }) else { return mails }
+        return mails.enumerated().sorted { a, b in
+            a.element.date! != b.element.date! ? a.element.date! > b.element.date! : a.offset < b.offset
+        }.map(\.element)
+    }
+
+    // MARK: Signaler un mail suspect
+
+    private func majSousMenu() {
+        sousMenuSignaler.removeAllItems()
+        guard boiteEnLigne == true else {
+            let l = NSMenuItem(title: boiteEnLigne == nil ? "Recherche de la boîte de démo…" : "Boîte de démo hors ligne",
+                               action: nil, keyEquivalent: "")
+            l.isEnabled = false
+            sousMenuSignaler.addItem(l)
+            return
+        }
+        let titre = NSMenuItem(title: "Derniers mails de la boîte de démo", action: nil, keyEquivalent: "")
+        titre.isEnabled = false
+        sousMenuSignaler.addItem(titre)
+        if mailsRecents.isEmpty {
+            let vide = NSMenuItem(title: "Aucun mail pour l'instant", action: nil, keyEquivalent: "")
+            vide.isEnabled = false
+            sousMenuSignaler.addItem(vide)
+            return
+        }
+        for m in mailsRecents.prefix(Self.mailsAuMenu) {
+            let item = NSMenuItem(title: m.objet, action: #selector(signaler(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = m.id
+            item.state = mailsSignales.contains(m.id) ? .on : .off
+            let objet = Messagerie.desarmerLigne(m.objet, max: 46)
+            let titre = NSMutableAttributedString(string: objet, attributes: [
+                .font: NSFont.menuFont(ofSize: 13), .foregroundColor: Teinte.encre])
+            if !m.expediteur.isEmpty {
+                titre.append(NSAttributedString(string: "   " + Messagerie.desarmerLigne(m.expediteur, max: 36), attributes: [
+                    .font: NSFont.menuFont(ofSize: 11), .foregroundColor: Teinte.discret]))
+            }
+            item.attributedTitle = titre
+            sousMenuSignaler.addItem(item)
+        }
+        signalementAutomatique()
+    }
+
+    @objc private func signaler(_ item: NSMenuItem) {
+        guard let id = item.representedObject as? String,
+              let m = mailsRecents.first(where: { $0.id == id }) else { return }
+        journal("signalement demandé : mail \(id)")
+        messagerie.mail(id) { [weak self] complet in
+            guard let self else { return }
+            self.backend.envoyerSignalement(m, complet: complet, verdict: self.verdicts[id]) { [weak self] ok in
+                guard let self else { return }
+                if ok {
+                    self.mailsSignales.insert(id)
+                    self.majSoc(true)
+                    self.majSousMenu()
+                    self.prevoirCaptureMenu()
+                } else {
+                    self.sonder()
+                }
+                Bulle(ok ? "Merci, la SOC est prévenue." : "La SOC est injoignable. Réessayez dans un moment.", ok: ok)
+                    .montrer(capture: "signalement")
+            }
+        }
+    }
+
+    /// Test : DEDALE_SIGNALER_AUTO=<id du mail> (ou `premier`) déclenche une fois l'entrée du
+    /// sous-menu, par le même chemin qu'un clic.
+    private func signalementAutomatique() {
+        guard !signalementAutoFait, let cible = ProcessInfo.processInfo.environment["DEDALE_SIGNALER_AUTO"],
+              !cible.isEmpty else { return }
+        guard let index = sousMenuSignaler.items.firstIndex(where: {
+            guard let id = $0.representedObject as? String else { return false }
+            return cible == "premier" || id == cible
+        }) else { return }
+        signalementAutoFait = true
+        let delai = Double(ProcessInfo.processInfo.environment["DEDALE_CLIC_DELAI"] ?? "") ?? 2
+        DispatchQueue.main.asyncAfter(deadline: .now() + delai) { [weak self] in
+            guard let self, index < self.sousMenuSignaler.items.count else { return }
+            journal("signalement automatique (test) : « \(self.sousMenuSignaler.items[index].title) »")
+            self.sousMenuSignaler.performActionForItem(at: index)
+        }
+    }
+
+    // MARK: Compteur
+
+    private func majCompteur() {
+        let n = compteur.cetteSemaine()
+        ligneCompteur.attributedTitle = NSAttributedString(string: Compteur.libelle(n), attributes: [
+            .font: NSFont.menuFont(ofSize: 12), .foregroundColor: Teinte.discret])
+        ligneCompteur.image = NSImage(systemSymbolName: "checkmark.shield", accessibilityDescription: nil)
+        ligneCompteur.image?.isTemplate = true
     }
 
     // MARK: Alertes
@@ -113,17 +319,18 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ])
     }
 
-    /// Une seule pop-up à la fois : la suivante attend le choix de la précédente.
+    /// Une seule pop-up à la fois : la suivante attend la fin de la précédente.
     private func afficherSuivante() {
         guard fenetre == nil, !file.isEmpty else { return }
         let a = file.removeFirst()
         let f = FenetreAlerte(a)
         f.surChoix = { [weak self, weak f] choix in
-            guard let self else { return }
-            self.backend.envoyerChoix(a, choix: choix) { remonte in
-                if remonte { self.majSoc(true) } else { self.sonder() }
-                f?.confirmer(choix: choix, remonte: remonte)
-            }
+            guard let self, let f else { return }
+            self.choix(choix, avertissement: a, fenetre: f)
+        }
+        f.surVoirMail = { [weak self, weak f] in
+            guard let self, let m = a.mail else { return }
+            self.ouvrirApercu(m, pres: f?.cadre)
         }
         f.surFermeture = { [weak self] in
             self?.fenetre = nil
@@ -133,12 +340,70 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         f.montrer()
     }
 
+    private func choix(_ choix: String, avertissement a: Avertissement, fenetre f: FenetreAlerte) {
+        if choix == "annuler" {
+            // Bon réflexe : un piège évité de plus, et le coach tout de suite.
+            compteur.ajouter()
+            majCompteur()
+            prevoirCaptureMenu()
+            f.montrerCoach(Coach.fiche(pour: a))
+            backend.envoyerChoix(a, choix: "annuler") { [weak self] ok in
+                if ok { self?.majSoc(true) } else { self?.sonder() }
+            }
+        } else if a.quatreYeux {
+            let d = DemandeQuatreYeux(a, backend: backend)
+            demande = d
+            f.montrerAttente(restant: d.total)
+            d.lancer(tic: { [weak f] restant in
+                f?.majAttente(restant: restant)
+            }, fin: { [weak self, weak f] issue in
+                guard let self else { return }
+                self.demande = nil
+                if issue == .injoignable { self.sonder() } else { self.majSoc(true) }
+                f?.montrerIssue(issue)
+            })
+        } else {
+            backend.envoyerChoix(a, choix: "continuer") { [weak self, weak f] remonte in
+                if remonte { self?.majSoc(true) } else { self?.sonder() }
+                f?.confirmer(remonte: remonte)
+            }
+        }
+    }
+
+    private func ouvrirApercu(_ m: MailResume, pres voisin: NSRect?) {
+        apercu?.fermer()
+        let p = FenetreApercu(m)
+        p.surFermeture = { [weak self, weak p] in
+            if self?.apercu === p { self?.apercu = nil }
+        }
+        apercu = p
+        p.montrer(pres: voisin)
+        messagerie.mail(m.id) { [weak p] complet in p?.afficher(complet) }
+    }
+
     @objc private func testerAlerte() {
         _ = recevoir(.exemple())
     }
 
     @objc private func quitter() {
         NSApp.terminate(nil)
+    }
+
+    // MARK: Capture du menu (test)
+
+    /// Avec DEDALE_CAPTURE, l'app écrit un rendu de son menu et du sous-menu « Signaler »
+    /// à chaque changement d'état (menu.png, menu-signaler.png).
+    private func prevoirCaptureMenu() {
+        guard let dossier = Gabarit.dossierCapture else { return }
+        captureMenuPrevue?.cancel()
+        let travail = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            Capture.ecrireMenu(self.menu, vers: dossier.appendingPathComponent("menu.png"))
+            Capture.ecrireMenu(self.sousMenuSignaler, vers: dossier.appendingPathComponent("menu-signaler.png"))
+            journal("capture du menu écrite : \(dossier.path)/menu.png")
+        }
+        captureMenuPrevue = travail
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: travail)
     }
 
     private static func pastille(_ couleur: NSColor) -> NSImage {
