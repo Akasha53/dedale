@@ -8,6 +8,8 @@ Options :
   --backend-reel                     tape le vrai backend sur 8700 (pas de décision simulée)
   --backend URL                      tape le backend à cette adresse (ex. http://127.0.0.1:8790)
   --scenario jury                    agent interne protégé : appel retenu, boîte noire, chrono
+  --scenario outil-inconnu           outil absent de l'inventaire, lecture détournée en canal de
+                                     sortie, description d'outil MCP modifiée : tout est retenu
   --issue {couper,reprendre,les-deux,console}   issue du scénario jury (défaut : les-deux)
   --json                             scénario jury : constat complet en JSON sur la sortie
   --desarmeur                        le contenu externe est désarmé avant que l'agent le lise
@@ -174,7 +176,7 @@ def main(argv=None) -> int:
     ap.add_argument("--backend-reel", action="store_true")
     ap.add_argument("--backend", default=None,
                     help="adresse d'un backend Dédale (prioritaire sur --backend-reel)")
-    ap.add_argument("--scenario", default="tout", choices=["tout", "jury"])
+    ap.add_argument("--scenario", default="tout", choices=["tout", "jury", "outil-inconnu"])
     ap.add_argument("--issue", default="les-deux",
                     choices=["couper", "reprendre", "les-deux", "console"])
     ap.add_argument("--delai-analyste", type=float, default=1.0,
@@ -186,7 +188,7 @@ def main(argv=None) -> int:
                     help="désarmer le contenu externe avant que l'agent le lise")
     args = ap.parse_args(argv)
 
-    if args.scenario == "jury":
+    if args.scenario in ("jury", "outil-inconnu"):
         stub = None
         if args.backend or args.backend_reel:
             base = (args.backend or "http://127.0.0.1:8700").rstrip("/")
@@ -194,6 +196,12 @@ def main(argv=None) -> int:
             stub = BackendSimule(suspendre_a_l_incident=True).demarrer()
             base = stub.base
         try:
+            if args.scenario == "outil-inconnu":
+                from . import outil_inconnu
+
+                return outil_inconnu.demo(base, json_sortie=args.json,
+                                          delai_analyste=args.delai_analyste,
+                                          attente=min(args.attente, 30.0))
             return _jouer_jury(args, base, simule=stub is not None)
         finally:
             if stub:
