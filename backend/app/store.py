@@ -745,6 +745,15 @@ class Store:
             return "interne_desarme", "Consigne cachée retirée avant que l’agent la lise"
         if sess.canari_nature == "envoi_externe":
             return "interne_envoi_externe", "Envoi hors d’Orbis Pay retenu avant exécution"
+        # Médiation universelle de la passerelle (interne/orbis/mediation.py) : règle C-8A61, C-5B27
+        # ou C-3F90 en premier canari touché.
+        mediation = {
+            "outil_inconnu": ("interne_outil_inconnu", "Outil absent de l’inventaire de l’agent, retenu avant exécution"),
+            "canal_detourne": ("interne_canal_detourne", "Outil détourné en canal de sortie, retenu avant exécution"),
+            "outil_modifie": ("interne_outil_modifie", "Outil MCP modifié en cours de session, appel retenu"),
+        }.get(sess.canari_nature or "")
+        if mediation is not None:
+            return mediation
         return "interne_canari", f"Agent IA piégé en interne (canari {sess.canari_id or '—'})"
 
     def _maj_incident(self, sess: Session) -> Incident | None:
