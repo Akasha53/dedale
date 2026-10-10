@@ -1,0 +1,88 @@
+/* Styles communs aux pages de l'extension : clair et épuré, police du système,
+   arrondis larges, peu de couleurs. Le rouge est réservé à l'avertissement. */
+
+:root {
+  color-scheme: light dark;
+  --fond: #ffffff;
+  --surface: #f4f4f4;
+  --surface-forte: #ececec;
+  --bord: #e5e5e5;
+  --texte: #0d0d0d;
+  --texte-doux: #5d5d5d;
+  --texte-faible: #8f8f8f;
+  --principal: #0d0d0d;
+  --sur-principal: #ffffff;
+  --rouge: #b42318;
+  --rouge-fond: #fef3f2;
+  --rouge-bord: #fecdca;
+  --vert: #15803d;
+  --rayon: 24px;
+  --rayon-s: 14px;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #212121;
+    --surface: #2f2f2f;
+    --surface-forte: #3a3a3a;
+    --bord: #3d3d3d;
+    --texte: #ececec;
+    --texte-doux: #b4b4b4;
+    --texte-faible: #8f8f8f;
+    --principal: #ececec;
+    --sur-principal: #0d0d0d;
+    --rouge: #f97066;
+    --rouge-fond: #3b1e1c;
+    --rouge-bord: #6b2a25;
+    --vert: #4ade80;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--texte);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p { margin: 0; }
+
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+
+.bouton {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 12px 22px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.bouton:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--texte);
+  outline-offset: 2px;
+}
+
+.bouton.principal { background: var(--principal); color: var(--sur-principal); }
+.bouton.principal:hover { opacity: 0.86; }
+
+.bouton.secondaire { background: var(--fond); color: var(--texte); border-color: var(--bord); }
+.bouton.secondaire:hover { background: var(--surface); }
+
+.bouton.discret { background: transparent; color: var(--texte-doux); font-weight: 500; }
+.bouton.discret:hover { background: var(--surface); color: var(--texte); }
+
+.bouton:disabled { opacity: 0.5; cursor: default; }

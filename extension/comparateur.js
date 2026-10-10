@@ -199,10 +199,11 @@ function comparerA(hote, unicode, cible) {
     // 2. Même squelette : alphabet étranger, chiffres déguisés ou tiret ajouté.
     if (lu.nom !== marque && squelette(nomUni) === sq) {
       if (lu.nom.startsWith("xn--")) {
+        const intrus = [...new Set(Array.from(nomUni).filter((c) => c.charCodeAt(0) > 0x7f))].join(" ");
         const etranger = Array.from(nomUni).some((c) => c in CONFUSABLES);
         return resultat("punycode", etranger
-          ? `« ${nomUni} » s'écrit avec des lettres d'un autre alphabet qui imitent « ${marque} ».`
-          : `« ${nomUni} » ajoute des accents à « ${marque} ».`);
+          ? `Le nom ressemble à « ${marque} », mais certaines lettres (${intrus}) viennent d'un autre alphabet.`
+          : `Le nom ressemble à « ${marque} », mais avec des accents (${intrus}).`);
       }
       const sansTiret = (x) => x.replace(/[-_]/g, "");
       if (sansTiret(lu.nom) === sansTiret(marque)) {
@@ -264,4 +265,33 @@ export function analyserDomaine(entree, domainesConfiance = DOMAINES_PAR_DEFAUT)
     if (r) return { ...base, ...r, verdict: "sosie" };
   }
   return { ...base, verdict: "neutre" };
+}
+
+// ---------------------------------------------------------------- règle de blocage
+
+/**
+ * Expression régulière (RE2, pour declarativeNetRequest) qui reconnaît une URL
+ * dont le nom d'hôte contient le nom de confiance, éventuellement déguisé
+ * (0 pour o, 1 pour l, rn pour m, tiret entre deux lettres). Chrome l'applique
+ * avant d'envoyer la requête : ces sosies-là n'atteignent jamais le réseau.
+ * Toute URL reconnue est aussi un « sosie » pour analyserDomaine (règles 2 et 4),
+ * sauf les domaines de confiance, que la règle d'autorisation fait passer avant.
+ * Renvoie null pour un nom trop court (moins de 5 lettres), trop risqué à bloquer.
+ */
+export function motifBlocage(domaine) {
+  const { nom } = decouper(normaliserHote(domaine));
+  const lettresNom = Array.from(nom.replace(/[-_]/g, ""));
+  if (lettresNom.length < 5 || !lettresNom.every((c) => /[a-z0-9]/.test(c))) return null;
+  const classes = {};
+  for (const c of "abcdefghijklmnopqrstuvwxyz0123456789") {
+    const sq = squelette(c);
+    (classes[sq] ??= []).push(c);
+  }
+  const multiples = { m: "rn", w: "vv", d: "cl" };
+  const corps = lettresNom.map((c) => {
+    const sq = squelette(c);
+    const simples = classes[sq].length > 1 ? `[${classes[sq].join("")}]` : c;
+    return multiples[sq] ? `(?:${simples}|${multiples[sq]})` : simples;
+  });
+  return `^https?://[^/?#]*${corps.join("-?")}`;
 }

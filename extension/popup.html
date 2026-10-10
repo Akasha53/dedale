@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Dédale</title>
+  <link rel="stylesheet" href="commun.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="entete">
+    <img src="icones/icone-32.png" width="22" height="22" alt="">
+    <span>Dédale</span>
+  </header>
+
+  <section class="compteur" aria-live="polite">
+    <p class="nombre" id="evites">0</p>
+    <p class="libelle" id="libelle">site sosie évité</p>
+  </section>
+
+  <p class="detail" id="passes"></p>
+  <p class="detail" id="signalement" hidden></p>
+
+  <button type="button" class="bouton secondaire" id="reglages">Réglages</button>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

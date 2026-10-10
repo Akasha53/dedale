@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Avertissement : site sosie</title>
+  <link rel="icon" href="icones/icone-32.png">
+  <link rel="stylesheet" href="commun.css">
+  <link rel="stylesheet" href="avertissement.css">
+</head>
+<body>
+  <main class="avertissement" aria-labelledby="titre">
+    <div class="pastille" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+        <path d="M12 9v4"/><path d="M12 17h.01"/>
+      </svg>
+    </div>
+
+    <h1 id="titre">
+      <span id="titre-imite">Ce site imite Orbis Pay.</span>
+      <span id="titre-suite" class="suite">Ce n'est pas le vrai site.</span>
+    </h1>
+
+    <dl class="adresses" id="adresses">
+      <div class="ligne">
+        <dt>Vous alliez sur</dt>
+        <dd>
+          <span class="domaine sosie" id="domaine"></span>
+          <span class="reel" id="reel" hidden></span>
+        </dd>
+      </div>
+      <div class="ligne">
+        <dt>Le vrai site</dt>
+        <dd><span class="domaine" id="vrai"></span></dd>
+      </div>
+    </dl>
+
+    <p class="raison" id="raison"></p>
+
+    <div class="actions">
+      <button type="button" id="revenir" class="bouton principal" autofocus>Revenir en arrière</button>
+      <button type="button" id="continuer" class="bouton discret">Continuer quand même</button>
+    </div>
+
+    <p class="note" id="note"></p>
+  </main>
+  <script type="module" src="avertissement.js"></script>
+</body>
+</html>

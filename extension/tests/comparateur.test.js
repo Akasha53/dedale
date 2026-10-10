@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  analyserDomaine, decoderPunycode, decouper, distance, normaliserHote, seuil, squelette,
+  analyserDomaine, decoderPunycode, decouper, distance, motifBlocage, normaliserHote, seuil, squelette,
 } from "../comparateur.js";
 
 const LISTE = ["orbispay.example"];
@@ -142,4 +142,34 @@ test("outils : distance, découpage, punycode", () => {
   assert.equal(decoderPunycode("bcher-kva"), "bücher");
   assert.equal(decoderPunycode("rbispay-8ig"), "оrbispay");
   assert.equal(decoderPunycode("!!"), null);
+});
+
+test("règle de blocage : elle attrape les sosies évidents avant toute requête", () => {
+  const motif = new RegExp(motifBlocage("orbispay.example"), "i");
+  const bloques = [
+    "orbispay-verification.example", "0rbispay.example", "orbis-pay.example", "orb1spay.com",
+    "orbispay.example.secure-login.com", "connexion.orbispay.fr", "orbispay.com",
+  ];
+  for (const h of bloques) assert.ok(motif.test(`http://${h}/chemin`), h);
+
+  const libres = ["fleuriste.example", "orbistravel.com", "exemple.fr", "orbis.com"];
+  for (const h of libres) assert.ok(!motif.test(`http://${h}/orbispay`), h);
+  // Le nom dans le chemin ou la requête ne compte pas : seule l'adresse du site compte.
+  assert.ok(!motif.test("http://exemple.fr/?r=orbispay.example"));
+});
+
+test("règle de blocage : tout ce qu'elle bloque est un sosie pour l'analyse", () => {
+  const motif = new RegExp(motifBlocage("orbispay.example"), "i");
+  const hotes = [
+    "orbispay-verification.example", "0rbispay.example", "orbis-pay.example", "orb1spay.com",
+    "orbispay.example.secure-login.com", "connexion.orbispay.fr", "orbispay.com", "o-r-b-i-s-p-a-y.net",
+    "verif.0rb1spay.example", "orbispay.example", "paiement.orbispay.example",
+  ];
+  for (const h of hotes) {
+    if (!motif.test(`https://${h}/`)) continue;
+    const v = verdict(h).verdict;
+    assert.ok(v === "sosie" || v === "confiance", `${h} : ${v}`);
+  }
+  assert.equal(motifBlocage("abc.example"), null);
+  assert.match(motifBlocage("monbanque.example"), /\(\?:m\|rn\)/);
 });

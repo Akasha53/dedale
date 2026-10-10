@@ -1,0 +1,68 @@
+body { padding: 48px 16px; }
+
+.options {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.entete {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.entete img { border-radius: 10px; }
+
+h1 { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; }
+h2 { font-size: 16px; font-weight: 600; }
+
+.sous-titre { color: var(--texte-doux); }
+
+.carte {
+  border: 1px solid var(--bord);
+  border-radius: var(--rayon);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.champ { display: flex; flex-direction: column; gap: 6px; }
+
+.etiquette { font-weight: 600; }
+
+.aide { font-size: 13px; color: var(--texte-doux); }
+
+input, textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--texte);
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: var(--rayon-s);
+  padding: 11px 14px;
+}
+
+textarea { font-family: var(--mono); font-size: 14px; resize: vertical; min-height: 96px; }
+#backend, #essai { font-family: var(--mono); font-size: 14px; }
+
+input:hover, textarea:hover { border-color: var(--bord); }
+
+.pied { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+
+.statut { font-size: 13px; color: var(--texte-doux); }
+.statut.ko { color: var(--rouge); }
+
+.resultat { min-height: 1.5em; }
+.resultat .verdict { font-weight: 600; }
+.resultat.sosie .verdict { color: var(--rouge); }
+.resultat.confiance .verdict { color: var(--vert); }
+.resultat .explication { display: block; color: var(--texte-doux); font-size: 14px; }
+
+.rangee { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+.compteur { color: var(--texte-doux); }

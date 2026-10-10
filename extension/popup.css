@@ -1,0 +1,46 @@
+body {
+  width: 300px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.entete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.entete img { border-radius: 6px; }
+
+.compteur {
+  border-radius: var(--rayon);
+  background: var(--surface);
+  padding: 20px;
+  text-align: center;
+}
+
+.nombre {
+  font-size: 44px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.libelle {
+  margin-top: 6px;
+  color: var(--texte-doux);
+}
+
+.detail {
+  font-size: 13px;
+  color: var(--texte-doux);
+}
+
+.detail .ok { color: var(--vert); }
+.detail .ko { color: var(--rouge); }
+
+#reglages { align-self: stretch; padding: 10px 16px; }

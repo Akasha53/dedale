@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Réglages de Dédale</title>
+  <link rel="icon" href="icones/icone-32.png">
+  <link rel="stylesheet" href="commun.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="options">
+    <header class="entete">
+      <img src="icones/icone-48.png" width="40" height="40" alt="">
+      <div>
+        <h1>Réglages</h1>
+        <p class="sous-titre">Dédale, protection contre les sites sosies</p>
+      </div>
+    </header>
+
+    <form id="formulaire" class="carte" novalidate>
+      <label class="champ">
+        <span class="etiquette">Nom affiché</span>
+        <input id="nom" type="text" maxlength="60" autocomplete="off">
+        <span class="aide">Il apparaît dans l'avertissement : « Ce site imite Orbis Pay. »</span>
+      </label>
+
+      <label class="champ">
+        <span class="etiquette">Domaines de confiance</span>
+        <textarea id="domaines" rows="4" spellcheck="false" autocomplete="off"></textarea>
+        <span class="aide">Un domaine par ligne. Leurs sous-domaines sont couverts.</span>
+      </label>
+
+      <label class="champ">
+        <span class="etiquette">Adresse du backend Dédale</span>
+        <input id="backend" type="url" spellcheck="false" autocomplete="off">
+        <span class="aide">Elle reçoit le nom d'un sosie quand quelqu'un continue malgré l'avertissement.</span>
+      </label>
+
+      <div class="pied">
+        <button class="bouton principal" type="submit">Enregistrer</button>
+        <p id="statut" class="statut" role="status"></p>
+      </div>
+    </form>
+
+    <section class="carte">
+      <h2>Tester une adresse</h2>
+      <p class="aide">Comparez une adresse à la liste ci-dessus, sans l'ouvrir.</p>
+      <input id="essai" type="text" spellcheck="false" autocomplete="off" placeholder="orbispay-verification.example" aria-label="Adresse à tester">
+      <p id="resultat" class="resultat" aria-live="polite"></p>
+    </section>
+
+    <section class="carte rangee">
+      <p id="compteur" class="compteur"></p>
+      <button class="bouton secondaire" type="button" id="zero">Remettre à zéro</button>
+    </section>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
