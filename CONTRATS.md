@@ -1181,3 +1181,60 @@ Ce que l'app ne lit jamais : le presse-papiers, les frappes au clavier, les capt
 - Un module coupé ne lit plus rien et n'envoie plus rien. Les interrupteurs restent sur le Mac (`modules.json` dans le dossier d'état). `DEDALE_MODULES_COUPES=sites,agents` coupe des modules au lancement.
 - Pour le module Sites, branché ailleurs dans l'app : `ReglagesModules.partage.actif(.sites)` dit s'il est allumé, et la notification `ReglagesModules.changement` (le module en `object`) annonce chaque bascule.
 - La barre de menus n'a qu'une icône. En tête du menu : « Protégé » (tous les modules allumés, SOC joignable), « Protégé, SOC hors ligne », « Protection partielle (N modules sur 4) » ou « Protection en pause », puis le compteur des pièges évités. `GET 127.0.0.1:8712/etat` porte aussi `poste`, `modules`, `telechargements` et `agents_ia`.
+
+## Avenant du 10 octobre 2026 : console v2 (retours des testeurs RSSI, SOC et DPO)
+
+Ajouts du backend pour la console. Aucune forme existante ne change ; les champs nouveaux s'ajoutent. Code : `backend/app/identites.py`, `paiements.py`, `store.py` (actes de console), `synthese.py`. Tests : `backend/tests/test_console_v2.py`.
+
+### Salariés sous pseudonyme
+
+Tout ce que l'API renvoie pour une session `humain` ou `physique` (liste et détail des sessions, liste et détail des incidents, WS, synthèse, rapport, export ECS) passe par `identites.masqueur` : le prénom, le nom et l'adresse du salarié deviennent son pseudonyme, l'identifiant de session cité dans un texte aussi, et les paramètres d'URL disparaissent (`?u=camille`, `?[paramètres masqués]`). Les clés techniques (`id`, `session_id`, sceaux, empreintes) ne changent pas.
+
+- `identite` sur la session et sur l'incident : `{"pseudonyme": "Salarié 7751", "service": "Finance", "libelle": "Salarié 7751 · Finance", "connu": true}`, plus `revelations: [{analyste, horodatage, motif}]` sur l'incident. Le numéro est stable par salarié (SHA-256 de sa clé d'annuaire), sinon par session.
+- Annuaire fictif dans `identites.ANNUAIRE`. Un salarié est reconnu par le préfixe de sa session (`poste-camille`, `poste-mac`), par son adresse dans un mail reçu, puis par le prénom que son poste cite. Sinon le pseudonyme vient de la session, sans service.
+- `POST /api/incidents/{id}/identite` `{"motif", "analyste"}` lève l'anonymat. Motif de 5 caractères au moins (400 sinon), 400 pour un incident d'agent, 404 inconnu. Réponse : `{incident_id, pseudonyme, service, nom, poste, analyste, motif, horodatage, message}`. Seule cette réponse porte le nom ; l'acte entre au journal scellé sans lui.
+
+### Actes de la console, scellés
+
+Un acte de l'analyste est un événement de la session de l'incident, `type: "console"`, `surface: "console"`, scellé dans la chaîne des événements. Il ne passe pas par le tri et n'entre pas dans la boîte noire. `details` : `{acte, analyste, incident_id, …}` avec `acte` parmi `decision` (motif d'une décision), `reveler_identite` (motif, pseudonyme), `remediation` (action, message, domaine, `simulation: true`).
+
+L'incident porte `journal_console` : `[{acte, analyste, action?, motif?, message?, domaine?, horodatage, evenement_id}]`.
+
+### Décisions : motif, accorder, refuser
+
+- `POST /api/incidents/{id}/decision` accepte `motif` (300 caractères au plus). Non vide, il est noté par un acte `decision` à côté de la décision, dont la forme scellée ne change pas.
+- `accorder` et `refuser` tranchent le geste critique d'un salarié (quatre yeux) : valides seulement pour un incident `humain_*` dont un événement porte `details.quatre_yeux: "demande"` (400 sinon). Les deux passent l'incident en `clos`. La console nomme les boutons « Accorder » et « Refuser » et les envoie tels quels ; l'app Mac lit déjà ces deux mots. `ignorer` et `clore` gardent leur sens d'origine pour l'app.
+- Le relecteur IA ajoute sa décision sans changer le statut (avenant du relecteur) : la console affiche « Relu par … en 1,8 s : refusé », le motif, puis Accorder et Refuser en recours, motif obligatoire.
+
+### Actions sur le compte d'un salarié
+
+`POST /api/incidents/{id}/remediation` `{"action", "analyste"}`, `action` parmi `reinitialiser_mot_de_passe`, `fermer_sessions`, `bloquer_domaine`. Simulées dans la démo, notées par un acte `remediation`. Réponse : `{incident_id, action, message, domaine, simulation, analyste, horodatage, incident}`. 400 pour un incident d'agent, une action déjà faite, ou `bloquer_domaine` sans domaine extérieur en cause (lien, site sosie ou expéditeur, désarmé en `[.]`).
+
+### Signalement d'un mail par le salarié
+
+L'événement `signalement` de l'app Mac ouvre maintenant un incident `humain_signalement` (« Mail signalé par un salarié »), gravité `moyenne`, `faible` si l'analyseur jugeait déjà le mail frauduleux. Boîte noire : `contexte` (le mail reçu, avec son `document_source` désarmé) puis `signalement` (« verdict de l'analyseur : sûr »). Décisions `clore` ou `ignorer`. `GET /api/mesures` : `gestes_humains.signalements`.
+
+### Autres champs
+
+- Incident d'un salarié : `contexte_humain` (`mail reçu`, `navigation`, `signalement`, ou le contexte du poste) et `quatre_yeux` (`{demande_id, delai_s, horodatage, issue}`, `issue` lue sur la riposte de l'app).
+- Appel `executer_paiement` ou `emettre_virement` : `details.virement` `{montant, devise, beneficiaire, iban_masque, complete_par_demo}`, posé à l'ingestion avant le scellement. L'IBAN sort masqué (`FR76 •••• •••• 6789`). La passerelle ne transmet pas les paramètres d'un appel refusé d'office : les valeurs manquantes viennent alors du bénéficiaire fictif connu, et `complete_par_demo` vaut `true`.
+- Inventaire : `proprietaire` par agent (« Direction des opérations », « Direction financière », « Direction de la relation client »).
+- Tri : le libellé de cadence ne cite plus Palisade (« un agent IA enchaîne ses actions toutes les 1,7 s environ »).
+
+### Copilote : un conseil qui suit l'état
+
+`decision_recommandee` gagne `dossier_ferme` (incident clos, classé, ou agent coupé) : la console n'affiche alors un conseil que s'il est déjà appliqué. Nouveaux cas, avant les règles existantes :
+
+| Cas | Action conseillée |
+|---|---|
+| Refus d'office (`bloquer_*`) sans appel en attente | `clore` |
+| `interne_politique`, `interne_anomalie` sans piège ni appel retenu | `clore` |
+| Instruction désarmée avant lecture, rien suivi | `reprendre` (« Remettre l'agent en service » dans la console) |
+| Geste à quatre yeux | `refuser`, `accorder` possible |
+| `humain_signalement` | `clore` |
+
+Phrases ajoutées, chacune prouvée par son maillon : « Dédale a retiré cette instruction avant que l'agent lise le contenu », « Une règle écrite par le SOC a bloqué … », « Dédale a repéré un écart net avec l'habitude de travail de cet agent ».
+
+### Ce que lit la console
+
+`GET /api/agents` (`inventaire`) pour les noms et propriétaires, `GET/POST/DELETE /api/politiques` et `/api/politiques/analyser` pour les règles, `GET /api/incidents/{id}/verification` (badge « Journal intact »), `/rapport`, `/export?format=ecs|sigma` (menu « Exporter »), et les routes ci-dessus. Les compteurs (badge, onglets, temps réel, Mesures) viennent d'un seul calcul, `console/src/ui/compteurs.ts`.
