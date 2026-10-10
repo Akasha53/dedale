@@ -1,13 +1,125 @@
 // Règles du SOC écrites en français : l'analyste écrit une phrase, Dédale la
 // reformule (« Voilà ce que j'ai compris… Activer ? ») et rien ne s'applique
 // avant son accord. Les règles actives se retirent d'un clic confirmé.
+// « Retire les droits en trop aux agents » se lit à part : une ligne par agent
+// avec les droits qui partiront, et « Rendre les droits » pour annuler.
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type CSSProperties } from "react";
 import { useDonnees } from "../api/store";
 import type { AnalysePolitique, Politique } from "../types";
 import { useAnalyste } from "../ui/analyste";
-import { decoder, majuscule } from "../ui/mots";
+import { decoder, libelleDroit, majuscule } from "../ui/mots";
 import { heure } from "../ui/primitives";
+
+const MOINDRE = "moindre_privilege";
+const EXEMPLE_MOINDRE = "Retire les droits en trop aux agents";
+
+// Champs que le backend ajoute pour le moindre privilège et le lecteur de la
+// phrase (modèle ou motifs). Tous facultatifs : un backend plus ancien ne les
+// envoie pas et le panneau retombe sur le texte seul.
+interface DroitVu {
+  code: string;
+  libelle?: string;
+}
+interface LigneRetrait {
+  agent: string;
+  nom?: string;
+  droits: (DroitVu | string)[];
+  deja_retires?: string[];
+}
+type Analyse = AnalysePolitique & {
+  intention?: string;
+  compris_par?: string | null;
+  repli?: string | null;
+  lecteur?: { moteur?: string; modele?: string | null; duree_ms?: number | null };
+  plan?: LigneRetrait[];
+  entete?: string;
+  conclusion?: string;
+};
+type PolitiqueVue = Politique & { intention?: string; retraits?: LigneRetrait[] };
+
+function codeDe(d: DroitVu | string): string {
+  return typeof d === "string" ? d : d.code;
+}
+
+function nomDroit(d: DroitVu | string): string {
+  return typeof d === "string" ? majuscule(libelleDroit(d)) : majuscule(libelleDroit(d.code, d.libelle));
+}
+
+function nomModele(m?: string | null): string {
+  const bas = (m ?? "").toLowerCase();
+  for (const n of ["haiku", "sonnet", "opus"]) if (bas.includes(n)) return n.charAt(0).toUpperCase() + n.slice(1);
+  return "le modèle";
+}
+
+// « Compris par le modèle (Haiku, 2,4 s) » ou « Compris par les motifs ».
+function lecture(a: Analyse): string | null {
+  if (!a.compris_par) return null;
+  if (a.compris_par === "modèle") {
+    const ms = a.lecteur?.duree_ms;
+    const duree = ms != null ? `, ${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s` : "";
+    return `Compris par le modèle (${nomModele(a.lecteur?.modele)}${duree})`;
+  }
+  return a.repli ? `Compris par les motifs : ${a.repli.replace(/ : lecture par motifs$/, "")}` : "Compris par les motifs";
+}
+
+function PucesDroits({ droits, neutre }: { droits: (DroitVu | string)[]; neutre?: boolean }) {
+  return (
+    <span className="inv-puces">
+      {droits.map((d) => (
+        <span
+          key={codeDe(d)}
+          className="inv-puce"
+          title={codeDe(d)}
+          style={neutre ? { background: "var(--survol)", color: "var(--texte-doux)" } : undefined}
+        >
+          {nomDroit(d)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+const STYLE_AGENTS: CSSProperties = { listStyle: "none", margin: "10px 0", padding: 0, display: "grid", gap: 8 };
+const STYLE_AGENT: CSSProperties = { display: "grid", gap: 4 };
+const STYLE_NOM: CSSProperties = { fontSize: 14, fontWeight: 500 };
+const STYLE_EXEMPLE: CSSProperties = {
+  border: 0,
+  background: "transparent",
+  padding: 0,
+  font: "inherit",
+  color: "var(--texte-doux)",
+  textDecoration: "underline dotted",
+  textUnderlineOffset: 3,
+  cursor: "pointer",
+};
+
+function ReformulationMoindre({ a }: { a: Analyse }) {
+  const plan = a.plan ?? [];
+  return (
+    <>
+      <p>{decoder(a.entete ?? "Voilà ce que j'ai compris : retirer les droits en trop.")}</p>
+      <ul style={STYLE_AGENTS} aria-label="Droits qui seront retirés">
+        {plan.map((l) => (
+          <li key={l.agent} style={STYLE_AGENT}>
+            <span style={STYLE_NOM}>{l.nom ?? l.agent}</span>
+            {l.droits.length > 0 ? (
+              <PucesDroits droits={l.droits} />
+            ) : (
+              <span className="inv-doux" style={{ fontSize: 13.5 }}>
+                aucun droit en trop
+                {l.deja_retires && l.deja_retires.length > 0
+                  ? `, ${l.deja_retires.length} déjà retiré${l.deja_retires.length > 1 ? "s" : ""}`
+                  : ""}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {a.conclusion && <p>{decoder(a.conclusion)}</p>}
+    </>
+  );
+}
 
 export interface ReglesPoignee {
   preremplir: (debut: string) => void;
@@ -71,12 +183,20 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
   };
 
   const activer = async () => {
-    if (!analyse?.comprise || occupe) return;
+    if (!analyse?.comprise || !analyse.regle || occupe) return;
     setOccupe(true);
     setErreur(null);
     try {
-      const p = await activerPolitique(analyse.phrase, analyse.regle, analyste || "analyste");
-      setFait(`Règle n°${p.numero} active.`);
+      const p = (await activerPolitique(analyse.phrase, analyse.regle, analyste || "analyste")) as PolitiqueVue;
+      if (p.intention === MOINDRE && p.retraits) {
+        const n = p.retraits.reduce((t, l) => t + l.droits.length, 0);
+        const agents = p.retraits.length;
+        setFait(
+          `Règle n°${p.numero} active : ${n} droit${n > 1 ? "s" : ""} retiré${n > 1 ? "s" : ""} à ${agents} agent${agents > 1 ? "s" : ""}.`
+        );
+      } else {
+        setFait(`Règle n°${p.numero} active.`);
+      }
       setPhrase("");
       setAnalyse(null);
     } catch (e) {
@@ -127,11 +247,34 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
             </button>
           </div>
         </form>
+        <p className="regle-vide" style={{ marginTop: 8 }}>
+          Exemple :{" "}
+          <button
+            type="button"
+            style={STYLE_EXEMPLE}
+            onClick={() => {
+              setPhrase(EXEMPLE_MOINDRE);
+              setAnalyse(null);
+              champ.current?.focus();
+            }}
+          >
+            « {EXEMPLE_MOINDRE} »
+          </button>
+        </p>
 
         {analyse && (
           <div className={`regle-reponse ${analyse.comprise ? "" : "incomprise"}`} role="status">
-            <p>{decoder(analyse.texte)}</p>
-            {analyse.comprise && (
+            {(analyse as Analyse).intention === MOINDRE && (analyse as Analyse).plan ? (
+              <ReformulationMoindre a={analyse as Analyse} />
+            ) : (
+              <p>{decoder(analyse.texte)}</p>
+            )}
+            {lecture(analyse as Analyse) && (
+              <span className="regle-meta" style={{ marginTop: 8 }}>
+                {lecture(analyse as Analyse)}
+              </span>
+            )}
+            {analyse.comprise && analyse.regle && (
               <div className="regle-choix">
                 <button type="button" className="regle-btn primaire" onClick={() => void activer()} disabled={occupe}>
                   {occupe ? "Activation…" : "Activer"}
@@ -167,7 +310,7 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
   );
 });
 
-function LigneRegle({ p, retirer }: { p: Politique; retirer: () => Promise<void> }) {
+function LigneRegle({ p, retirer }: { p: PolitiqueVue; retirer: () => Promise<void> }) {
   const [confirme, setConfirme] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   useEffect(() => {
@@ -175,17 +318,34 @@ function LigneRegle({ p, retirer }: { p: Politique; retirer: () => Promise<void>
     const t = window.setTimeout(() => setConfirme(false), 5000);
     return () => window.clearTimeout(t);
   }, [confirme]);
+  const moindre = p.intention === MOINDRE && Array.isArray(p.retraits);
   const enonce = majuscule(decoder(p.enonce || p.texte.replace(/^règle n°\d+ : /, "")));
   const effet = EFFET[p.effet ?? ""] ?? null;
   const n = p.declenchements ?? 0;
+  const derniere = p.dernier_declenchement ? `, dernier à ${heure(p.dernier_declenchement).slice(0, 5)}` : "";
   return (
     <li className="regle-item">
       <span className="regle-num">n°{p.numero}</span>
       <span className="regle-texte">
-        {enonce}
+        {moindre ? (
+          <>
+            Droits en trop retirés
+            <ul style={{ ...STYLE_AGENTS, margin: "6px 0 2px", gap: 6 }}>
+              {p.retraits!.map((l) => (
+                <li key={l.agent} style={STYLE_AGENT}>
+                  <span style={{ fontSize: 13.5 }}>{l.nom ?? l.agent}</span>
+                  <PucesDroits droits={l.droits} neutre />
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          enonce
+        )}
         <span className="regle-meta">
-          {effet ? `Dédale ${effet} l'action. ` : ""}
-          {n === 0 ? "Jamais déclenchée" : `Déclenchée ${n} fois${p.dernier_declenchement ? `, dernière à ${heure(p.dernier_declenchement).slice(0, 5)}` : ""}`}
+          {moindre
+            ? `La passerelle refuse les outils qui les exigent. ${n === 0 ? "Aucun appel refusé" : `${n} appel${n > 1 ? "s" : ""} refusé${n > 1 ? "s" : ""}${derniere}`}`
+            : `${effet ? `Dédale ${effet} l'action. ` : ""}${n === 0 ? "Jamais déclenchée" : `Déclenchée ${n} fois${p.dernier_declenchement ? `, dernière à ${heure(p.dernier_declenchement).slice(0, 5)}` : ""}`}`}
           {p.par ? ` · activée par ${p.par}` : ""}
         </span>
         {erreur && <span className="decision-erreur">{erreur}</span>}
@@ -199,10 +359,12 @@ function LigneRegle({ p, retirer }: { p: Politique; retirer: () => Promise<void>
             return;
           }
           setConfirme(false);
-          retirer().catch((e) => setErreur(e instanceof Error ? e.message : "Retrait impossible."));
+          retirer().catch((e) =>
+            setErreur(e instanceof Error ? e.message : moindre ? "Les droits n'ont pas pu être rendus." : "Retrait impossible.")
+          );
         }}
       >
-        {confirme ? "Confirmer le retrait" : "Retirer"}
+        {moindre ? (confirme ? "Confirmer : rendre les droits" : "Rendre les droits") : confirme ? "Confirmer le retrait" : "Retirer"}
       </button>
     </li>
   );

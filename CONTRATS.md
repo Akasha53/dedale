@@ -1272,3 +1272,35 @@ L'extension Chrome et l'app Mac jugent les adresses avec les mêmes règles : `p
 - « Revenir en arrière » n'envoie rien, dans l'app comme dans l'extension. C'est une exception aux autres pop-ups de l'app, où Annuler part aussi à la SOC.
 - Pas de doublon : dans Chrome, l'app laisse l'onglet à l'extension quand celle-ci a affiché son avertissement, y compris quand le salarié continue depuis la page de l'extension.
 - Effet côté backend, vérifié le 10 octobre sur un backend isolé : incident `humain_phishing`, gravité `haute`, `cible` neutralisée, comme pour l'extension.
+
+## Avenant du 10 octobre 2026 : règles du SOC lues par Haiku, droits en trop retirés
+
+Fichiers : `backend/app/politiques.py`, `backend/app/routes_gouvernance.py`, `interne/orbis/politiques.py`, `console/src/agent/Regles.tsx`. Aucune route existante ne change de forme ; les champs s'ajoutent.
+
+### Qui lit la phrase
+
+- `POST /api/politiques/analyser` `{"phrase", "mode"?}`. Sans `mode`, ce qu'envoie la console, le modèle léger (`DEDALE_MODELE_LEGER`, défaut `claude-haiku-5-5`) lit la phrase : l'API Anthropic si `ANTHROPIC_API_KEY` est posée, sinon `claude -p` dans un dossier neutre avec `NILA_SANS_VEILLE=1` (le code d'appel du relecteur). Délai `DEDALE_POLITIQUES_DELAI`, 8 s par défaut. `mode=regles` : motifs seuls. `DEDALE_POLITIQUES_MODELE=off` ou `DEDALE_LLM=off` coupent le modèle.
+- Le modèle reçoit la phrase échappée entre balises `<phrase_analyste>`, présentée comme une donnée. Il répond par un JSON contraint par un schéma (`intention`, `agents`, `sauf`, `action`, `condition`, `debut`, `fin`, `jours_ouvres`, `max`, `unite`, `effet`), qui passe ensuite par `valider`, comme une règle venue de la console. Modèle absent, plus lent que le délai, hors format ou qui ne reconnaît rien : les motifs reprennent la main. Quand les motifs reconnaissent le retrait des droits en trop, ils gardent le dernier mot.
+- Champs ajoutés : `compris_par` (`"modèle"`, `"motifs"`, ou `null` si personne n'a compris), `intention` (`"regle"` ou `"moindre_privilege"`), `repli` (pourquoi les motifs ont lu, ou `null`), `lecteur` `{moteur: "api"|"cli"|"motifs", modele, duree_ms}`. Mesuré avec `claude -p` : 3,7 à 5,5 s.
+
+### Intention `moindre_privilege`
+
+- Phrases reconnues par les motifs : un verbe (retire, enlève, supprime, réduis, révoque…), un objet (droits, permissions, accès, privilèges…) et un qualificatif (en trop, inutiles, superflus, pas besoin, strict nécessaire…), ou « moindre privilège ». Tous les agents par défaut, ou ceux que la phrase nomme.
+- Réponse : `plan: [{agent, nom, droits: [{code, libelle}], outils: [...], deja_retires: [...]}]`, `entete`, `conclusion` et `texte` : « Voilà ce que j'ai compris : retirer les droits que ces agents n'utilisent pas pour leur tâche. Agent de tri des mails : envoyer des mails, lire le coffre de clés d'API, … Ils ne pourront plus appeler ces outils. Activer ? ». Les droits viennent de l'inventaire (`droits.surplus` de la fiche), jamais de la phrase ni du modèle. Sans aucun droit en trop : `regle: null`, `rien_a_retirer: true`, pas de question.
+- `regle` : `{intention: "moindre_privilege", agent: "*"|id, agents, effet: "retirer", retraits: [{agent, droits}]}`. À l'activation (`POST /api/politiques`), chaque droit est revérifié : un droit nécessaire à la tâche, inconnu ou absent des droits de l'agent donne 400 ; un droit retiré entre-temps est ignoré, et s'il ne reste rien, 400 « Rien à retirer ». La règle active porte `intention`, `retraits` (libellés et outils compris) et `sceau`.
+- Effet : les structures de `POST /api/incidents/{id}/retirer-droit`, au niveau de l'agent. `store.retraits[agent]` vaut pour ses sessions à venir, `droits_retires` pour ses sessions en cours ; chaque entrée porte `regle_id`, `regle_numero` et `incident_id: null`. `GET /api/agents/{id}` montre ces droits dans `droits.retires` et les sort de `surplus` et du risque.
+- `POST /api/politiques/evaluer` rend `verdict: "droit_retire"` avant toute autre règle, avec `regle: {id, numero, effet: "droit_retire", droit, constat, texte, enonce}`. La passerelle refuse l'appel sans l'exécuter, comme pour un droit retiré depuis un incident : `appel_outil`, `details.verdict = "refuse"`, `details.droit_retire = <code>`, raison « droit <code> retiré par l'analyste ». Pas d'incident. Ces refus comptent dans `declenchements` de la règle.
+- `DELETE /api/politiques/{id}` sur cette règle rend les droits (bouton « Rendre les droits ») : il retire les entrées marquées de cette règle et laisse un retrait fait depuis un incident. Une passerelle déjà lancée garde ses refus jusqu'à la fin de sa session.
+- Le fichier des règles fait foi. Après un redémarrage, `evaluer` applique la règle tout de suite, et le Store est réaligné au premier appel de `/api/politiques` (lecture, analyse ou activation).
+
+### Journal scellé des règles
+
+Chaque activation (`activation`, ou `retrait_droits` pour le moindre privilège) et chaque retrait (`retrait`, ou `droits_rendus`) entre dans `actes` du fichier des règles : `{rang, acte, regle_id, numero, analyste, horodatage, details, sceau_precedent, sceau}`, chaîné par SHA-256 avec `journal_scelle.empreinte` depuis la genèse à zéros. `GET /api/politiques` ajoute `journal` `{intact, actes, rang_altere, tete, algorithme}`, `lecteur` `{moteur, modele}` et `exemple_moindre`. `GET /api/politiques/journal` rend `{actes, verification}` ; la vérification relit le fichier sur le disque.
+
+### Console
+
+`console/src/agent/Regles.tsx` seul : une ligne par agent avec les droits qui partiront, « Compris par le modèle (Haiku, 4,6 s) » ou « Compris par les motifs », l'exemple « Retire les droits en trop aux agents » sous le champ, et la règle active avec « Rendre les droits ». La carte d'inventaire (`Inventaire.tsx`) n'affiche pas encore `droits.retires` ; le champ est dans `GET /api/agents`.
+
+### Vérifié le 10 octobre
+
+Sur un backend isolé, « j'aimerais que tu enlèves les permissions en trop aux agents » est comprise par Haiku en 5,5 s, puis activée (11 droits, 3 agents). `orbis.demo --scenario jury` : `lire_coffre` refusé, « droit coffre:lire retiré par l'analyste », coffre lu 0 fois, rapport envoyé à jean.moreau@orbispay.example. Captures dans `captures/regles/`.

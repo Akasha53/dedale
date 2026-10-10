@@ -432,20 +432,23 @@ def _ligne_plan(p: dict) -> str:
     return f"{p['nom']} : aucun droit en trop."
 
 
-def reformulation_moindre(plan: list[dict]) -> str:
+def parties_moindre(plan: list[dict]) -> tuple[str, str]:
+    """(entête, conclusion) de la reformulation ; entre les deux, une ligne par agent."""
     plusieurs = len(plan) > 1
     debut = ("Voilà ce que j'ai compris : retirer les droits que ces agents n'utilisent pas pour "
              "leur tâche." if plusieurs else
              "Voilà ce que j'ai compris : retirer les droits que cet agent n'utilise pas pour sa tâche.")
-    lignes = " ".join(_ligne_plan(p) for p in plan)
     if not any(p["droits"] for p in plan):
-        fin = ("Aucun n'a de droit en trop : rien à retirer." if plusieurs
-               else "Rien à retirer.")
-        return f"{debut} {lignes} {fin}"
+        return debut, ("Aucun n'a de droit en trop : rien à retirer." if plusieurs else "Rien à retirer.")
     concernes = sum(1 for p in plan if p["droits"])
     fin = ("Ils ne pourront plus appeler ces outils." if concernes > 1
            else "Il ne pourra plus appeler ces outils.")
-    return f"{debut} {lignes} {fin} Activer ?"
+    return debut, f"{fin} Activer ?"
+
+
+def reformulation_moindre(plan: list[dict]) -> str:
+    debut, fin = parties_moindre(plan)
+    return f"{debut} {' '.join(_ligne_plan(p) for p in plan)} {fin}"
 
 
 def regle_moindre(plan: list[dict]) -> dict:
@@ -533,7 +536,8 @@ def analyser_moindre(agents: list[str], phrase: str, store=None, par: str = "mot
     plan = plan_retraits(agents, store)
     base = {"phrase": _court(phrase), "mode": "modele" if par == "modèle" else "regles",
             "compris_par": par, "exemples": _exemples(), "intention": MOINDRE, "forme": MOINDRE,
-            "manques": [], "comprise": True, "plan": plan, "texte": reformulation_moindre(plan)}
+            "manques": [], "comprise": True, "plan": plan, "texte": reformulation_moindre(plan),
+            "entete": parties_moindre(plan)[0], "conclusion": parties_moindre(plan)[1]}
     if not any(p["droits"] for p in plan):
         return {**base, "regle": None, "question": None, "rien_a_retirer": True}
     return {**base, "regle": decrire_moindre(regle_moindre(plan)), "question": "Activer ?",
