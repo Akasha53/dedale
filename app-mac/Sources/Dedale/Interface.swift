@@ -188,7 +188,7 @@ final class VueRetournee: NSView {
 
 // MARK: - Logo
 
-/// Le logo de Dédale (`design/logo/`, copié dans `Ressources/`) : deux crochets qui
+/// Le logo de sAIfe (`design/logo/`, copié dans `Ressources/`) : deux crochets qui
 /// s'emboîtent autour d'un disque. Les PNG sont lus dans le paquet de l'app, sinon dans le
 /// dossier `Ressources/` d'app-mac quand le binaire tourne depuis `.build/` (captures, essais).
 enum Logo {
@@ -199,7 +199,7 @@ enum Logo {
     static let barreDeMenus: NSImage? = {
         let i = image("MenuBarIcon", taille: NSSize(width: 18, height: 18))
         i?.isTemplate = true
-        i?.accessibilityDescription = "Dédale"
+        i?.accessibilityDescription = "sAIfe"
         return i
     }()
 
@@ -298,6 +298,27 @@ enum Gabarit {
         return t
     }
 
+    /// Le nom du produit en logotype : « s » et « fe » en graisse régulière, « AI » en gras,
+    /// même taille et même couleur. Sert partout où le nom tient lieu de marque ; dans une
+    /// phrase, « sAIfe » s'écrit en texte simple.
+    static func logotype(taille: CGFloat, couleur: NSColor = Teinte.encre) -> NSAttributedString {
+        let texte = NSMutableAttributedString()
+        for (morceau, graisse) in [("s", NSFont.Weight.regular), ("AI", .bold), ("fe", .regular)] {
+            texte.append(NSAttributedString(string: morceau, attributes: [
+                .font: NSFont.systemFont(ofSize: taille, weight: graisse), .foregroundColor: couleur,
+            ]))
+        }
+        return texte
+    }
+
+    /// Étiquette qui porte le logotype, lue « sAIfe » par VoiceOver.
+    static func etiquetteLogotype(taille: CGFloat, couleur: NSColor = Teinte.encre) -> NSTextField {
+        let t = NSTextField(labelWithAttributedString: logotype(taille: taille, couleur: couleur))
+        t.lineBreakMode = .byTruncatingTail
+        t.setAccessibilityLabel("sAIfe")
+        return t
+    }
+
     static func paragraphe(_ texte: String, taille: CGFloat, graisse: NSFont.Weight = .regular,
                            couleur: NSColor = Teinte.texte, largeur: CGFloat) -> NSTextField {
         let t = NSTextField(wrappingLabelWithString: texte)
@@ -344,7 +365,7 @@ enum Gabarit {
         return fond
     }
 
-    /// Le logo noir de Dédale, 28 points. Sans ses PNG, la marque de la console
+    /// Le logo noir de sAIfe, 28 points. Sans ses PNG, la marque de la console
     /// (`.pastille-logo` : tuile noire, « D » blanc).
     static func badgeBouclier() -> NSView {
         if let logo = Logo.entete {
@@ -353,7 +374,7 @@ enum Gabarit {
             vue.translatesAutoresizingMaskIntoConstraints = false
             vue.widthAnchor.constraint(equalToConstant: 28).isActive = true
             vue.heightAnchor.constraint(equalToConstant: 28).isActive = true
-            vue.setAccessibilityLabel("Dédale")
+            vue.setAccessibilityLabel("sAIfe")
             return vue
         }
         let fond = NSView()
@@ -370,16 +391,17 @@ enum Gabarit {
             lettre.centerXAnchor.constraint(equalTo: fond.centerXAnchor),
             lettre.centerYAnchor.constraint(equalTo: fond.centerYAnchor),
         ])
-        fond.setAccessibilityLabel("Dédale")
+        fond.setAccessibilityLabel("sAIfe")
         return fond
     }
 
-    /// En-tête commun : marque, titre, pastille à droite.
-    static func entete(titre: String, puce texte: String) -> NSStackView {
+    /// En-tête commun : marque, titre, pastille à droite. Sans titre, le logotype sAIfe.
+    static func entete(titre: String? = nil, puce texte: String) -> NSStackView {
         let ressort = NSView()
         ressort.setContentHuggingPriority(.init(1), for: .horizontal)
-        let pile = NSStackView(views: [badgeBouclier(), etiquette(titre, taille: 14, graisse: .semibold, couleur: Teinte.encre),
-                                       ressort, puce(texte)])
+        let libelle = titre.map { etiquette($0, taille: 14, graisse: .semibold, couleur: Teinte.encre) }
+            ?? etiquetteLogotype(taille: 14)
+        let pile = NSStackView(views: [badgeBouclier(), libelle, ressort, puce(texte)])
         pile.orientation = .horizontal
         pile.alignment = .centerY
         pile.spacing = 8

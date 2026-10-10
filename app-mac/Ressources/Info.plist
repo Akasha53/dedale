@@ -5,9 +5,9 @@
 	<key>CFBundleIdentifier</key>
 	<string>example.dedale.garde</string>
 	<key>CFBundleName</key>
-	<string>Dédale</string>
+	<string>sAIfe</string>
 	<key>CFBundleDisplayName</key>
-	<string>Dédale</string>
+	<string>sAIfe</string>
 	<key>CFBundleExecutable</key>
 	<string>Dedale</string>
 	<key>CFBundleIconFile</key>
@@ -27,7 +27,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Dédale lit l'adresse de l'onglet ouvert dans Safari ou Chrome, quand le navigateur est au premier plan, pour vous prévenir avant un faux site. Il ne lit ni le contenu des pages ni l'historique.</string>
+	<string>sAIfe lit l'adresse de l'onglet ouvert dans Safari ou Chrome, quand le navigateur est au premier plan, pour vous prévenir avant un faux site. Il ne lit ni le contenu des pages ni l'historique.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

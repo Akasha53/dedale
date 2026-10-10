@@ -59,7 +59,7 @@ final class FenetreTelechargement: NSObject {
 
         let w = Self.interieur
         let v = fichier.verdict
-        let entete = Gabarit.entete(titre: "Dédale", puce: "Téléchargement")
+        let entete = Gabarit.entete(puce: "Téléchargement")
         let tuile = Self.tuileFichier(fichier, largeur: w)
         let message = Gabarit.paragraphe(v.message, taille: Taille.titre, graisse: .semibold, couleur: Teinte.encre, largeur: w)
         let detail = Gabarit.paragraphe(v.detail, taille: Taille.texte, couleur: Teinte.texte, largeur: w)
@@ -234,7 +234,7 @@ final class FenetreTelechargement: NSObject {
             couleur = deplace ? Teinte.ok : Teinte.orange
             titre = deplace ? "Mis de côté." : "Impossible de le déplacer."
             texte = deplace
-                ? "Il est dans « \(SurveillanceTelechargements.nomMisDeCote) ». Le menu Dédale peut le remettre à sa place."
+                ? "Il est dans « \(SurveillanceTelechargements.nomMisDeCote) ». Le menu sAIfe peut le remettre à sa place."
                 : "Le fichier n'a pas bougé. Ne l'ouvrez pas et prévenez l'équipe sécurité."
         } else {
             symbole = "exclamationmark.triangle.fill"

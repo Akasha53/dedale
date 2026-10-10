@@ -17,11 +17,15 @@ struct FichierSignale {
 /// Surveille le dossier Téléchargements (FSEvents). Les fichiers présents au démarrage sont
 /// ignorés ; chaque nouveau fichier est jugé quand sa taille ne bouge plus (un téléchargement
 /// en cours porte `.download`, `.crdownload` ou `.part` et attend la fin). Seul le premier
-/// niveau du dossier est regardé, sans le sous-dossier « Dédale - mis de côté ».
+/// niveau du dossier est regardé, sans le sous-dossier « sAIfe - mis de côté » ni son ancien nom.
 final class SurveillanceTelechargements {
     enum Etat: Equatable { case arretee, active, accesRefuse, dossierAbsent }
 
-    static let nomMisDeCote = "Dédale - mis de côté"
+    static let nomMisDeCote = "sAIfe - mis de côté"
+    /// Nom du dossier avant le passage à sAIfe. Les fichiers qui y sont rangés restent
+    /// restaurables : le journal `mis-de-cote.json` garde leur chemin complet.
+    static let ancienNomMisDeCote = "Dédale - mis de côté"
+    static var nomsMisDeCote: Set<String> { [nomMisDeCote, ancienNomMisDeCote] }
     static let suffixesEnCours = [".download", ".crdownload", ".part", ".partial", ".opdownload", ".tmp"]
 
     let dossier: URL
@@ -157,7 +161,7 @@ final class SurveillanceTelechargements {
 
         for url in entrees {
             let nom = url.lastPathComponent
-            guard !connus.contains(nom), nom != Self.nomMisDeCote,
+            guard !connus.contains(nom), !Self.nomsMisDeCote.contains(nom),
                   !Self.suffixesEnCours.contains(where: { nom.lowercased().hasSuffix($0) }) else { continue }
             let v = try? url.resourceValues(forKeys: Set(cles))
             if v?.isSymbolicLink == true { connus.insert(nom); continue }
@@ -254,8 +258,10 @@ final class SurveillanceTelechargements {
     }
 }
 
-/// Mise de côté réversible : le fichier part dans « Dédale - mis de côté », à côté de son
+/// Mise de côté réversible : le fichier part dans « sAIfe - mis de côté », à côté de son
 /// dossier d'origine, et le journal local (`mis-de-cote.json`) garde de quoi le remettre.
+/// Une entrée rangée sous l'ancien nom « Dédale - mis de côté » se remet en place de la même
+/// façon, par son chemin enregistré.
 /// Les chemins restent sur le Mac.
 final class MiseDeCote {
     struct Entree {

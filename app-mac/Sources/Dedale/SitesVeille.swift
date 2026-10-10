@@ -206,7 +206,7 @@ final class SitesVeille {
 
     /// La lecture ne tourne que pendant qu'un navigateur surveillé est au premier plan.
     private func premierPlanChange() {
-        // Module Sites coupé dans le panneau « Ce que Dédale regarde » : plus aucune lecture.
+        // Module Sites coupé dans le panneau « Ce que sAIfe regarde » : plus aucune lecture.
         if navigateurDevant != nil, ReglagesModules.partage.actif(.sites) {
             guard minuteur == nil else { return }
             let m = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tic() }
@@ -234,7 +234,7 @@ final class SitesVeille {
             lecteur.verifierPermission(n) { [weak self] p in
                 guard let self else { return }
                 if p == .refusee {
-                    self.majLigne("Sites : autorisez Dédale pour \(n.nom) (Réglages Système, Automatisation)",
+                    self.majLigne("Sites : autorisez sAIfe pour \(n.nom) (Réglages Système, Automatisation)",
                                   couleur: Teinte.orange)
                 } else if p == .accordee {
                     self.majLigne(nil, couleur: Teinte.ok)
@@ -267,7 +267,7 @@ final class SitesVeille {
         if r.verdict == "raccourci" {
             if raccourcisVus.insert(o.cle + " " + r.domaine).inserted {
                 journal("sites : lien raccourci \(r.domaine), adresse d'arrivée examinée après la redirection")
-                Bulle("Lien raccourci (\(r.affiche)) : Dédale vérifiera l'adresse d'arrivée.", ok: true)
+                Bulle("Lien raccourci (\(r.affiche)) : sAIfe vérifiera l'adresse d'arrivée.", ok: true)
                     .montrer(capture: "site-raccourci")
             }
             return

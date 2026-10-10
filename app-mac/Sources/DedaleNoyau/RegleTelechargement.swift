@@ -161,7 +161,7 @@ public struct RegleTelechargement: Sendable {
         case .mail: canal = "Reçu en pièce jointe d'un mail."
         case .messagerie: canal = "Reçu par une messagerie."
         case .airdrop: canal = "Reçu par AirDrop."
-        case .site: canal = connu ? "" : "Dédale ne connaît pas ce site."
+        case .site: canal = connu ? "" : "sAIfe ne connaît pas ce site."
         case .inconnue: canal = "macOS n'a pas noté d'où il vient."
         case .locale: canal = ""
         }

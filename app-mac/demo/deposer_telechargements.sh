@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dépose trois faux téléchargements inoffensifs, avec une provenance simulée, pour la démo
-# du module Téléchargements de Dédale :
+# du module Téléchargements de sAIfe :
 #   - « Facture-octobre.pdf.app » : paquet d'application sans programme, venu de
 #     factures-orbis.example (double extension) ;
 #   - « Releve-de-compte.docm » : document Word avec un projet VBA vide, reçu par mail de
@@ -12,7 +12,8 @@
 #
 # Usage : ./deposer_telechargements.sh [--dossier <chemin>] [--nettoyer]
 #   --dossier   dossier cible (défaut : $DEDALE_TELECHARGEMENTS, sinon ~/Downloads)
-#   --nettoyer  retire les trois fichiers du dossier et de « Dédale - mis de côté »
+#   --nettoyer  retire les trois fichiers du dossier, de « sAIfe - mis de côté » et de
+#               l'ancien « Dédale - mis de côté »
 set -euo pipefail
 
 DOSSIER="${DEDALE_TELECHARGEMENTS:-$HOME/Downloads}"
@@ -26,15 +27,17 @@ while [ $# -gt 0 ]; do
 done
 DOSSIER="${DOSSIER%/}"
 NOMS=("Facture-octobre.pdf.app" "Releve-de-compte.docm" "Photos-seminaire.zip")
-COTE="$DOSSIER/Dédale - mis de côté"
+COTE="$DOSSIER/sAIfe - mis de côté"
+ANCIEN_COTE="$DOSSIER/Dédale - mis de côté"
 
 if [ "$NETTOYER" = 1 ]; then
   for nom in "${NOMS[@]}"; do
-    for ou in "$DOSSIER" "$COTE"; do
+    for ou in "$DOSSIER" "$COTE" "$ANCIEN_COTE"; do
       if [ -e "$ou/$nom" ]; then rm -rf "${ou:?}/${nom:?}"; echo "retiré : $ou/$nom"; fi
     done
   done
   rmdir "$COTE" 2>/dev/null || true
+  rmdir "$ANCIEN_COTE" 2>/dev/null || true
   exit 0
 fi
 
@@ -75,7 +78,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>
 PLIST
-echo "Fichier de démonstration Dédale : aucun programme, rien ne s'exécute." > "$APP/Contents/Resources/README.txt"
+echo "Fichier de démonstration sAIfe : aucun programme, rien ne s'exécute." > "$APP/Contents/Resources/README.txt"
 provenance "$APP" "Safari" \
   "https://cdn.factures-orbis.example/telechargement/Facture-octobre.pdf.app" \
   "https://factures-orbis.example/espace-client"
@@ -85,14 +88,14 @@ DOCM="$TRAVAIL/docm"
 mkdir -p "$DOCM/word" "$DOCM/_rels"
 echo '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>' > "$DOCM/[Content_Types].xml"
 echo '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>' > "$DOCM/word/document.xml"
-echo "Projet VBA vide : fichier de démonstration Dédale, sans aucune macro." > "$DOCM/word/vbaProject.bin"
+echo "Projet VBA vide : fichier de démonstration sAIfe, sans aucune macro." > "$DOCM/word/vbaProject.bin"
 (cd "$DOCM" && zip -q -X -r "$TRAVAIL/Releve-de-compte.docm" .)
 provenance "$TRAVAIL/Releve-de-compte.docm" "Mail" \
   "Service facturation <facturation@orbis-pay-facturation.example>" \
   "message:%3Cdemo-releve@orbis-pay-facturation.example%3E"
 
 # 3. Archive protégée par mot de passe (le mot de passe ne sert qu'à la démo).
-echo "Photos du séminaire : fichier de démonstration Dédale." > "$TRAVAIL/photos.txt"
+echo "Photos du séminaire : fichier de démonstration sAIfe." > "$TRAVAIL/photos.txt"
 (cd "$TRAVAIL" && zip -q -X -P "demo-dedale" "$TRAVAIL/Photos-seminaire.zip" photos.txt)
 provenance "$TRAVAIL/Photos-seminaire.zip" "Google Chrome" \
   "https://partage-photos.example/s/seminaire/Photos-seminaire.zip"

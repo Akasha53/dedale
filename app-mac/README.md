@@ -1,8 +1,8 @@
-# Dédale pour Mac (démo)
+# sAIfe pour Mac (démo)
 
 Une application de barre de menus. Elle affiche une pop-up quand un geste à risque se présente : un mail frauduleux arrivé dans la boîte de démo, un fichier à risque qui arrive dans Téléchargements, ou un geste signalé sur le port local. Le salarié choisit Annuler ou Continuer (Mettre de côté ou Garder pour un fichier). Après Annuler, un court coach explique le piège. Un geste critique (virement, export de données clients) attend l'accord d'un analyste du SOC. L'app fait aussi l'inventaire des assistants IA configurés sur le poste et l'envoie à la SOC.
 
-Ce que l'app regarde sur le Mac se limite à trois choses : l'adresse de l'onglet actif de Safari ou de Chrome quand l'un d'eux est au premier plan, les nouveaux fichiers du dossier Téléchargements, et les fichiers de configuration MCP des assistants connus (une configuration factice par défaut). Elle ne lit ni la messagerie du Mac, ni le presse-papiers, ni le clavier, ni l'écran, ni l'historique. Les mails viennent de la boîte de démo locale (`messagerie/`), les autres gestes du simulateur `poste/` ou d'un `curl`. Les autorisations demandées sont l'accès au dossier Téléchargements et le contrôle de Safari et de Chrome, limité à la lecture de l'adresse. Le panneau « Ce que Dédale regarde sur ce poste » dit tout cela dans l'app, module par module.
+Ce que l'app regarde sur le Mac se limite à trois choses : l'adresse de l'onglet actif de Safari ou de Chrome quand l'un d'eux est au premier plan, les nouveaux fichiers du dossier Téléchargements, et les fichiers de configuration MCP des assistants connus (une configuration factice par défaut). Elle ne lit ni la messagerie du Mac, ni le presse-papiers, ni le clavier, ni l'écran, ni l'historique. Les mails viennent de la boîte de démo locale (`messagerie/`), les autres gestes du simulateur `poste/` ou d'un `curl`. Les autorisations demandées sont l'accès au dossier Téléchargements et le contrôle de Safari et de Chrome, limité à la lecture de l'adresse. Le panneau « Ce que sAIfe regarde sur ce poste » dit tout cela dans l'app, module par module.
 
 ![Mail frauduleux](captures/mail.png)
 
@@ -20,6 +20,8 @@ cd app-mac
 ./construire.sh --lancer   # construit puis ouvre l'app
 ```
 
+L'app s'affiche sous le nom sAIfe (`CFBundleName`, `CFBundleDisplayName`). Le paquet `Dedale.app`, le binaire, l'identifiant `example.dedale.garde`, les variables `DEDALE_*` et le dossier `~/Library/Application Support/Dedale` gardent l'ancien nom : les changer ferait redemander à macOS toutes les autorisations déjà données.
+
 Un bouclier apparaît dans la barre de menus, sans icône dans le Dock. Pour la démo complète, lancez aussi le backend (`./lancer.sh` à la racine) et la boîte de démo :
 
 ```bash
@@ -35,7 +37,7 @@ Une seule icône dans la barre de menus, un bouclier dont la forme suit l'état 
 - « Protégé » quand les quatre modules tournent et que le backend répond ; sinon « Protégé, équipe sécurité injoignable », « Protection partielle (3 modules sur 4) » ou « Protection en pause » ([capture](../captures/app-poste/menu-protection-partielle.png)).
 - Le compteur : « 3 pièges évités cette semaine ». Chaque Annuler ou Mettre de côté compte, depuis lundi. Les dates restent sur le Mac, dans `~/Library/Application Support/Dedale/pieges-evites.json`.
 
-Puis « Agents IA : 7 serveurs dont 3 à risque » (un clic ouvre l'inventaire), avec un point rouge seulement s'il y a un risque. Enfin « Signaler un mail suspect… », « Fichiers mis de côté », « Ce que Dédale regarde sur ce poste… », « Tester une alerte » et « Quitter ».
+Puis « Agents IA : 7 serveurs dont 3 à risque » (un clic ouvre l'inventaire), avec un point rouge seulement s'il y a un risque. Enfin « Signaler un mail suspect… », « Fichiers mis de côté », « Ce que sAIfe regarde sur ce poste… », « Tester une alerte » et « Quitter ».
 
 ![Menu](../captures/app-poste/menu.png)
 
@@ -85,14 +87,14 @@ L'app surveille le premier niveau de `~/Downloads` (FSEvents). Les fichiers déj
 |---|---|---|
 | ![](../captures/app-poste/telechargement-application.png) | ![](../captures/app-poste/telechargement-document-macros-garde.png) | ![](../captures/app-poste/telechargement-archive-chiffree-mis-de-cote.png) |
 
-« Mettre de côté » déplace le fichier dans `~/Downloads/Dédale - mis de côté/`. Le sous-menu « Fichiers mis de côté » le remet à sa place ([capture](../captures/app-poste/menu-mis-de-cote.png)). « Garder » le laisse où il est. Le choix part à la SOC avec le type du fichier, les motifs, le domaine d'origine et l'empreinte SHA-256, jamais son nom ni son contenu (format dans `CONTRATS.md`, avenant « app Mac, poste »). Garder ouvre un incident `humain_phishing`, comme un Continuer.
+« Mettre de côté » déplace le fichier dans `~/Downloads/sAIfe - mis de côté/`. Le sous-menu « Fichiers mis de côté » le remet à sa place ([capture](../captures/app-poste/menu-mis-de-cote.png)). Un fichier rangé avant le changement de nom, dans `Dédale - mis de côté/`, se remet en place de la même façon : le journal local garde son chemin complet. « Garder » le laisse où il est. Le choix part à la SOC avec le type du fichier, les motifs, le domaine d'origine et l'empreinte SHA-256, jamais son nom ni son contenu (format dans `CONTRATS.md`, avenant « app Mac, poste »). Garder ouvre un incident `humain_phishing`, comme un Continuer.
 
 Pour la démo, un script dépose trois faux téléchargements inoffensifs, avec une provenance simulée : un paquet `Facture-octobre.pdf.app` sans programme, un `Releve-de-compte.docm` au projet VBA vide reçu « par mail », une archive `Photos-seminaire.zip` chiffrée.
 
 ```bash
 ./demo/deposer_telechargements.sh                       # dans ~/Downloads (ou $DEDALE_TELECHARGEMENTS)
 ./demo/deposer_telechargements.sh --dossier /tmp/essai  # ailleurs
-./demo/deposer_telechargements.sh --nettoyer            # retire les trois fichiers, mis de côté compris
+./demo/deposer_telechargements.sh --nettoyer            # retire les trois fichiers, mis de côté compris (ancien dossier aussi)
 ```
 
 Au premier lancement de `Dedale.app`, macOS demande l'accès au dossier Téléchargements. Sans cet accord, le menu affiche « Téléchargements : accès à autoriser » et l'app réessaie toutes les 10 s. La signature ad hoc change à chaque construction : macOS peut redemander l'accord après `./construire.sh`.
@@ -119,7 +121,7 @@ Une adresse louche ouvre la pop-up habituelle, avec « Revenir en arrière » et
 
 Dans Chrome, l'app laisse la main à l'extension : une adresse louche n'y alerte qu'au second relevé, et si l'onglet est passé entre-temps sur la page d'avertissement de l'extension, l'app ne fait rien, même quand le salarié continue depuis cette page.
 
-La première lecture fait poser une question par macOS : « Dédale souhaite contrôler Safari » (ou Chrome), avec la phrase de `NSAppleEventsUsageDescription`. Un refus se voit dans le menu (« Sites : autorisez Dédale pour Safari ») et se corrige dans Réglages Système, Confidentialité et sécurité, Automatisation. L'app est signée ad hoc : une reconstruction peut faire reposer la question.
+La première lecture fait poser une question par macOS : « sAIfe souhaite contrôler Safari » (ou Chrome), avec la phrase de `NSAppleEventsUsageDescription`. Un refus se voit dans le menu (« Sites : autorisez sAIfe pour Safari ») et se corrige dans Réglages Système, Confidentialité et sécurité, Automatisation. L'app est signée ad hoc : une reconstruction peut faire reposer la question.
 
 Le moteur Swift (`Sources/Dedale/SitesRegles.swift`) rend les mêmes résultats que celui de l'extension sur le corpus partagé : `../partage/verifier.sh` le compile à part avec `swiftc` et compare les deux, adresse par adresse.
 
@@ -133,7 +135,7 @@ open -n -a Dedale.app --env DEDALE_BACKEND=http://127.0.0.1:8781 --env DEDALE_PO
 
 `open` plutôt que le binaire seul : lancé depuis un terminal, le binaire ferait demander l'autorisation au nom du terminal. Une seule instance de `Dedale.app` tourne à la fois : quitter celle de la démo avant.
 
-## Ce que Dédale regarde sur ce poste
+## Ce que sAIfe regarde sur ce poste
 
 Le panneau liste les quatre modules (Mails, Sites, Téléchargements, Agents IA), ce que chacun lit, ce qui part à la SOC, avec un interrupteur par module. Un module coupé ne lit plus rien et n'envoie plus rien ; le réglage reste sur le Mac (`modules.json`). En bas, ce que l'app ne lit jamais : le presse-papiers, les frappes au clavier, les captures d'écran, le contenu des pages, l'historique de navigation. Les textes viennent de `Sources/Dedale/ModulesPoste.swift`, et la section « Vie privée » de la landing les reprend.
 

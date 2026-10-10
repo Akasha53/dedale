@@ -77,7 +77,7 @@ final class FenetreAlerte: NSObject {
 
         let a = avertissement
         let w = Self.interieur
-        let entete = Gabarit.entete(titre: "Dédale", puce: a.libelleCategorie)
+        let entete = Gabarit.entete(puce: a.libelleCategorie)
         // Geste critique : titre bâti sur les champs structurés, jamais sur le texte reçu.
         let message = Gabarit.paragraphe(a.quatreYeux ? DemandeQuatreYeux.titre(pour: a) : a.message, taille: Taille.titre,
                                          graisse: .semibold, couleur: Teinte.encre, largeur: w)
@@ -108,7 +108,7 @@ final class FenetreAlerte: NSObject {
         boutons.spacing = 10
 
         let note = Gabarit.paragraphe(
-            a.note ?? (a.quatreYeux ? "Geste sensible : Dédale le vérifie avant qu'il parte, et l'équipe sécurité voit sa décision."
+            a.note ?? (a.quatreYeux ? "Geste sensible : sAIfe le vérifie avant qu'il parte, et l'équipe sécurité voit sa décision."
                          : "Dans les deux cas, l'équipe sécurité reçoit le type d'alerte et votre choix. Jamais le contenu de votre poste."),
             taille: Taille.note, couleur: Teinte.discret, largeur: w)
 
@@ -236,7 +236,7 @@ final class FenetreAlerte: NSObject {
         DemandeQuatreYeux.texteAttente(restant: s)
     }
 
-    /// Issue des quatre yeux (« Relu par Dédale en 1,8 s : refusé. » et le motif), puis fermeture.
+    /// Issue des quatre yeux (« Relu par sAIfe en 1,8 s : refusé. » et le motif), puis fermeture.
     /// Accordé en vert, comme ce qui est réglé dans la console ; refusé ou sans réponse en noir :
     /// une décision, pas un danger.
     func montrerIssue(_ issue: DemandeQuatreYeux.Issue) {

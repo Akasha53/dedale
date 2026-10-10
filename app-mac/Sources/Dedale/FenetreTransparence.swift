@@ -272,7 +272,7 @@ class FenetrePanneau: NSObject {
     }
 }
 
-// MARK: - « Ce que Dédale regarde sur ce poste »
+// MARK: - « Ce que sAIfe regarde sur ce poste »
 
 /// Le panneau de transparence : chaque module, ce qu'il lit, ce qui part à la SOC, un
 /// interrupteur par module, et ce que l'app ne lit jamais.
@@ -301,7 +301,7 @@ final class FenetreTransparence: FenetrePanneau {
 
     private func construire() {
         let w = largeur - 56
-        let tete = entete(titre: "Ce que Dédale regarde sur ce poste",
+        let tete = entete(titre: "Ce que sAIfe regarde sur ce poste",
                           sousTitre: "Chaque module se coupe ici. Coupé, il ne lit et n'envoie plus rien.")
         tete.widthAnchor.constraint(equalToConstant: w).isActive = true
 
@@ -409,7 +409,7 @@ final class FenetreTransparence: FenetrePanneau {
     private func carteJamais(largeur w: CGFloat) -> NSView {
         let titre = NSStackView(views: [
             Gabarit.icone("eye.slash", taille: 13, couleurs: [Teinte.encre], cote: 18),
-            Gabarit.etiquette("Ce que Dédale ne lit jamais", taille: Taille.titreCarte, graisse: .semibold, couleur: Teinte.encre),
+            Gabarit.etiquette("Ce que sAIfe ne lit jamais", taille: Taille.titreCarte, graisse: .semibold, couleur: Teinte.encre),
         ])
         titre.orientation = .horizontal
         titre.spacing = 6

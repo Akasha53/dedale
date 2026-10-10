@@ -1,7 +1,7 @@
 import Foundation
 
 /// Les modules de Dédale sur le poste, ce que chacun lit et ce qu'il envoie à la SOC. Ces
-/// textes s'affichent tels quels dans le panneau « Ce que Dédale regarde sur ce poste » :
+/// textes s'affichent tels quels dans le panneau « Ce que sAIfe regarde sur ce poste » :
 /// ils décrivent ce que fait le code, et la section « Vie privée » de la landing les reprend.
 enum ModulePoste: String, CaseIterable {
     case mails, sites, telechargements, agents

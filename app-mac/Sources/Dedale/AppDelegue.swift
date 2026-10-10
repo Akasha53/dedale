@@ -75,7 +75,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         element = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        element.button?.toolTip = "Dédale"
+        element.button?.toolTip = "sAIfe"
 
         menu.autoenablesItems = false
         menu.delegate = self
@@ -103,7 +103,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sousMenuMisDeCote.autoenablesItems = false
         entreeMisDeCote.submenu = sousMenuMisDeCote
         menu.addItem(entreeMisDeCote)
-        let regarde = NSMenuItem(title: "Ce que Dédale regarde sur ce poste…", action: #selector(ouvrirTransparence),
+        let regarde = NSMenuItem(title: "Ce que sAIfe regarde sur ce poste…", action: #selector(ouvrirTransparence),
                                  keyEquivalent: "")
         regarde.target = self
         menu.addItem(regarde)
@@ -217,12 +217,12 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .font: NSFont.systemFont(ofSize: Taille.bouton, weight: .semibold), .foregroundColor: Teinte.encre])
         ligneEtat.image = Gabarit.symbole(symbole + ".fill", taille: 13, couleurs: [couleur])
         // Le logo en gabarit dans la barre de menus ; le bouclier de l'état reste en repli.
-        let image = Logo.barreDeMenus ?? NSImage(systemSymbolName: symbole, accessibilityDescription: "Dédale : \(titre)")
+        let image = Logo.barreDeMenus ?? NSImage(systemSymbolName: symbole, accessibilityDescription: "sAIfe : \(titre)")
         image?.isTemplate = true
         element?.button?.image = image
         // Protection en pause : le logo s'estompe, comme un élément désactivé.
         element?.button?.appearsDisabled = actifs == 0
-        element?.button?.toolTip = "Dédale : \(titre)"
+        element?.button?.toolTip = "sAIfe : \(titre)"
     }
 
     private func etat() -> [String: Any] {

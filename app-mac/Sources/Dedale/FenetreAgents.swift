@@ -81,7 +81,7 @@ final class FenetreAgents: FenetrePanneau {
         }
 
         let note = Gabarit.paragraphe(
-            "Dédale lit le nom de chaque serveur et sa commande de lancement pour en déduire le type. "
+            "sAIfe lit le nom de chaque serveur et sa commande de lancement pour en déduire le type. "
             + "Les jetons, les clés et les variables d'environnement ne sont ni gardés ni envoyés.",
             taille: Taille.note, couleur: Teinte.discret, largeur: w)
         pile.addArrangedSubview(note)

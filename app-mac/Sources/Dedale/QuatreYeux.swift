@@ -9,7 +9,7 @@ import Foundation
 ///   Aucun signal : le geste part, sans pop-up. Signal sans fraude : le relecteur accorde (une ligne
 ///   discrète) ou retient le geste, et la pop-up dit pourquoi en clair et qu'il faut le faire
 ///   confirmer par le responsable ou la finance. Signal de fraude : le geste est refusé ou retenu,
-///   et l'équipe sécurité est prévenue. Une réponse lente ouvre « Dédale vérifie ce virement… » ;
+///   et l'équipe sécurité est prévenue. Une réponse lente ouvre « sAIfe vérifie ce virement… » ;
 ///   une absence de réponse retient le geste, jamais de refus sec à cause d'un délai.
 /// - Geste qui suit une alerte de mail (`lancer`) : après « Continuer », la demande part au SOC
 ///   et le relecteur la tranche ; sans réponse, le geste est retenu.
@@ -77,9 +77,9 @@ final class DemandeQuatreYeux {
     private static var gesteEnCours: String?
     static var titreAttente: String {
         switch gesteEnCours {
-        case "virement": return "Dédale vérifie ce virement…"
-        case "export_clients": return "Dédale vérifie cet export…"
-        default: return "Dédale vérifie ce geste…"
+        case "virement": return "sAIfe vérifie ce virement…"
+        case "export_clients": return "sAIfe vérifie cet export…"
+        default: return "sAIfe vérifie ce geste…"
         }
     }
 
@@ -95,12 +95,12 @@ final class DemandeQuatreYeux {
         case .accorde:
             lignes = r == nil ? ["L'équipe sécurité a validé ce geste. Tu peux continuer."] : [r?.motifSalarie, verifie]
         case .retenu:
-            lignes = [r?.motifSalarie ?? "Dédale n'a pas pu vérifier ce geste.", conseilRetenu,
+            lignes = [r?.motifSalarie ?? "sAIfe n'a pas pu vérifier ce geste.", conseilRetenu,
                       r?.fraude == true ? "L'équipe sécurité est prévenue." : nil, verifie]
         case .expire:
-            lignes = ["Dédale n'a pas pu vérifier ce geste à temps.", conseilRetenu]
+            lignes = ["sAIfe n'a pas pu vérifier ce geste à temps.", conseilRetenu]
         case .injoignable:
-            lignes = ["Dédale est injoignable : ce geste attend.", conseilRetenu]
+            lignes = ["sAIfe est injoignable : ce geste attend.", conseilRetenu]
         case .refuse:
             lignes = r == nil
                 ? ["L'équipe sécurité a refusé ce geste. Il n'aura pas lieu."]
@@ -220,7 +220,7 @@ final class DemandeQuatreYeux {
                         f.montrerIssue(.accorde)
                     } else {
                         if issue == "accorde" {
-                            Bulle("Vérifié par Dédale : le geste part.", ok: true).montrer()
+                            Bulle("Vérifié par sAIfe : le geste part.", ok: true).montrer()
                         }
                         f.surFermeture?()
                     }
@@ -252,7 +252,7 @@ final class DemandeQuatreYeux {
             "quatre_yeux": "demande",
             "demande_id": avertissement.id,
             "delai_s": total,
-            "consequence": "Geste suspendu : Dédale le vérifie.",
+            "consequence": "Geste suspendu : sAIfe le vérifie.",
         ]
         backend.decisions(session: sessionId) { [weak self] avant in
             guard let self else { return }
@@ -355,11 +355,11 @@ final class DemandeQuatreYeux {
         let (code, texte): (String, String)
         switch (issue, relecture) {
         case (.accorde, .some(let r)):
-            (code, texte) = ("accorde", "Accordé par le relecteur Dédale (\(r.tranchePar)) en \(r.duree) : le salarié a pu continuer.")
+            (code, texte) = ("accorde", "Accordé par le relecteur sAIfe (\(r.tranchePar)) en \(r.duree) : le salarié a pu continuer.")
         case (.refuse, .some(let r)):
-            (code, texte) = ("refuse", "Refusé par le relecteur Dédale (\(r.tranchePar)) en \(r.duree) : le geste n'a pas eu lieu.")
+            (code, texte) = ("refuse", "Refusé par le relecteur sAIfe (\(r.tranchePar)) en \(r.duree) : le geste n'a pas eu lieu.")
         case (.retenu, .some(let r)):
-            (code, texte) = ("retenu", "Retenu par le relecteur Dédale (\(r.tranchePar)) en \(r.duree) : à faire confirmer par le responsable.")
+            (code, texte) = ("retenu", "Retenu par le relecteur sAIfe (\(r.tranchePar)) en \(r.duree) : à faire confirmer par le responsable.")
         case (.accorde, _): (code, texte) = ("accorde", "Accordé par le SOC : le salarié a pu continuer.")
         case (.refuse, _): (code, texte) = ("refuse", "Refusé par le SOC : le geste n'a pas eu lieu.")
         case (.retenu, _), (.expire, _):
