@@ -1011,3 +1011,100 @@ Un élément lu qui portait une consigne produit deux événements. D'abord le d
 ### Scénarios
 
 `uv run python -m orbis.demo --scenario jury --desarmeur [--backend URL]` montre la prévention : le relevé est désarmé, l'agent ne demande jamais le coffre et envoie son rapport à Jean Moreau. Sans l'option, le scénario jury reste celui de la détection. La démo complète (`python -m orbis.demo`) gagne la scène 7 (envoi propre vers un cabinet externe, retenu puis coupé) et la scène 8 (mail piégé désarmé).
+
+## Avenant du 10 octobre 2026 : relecteur IA (quatre yeux et pré-tri)
+
+Un modèle rapide relit à la place d'un analyste qui ne peut pas regarder la console jour et nuit. Il tranche les gestes critiques du poste en quelques secondes et pré-trie chaque incident pour la SOC. Code : `backend/app/relecteur.py`, routes dans `backend/app/routes_relecteur.py`. Aucune forme existante ne change.
+
+### Qui tranche
+
+`DEDALE_RELECTEUR` choisit le moteur : `auto` (défaut), `api`, `cli`, `regles` ou `off`.
+
+- `auto` : l'API Anthropic par le SDK officiel si `ANTHROPIC_API_KEY` est défini, sinon `claude -p` s'il est installé, sinon les règles.
+- Modèle : `DEDALE_MODELE_LEGER`, `claude-haiku-5-5` par défaut. Délai : `DEDALE_RELECTEUR_DELAI`, 8 s.
+- Une limite d'usage (429), une panne, un délai dépassé ou une sortie hors schéma font retomber sur les règles. Quand les règles ne tranchent pas, la réponse est `refuse`. Après une limite d'usage, le modèle n'est plus appelé pendant 5 minutes.
+- `DEDALE_LLM=off` vaut `regles`. `off` coupe le relecteur : l'app retrouve l'attente d'un analyste.
+- Le modèle peut refuser seul. Il ne peut pas accorder un geste que les règles refusent d'office.
+- Chaque résultat dit qui a tranché : `tranche_par` vaut `Haiku` ou `règles`.
+
+### Ce que le modèle reçoit
+
+Des faits structurés, jamais le corps d'un mail : type de geste, catégorie, gravité, verdict de l'analyseur de mails et codes de ses signaux, domaine de destination et s'il appartient à `orbispay.example`, montant et bénéficiaire masqué quand ils sont connus, salarié pseudonymisé (`S-` suivi de 6 caractères hexadécimaux) et ses gestes récents. Pour un agent : type d'incident, classement, phases de la boîte noire, canaris, règles et anomalies, virement résumé.
+
+Le texte de la pop-up passe désarmé dans le champ `donnees_non_fiables` : désarmeur de `interne/`, puis liens en `hxxp`, domaines en `[.]`, 280 caractères au plus. Le prompt système dit que ce champ est une donnée. S'il portait une consigne adressée à une IA, le fait `consigne_retiree: true` suffit aux règles pour refuser.
+
+La sortie est un JSON strict : `decision`, `motif`, `confiance` pour un geste ; `priorite`, `decision_proposee`, `motif`, `confiance` pour un pré-tri. Une clé en trop, une valeur hors liste, un motif vide ou une confiance hors de [0, 1] font rejeter la sortie.
+
+### Geste critique (quatre yeux)
+
+Déclencheur : un `avertissement` qui porte `details.quatre_yeux: "demande"`, selon le contrat de l'app Mac, inchangé. Une fois le geste tranché :
+
+1. Une décision s'ajoute à l'incident, `action` `accorder` ou `refuser`, `analyste` « relecteur Dédale (Haiku) » ou « relecteur Dédale (règles) ». L'app la lit dans `GET /api/incidents` comme avant. Le statut de l'incident ne change pas : l'analyste garde Accorder ou Refuser, avec motif, après coup.
+2. Un événement `relecture` scellé entre dans la session (voir « Journal »).
+3. Le WS pousse `relecture`, puis `incident`.
+
+`GET /api/relecteur/demandes/{demande_id}` :
+
+```json
+{"demande_id": "a1b2c3", "incident_id": "INC-0003", "acte": "quatre_yeux", "statut": "tranchee",
+ "decision": "refuse", "action": "refuser",
+ "motif": "Continuer sur un mail jugé frauduleux : refus d'office.",
+ "tranche_par": "Haiku", "mode": "cli", "modele": "claude-haiku-5-5", "confiance": 0.93,
+ "duree_ms": 1830, "repli": null, "garde_fou": false,
+ "horodatage": "2026-10-10T21:40:02+00:00", "evenement_id": 42}
+```
+
+- `statut` vaut `en_cours` tant que le relecteur travaille (les autres champs valent alors `null`), puis `tranchee`. 404 si la demande est inconnue.
+- `mode` : `api`, `cli` ou `regles`. `repli` vaut `null`, ou `limite_usage`, `delai`, `panne`, `sortie_invalide`, `sans_modele` quand le modèle n'a pas tranché. `garde_fou: true` quand les règles ont annulé un accord du modèle.
+- La pop-up de l'app Mac affiche « Relu par Dédale en 1,8 s : refusé. », le motif, et qui a tranché.
+
+### Pré-tri de chaque incident
+
+À l'ouverture d'un incident, puis quand son type ou sa gravité change, le relecteur pose un pré-tri. `GET /api/incidents/{id}/tri` :
+
+```json
+{"incident_id": "INC-0001", "acte": "pre_tri", "statut": "pret",
+ "priorite": "haute", "decision_proposee": "couper",
+ "motif": "Canari touché puis tentative de sortie : couper l'agent.", "confiance": 0.86,
+ "doute": false, "a_regarder": true,
+ "tranche_par": "Haiku", "mode": "cli", "modele": "claude-haiku-5-5",
+ "duree_ms": 2400, "repli": null, "horodatage": "2026-10-10T21:38:12+00:00", "evenement_id": 57}
+```
+
+- `priorite` : `haute`, `normale` ou `basse`. `decision_proposee` reprend le vocabulaire de `POST /api/incidents/{id}/decision` permis pour ce type : `couper`, `reprendre`, `ignorer`, `valider_riposte`, `clore` pour un agent ; `clore`, `ignorer`, `accorder`, `refuser` pour un salarié.
+- `doute` : confiance sous 0,7. `a_regarder` : doute ou priorité haute, sur un incident encore `ouvert`.
+- Tant qu'aucun pré-tri n'est scellé, la route rend celui des règles avec `statut: "en_cours"`. 404 si l'incident est inconnu.
+
+`GET /api/relecteur/file` rend la file « à regarder » : `{"incidents": [{"incident_id", "titre", "type", "gravite", "statut", "priorite", "decision_proposee", "motif", "confiance", "doute", "tranche_par", "mode", "raisons"}], "total": n, "seuil_confiance": 0.7}`. `raisons` contient `priorite_haute`, `doute`, ou les deux. Priorité haute d'abord, puis la confiance la plus basse.
+
+`GET /api/relecteur` : `{"actif", "mode_configure", "mode_prevu", "modele", "delai_s", "modele_suspendu_jusqua"}`.
+
+### Journal
+
+Chaque décision est un événement de la session de l'incident, scellé dans la chaîne des événements :
+
+```json
+{"type": "relecture", "source": "<source de la session>", "surface": "soc", "user_agent": "dedale-relecteur",
+ "details": {"acte": "quatre_yeux", "incident_id": "INC-0003", "demande_id": "a1b2c3",
+   "relecteur": "Dédale", "modele": "claude-haiku-5-5", "mode": "cli", "tranche_par": "Haiku",
+   "decision": "refuse", "priorite": null, "decision_proposee": "refuser",
+   "motif": "Continuer sur un mail jugé frauduleux : refus d'office.",
+   "confiance": 0.93, "duree_ms": 1830, "repli": null, "garde_fou": false}}
+```
+
+Il n'entre pas dans la boîte noire et ne touche ni au classement ni aux gestes comptés. Après coup, la `consequence` de la riposte envoyée par l'app (`quatre_yeux: accorde | refuse`) nomme le relecteur.
+
+### Mesures
+
+`GET /api/mesures` gagne `relecteur` :
+
+```json
+{"decisions": 12, "par_acte": {"quatre_yeux": 3, "pre_tri": 9},
+ "par_mode": {"cli": {"decisions": 10, "mediane_ms": 2210}, "regles": {"decisions": 2, "mediane_ms": 3}},
+ "issues": {"accorde": 1, "refuse": 2}, "replis": 2,
+ "duree": {"mediane_ms": 2100, "moyenne_ms": 1980, "echantillons": 12}}
+```
+
+### À faire côté console
+
+Sur un incident à quatre yeux, afficher la relecture (« Relu par Haiku en 1,8 s : refusé », puis le motif) avec Accorder et Refuser en recours. Afficher la file `GET /api/relecteur/file` et, sur chaque incident, la priorité et la décision proposée de `/tri`. Écouter `relecture` sur le WS. Aligner le mock.
