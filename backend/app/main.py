@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, alertes, api_preuves, config, db, exports, inventaire, nis2, routes_gouvernance, synthese
+from . import __version__, agents_poste, alertes, api_preuves, config, db, exports, inventaire, nis2, routes_gouvernance, synthese
 from .models import DecisionIn, EvenementIn, LeurreIn, RemediationIn, RetraitDroitIn, RevelationIn
 from .store import store
 from .ws import diffuseur
@@ -176,7 +176,9 @@ async def lister_incidents():
 @app.get("/api/agents")
 async def lister_agents():
     """Droits des agents internes : accordés vs utilisés vs nécessaires (moindre privilège)."""
-    return {"agents": store.liste_agents(), "inventaire": inventaire.lister(store)}
+    # Les serveurs MCP des postes (app Mac) suivent les agents d'Orbis, `contexte: "poste"`.
+    return {"agents": store.liste_agents(),
+            "inventaire": inventaire.lister(store) + agents_poste.fiches_inventaire()}
 
 
 @app.get("/api/incidents/{iid}")
@@ -358,6 +360,9 @@ async def erreur_generale(request: Request, exc: Exception):  # pragma: no cover
 
 # Vérification du journal scellé, rapport d'incident, alertes (api_preuves.py).
 app.include_router(api_preuves.routeur)
+# Agents IA des postes (app Mac) : avant la gouvernance, pour que GET /api/agents/poste ne
+# soit pas pris pour la fiche d'un agent nommé « poste ».
+app.include_router(agents_poste.routeur)
 # Gouvernance des agents : règles du SOC, inventaire, résistance (routes_gouvernance.py).
 app.include_router(routes_gouvernance.routeur)
 
