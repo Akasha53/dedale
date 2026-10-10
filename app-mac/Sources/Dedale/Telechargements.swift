@@ -58,7 +58,8 @@ final class SurveillanceTelechargements {
 
     /// Le dossier affiché dans le menu (`~/Downloads` plutôt que le chemin complet).
     var dossierAffiche: String {
-        (dossier.path as NSString).abbreviatingWithTildeInPath
+        let court = (dossier.path as NSString).abbreviatingWithTildeInPath
+        return court.hasPrefix("~") ? court : "…/" + dossier.lastPathComponent
     }
 
     func demarrer() {

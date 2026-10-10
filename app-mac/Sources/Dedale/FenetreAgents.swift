@@ -122,7 +122,7 @@ final class FenetreAgents: FenetrePanneau {
         pilules += s.droitsRisques.map {
             Coque.pilule(AgentsDuPoste.libellesDroits[$0] ?? $0, ton: .risque, symbole: "exclamationmark.triangle.fill")
         }
-        let badges = Coque.rangees(pilules, largeur: largeur * 0.55, espace: 5)
+        let badges = Coque.rangees(pilules, largeur: largeur - 150, espace: 5)
         badges.alignment = .trailing
         let l = NSStackView(views: [textes, Gabarit.ressort(), badges])
         l.orientation = .horizontal

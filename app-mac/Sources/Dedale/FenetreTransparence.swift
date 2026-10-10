@@ -189,7 +189,8 @@ class FenetrePanneau: NSObject {
 
     /// En-tête : badge bouclier, titre, sous-titre, bouton de fermeture.
     func entete(titre: String, sousTitre: String) -> NSView {
-        let largeurTexte = largeur - 56 - 28 - 22 - 24
+        // Largeur utile moins le badge (28), le bouton (22) et trois espaces de 12.
+        let largeurTexte = largeur - 56 - 28 - 22 - 36 - 8
         let sous = Gabarit.paragraphe(sousTitre, taille: 12, couleur: Teinte.discret, largeur: largeurTexte)
         sous.widthAnchor.constraint(equalToConstant: largeurTexte).isActive = true
         let textes = NSStackView(views: [
@@ -239,7 +240,7 @@ final class FenetreTransparence: FenetrePanneau {
         pile.edgeInsets = NSEdgeInsets(top: 24, left: 28, bottom: 22, right: 28)
 
         let tete = entete(titre: "Ce que Dédale regarde sur ce poste",
-                          sousTitre: "Chaque module se coupe ici. Coupé, il ne lit plus rien et n'envoie plus rien.")
+                          sousTitre: "Chaque module se coupe ici. Coupé, il ne lit et n'envoie plus rien.")
         pile.addArrangedSubview(tete)
         tete.widthAnchor.constraint(equalToConstant: w).isActive = true
         pile.setCustomSpacing(18, after: tete)
