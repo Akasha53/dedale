@@ -19,7 +19,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from . import canaris, detection, droits, inter_agent, source
+from . import canaris, detection, droits, inter_agent, politiques, source
 from .boite_noire import BoiteNoire
 from .enregistreur import (Enregistreur, Instant, chrono_dict, empreinte, inerte, masquer,
                            references)
@@ -253,6 +253,10 @@ class Passerelle:
         # Droit retiré par l'analyste (correctif) : refusé avant tout le reste.
         if self._droit_retire(scope):
             return self._refuser_droit_retire(nom, scope)
+        # Règles écrites par le SOC (politiques.py) : bloquer, retenir ou alerter.
+        refus = politiques.appliquer(self, nom, params, scope)
+        if refus is not None:
+            return refus
         if self.enregistreur is not None:
             return self._appel_protege(nom, params, fonction, descripteur, intention)
 

@@ -126,6 +126,35 @@ TACHES: dict[str, Tache] = {
 }
 
 
+# Agents de rapprochement bancaire et de support client (gouvernance, voir agents_orbis.py).
+LIBELLES.update({
+    "banque:lire": "Lire les relevés bancaires",
+    "banque:exporter": "Exporter des lignes bancaires",
+    "ticket:lire": "Lire les tickets du support",
+    "client:lire": "Lire la fiche d'un client",
+    "client:repondre": "Répondre à un client",
+})
+SCOPE_PAR_OUTIL.update({
+    "lire_releve": "banque:lire",
+    "exporter_lignes": "banque:exporter",
+    "lire_ticket": "ticket:lire",
+    "chercher_client": "client:lire",
+    "repondre_client": "client:repondre",
+})
+TACHES.update({
+    "rapprochement_bancaire": Tache(
+        "rapprochement_bancaire",
+        "Rapprocher les relevés bancaires et les factures du mois",
+        ("banque:lire", "document:lire", "resume:local", "banque:exporter", "rapport:envoyer"),
+    ),
+    "support_client": Tache(
+        "support_client",
+        "Répondre aux tickets des clients",
+        ("ticket:lire", "client:lire", "resume:local", "client:repondre"),
+    ),
+})
+
+
 _seq = itertools.count(1)
 
 
