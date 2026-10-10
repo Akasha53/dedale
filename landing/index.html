@@ -5,11 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
   <meta name="color-scheme" content="light">
-  <meta name="description" content="Dédale prévient le salarié avant un clic risqué, retient l'action douteuse d'un agent IA et donne au SOC de quoi décider. Prototype local sur données fictives.">
+  <meta name="description" content="sAIfe prévient le salarié avant un clic risqué, retient l'action douteuse d'un agent IA et donne au SOC de quoi décider. Prototype local sur données fictives.">
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <title>Dédale : salariés prévenus, agents IA retenus</title>
+  <title>sAIfe : salariés prévenus, agents IA retenus</title>
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:site_name" content="sAIfe">
+  <meta property="og:title" content="sAIfe : salariés prévenus, agents IA retenus">
+  <meta property="og:description" content="sAIfe prévient le salarié avant un clic risqué, retient l'action douteuse d'un agent IA et donne au SOC de quoi décider. Prototype local sur données fictives.">
+  <meta property="og:image" content="img/v2/console-temps-reel.webp">
+  <meta property="og:image:alt" content="Console SOC de sAIfe, écran Agents IA en direct">
   <script>document.documentElement.classList.add("js")</script>
   <link rel="stylesheet" href="../design/jetons.css">
   <style>
@@ -75,6 +82,9 @@
     .nav{display:flex;align-items:center;gap:28px;width:min(100% - 32px,1200px);margin-inline:auto;padding:8px 8px 8px 20px;border-radius:999px;background:rgba(255,255,255,.8);box-shadow:0 0 0 1px var(--ligne),0 10px 30px -20px rgba(13,13,13,.25);backdrop-filter:saturate(1.6) blur(18px);-webkit-backdrop-filter:saturate(1.6) blur(18px)}
     .marque{display:inline-flex;align-items:center;gap:10px;font-size:18px;font-weight:650;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
     .marque img{display:block;flex-shrink:0}
+    /* Logotype : « AI » plus gras que « s » et « fe », même couleur. */
+    .logotype{font-weight:400;letter-spacing:-.01em}
+    .logotype b{font-weight:700;color:inherit}
     .nav-liens{display:flex;gap:26px;margin-left:auto}
     .nav-liens a{font-size:14px;color:var(--doux);text-decoration:none;white-space:nowrap;transition:color .4s var(--courbe)}
     .nav-liens a:hover{color:var(--texte)}
@@ -263,7 +273,7 @@
   <a class="saut" href="#contenu">Aller au contenu</a>
   <header class="tete-site">
     <nav class="nav" aria-label="Navigation principale">
-      <a class="marque" href="#haut" aria-label="Dédale, retour en haut"><img src="img/dedale.svg" width="22" height="22" alt="">Dédale</a>
+      <a class="marque" href="#haut" aria-label="sAIfe, retour en haut"><img src="img/dedale.svg" width="22" height="22" alt=""><span class="logotype">s<b>AI</b>fe</span></a>
       <div class="nav-liens"><a href="#demo">La démo</a><a href="#produit">Ce qu'il fait</a><a href="#vie-privee">Vie privée</a><a href="#conformite">Conformité</a></div>
       <a class="nav-cta" href="#demo">Voir la démo<span aria-hidden="true"><svg class="ic"><use href="#i-fleche-b"/></svg></span></a>
     </nav>
@@ -274,7 +284,7 @@
       <div class="shell">
         <span class="pastille apparait">Secure Horizons 2026 · données fictives</span>
         <h1 id="titre" class="apparait" style="--d:1">Deux cibles.<br><span>Une vigie.</span></h1>
-        <p class="chapeau apparait" style="--d:2">Dédale prévient le salarié avant un clic risqué et retient l'action douteuse d'un agent IA. L'analyste du SOC voit ce qui s'est passé et décide.</p>
+        <p class="chapeau apparait" style="--d:2">sAIfe, qui se prononce « safe », prévient le salarié avant un clic risqué et retient l'action douteuse d'un agent IA. L'analyste du SOC voit ce qui s'est passé et décide.</p>
         <div class="actions apparait" style="--d:3">
           <a class="btn btn-noir" href="#demo">Voir la démo<span class="btn-ico" aria-hidden="true"><svg class="ic"><use href="#i-fleche-b"/></svg></span></a>
           <a class="btn btn-clair" href="#vie-privee">Vie privée<span class="btn-ico" aria-hidden="true"><svg class="ic"><use href="#i-fleche-d"/></svg></span></a>
@@ -282,8 +292,8 @@
         <p class="note-ouverture apparait" style="--d:3">Démonstration locale sur Orbis Pay, une entreprise fictive.</p>
 
         <figure class="vitrine apparait" style="--d:3">
-          <div class="cadre"><div class="cadre-coeur"><img src="img/v2/console-temps-reel.webp" width="1600" height="834" fetchpriority="high" alt="Console SOC de Dédale, écran Agents IA en direct : agents surveillés, dossiers à traiter, actions arrêtées et fiches des agents d'Orbis Pay"></div></div>
-          <img class="vitrine-alerte" src="img/v2/app-alerte-mail.webp" width="796" height="617" alt="Alerte de l'app Mac de Dédale : mail frauduleux, lien trompeur, avec les boutons Continuer et Annuler">
+          <div class="cadre"><div class="cadre-coeur"><img src="img/v2/console-temps-reel.webp" width="1600" height="834" fetchpriority="high" alt="Console SOC de sAIfe, écran Agents IA en direct : agents surveillés, dossiers à traiter, actions arrêtées et fiches des agents d'Orbis Pay"></div></div>
+          <img class="vitrine-alerte" src="img/v2/app-alerte-mail.webp" width="796" height="617" alt="Alerte de l'app Mac de sAIfe : mail frauduleux, lien trompeur, avec les boutons Continuer et Annuler">
           <figcaption>La console SOC et l'alerte de l'app Mac, captures du prototype.</figcaption>
         </figure>
       </div>
@@ -346,7 +356,7 @@
     <section class="section" id="produit" aria-labelledby="produit-titre">
       <div class="shell">
         <div class="tete-section">
-          <p class="surtitre apparait">Ce que fait Dédale</p>
+          <p class="surtitre apparait">Ce que fait sAIfe</p>
           <h2 id="produit-titre" class="apparait" style="--d:1">Ce qui tourne dans le prototype.</h2>
           <p class="chapeau apparait" style="--d:2">Côté poste, chaque module regarde une seule chose et se coupe séparément. Côté agents IA, tout passe par la passerelle.</p>
         </div>
@@ -374,7 +384,7 @@
             <p class="case-lieu">Console SOC</p>
             <h3>Des règles écrites en français</h3>
             <p class="citation">« L'agent de tri ne doit jamais envoyer de mail hors d'Orbis Pay. »</p>
-            <p>L'analyste écrit sa règle en une phrase. Dédale la reformule, montre ce qu'il a compris et attend un feu vert avant de l'activer.</p>
+            <p>L'analyste écrit sa règle en une phrase. sAIfe la reformule, montre ce qu'il a compris et attend un feu vert avant de l'activer.</p>
           </article>
           <article class="case l7 apparait">
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-liste"/></svg></span>
@@ -418,7 +428,7 @@
       <div class="shell">
         <div class="tete-section">
           <p class="surtitre apparait">Vie privée</p>
-          <h2 id="vie-privee-titre" class="apparait" style="--d:1">Ce que Dédale regarde sur le poste, et ce qu'il envoie.</h2>
+          <h2 id="vie-privee-titre" class="apparait" style="--d:1">Ce que sAIfe regarde sur le poste, et ce qu'il envoie.</h2>
           <p class="chapeau apparait" style="--d:2">Quatre choses, chacune dans un module qu'on peut couper : les mails qui arrivent, l'adresse de l'onglet actif, les nouveaux téléchargements et les agents IA installés. L'analyse se fait sur le poste.</p>
         </div>
 
@@ -472,7 +482,7 @@
           <article class="dora apparait">
             <h3>DORA</h3>
             <p>Règlement européen applicable depuis le 17 janvier 2025 aux entités du secteur financier. Il leur demande de détecter les incidents liés à leurs outils numériques et à leurs prestataires, d'y répondre et d'en garder la trace.</p>
-            <p><b>Ce que Dédale apporte au dossier :</b> la chronologie d'un incident d'agent IA ou de salarié, la décision humaine avec son auteur et son heure, le journal scellé et le rapport d'une page. La classification de l'incident et les notifications restent à vos équipes.</p>
+            <p><b>Ce que sAIfe apporte au dossier :</b> la chronologie d'un incident d'agent IA ou de salarié, la décision humaine avec son auteur et son heure, le journal scellé et le rapport d'une page. La classification de l'incident et les notifications restent à vos équipes.</p>
           </article>
           <div class="pile">
             <article class="petit apparait" style="--d:1">
@@ -499,7 +509,7 @@
 
   <footer>
     <div class="shell pied">
-      <a class="marque" href="#haut"><img src="img/dedale.svg" width="22" height="22" alt="">Dédale</a>
+      <a class="marque" href="#haut"><img src="img/dedale.svg" width="22" height="22" alt=""><span class="logotype">s<b>AI</b>fe</span></a>
       <p>Secure Horizons · ESSEC · 10-11 octobre 2026</p>
       <p>Orbis Pay et toutes les données de la démo sont fictives.</p>
     </div>
