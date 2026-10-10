@@ -69,3 +69,18 @@ uvx --from sigma-cli sigma check sigma/      # ou : pip install sigma-cli ; sigm
 
 Toutes les valeurs de `dedale.details.*` issues d'une surface piégée sont déjà neutralisées par
 le backend : le SIEM reçoit de la donnée inerte, jamais une instruction réinjectable.
+
+## Catalogue par type d'incident (`types/`)
+
+`sigma/types/` contient une règle par type d'incident, quatre règles de geste et quatre variantes
+qui tournent sur les journaux du proxy ou du serveur web du client, toutes sur des champs ECS 8.x.
+Ces fichiers sont générés : ne pas les modifier à la main.
+
+```bash
+cd backend && uv run python -m app.sigma_regles --ecrire ../sigma/types
+sigma check sigma/                                            # 0 erreur, 0 avertissement
+sigma convert -t splunk --without-pipeline sigma/types/       # ou -t lucene, -t esql
+```
+
+Détail des champs et de l'export par incident : `docs/INTEGRATIONS.md` et l'avenant
+« intégrations SIEM » de `CONTRATS.md`.
