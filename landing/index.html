@@ -4,25 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dédale — vos agents IA sont protégés, vos salariés non</title>
-<meta name="description" content="Dédale met un garde du corps sur le poste du salarié : il repère le geste à risque (secret collé, données clients envoyées dehors, fichier déposé dans une IA non autorisée), prévient une seconde avant, et laisse l'humain décider. Même moteur pour les agents IA. Projet hackathon Secure Horizons, données fictives.">
+<meta name="description" content="Dédale est une appli de bureau installée sur vos serveurs. Elle tourne en tâche de fond et prévient le salarié à l'écran quand il ouvre un mail frauduleux ou clique sur un lien piégé, une seconde avant. Rien ne sort de l'entreprise. Projet hackathon Secure Horizons, données fictives.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#05070e;
-  --bg2:#070b16;
-  --ink:#eaf0ff;
-  --muted:#9aa7c7;
-  --muted2:#6b779a;
-  --cyan:#35d6ff;
-  --blue:#4c7bff;
-  --red:#ff5a6a;
-  --amber:#ffbb45;
-  --green:#36e0a0;
-  --line:rgba(140,170,255,.12);
-  --line2:rgba(140,170,255,.07);
-  --card:rgba(16,24,46,.55);
+  --bg:#070B14;
+  --bg2:#0A0E1A;
+  --ink:#eef2fb;
+  --muted:#9aa6c4;
+  --muted2:#697698;
+  --cyan:#22D3EE;      /* salariés / humain */
+  --violet:#818CF8;    /* agents IA */
+  --amber:#F59E0B;     /* physique */
+  --red:#fb7185;
+  --green:#34e0a1;
+  --glass:rgba(255,255,255,.045);
+  --glass-hi:rgba(255,255,255,.07);
+  --edge:rgba(255,255,255,.10);
+  --edge-soft:rgba(255,255,255,.06);
+  --top-sheen:rgba(255,255,255,.14);
   --ease:cubic-bezier(.32,.72,0,1);
   --maxw:1180px;
 }
@@ -30,7 +32,8 @@
 html{scroll-behavior:smooth}
 body{
   margin:0;
-  background:var(--bg);
+  background:linear-gradient(175deg,var(--bg) 0%,var(--bg2) 60%,#070a12 100%);
+  background-attachment:fixed;
   color:var(--ink);
   font-family:"Space Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   -webkit-font-smoothing:antialiased;
@@ -41,139 +44,169 @@ body{
 
 /* Ambient field */
 .field{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5}
-.orb.a{width:620px;height:620px;left:-180px;top:-200px;background:radial-gradient(circle,rgba(76,123,255,.45),transparent 70%)}
-.orb.b{width:560px;height:560px;right:-160px;top:12%;background:radial-gradient(circle,rgba(53,214,255,.30),transparent 70%)}
-.orb.c{width:520px;height:520px;left:30%;bottom:-220px;background:radial-gradient(circle,rgba(255,90,106,.14),transparent 70%)}
+.orb{position:absolute;border-radius:50%;filter:blur(110px);opacity:.42}
+.orb.a{width:640px;height:640px;left:-200px;top:-220px;background:radial-gradient(circle,rgba(34,211,238,.34),transparent 70%)}
+.orb.b{width:560px;height:560px;right:-180px;top:14%;background:radial-gradient(circle,rgba(129,140,248,.30),transparent 70%)}
+.orb.c{width:520px;height:520px;left:34%;bottom:-240px;background:radial-gradient(circle,rgba(245,158,11,.10),transparent 70%)}
 .grid-tex{position:fixed;inset:0;z-index:0;pointer-events:none;
-  background-image:linear-gradient(var(--line2) 1px,transparent 1px),linear-gradient(90deg,var(--line2) 1px,transparent 1px);
-  background-size:64px 64px;mask-image:radial-gradient(ellipse 80% 60% at 50% 20%,#000 20%,transparent 85%)}
-.noise{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:.035;mix-blend-mode:overlay;
+  background-image:linear-gradient(var(--edge-soft) 1px,transparent 1px),linear-gradient(90deg,var(--edge-soft) 1px,transparent 1px);
+  background-size:72px 72px;opacity:.5;
+  mask-image:radial-gradient(ellipse 78% 58% at 50% 16%,#000 18%,transparent 82%)}
+.noise{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:.03;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 
 main{position:relative;z-index:1}
 .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
 
-/* Nav */
+/* Nav — floating glass pill */
 header.nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;justify-content:center;padding:18px 16px}
 .navbar{display:flex;align-items:center;gap:22px;width:min(100%,980px);
-  background:rgba(10,15,28,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-  border:1px solid var(--line);border-radius:999px;padding:9px 10px 9px 16px;
-  box-shadow:0 10px 40px -20px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.04)}
+  background:rgba(12,17,30,.55);backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%);
+  border:1px solid var(--edge);border-radius:999px;padding:9px 10px 9px 16px;
+  box-shadow:0 20px 50px -28px rgba(0,0,0,.9),inset 0 1px 0 var(--top-sheen)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
-.logo{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:13px;color:#06101e;
-  background:linear-gradient(145deg,#6fe6ff,#3f73ff);box-shadow:0 0 18px rgba(53,214,255,.5)}
+.logo{width:27px;height:27px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:13px;color:#051018;
+  background:linear-gradient(145deg,#6ff0ff,#7d8bf9);box-shadow:0 0 18px rgba(34,211,238,.5)}
 .navlinks{display:flex;gap:4px;margin-left:auto}
 .navlinks a{color:var(--muted);text-decoration:none;font-size:13.5px;padding:7px 12px;border-radius:999px;transition:all .4s var(--ease)}
-.navlinks a:hover{color:var(--ink);background:rgba(140,170,255,.08)}
+.navlinks a:hover{color:var(--ink);background:rgba(255,255,255,.06)}
 .nav-cta{margin-left:4px}
-.pill-btn{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(145deg,#eaf3ff,#c6d6ff);color:#06101e;
-  text-decoration:none;font-weight:600;font-size:13.5px;border-radius:999px;padding:8px 8px 8px 16px;transition:transform .4s var(--ease)}
+.pill-btn{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(145deg,#eaf4ff,#c9d6ff);color:#051018;
+  text-decoration:none;font-weight:600;font-size:13.5px;border-radius:999px;padding:8px 8px 8px 16px;
+  transition:transform .4s var(--ease);will-change:transform}
 .pill-btn:active{transform:scale(.97)}
-.pill-btn .ic{width:26px;height:26px;border-radius:999px;background:rgba(6,16,30,.14);display:grid;place-items:center;transition:transform .4s var(--ease)}
-.pill-btn:hover .ic{transform:translate(2px,-1px)}
-.menu-btn{display:none}
+.pill-btn .ic{width:26px;height:26px;border-radius:999px;background:rgba(5,16,24,.14);display:grid;place-items:center;transition:transform .4s var(--ease)}
+.pill-btn:hover .ic{transform:translate(2px,-1px) scale(1.05)}
 
 /* Hero */
 .hero{min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:150px 0 90px;position:relative}
 .eyebrow{display:inline-flex;align-items:center;gap:9px;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.22em;
-  text-transform:uppercase;color:var(--cyan);border:1px solid var(--line);background:rgba(53,214,255,.05);
+  text-transform:uppercase;color:var(--cyan);border:1px solid var(--edge);background:rgba(34,211,238,.05);
   padding:7px 14px;border-radius:999px;margin-bottom:28px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 2.4s var(--ease) infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-h1.title{font-size:clamp(52px,9vw,116px);line-height:.92;letter-spacing:-.04em;font-weight:700;margin:0;
-  background:linear-gradient(180deg,#fff 30%,#b9c7f0);-webkit-background-clip:text;background-clip:text;color:transparent}
+h1.title{font-size:clamp(52px,9vw,118px);line-height:.92;letter-spacing:-.04em;font-weight:700;margin:0;
+  background:linear-gradient(180deg,#fff 28%,#aeb9e4);-webkit-background-clip:text;background-clip:text;color:transparent}
 .baseline{font-size:clamp(20px,3.3vw,34px);font-weight:500;letter-spacing:-.02em;margin:22px 0 0;color:var(--ink)}
-.baseline b{background:linear-gradient(90deg,var(--cyan),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent}
-.lede{max-width:640px;font-size:clamp(16px,2vw,19px);color:var(--muted);margin:26px 0 0}
+.baseline b{font-weight:600;background:linear-gradient(90deg,var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lede{max-width:660px;font-size:clamp(16px,2vw,19px);color:var(--muted);margin:26px 0 0}
 .hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:38px}
 .ghost{display:inline-flex;align-items:center;gap:9px;color:var(--ink);text-decoration:none;font-size:14px;font-weight:500;
-  border:1px solid var(--line);background:rgba(140,170,255,.04);border-radius:999px;padding:12px 20px;transition:all .4s var(--ease)}
-.ghost:hover{background:rgba(140,170,255,.1);border-color:rgba(140,170,255,.25)}
+  border:1px solid var(--edge);background:var(--glass);border-radius:999px;padding:12px 20px;transition:all .4s var(--ease)}
+.ghost:hover{background:var(--glass-hi);border-color:rgba(255,255,255,.2)}
 
-/* Hero visual */
+/* Glass frame — double-bezel */
 .hero-visual{margin-top:66px;position:relative}
-.frame{position:relative;border-radius:30px;padding:8px;background:rgba(140,170,255,.05);
-  border:1px solid var(--line);box-shadow:0 40px 120px -50px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
-.frame .inner{border-radius:22px;overflow:hidden;border:1px solid var(--line2);position:relative;background:#060a13}
+.frame{position:relative;border-radius:30px;padding:8px;background:var(--glass);
+  border:1px solid var(--edge);box-shadow:0 50px 130px -55px rgba(0,0,0,.95),inset 0 1px 0 var(--top-sheen)}
+.frame .inner{border-radius:22px;overflow:hidden;border:1px solid var(--edge-soft);position:relative;background:#06090f}
 .frame img{display:block;width:100%;height:auto}
-.frame .glow{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 120px rgba(5,7,14,.8);border-radius:22px}
+.frame .glow{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 120px rgba(6,9,15,.78);border-radius:22px}
 .caption{text-align:center;color:var(--muted2);font-size:12.5px;margin-top:16px;font-family:"IBM Plex Mono",monospace;letter-spacing:.04em}
 
 /* Section scaffolding */
 section{padding:clamp(80px,12vw,150px) 0;position:relative}
 .sec-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--cyan);margin-bottom:18px}
 .sec-title{font-size:clamp(30px,5vw,54px);line-height:1.02;letter-spacing:-.03em;font-weight:600;margin:0;max-width:18ch}
-.sec-sub{color:var(--muted);font-size:clamp(16px,2vw,18px);margin-top:20px;max-width:62ch}
+.sec-sub{color:var(--muted);font-size:clamp(16px,2vw,18px);margin-top:20px;max-width:64ch}
 .sec-head{margin-bottom:56px}
+
+/* Glass card base */
+.card{background:var(--glass);border:1px solid var(--edge);border-radius:24px;position:relative;overflow:hidden;
+  box-shadow:inset 0 1px 0 var(--top-sheen),0 24px 60px -45px rgba(0,0,0,.9);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
 
 /* Problème */
 .prob-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-.pcard{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:30px;position:relative;overflow:hidden;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
-.pcard .num{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--red);letter-spacing:.1em}
+.pcard{padding:30px}
+.pcard .num{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--cyan);letter-spacing:.1em}
 .pcard h3{font-size:21px;letter-spacing:-.02em;margin:16px 0 10px;font-weight:600}
 .pcard p{color:var(--muted);font-size:14.5px;margin:0}
-.pcard .edge{position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--red),transparent)}
+.pcard .edge{position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--cyan),transparent)}
+.pcard.alt .num{color:var(--violet)}
+.pcard.alt .edge{background:linear-gradient(180deg,var(--violet),transparent)}
+.pcard.muted-c .num{color:var(--muted2)}
+.pcard.muted-c .edge{background:linear-gradient(180deg,var(--muted2),transparent)}
+
+/* Déploiement trio */
+.deploy{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
+.dep{padding:22px 24px}
+.dep .k{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan)}
+.dep h4{font-size:16px;margin:12px 0 6px;font-weight:600;letter-spacing:-.01em}
+.dep p{color:var(--muted);font-size:13.5px;margin:0}
 
 /* Steps */
 .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
-.step{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:26px;position:relative;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.step{padding:26px}
 .step .k{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--cyan);letter-spacing:.14em}
 .step .icon{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;margin:14px 0 16px;
-  border:1px solid var(--line);background:rgba(53,214,255,.05)}
+  border:1px solid var(--edge);background:rgba(34,211,238,.05)}
 .step h3{font-size:18px;letter-spacing:-.01em;margin:0 0 8px;font-weight:600}
 .step p{color:var(--muted);font-size:13.5px;margin:0}
 .step .arrow{position:absolute;right:-13px;top:50%;transform:translateY(-50%);color:var(--muted2);z-index:2}
 .step:last-child .arrow{display:none}
 
-/* Trois chemins */
+/* Deux cas d'usage */
+.cases{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.case{padding:0;display:flex;flex-direction:column}
+.case .shot{border-radius:24px 24px 0 0;overflow:hidden;border-bottom:1px solid var(--edge-soft);position:relative;background:#06090f}
+.case .shot img{display:block;width:100%;height:auto}
+.case .body{padding:28px 30px 32px}
+.case .tag{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan)}
+.case h3{font-size:23px;letter-spacing:-.02em;margin:12px 0 10px;font-weight:600}
+.case p{color:var(--muted);font-size:14.5px;margin:0}
+.case .pop{display:inline-flex;align-items:center;gap:9px;margin-top:18px;border:1px solid rgba(34,211,238,.3);
+  background:rgba(34,211,238,.07);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--ink)}
+.case .pop svg{flex:0 0 auto;color:var(--cyan)}
+
+/* Trois surfaces */
 .paths{display:grid;grid-template-columns:1.22fr 1fr 1fr;gap:20px;align-items:stretch}
-.path{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:30px;position:relative;overflow:hidden;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);display:flex;flex-direction:column}
+.path{padding:30px;display:flex;flex-direction:column}
 .path .rank{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted2)}
 .path .pic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin:16px 0 14px;
-  border:1px solid var(--line);background:rgba(76,123,255,.06);color:var(--cyan)}
+  border:1px solid var(--edge);background:rgba(34,211,238,.06);color:var(--cyan)}
 .path h3{font-size:22px;letter-spacing:-.02em;margin:0 0 6px;font-weight:600}
 .path .tagline{color:var(--muted);font-size:14px;margin:0 0 20px}
 .path ul{list-style:none;padding:0;margin:auto 0 0}
-.path li{display:flex;gap:11px;padding:10px 0;border-top:1px solid var(--line2);color:var(--muted);font-size:13.5px;line-height:1.4}
+.path li{display:flex;gap:11px;padding:10px 0;border-top:1px solid var(--edge-soft);color:var(--muted);font-size:13.5px;line-height:1.4}
 .path li:first-child{border-top:none}
 .path .d{flex:0 0 auto;color:var(--cyan);margin-top:2px}
-.path.lead{border-color:rgba(53,214,255,.4);background:linear-gradient(180deg,rgba(53,214,255,.08),var(--card))}
+.path.lead{border-color:rgba(34,211,238,.4);background:linear-gradient(180deg,rgba(34,211,238,.09),var(--glass))}
 .path.lead .rank{color:var(--cyan)}
-.path.lead .pic{background:rgba(53,214,255,.1);box-shadow:0 0 24px -8px rgba(53,214,255,.5)}
+.path.lead .pic{background:rgba(34,211,238,.12);box-shadow:0 0 24px -8px rgba(34,211,238,.55)}
+.path.ia .rank{color:var(--violet)}
+.path.ia .pic{color:var(--violet);background:rgba(129,140,248,.08)}
+.path.ia .d{color:var(--violet)}
 .path.ext .rank{color:var(--amber)}
-.path.ext .pic{color:var(--amber);background:rgba(255,187,69,.06)}
+.path.ext .pic{color:var(--amber);background:rgba(245,158,11,.07)}
 .path.ext .d{color:var(--amber)}
 
-/* Feature split (boîte noire) */
+/* Boîte noire split */
 .split{display:grid;grid-template-columns:.9fr 1.1fr;gap:54px;align-items:center}
 .feat-list{list-style:none;padding:0;margin:28px 0 0}
-.feat-list li{display:flex;gap:14px;padding:14px 0;border-top:1px solid var(--line2);color:var(--muted);font-size:15px}
+.feat-list li{display:flex;gap:14px;padding:14px 0;border-top:1px solid var(--edge-soft);color:var(--muted);font-size:15px}
 .feat-list li:first-child{border-top:none}
 .feat-list .chk{flex:0 0 auto;color:var(--cyan);margin-top:2px}
 .feat-list b{color:var(--ink);font-weight:600}
 .chain{margin-top:30px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-family:"IBM Plex Mono",monospace;font-size:12px}
-.chain span{padding:7px 12px;border-radius:9px;border:1px solid var(--line);background:rgba(140,170,255,.04);color:var(--muted)}
-.chain .hot{color:var(--red);border-color:rgba(255,90,106,.35);background:rgba(255,90,106,.07)}
+.chain span{padding:7px 12px;border-radius:9px;border:1px solid var(--edge);background:var(--glass);color:var(--muted)}
+.chain .hot{color:var(--cyan);border-color:rgba(34,211,238,.35);background:rgba(34,211,238,.07)}
 .chain i{color:var(--muted2);font-style:normal}
 
 /* Metrics */
-.metrics-band{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(8,12,24,.5)}
+.metrics-band{border-top:1px solid var(--edge);border-bottom:1px solid var(--edge);background:rgba(10,14,26,.4)}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
 .metric{text-align:center;padding:16px}
 .metric .big{font-size:clamp(50px,8vw,88px);line-height:1;letter-spacing:-.04em;font-weight:700;
-  background:linear-gradient(180deg,var(--cyan),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent}
+  background:linear-gradient(180deg,var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
 .metric .lab{color:var(--ink);font-size:16px;font-weight:500;margin-top:14px}
 .metric .sub{color:var(--muted2);font-size:12.5px;margin-top:6px;font-family:"IBM Plex Mono",monospace}
 .metric-note{text-align:center;color:var(--muted2);font-size:12.5px;margin-top:40px;font-family:"IBM Plex Mono",monospace}
 
 /* Compliance */
 .comp{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:40px}
-.comp .badge{display:flex;flex-direction:column;gap:3px;border:1px solid var(--line);border-radius:16px;padding:18px 26px;
-  background:var(--card);min-width:180px}
+.comp .badge{display:flex;flex-direction:column;gap:3px;border:1px solid var(--edge);border-radius:16px;padding:18px 26px;
+  background:var(--glass);min-width:180px;box-shadow:inset 0 1px 0 var(--top-sheen)}
 .comp .badge b{font-size:15px;letter-spacing:-.01em}
 .comp .badge span{color:var(--muted2);font-size:12px;font-family:"IBM Plex Mono",monospace;letter-spacing:.03em}
 
@@ -189,11 +222,11 @@ section{padding:clamp(80px,12vw,150px) 0;position:relative}
 .closer .sec-sub{margin:20px auto 0}
 
 /* Footer */
-footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-index:1}
+footer{border-top:1px solid var(--edge);padding:48px 0 60px;position:relative;z-index:1}
 .foot{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;color:var(--muted2);font-size:13px}
 .foot .brand{color:var(--muted)}
 .foot .mono{font-size:12px}
-.fictif{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 14px;
+.fictif{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--edge);border-radius:999px;padding:6px 14px;
   color:var(--amber);font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.08em}
 
 /* Reveal */
@@ -206,18 +239,16 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
 .stagger.in>*:nth-child(4){transition-delay:.24s}
 .stagger.in>*:nth-child(5){transition-delay:.32s}
 .stagger.in>*:nth-child(6){transition-delay:.4s}
-.stagger.in>*:nth-child(7){transition-delay:.48s}
-.stagger.in>*:nth-child(8){transition-delay:.56s}
 
 @media (max-width:900px){
-  .prob-grid,.steps,.paths,.metrics,.gallery{grid-template-columns:1fr}
+  .prob-grid,.steps,.paths,.metrics,.gallery,.cases,.deploy{grid-template-columns:1fr}
   .split{grid-template-columns:1fr;gap:34px}
   .step .arrow{display:none}
   .navlinks{display:none}
 }
 @media (max-width:620px){
-  .wrap{padding:0 18px}
-  .hero{padding:130px 0 70px}
+  .wrap{padding:0 16px}
+  .hero{padding:128px 0 70px}
 }
 @media (prefers-reduced-motion:reduce){
   .reveal,.stagger>*{transition:none;opacity:1;transform:none;filter:none}
@@ -236,8 +267,8 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
     <div class="navlinks">
       <a href="#probleme">Le problème</a>
       <a href="#mecanique">Comment ça marche</a>
-      <a href="#chemins">Les trois chemins</a>
-      <a href="#mesures">Chiffres</a>
+      <a href="#cas">Les deux cas</a>
+      <a href="#surfaces">Les surfaces</a>
     </div>
     <a class="pill-btn nav-cta" href="#mecanique">Voir la méthode
       <span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
@@ -253,23 +284,23 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
         <span class="eyebrow"><span class="dot"></span>Secure Horizons · ESSEC · 10–11 oct. 2026</span>
         <h1 class="title">Dédale</h1>
         <p class="baseline">Vos agents IA sont protégés. <b>Vos salariés, non.</b></p>
-        <p class="lede">Le maillon faible, c'est l'humain, et vous le savez déjà. Vos faux tests de phishing le prouvent chaque mois : malgré les rappels, un salarié colle un mot de passe au mauvais endroit, envoie un fichier client en externe, dépose un contrat dans une IA grand public. Dédale se tient sur son poste et l'arrête une seconde avant le geste.</p>
+        <p class="lede">Le maillon faible, c'est l'humain, et vos campagnes de faux phishing le répètent chaque mois. Dédale tourne sur vos serveurs, en tâche de fond. Quand un salarié ouvre un mail frauduleux ou clique sur un lien piégé, une alerte s'affiche à l'écran, une seconde avant le geste. Rien ne sort de l'entreprise, et personne n'a rien à activer.</p>
         <div class="hero-cta">
           <a class="pill-btn" href="#mecanique">Comment ça marche
             <span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span>
           </a>
-          <a class="ghost" href="#chemins">Les trois chemins de fuite</a>
+          <a class="ghost" href="#cas">Les deux cas d'usage</a>
         </div>
       </div>
 
       <figure class="hero-visual reveal" style="margin:66px 0 0">
         <div class="frame">
           <div class="inner">
-            <img id="heroImg" src="img/gen/salarie-garde.png" alt="Une main sur un clavier au moment de coller un secret ; une alerte douce intercepte le geste">
+            <img id="heroImg" src="img/gen/mail-garde.png" alt="Poste d'un salarié : à l'ouverture d'un mail frauduleux, une alerte sobre s'affiche à l'écran avant qu'il réponde">
             <div class="glow"></div>
           </div>
         </div>
-        <figcaption class="caption">Le geste est déjà parti dans la tête. Dédale le rattrape à l'écran, une seconde avant.</figcaption>
+        <figcaption class="caption">Le mail est déjà ouvert. Dédale prévient à l'écran, une seconde avant la réponse.</figcaption>
       </figure>
     </div>
   </section>
@@ -280,23 +311,23 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
       <div class="sec-head reveal">
         <div class="sec-eyebrow">Le problème</div>
         <h2 class="sec-title">Vous testez vos salariés. Ils tombent quand même.</h2>
-        <p class="sec-sub">Les campagnes de faux phishing tournent depuis des années dans les grandes entreprises. Le taux de clic baisse, puis remonte. Le vrai trou n'est pas l'ignorance : c'est le geste, rapide et machinal, déjà parti avant la réflexion. Coller un secret, envoyer des données clients dehors, nourrir une IA non autorisée, cliquer un lien piégé.</p>
+        <p class="sec-sub">Les campagnes de faux phishing tournent depuis des années. Le taux de clic baisse, puis remonte. Le trou n'est pas l'ignorance, c'est le geste machinal, parti avant la réflexion. Un mail frauduleux ouvert, un lien piégé cliqué, et parfois un secret ou un fichier client qui file dehors.</p>
       </div>
       <div class="prob-grid stagger">
-        <div class="pcard"><span class="edge"></span>
-          <div class="num">01</div>
-          <h3>Un secret collé en clair</h3>
-          <p>Un mot de passe, une clé API, un token collés dans un chat, un ticket ou un site externe. Partis en clair, impossibles à rappeler.</p>
+        <div class="card pcard"><span class="edge"></span>
+          <div class="num">01 · MAIL</div>
+          <h3>Un mail frauduleux, ouvert sans méfiance</h3>
+          <p>Fausse facture, faux support, lien qui imite le portail interne. Le salarié ouvre, lit, répond. L'attaque entre par la boîte de réception, celle que tout le monde consulte toute la journée.</p>
         </div>
-        <div class="pcard"><span class="edge"></span>
-          <div class="num">02</div>
-          <h3>Des données clients envoyées dehors</h3>
-          <p>Un fichier client glissé dans un mail externe ou un Drive perso, une pièce jointe au mauvais destinataire. La donnée a quitté l'entreprise.</p>
+        <div class="card pcard alt"><span class="edge"></span>
+          <div class="num">02 · NAVIGATION</div>
+          <h3>Un lien piégé, cliqué en deux secondes</h3>
+          <p>Un site qui copie une page de connexion, un téléchargement déguisé, une pièce jointe ouverte dans le navigateur. Le clic part avant que l'URL ait été lue jusqu'au bout.</p>
         </div>
-        <div class="pcard"><span class="edge"></span>
-          <div class="num">03</div>
-          <h3>Une IA non autorisée nourrie</h3>
-          <p>Un contrat, un export, un bout de code déposés dans une IA grand public. La donnée part s'entraîner ailleurs, hors de tout contrôle.</p>
+        <div class="card pcard muted-c"><span class="edge"></span>
+          <div class="num">03 · LE RESTE</div>
+          <h3>Et les gestes qui fuient en silence</h3>
+          <p>Un secret collé en clair, un fichier client envoyé dehors, un contrat déposé dans une IA grand public. Plus rares, mais sans retour en arrière une fois partis.</p>
         </div>
       </div>
     </div>
@@ -307,42 +338,55 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
     <div class="wrap">
       <div class="sec-head reveal">
         <div class="sec-eyebrow">Comment ça marche</div>
-        <h2 class="sec-title">Un garde du corps sur le poste, une seconde avant le geste.</h2>
-        <p class="sec-sub">Dédale ne bloque pas tout et ne regarde pas par-dessus l'épaule. Il attend le geste à risque, prévient, laisse le salarié décider, puis remonte au SOC. C'est le même moteur que pour les agents IA : détecter, reconstruire, faire trancher un humain, exporter.</p>
+        <h2 class="sec-title">Une appli de bureau sur vos serveurs, une seconde avant le geste.</h2>
+        <p class="sec-sub">Dédale s'installe sur site, branché sur l'Outlook ou le Gmail de l'entreprise. Il ne bloque pas tout et ne regarde pas par-dessus l'épaule : il attend le geste à risque, prévient à l'écran, laisse le salarié décider, puis remonte au SOC. Même moteur pour les agents IA.</p>
       </div>
-      <figure class="hero-visual reveal" style="margin:0 0 56px">
-        <div class="frame">
-          <div class="inner"><img src="img/gen/concept.png" alt="Dédale veille sur les postes et les agents internes, et bascule au rouge dès qu'un geste à risque part"><div class="glow"></div></div>
+
+      <div class="deploy stagger reveal">
+        <div class="card dep">
+          <div class="k">Sur site</div>
+          <h4>Rien ne sort de l'entreprise</h4>
+          <p>L'analyse tourne sur vos serveurs. Aucun mail, aucun fichier ne part vers un service externe.</p>
         </div>
-        <figcaption class="caption">Un seul garde du corps pour les salariés et les agents. Le geste à risque bascule au rouge.</figcaption>
-      </figure>
-      <div class="steps stagger">
-        <div class="step">
+        <div class="card dep">
+          <div class="k">En tâche de fond</div>
+          <h4>Branché sur la messagerie</h4>
+          <p>Connecté à l'Outlook ou au Gmail de la boîte et au navigateur, il lit les mails reçus et les liens ouverts.</p>
+        </div>
+        <div class="card dep">
+          <div class="k">Automatique</div>
+          <h4>Personne n'a rien à activer</h4>
+          <p>Une protection qu'il faut lancer soi-même, personne ne la lance. Dédale veille sans que le salarié y pense.</p>
+        </div>
+      </div>
+
+      <div class="steps stagger" style="margin-top:48px">
+        <div class="card step">
           <div class="k">01 · DÉTECTION</div>
-          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg></div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg></div>
           <h3>Le geste repéré</h3>
-          <p>Un secret collé vers l'externe, un fichier client en partance, un document déposé dans une IA. Côté agent : un canari touché. Lu au moment où l'intention part.</p>
+          <p>Un mail frauduleux ouvert, un lien piégé cliqué. Côté agent : un canari touché. Lu au moment où l'intention part.</p>
           <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
         </div>
-        <div class="step">
+        <div class="card step">
           <div class="k">02 · ALERTE</div>
-          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M12 3a6 6 0 0 0-6 6c0 4-2 5-2 7h16c0-2-2-3-2-7a6 6 0 0 0-6-6z"/><path d="M10 20a2 2 0 0 0 4 0" stroke-linecap="round"/></svg></div>
-          <h3>Prévenir avant</h3>
-          <p>« Attends — tu colles un mot de passe sur un site externe. » Pas un mur, un rappel à la seconde où il compte. Côté agent : la session se suspend.</p>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.4"><path d="M12 3a6 6 0 0 0-6 6c0 4-2 5-2 7h16c0-2-2-3-2-7a6 6 0 0 0-6-6z"/><path d="M10 20a2 2 0 0 0 4 0" stroke-linecap="round"/></svg></div>
+          <h3>Le pop-up à l'écran</h3>
+          <p>« Attention, ce mail est sûrement frauduleux. » Pas un mur, un rappel à la seconde où il compte. Côté agent : la session se suspend.</p>
           <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
         </div>
-        <div class="step">
+        <div class="card step">
           <div class="k">03 · BOÎTE NOIRE</div>
-          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M3 7h18v12H3zM3 7l3-4h12l3 4" stroke-linejoin="round"/><path d="M8 12h8" stroke-linecap="round"/></svg></div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.4"><path d="M3 7h18v12H3zM3 7l3-4h12l3 4" stroke-linejoin="round"/><path d="M8 12h8" stroke-linecap="round"/></svg></div>
           <h3>La chaîne reconstruite</h3>
           <p>Qui, quoi, vers où, à quelle heure. Chaque maillon du geste horodaté et relié à OWASP, MITRE ATT&amp;CK et ATLAS.</p>
           <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
         </div>
-        <div class="step">
+        <div class="card step">
           <div class="k">04 · DÉCISION</div>
-          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4z"/><path d="m9 11 2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.4"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4z"/><path d="m9 11 2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <h3>L'humain tranche</h3>
-          <p>Le salarié annule ou confirme en connaissance de cause. L'analyste reçoit un brouillon de notification NIS2 et un export SIEM (ECS / Sigma).</p>
+          <p>Le salarié ferme ou confirme en connaissance de cause. L'analyste reçoit un brouillon de notification NIS2 et un export SIEM (ECS / Sigma).</p>
           <div class="arrow"></div>
         </div>
       </div>
@@ -356,29 +400,60 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
     </div>
   </section>
 
-  <!-- TROIS CHEMINS -->
-  <section id="chemins">
+  <!-- DEUX CAS D'USAGE -->
+  <section id="cas">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="sec-eyebrow">Les trois chemins de fuite</div>
-        <h2 class="sec-title">La donnée sort par trois portes. Dédale les tient toutes.</h2>
-        <p class="sec-sub">Une seule console, un seul moteur. Les salariés d'abord, parce que c'est par eux que ça fuit le plus. Les agents IA ensuite. Le physique en extension.</p>
+        <div class="sec-eyebrow">Les deux cas d'usage</div>
+        <h2 class="sec-title">Le mail et le lien. Là où ça commence presque toujours.</h2>
+        <p class="sec-sub">Deux portes, le même réflexe. Dédale s'intercale entre le geste et ses conséquences, et laisse une seconde pour y voir clair.</p>
+      </div>
+      <div class="cases stagger">
+        <figure class="card case reveal" style="margin:0">
+          <div class="shot"><img src="img/gen/mail-garde.png" alt="À l'ouverture d'un mail frauduleux, Dédale affiche une alerte sobre sur le poste du salarié"></div>
+          <div class="body">
+            <div class="tag">Cas 1 · Les mails reçus</div>
+            <h3>Un mail frauduleux ouvert</h3>
+            <p>Branché sur l'Outlook ou le Gmail de l'entreprise, Dédale lit le mail à l'ouverture. S'il sent l'arnaque, l'alerte s'affiche avant que le salarié clique un lien ou réponde.</p>
+            <div class="pop"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Attention, ce mail est sûrement frauduleux.</div>
+          </div>
+        </figure>
+        <figure class="card case reveal" style="margin:0">
+          <div class="shot"><img src="img/gen/salarie-garde.png" alt="Au clic sur un lien piégé, une alerte intercepte le geste sur le poste"></div>
+          <div class="body">
+            <div class="tag">Cas 2 · La navigation web</div>
+            <h3>Un lien piégé cliqué</h3>
+            <p>Au clic vers un site qui imite un portail ou cache un téléchargement, Dédale coupe la route une seconde avant que la page se charge et prévient à l'écran.</p>
+            <div class="pop"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Attention, ce lien est sûrement piégé.</div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- TROIS SURFACES -->
+  <section id="surfaces">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Les surfaces couvertes</div>
+        <h2 class="sec-title">Les salariés d'abord, les agents ensuite, le physique en extension.</h2>
+        <p class="sec-sub">Une seule console, un seul moteur. Les salariés en premier, parce que c'est par eux que ça fuit le plus. Les agents IA ensuite. Le physique en extension.</p>
       </div>
       <div class="paths stagger">
-        <div class="path lead">
+        <div class="card path lead">
           <div class="rank">Tête d'affiche</div>
           <div class="pic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7" stroke-linecap="round"/></svg></div>
           <h3>Les salariés</h3>
           <p class="tagline">Le geste humain sur le poste, rattrapé une seconde avant qu'il parte.</p>
           <ul>
-            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un secret collé vers l'externe : mot de passe, clé, token</span></li>
-            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Des données clients envoyées dehors, par mail ou Drive perso</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un mail frauduleux ouvert dans la boîte de réception</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un lien piégé cliqué dans le navigateur</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un secret collé vers l'externe, des données clients envoyées dehors</span></li>
             <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un document déposé dans une IA non autorisée</span></li>
-            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un lien piégé, cliqué sans réfléchir</span></li>
           </ul>
         </div>
-        <div class="path">
-          <div class="rank">Chemin 2</div>
+        <div class="card path ia">
+          <div class="rank">Surface 2</div>
           <div class="pic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.3" fill="currentColor" stroke="none"/><path d="M9 15h6" stroke-linecap="round"/></svg></div>
           <h3>Les agents IA</h3>
           <p class="tagline">Partout où un agent peut se faire retourner contre vous.</p>
@@ -389,7 +464,7 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
             <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Une mémoire empoisonnée, des droits trop larges</span></li>
           </ul>
         </div>
-        <div class="path ext">
+        <div class="card path ext">
           <div class="rank">En extension</div>
           <div class="pic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01" stroke-linecap="round"/></svg></div>
           <h3>Le physique</h3>
@@ -411,7 +486,7 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
         <div class="reveal">
           <div class="sec-eyebrow">La boîte noire</div>
           <h2 class="sec-title" style="font-size:clamp(28px,4vw,44px)">Tout le geste, maillon par maillon.</h2>
-          <p class="sec-sub">Dès qu'un geste à risque part, Dédale rejoue la séquence complète. L'analyste voit l'origine, la donnée concernée, la destination visée, et l'instant où l'humain a tranché.</p>
+          <p class="sec-sub">Dès qu'un geste à risque part, Dédale rejoue la séquence. L'analyste voit l'origine, la donnée concernée, la destination visée, et l'instant où l'humain a tranché.</p>
           <div class="chain">
             <span class="hot">geste à risque</span><i>→</i>
             <span>donnée concernée</span><i>→</i>
@@ -420,7 +495,7 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
           </div>
           <ul class="feat-list">
             <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Brouillon NIS2</b> prêt en 24 h, référence d'incident incluse, à relire avant envoi.</span></li>
-            <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Export SIEM</b> au format ECS ou Sigma, pour brancher sur l'outillage existant.</span></li>
+            <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Export SIEM</b> au format ECS ou Sigma, pour brancher sur l'outillage en place.</span></li>
             <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Vue des droits</b> : ce qu'un poste ou un agent peut atteindre, face à ce dont il a besoin.</span></li>
           </ul>
         </div>
@@ -496,10 +571,11 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
   },{threshold:.12,rootMargin:'0px 0px -8% 0px'});
   document.querySelectorAll('.reveal,.stagger').forEach(function(el){ io.observe(el); });
 })();
-// Hide generated images that failed to load, keep layout clean
+// Hide any image that fails to load, keep layout clean
 document.querySelectorAll('img').forEach(function(img){
   img.addEventListener('error',function(){
     var fig=img.closest('figure'); if(fig){ fig.style.display='none'; }
+    var shot=img.closest('.shot'); if(shot){ shot.style.display='none'; }
   });
 });
 </script>
