@@ -91,8 +91,10 @@ class BoiteNoire:
         return _lire(self.base, f"/api/sessions/{session_id}")
 
     def incident_de_session(self, session_id: str) -> dict | None:
-        """GET /api/incidents, filtré sur la session. None si muet ou si aucun incident."""
-        rep = _lire(self.base, "/api/incidents")
+        """GET /api/sessions/{id}/decisions : l'incident de la session réduit à son id, son type,
+        son statut et ses décisions. Le jeton passerelle ne lit pas la liste des incidents.
+        None si muet ou si aucun incident."""
+        rep = _lire(self.base, f"/api/sessions/{session_id}/decisions")
         liste = rep.get("incidents") if isinstance(rep, dict) else None
         if not isinstance(liste, list):
             return None

@@ -23,6 +23,7 @@ os.environ["DEDALE_ANCRAGE"] = "off"
 
 import httpx
 import pytest
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -58,26 +59,33 @@ def jeton(role: str) -> dict[str, str]:
     return {"Authorization": "Bearer " + auth.chemin_jeton(role).read_text().strip()}
 
 
-# Routes ouvertes à une machine ; toutes les autres sont celles de la console (analyste).
-ROUTES_DES_MACHINES = {
-    ("POST", "/api/evenements"): "passerelle",
-    ("POST", "/api/leurres"): "passerelle",
-    ("POST", "/api/politiques/evaluer"): "passerelle",
-    ("POST", "/api/resistance/campagnes"): "passerelle",
-    ("POST", "/api/agents/poste"): "poste",
-}
+def _routes(routeur):
+    """Routes de l'app, routeurs inclus (FastAPI les garde imbriqués depuis la 0.140)."""
+    for route in routeur.routes:
+        sous = getattr(route, "original_router", None)
+        if sous is not None:
+            yield from _routes(sous)
+        else:
+            yield route
+
+
+def role_de_la_route(methode: str, chemin: str) -> str:
+    """Première identité que la route déclare (auth.exiger), l'analyste si elle ne déclare rien."""
+    for route in _routes(app.router):
+        if (isinstance(route, APIRoute) and methode in route.methods
+                and route.path_regex.match(chemin)):
+            roles = auth._roles_declares(route)
+            return roles[0] if roles else "analyste"
+    return "analyste"
 
 
 def _jeton_de_la_route(requete: httpx.Request) -> None:
-    """Le client de test se présente comme l'appelant légitime de chaque route : la passerelle
-    pour un événement, le poste pour son inventaire, le validateur sous /api/validation/,
-    l'analyste pour le reste. Un test qui pose
-    son propre en-tête Authorization le garde ; tests/test_auth.py vérifie les refus."""
+    """Le client de test se présente comme l'appelant légitime de chaque route, d'après la
+    dépendance qu'elle déclare : la passerelle pour un événement, le poste pour son inventaire,
+    le validateur pour un geste métier, l'analyste pour le reste. Un test qui pose son propre
+    en-tête Authorization le garde ; tests/test_auth.py vérifie les refus."""
     if "authorization" not in requete.headers:
-        chemin = requete.url.path
-        role = ("validateur" if chemin.startswith("/api/validation/")
-                else ROUTES_DES_MACHINES.get((requete.method, chemin), "analyste"))
-        requete.headers.update(jeton(role))
+        requete.headers.update(jeton(role_de_la_route(requete.method, requete.url.path)))
 
 
 @pytest.fixture(autouse=True)

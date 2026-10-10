@@ -181,7 +181,9 @@ def jouer(base: str, issue: str = "couper", *, session_id: str | None = None,
         "boite_noire": list(enregistreur.maillons),
         "references": enregistreur.references_cumulees(),
         "chronos": list(enregistreur.chronos),
-        "incident": boite.incident_de_session(sid),
+        # Constat complet (chaîne comprise), lu comme la console avec le jeton analyste.
+        "incident": next((i for i in (_lire(base, "/api/incidents") or {}).get("incidents", [])
+                          if i.get("session_id") == sid), None) or boite.incident_de_session(sid),
     }
 
 

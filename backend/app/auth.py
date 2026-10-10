@@ -223,6 +223,8 @@ ECRIVAINS = Depends(exiger("passerelle", "poste"))
 LECTURE_SESSION = Depends(exiger("analyste", "passerelle"))
 # Le verdict des quatre yeux : la console, et le poste qui l'attend.
 VERDICT_POSTE = Depends(exiger("analyste", "poste"))
+# Les décisions prises sur une session : la console, la passerelle et le poste qui les attendent.
+DECISIONS_SESSION = Depends(exiger("analyste", "passerelle", "poste"))
 # Espace /validation : le responsable ou la finance confirme un geste métier retenu. Seul.
 VALIDATEUR = Depends(exiger("validateur"))
 
@@ -312,14 +314,16 @@ def _entete(scope: dict, nom: str) -> str | None:
     return None
 
 
-# ------------------------------------------------------------------ lecture du poste
+# ------------------------------------------------------------------ décisions d'une session
 routeur = APIRouter()
 
 
-@routeur.get("/api/poste/decisions/{session_id}", dependencies=[VERDICT_POSTE])
-async def decisions_du_poste(session_id: str):
-    """Ce que le poste a besoin de lire, et rien de plus : les actions décidées sur l'incident
-    de sa propre session (quatre yeux). Jamais la liste des autres incidents."""
+@routeur.get("/api/sessions/{session_id}/decisions", dependencies=[DECISIONS_SESSION])
+async def decisions_de_session(session_id: str):
+    """Ce que la passerelle et le poste ont besoin de lire, et rien de plus : les décisions
+    prises sur l'incident d'une session dont ils connaissent l'identifiant (appel retenu,
+    quatre yeux), avec le nom de l'analyste qui les signe pour la boîte noire de l'agent.
+    Ni la chaîne, ni le salarié, ni les autres incidents."""
     from .store import store
 
     sid = session_id[:200]
@@ -328,8 +332,9 @@ async def decisions_du_poste(session_id: str):
         ids = {i.id for i in incidents}
         decisions = [d for d in store.decisions if d.get("incident_id") in ids]
     return {"incidents": [
-        {"id": i.id, "session_id": i.session_id, "statut": i.statut,
-         "decisions": [{"action": d["action"], "horodatage": d["horodatage"]}
+        {"id": i.id, "session_id": i.session_id, "type": i.type, "statut": i.statut,
+         "decisions": [{"action": d["action"], "analyste": d.get("analyste"),
+                        "horodatage": d["horodatage"]}
                        for d in decisions if d.get("incident_id") == i.id]}
         for i in incidents
     ]}
@@ -337,7 +342,7 @@ async def decisions_du_poste(session_id: str):
 
 def brancher(app: FastAPI) -> None:
     """Seule ligne ajoutée à main.py, avant toute route : jetons prêts, garde posée sur
-    l'application (elle couvre aussi les routeurs inclus après), lecture du poste incluse."""
+    l'application (elle couvre aussi les routeurs inclus après), décisions d'une session."""
     preparer()
     app.router.dependencies.insert(0, Depends(garde_par_defaut))
     app.add_middleware(GardeHttp)

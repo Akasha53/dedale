@@ -1,7 +1,7 @@
 """Backend simulé minimal, pour la démo hors-ligne et les tests.
 
 Il n'implémente QUE les routes dont le module interne a besoin :
-  POST /api/leurres, POST /api/evenements, GET /api/sessions/{id},
+  POST /api/leurres, POST /api/evenements, GET /api/sessions/{id}, GET /api/sessions/{id}/decisions,
   GET /api/incidents et POST /api/incidents/{id}/decision (journal des décisions).
 Les droits retirés par l'analyste se posent par `retirer_droit(agent, code)` et reviennent,
 comme sur le vrai backend, dans `session.droits_retires` et `droits.retires`.
@@ -137,7 +137,16 @@ def _fabriquer_handler(etat: _Etat):
 
         def do_GET(self):
             chemin = urlsplit(self.path).path
-            if chemin.startswith("/api/sessions/"):
+            if chemin.startswith("/api/sessions/") and chemin.endswith("/decisions"):
+                # Décisions d'une session, seule lecture d'incident ouverte à la passerelle.
+                sid = unquote(chemin[len("/api/sessions/"):-len("/decisions")])
+                with etat.verrou:
+                    liste = [etat.incident_publie(i) for i in etat.incidents.values()]
+                self._repondre(200, {"incidents": [
+                    {"id": i.get("id"), "session_id": i.get("session_id"), "type": i.get("type"),
+                     "statut": i.get("statut"), "decisions": i.get("decisions") or []}
+                    for i in liste if i.get("session_id") == sid]})
+            elif chemin.startswith("/api/sessions/"):
                 sid = unquote(chemin.rsplit("/", 1)[-1])
                 detail = {"id": sid, "etat": etat.etat_session(sid),
                           "evenements": [e for e in etat.evenements if e.get("session_id") == sid]}

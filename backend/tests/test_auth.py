@@ -131,7 +131,8 @@ MACHINES = {
     ("POST", "/api/resistance/campagnes"): {"passerelle"},
     ("POST", "/api/agents/poste"): {"poste"},
     ("GET", "/api/relecteur/demandes/{demande_id}"): {"analyste", "poste"},
-    ("GET", "/api/poste/decisions/{session_id}"): {"analyste", "poste"},
+    ("POST", "/api/relecteur/verifier"): {"passerelle", "poste"},
+    ("GET", "/api/sessions/{session_id}/decisions"): {"analyste", "passerelle", "poste"},
 }
 
 
@@ -149,21 +150,25 @@ def test_toute_route_de_l_api_refuse_sans_jeton_sauf_la_sante():
 
 
 def test_chaque_identite_n_ouvre_que_ses_routes():
-    """Requête réelle par route et par jeton : 403 si l'identité n'est pas admise. Les routes
-    qui décident n'admettent que l'analyste ; une route sans déclaration aussi."""
+    """Requête réelle par route et par jeton. Un jeton de machine n'ouvre que les routes relues
+    dans MACHINES. Toute autre route est soit à la console (analyste seul), soit à l'espace de
+    validation (validateur seul), jamais aux deux. Les routes qui décident : analyste seul."""
     with _client_nu() as c:
         for methode, gabarit in _routes_api():
             if (methode, gabarit) in auth.OUVERTES:
                 continue
-            attendus = MACHINES.get((methode, gabarit),
-                                    {"validateur"} if gabarit.startswith("/api/validation/")
-                                    else {"analyste"})
-            if (methode, gabarit) in DECISIONS:
-                assert attendus == {"analyste"}
+            admis = set()
             for role in auth.ROLES:
                 r = c.request(methode, _chemin_concret(gabarit), headers=jeton(role), json={})
-                admis = r.status_code not in (401, 403)
-                assert admis == (role in attendus), f"{role} {methode} {gabarit} : {r.status_code}"
+                if r.status_code not in (401, 403):
+                    admis.add(role)
+            cle = f"{methode} {gabarit} : {sorted(admis)}"
+            if (methode, gabarit) in MACHINES:
+                assert admis == MACHINES[(methode, gabarit)], cle
+            else:
+                assert admis in ({"analyste"}, {"validateur"}), cle
+            if (methode, gabarit) in DECISIONS:
+                assert admis == {"analyste"}, cle
 
 
 def test_le_poste_ne_lit_pas_les_incidents_des_autres():
@@ -171,12 +176,14 @@ def test_le_poste_ne_lit_pas_les_incidents_des_autres():
         _virement_retenu(c)
         assert c.get("/api/incidents", headers=jeton("poste")).status_code == 403
         assert c.get("/api/sessions", headers=jeton("passerelle")).status_code == 403
-        r = c.get(f"/api/poste/decisions/{SID}", headers=jeton("poste"))
-        assert r.status_code == 200
-        incidents = r.json()["incidents"]
-        assert len(incidents) == 1 and incidents[0]["session_id"] == SID
-        assert set(incidents[0]) == {"id", "session_id", "statut", "decisions"}
-        assert c.get("/api/poste/decisions/autre", headers=jeton("poste")).json() == {"incidents": []}
+        for role in ("poste", "passerelle"):
+            r = c.get(f"/api/sessions/{SID}/decisions", headers=jeton(role))
+            assert r.status_code == 200
+            incidents = r.json()["incidents"]
+            assert len(incidents) == 1 and incidents[0]["session_id"] == SID
+            assert set(incidents[0]) == {"id", "session_id", "type", "statut", "decisions"}
+        vide = c.get("/api/sessions/autre/decisions", headers=jeton("poste")).json()
+        assert vide == {"incidents": []}
 
 
 # ------------------------------------------------------------------ espace de validation
