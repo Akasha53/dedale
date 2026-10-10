@@ -239,6 +239,13 @@ final class PanneauAlerte: NSPanel {
     override var canBecomeMain: Bool { false }
     override func cancelOperation(_ sender: Any?) { surEchap?() }
 
+    /// Passe le panneau devant et lui donne le clavier. En capture (`DEDALE_CAPTURE`), le
+    /// panneau passe devant sans prendre le clavier : une capture lancée pendant que quelqu'un
+    /// tape ailleurs ne lui vole pas ses frappes, et les clics automatiques n'en ont pas besoin.
+    func passerDevant() {
+        if Gabarit.dossierCapture != nil { orderFrontRegardless() } else { makeKeyAndOrderFront(nil) }
+    }
+
     /// Panneau prêt à l'emploi : carte blanche aux coins de 20 points et au bord fin, comme
     /// une carte de la console, sous `racine`. Toujours en apparence claire.
     static func carte(largeur: CGFloat, racine: NSView, rayon: CGFloat = Rayon.fenetre) -> PanneauAlerte {

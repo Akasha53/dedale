@@ -65,7 +65,7 @@ final class FenetreApercu: NSObject {
             cadre.origin.y = ecran.midY - cadre.height / 2
         }
         panneau.setFrameOrigin(Ecran.borner(cadre).origin)
-        panneau.makeKeyAndOrderFront(nil)
+        panneau.passerDevant()
         journal("aperçu du mail \(resume.id) ouvert")
     }
 

@@ -141,7 +141,7 @@ final class FenetreAlerte: NSObject {
     func montrer() {
         ajusterTaille(garderLeHaut: false)
         panneau.alphaValue = 0
-        panneau.makeKeyAndOrderFront(nil)
+        panneau.passerDevant()
         panneau.makeFirstResponder(boutonAnnuler)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
@@ -256,7 +256,7 @@ final class FenetreAlerte: NSObject {
     func confirmer(remonte: Bool) {
         montrerFin(symbole: "exclamationmark.triangle.fill", couleur: Teinte.rouge, titre: nil,
                    sousTitre: remonte ? "Vous avez continué. L'équipe sécurité est prévenue."
-                                      : "Vous avez continué. La SOC est injoignable, rien n'a été signalé.",
+                                      : "Vous avez continué. L'équipe sécurité est injoignable, rien n'a été signalé.",
                    capture: "continuer", duree: 2.4)
     }
 

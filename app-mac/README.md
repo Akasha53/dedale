@@ -32,12 +32,14 @@ uv run python envoyer_demo.py --cas sosie   # fait arriver un mail piégé
 
 Une seule icône dans la barre de menus, un bouclier dont la forme suit l'état d'ensemble. En tête du menu :
 
-- « Protégé » quand les quatre modules tournent et que la SOC répond ; sinon « Protégé, SOC hors ligne », « Protection partielle (3 modules sur 4) » ou « Protection en pause » ([capture](../captures/app-poste/menu-protection-partielle.png)).
+- « Protégé » quand les quatre modules tournent et que le backend répond ; sinon « Protégé, équipe sécurité injoignable », « Protection partielle (3 modules sur 4) » ou « Protection en pause » ([capture](../captures/app-poste/menu-protection-partielle.png)).
 - Le compteur : « 3 pièges évités cette semaine ». Chaque Annuler ou Mettre de côté compte, depuis lundi. Les dates restent sur le Mac, dans `~/Library/Application Support/Dedale/pieges-evites.json`.
 
-Puis l'état de chaque module : « Connecté à la SOC » (sonde `/api/mesures` toutes les 5 s), « Boîte de démo : 6 mails », « Téléchargements surveillés », « Agents IA : 7 serveurs dont 3 à risque » (un clic ouvre l'inventaire). Enfin « Signaler un mail suspect… », « Fichiers mis de côté », « Ce que Dédale regarde sur ce poste… », « Tester une alerte » et « Quitter ».
+Puis « Agents IA : 7 serveurs dont 3 à risque » (un clic ouvre l'inventaire), avec un point rouge seulement s'il y a un risque. Enfin « Signaler un mail suspect… », « Fichiers mis de côté », « Ce que Dédale regarde sur ce poste… », « Tester une alerte » et « Quitter ».
 
 ![Menu](../captures/app-poste/menu.png)
+
+L'état de chaque module est un diagnostic, caché au salarié : il ne s'affiche que si la touche Option est pressée à l'ouverture du menu. « Connecté à l'équipe sécurité » (sonde `/api/mesures` toutes les 5 s), « Boîte de démo : 6 mails », « Téléchargements surveillés », « Alertes locales sur le port 8712 » et l'état de la veille des sites. Seule exception : un dossier Téléchargements à autoriser ou introuvable reste visible, en orange, puisqu'il attend une action ([menu normal](../captures/finitions/app-mac/apres/menu.png), [avec Option](../captures/finitions/app-mac/apres/menu-option.png)). Le salarié lit « l'équipe sécurité » partout où l'app parlait de la SOC.
 
 ## Mails frauduleux
 
@@ -185,7 +187,7 @@ L'événement envoyé suit `CONTRATS.md`, avenant « humain » : `source: humain
 | `DEDALE_CLIC_AUTO` | boutons à presser seuls, dans l'ordre, séparés par des virgules : `voir`, `annuler`, `continuer`, `compris`. Chaque clic passe par le vrai bouton (`performClick`) |
 | `DEDALE_CLIC_DELAI` | délai avant chaque clic automatique, 2 s par défaut |
 | `DEDALE_SIGNALER_AUTO` | identifiant d'un mail (ou `premier`) à signaler une fois, par le même chemin qu'un clic dans le menu |
-| `DEDALE_CAPTURE` | dossier où l'app écrit un PNG de chaque état de ses fenêtres et un rendu de son menu |
+| `DEDALE_CAPTURE` | dossier où l'app écrit un PNG de chaque état de ses fenêtres et un rendu de son menu, normal et avec Option (`menu-option.png`). Les pop-ups passent alors devant sans prendre le clavier |
 | `DEDALE_TELECHARGEMENTS` | dossier surveillé, `~/Downloads` par défaut |
 | `DEDALE_DOMAINES_CONNUS` | domaines d'où un programme peut venir sans pop-up, en plus de `orbispay.example`, `apple.com`, `microsoft.com`, `mozilla.org` et `google.com` (virgules) |
 | `DEDALE_DEMO_AGENTS_DIR` | dossier factice qui reproduit un dossier personnel, lu par le module Agents IA |

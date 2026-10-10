@@ -1,8 +1,10 @@
 import AppKit
 
 /// Application de barre de menus : une icône d'état (« Protégé »), le compteur de la semaine,
-/// l'état de chaque module (SOC, mails, téléchargements, agents IA), le signalement d'un mail,
-/// les fichiers mis de côté, le panneau de transparence et la file des pop-ups.
+/// les agents IA du poste, le signalement d'un mail, les fichiers mis de côté, le panneau de
+/// transparence et la file des pop-ups. L'état de chaque module (backend, boîte de démo,
+/// téléchargements, port local, sites) est un diagnostic : il ne s'affiche que si la touche
+/// Option est pressée à l'ouverture du menu.
 final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let fileMax = 10
     private static let mailsAuMenu = 8
@@ -12,7 +14,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var element: NSStatusItem!
     private let menu = NSMenu()
     private let ligneEtat = NSMenuItem(title: "Protégé", action: nil, keyEquivalent: "")
-    private let ligneSoc = NSMenuItem(title: "Recherche de la SOC…", action: nil, keyEquivalent: "")
+    private let ligneSoc = NSMenuItem(title: "Recherche de l'équipe sécurité…", action: nil, keyEquivalent: "")
     private let ligneTelechargements = NSMenuItem(title: "Téléchargements : démarrage…", action: nil, keyEquivalent: "")
     private let ligneAgents = NSMenuItem(title: "Agents IA : analyse…", action: nil, keyEquivalent: "")
     private let entreeMisDeCote = NSMenuItem(title: "Mis de côté", action: nil, keyEquivalent: "")
@@ -61,6 +63,8 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var mailsSignales: Set<String> = []
     private var signalementAutoFait = false
     private var captureMenuPrevue: DispatchWorkItem?
+    /// Lignes de diagnostic montrées (Option pressée à l'ouverture du menu).
+    private var diagnosticVisible = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let id = Bundle.main.bundleIdentifier,
@@ -140,6 +144,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         demarrerPoste()
         sites.surEvite = { [weak self] in self?.compteur.ajouter(); self?.majCompteur() }
         sites.demarrer(menu: menu, apres: ligneEcoute)
+        afficherDiagnostic(false)
         journal("Dédale démarré, backend \(backend.base.absoluteString), boîte de démo \(messagerie.base.absoluteString), "
                 + "poste \(IdentitePoste.identifiant)")
     }
@@ -147,6 +152,31 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         sonder()
         majCompteur()
+        // Option pressée à l'ouverture : les lignes de diagnostic (backend, boîte de démo, port
+        // local, sites). Sinon le salarié ne voit que l'état d'ensemble.
+        afficherDiagnostic(NSEvent.modifierFlags.contains(.option))
+    }
+
+    /// Lignes de diagnostic : l'état de chaque module, avec le port local et les variables
+    /// d'environnement. Cachées par défaut ; Option à l'ouverture du menu les montre.
+    private var lignesDiagnostic: [NSMenuItem] {
+        [ligneSoc, ligneBoite, ligneTelechargements, ligneEcoute, sites.ligneMenu]
+    }
+
+    private func afficherDiagnostic(_ visible: Bool) {
+        diagnosticVisible = visible
+        for ligne in lignesDiagnostic { ligne.isHidden = !visible }
+        // Un dossier Téléchargements à autoriser ou introuvable attend une action du salarié :
+        // la ligne reste visible, en orange.
+        if !visible, telechargementsAAgir { ligneTelechargements.isHidden = false }
+    }
+
+    private var telechargementsAAgir: Bool {
+        guard ReglagesModules.partage.actif(.telechargements) else { return false }
+        switch etatTelechargements {
+        case .accesRefuse, .dossierAbsent: return true
+        case .active, .arretee: return false
+        }
     }
 
     // MARK: SOC
@@ -159,14 +189,14 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if socConnecte != ok { journal(ok ? "SOC connecté" : "SOC hors ligne") }
         let change = socConnecte != ok
         socConnecte = ok
-        ligneSoc.title = ok ? "Connecté à la SOC" : "SOC hors ligne"
+        ligneSoc.title = ok ? "Connecté à l'équipe sécurité" : "Équipe sécurité injoignable"
         ligneSoc.image = Self.pastille(ok ? Teinte.ok : Teinte.gris)
         majEtat()
         if change { prevoirCaptureMenu() }
     }
 
     /// Une seule icône dans la barre de menus, et en tête du menu l'état d'ensemble :
-    /// « Protégé » quand tous les modules tournent et que la SOC répond. Couleurs de la
+    /// « Protégé » quand tous les modules tournent et que l'équipe sécurité répond. Couleurs de la
     /// console : vert quand tout est réglé, orange quand quelque chose attend une action.
     private func majEtat() {
         let actifs = ReglagesModules.partage.actifs.count
@@ -179,7 +209,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else if actifs < total {
             (titre, symbole, couleur) = ("Protection partielle (\(actifs) modules sur \(total))", "exclamationmark.shield", Teinte.orange)
         } else if socConnecte == false {
-            (titre, symbole, couleur) = ("Protégé, SOC hors ligne", "exclamationmark.shield", Teinte.orange)
+            (titre, symbole, couleur) = ("Protégé, équipe sécurité injoignable", "exclamationmark.shield", Teinte.orange)
         } else {
             (titre, symbole, couleur) = ("Protégé", "checkmark.shield", Teinte.ok)
         }
@@ -366,7 +396,8 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 } else {
                     self.sonder()
                 }
-                Bulle(ok ? "Merci, la SOC est prévenue." : "La SOC est injoignable. Réessayez dans un moment.", ok: ok)
+                Bulle(ok ? "Merci, l'équipe sécurité est prévenue." : "L'équipe sécurité est injoignable. Réessayez dans un moment.",
+                      ok: ok)
                     .montrer(capture: "signalement")
             }
         }
@@ -507,13 +538,19 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: Capture du menu (test)
 
     /// Avec DEDALE_CAPTURE, l'app écrit un rendu de son menu et du sous-menu « Signaler »
-    /// à chaque changement d'état (menu.png, menu-signaler.png).
+    /// à chaque changement d'état (menu.png, menu-signaler.png), et le menu avec ses lignes de
+    /// diagnostic, tel qu'il s'ouvre avec Option (menu-option.png).
     private func prevoirCaptureMenu() {
         guard let dossier = Gabarit.dossierCapture else { return }
         captureMenuPrevue?.cancel()
         let travail = DispatchWorkItem { [weak self] in
             guard let self else { return }
+            let avant = self.diagnosticVisible
+            self.afficherDiagnostic(false)
             Capture.ecrireMenu(self.menu, vers: dossier.appendingPathComponent("menu.png"))
+            self.afficherDiagnostic(true)
+            Capture.ecrireMenu(self.menu, vers: dossier.appendingPathComponent("menu-option.png"))
+            self.afficherDiagnostic(avant)
             Capture.ecrireMenu(self.sousMenuSignaler, vers: dossier.appendingPathComponent("menu-signaler.png"))
             if !self.entreeMisDeCote.isHidden {
                 Capture.ecrireMenu(self.sousMenuMisDeCote, vers: dossier.appendingPathComponent("menu-mis-de-cote.png"))
@@ -594,6 +631,7 @@ extension AppDelegue {
         }
         ligneTelechargements.title = titre
         ligneTelechargements.image = Self.pastille(teinte)
+        afficherDiagnostic(diagnosticVisible)
         transparence?.rafraichir()
         prevoirCaptureMenu()
     }
@@ -606,7 +644,8 @@ extension AppDelegue {
         } else if let r = agentsPoste.resultat {
             let n = r.serveurs.count
             ligneAgents.title = "Agents IA : \(n) serveur\(n > 1 ? "s" : "") dont \(r.risques) à risque"
-            ligneAgents.image = Self.pastille(r.risques > 0 ? Teinte.rouge : Teinte.ok)
+            // Rouge seulement s'il y a un risque : c'est la seule couleur de la liste.
+            ligneAgents.image = Self.pastille(r.risques > 0 ? Teinte.rouge : Teinte.gris)
             ligneAgents.isEnabled = true
         } else {
             if case .aucune = agentsPoste.source {
@@ -727,7 +766,7 @@ extension AppDelegue {
         let t = transparence ?? FenetreTransparence()
         t.etatModule = { [weak self] m in self?.etatModule(m) ?? "" }
         let hote = backend.base.host.map { h in backend.base.port.map { "\(h):\($0)" } ?? h } ?? backend.base.absoluteString
-        t.piedDePage = "Poste \(IdentitePoste.identifiant) · SOC \(hote)"
+        t.piedDePage = "Poste \(IdentitePoste.identifiant) · équipe sécurité : \(hote)"
         t.surFermeture = { [weak self] in self?.transparence = nil }
         transparence = t
         t.afficher()

@@ -182,7 +182,7 @@ final class FenetreTelechargement: NSObject {
     func montrer() {
         ajusterTaille(garderLeHaut: false)
         panneau.alphaValue = 0
-        panneau.makeKeyAndOrderFront(nil)
+        panneau.passerDevant()
         panneau.makeFirstResponder(boutonCote)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
@@ -240,7 +240,7 @@ final class FenetreTelechargement: NSObject {
             symbole = "exclamationmark.triangle.fill"
             couleur = Teinte.rouge
             titre = "Gardé."
-            texte = remonte ? "L'équipe sécurité est prévenue." : "La SOC est injoignable, rien n'a été signalé."
+            texte = remonte ? "L'équipe sécurité est prévenue." : "L'équipe sécurité est injoignable, rien n'a été signalé."
         }
         let textes = NSStackView(views: [
             Gabarit.etiquette(titre, taille: Taille.titreCarte, graisse: .semibold, couleur: Teinte.encre),

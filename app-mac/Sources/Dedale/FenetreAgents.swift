@@ -89,9 +89,9 @@ final class FenetreAgents: FenetrePanneau {
 
         let envoi: String
         switch (agents.envoiOk, agents.dernierEnvoi) {
-        case (true?, let d?): envoi = "Inventaire envoyé à la SOC à \(Self.heure.string(from: d))."
-        case (false?, _): envoi = "SOC injoignable : l'inventaire n'est pas parti."
-        default: envoi = "Envoi à la SOC en cours…"
+        case (true?, let d?): envoi = "Inventaire envoyé à l'équipe sécurité à \(Self.heure.string(from: d))."
+        case (false?, _): envoi = "Équipe sécurité injoignable : l'inventaire n'est pas parti."
+        default: envoi = "Envoi à l'équipe sécurité en cours…"
         }
         let bouton = BoutonDedale(titre: "Fermer", style: .neutre, cible: self, action: #selector(fermer))
         bouton.widthAnchor.constraint(equalToConstant: 96).isActive = true

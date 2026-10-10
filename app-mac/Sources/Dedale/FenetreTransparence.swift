@@ -191,7 +191,7 @@ class FenetrePanneau: NSObject {
         ajuster(centrer: !panneau.isVisible)
         if !panneau.isVisible {
             panneau.alphaValue = 0
-            panneau.makeKeyAndOrderFront(nil)
+            panneau.passerDevant()
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.22
                 ctx.timingFunction = Courbe.fluide
@@ -390,7 +390,7 @@ final class FenetreTransparence: FenetrePanneau {
             return p
         }
         let lit = bloc("Lit", m.lit)
-        let envoie = bloc("Envoie à la SOC", m.envoie)
+        let envoie = bloc("Envoie à l'équipe sécurité", m.envoie)
         let colonnes = NSStackView(views: [lit, envoie])
         colonnes.orientation = .horizontal
         colonnes.alignment = .top

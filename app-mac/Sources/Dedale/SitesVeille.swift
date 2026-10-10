@@ -21,6 +21,9 @@ final class SitesVeille {
     private let fichierRegles: URL?
     private let lecteur = LecteurNavigateurs()
     private let ligne = NSMenuItem(title: "Sites : démarrage…", action: nil, keyEquivalent: "")
+    /// La ligne d'état des sites dans le menu : une ligne de diagnostic, que le menu cache
+    /// tant qu'Option n'est pas pressée à son ouverture.
+    var ligneMenu: NSMenuItem { ligne }
     private let actif: Bool
     private var minuteur: Timer?
     private var observateur: NSObjectProtocol?
@@ -312,7 +315,7 @@ final class SitesVeille {
         a.titreAnnuler = "Revenir en arrière"
         a.titreContinuer = "Continuer quand même"
         a.puce = r.marque != nil ? "Faux site" : "Site louche"
-        a.note = "Si vous revenez en arrière, rien ne quitte ce Mac. Si vous continuez, la SOC reçoit le nom du site."
+        a.note = "Si vous revenez en arrière, rien ne quitte ce Mac. Si vous continuez, l'équipe sécurité reçoit le nom du site."
         a.prefixe = "site-\(r.raison ?? "louche")".replacingOccurrences(of: "_", with: "-")
         journal("sites : \(o.navigateur.nom), \(r.domaine) louche (\(r.raison ?? "?"))")
 
