@@ -253,6 +253,8 @@ export interface AgentInventaire {
   service?: string | null;
   proprietaire?: string | null;
   declare?: boolean;
+  // Agent de Dédale lui-même (l'agent des règles), rangé à part des agents d'Orbis Pay.
+  dedale?: boolean;
   outils: { nom: string; droit?: string | null; libelle?: string; sortant?: boolean }[];
   droits: {
     accordes: { code: string; libelle?: string }[];
@@ -292,6 +294,14 @@ export interface PreTri {
   a_regarder?: boolean;
   tranche_par?: string;
   duree_ms?: number;
+  // Certitude de l'incident, la même que la synthèse (seule source affichée).
+  certitude?: Certitude | null;
+}
+
+export interface Certitude {
+  score: number | null;
+  niveau?: string;
+  regle?: string | null;
 }
 
 // Règles écrites en français par le SOC (GET/POST /api/politiques).
@@ -400,8 +410,10 @@ export interface Synthese {
   incident_id: string;
   phrases: PhraseSynthese[];
   confiance?: {
-    score: number;
-    niveau?: "elevee" | "moyenne" | "faible" | string;
+    // null quand une règle fixe de la passerelle a retenu l'appel : `regle` la nomme.
+    score: number | null;
+    niveau?: "elevee" | "moyenne" | "faible" | "regle" | string;
+    regle?: string | null;
     raisons?: RaisonConfiance[];
     manquants?: RaisonConfiance[];
   } | null;

@@ -10,6 +10,7 @@ import { useAnalyste } from "../ui/analyste";
 import { Pourquoi, type Force, type LignePourquoi } from "../ui/Pourquoi";
 import { attendDecision, decoder, estATraiter, libelleDroit, sansCodes } from "../ui/mots";
 import { heure, tempsRelatif } from "../ui/primitives";
+import { estAgentDedale } from "../ui/compteurs";
 
 const NIVEAU: Record<string, { lib: string; cls: string }> = {
   eleve: { lib: "Risque élevé", cls: "eleve" },
@@ -124,12 +125,99 @@ export function InventaireAgents({
 
   if (vues.length === 0) return <div className="vide">Aucun agent déclaré pour l'instant.</div>;
 
+  // Les agents d'Orbis Pay en cartes ; ceux de Dédale (l'agent des règles) dans une rangée
+  // compacte à part : aucune règle du SOC ne peut les viser, ils n'ont pas de droits en trop.
+  const orbis = vues.filter((v) => !estAgentDedale(v.agent.id, v.agent));
+  const dedale = vues.filter((v) => estAgentDedale(v.agent.id, v.agent));
+
   return (
-    <div className="inv-grille">
-      {vues.map((v) => (
-        <CarteAgent key={v.agent.id} v={v} ouvrirIncident={ouvrirIncident} ecrireRegle={ecrireRegle} />
-      ))}
-    </div>
+    <>
+      {orbis.length > 0 && (
+        <div className="inv-grille">
+          {orbis.map((v) => (
+            <CarteAgent key={v.agent.id} v={v} ouvrirIncident={ouvrirIncident} ecrireRegle={ecrireRegle} />
+          ))}
+        </div>
+      )}
+      {dedale.length > 0 && (
+        <section className="inv-dedale" aria-labelledby="inv-dedale-titre">
+          <h4 id="inv-dedale-titre" className="inv-dedale-titre">
+            {dedale.length > 1 ? "Les agents de sAIfe" : "L'agent de sAIfe"}
+          </h4>
+          {dedale.map((v) => (
+            <LigneAgentDedale key={v.agent.id} v={v} ouvrirIncident={ouvrirIncident} />
+          ))}
+        </section>
+      )}
+    </>
+  );
+}
+
+// Rangée compacte d'un agent de Dédale : nom, ce qu'il fait, ses outils, son état et son
+// risque, sur deux lignes. Pas de « Écrire une règle » : les règles du SOC ne le visent pas.
+function LigneAgentDedale({ v, ouvrirIncident }: { v: Vue; ouvrirIncident: (id: string) => void }) {
+  const a = v.agent;
+  const niveau = NIVEAU[a.risque.niveau] ?? NIVEAU.faible;
+  const lignes: LignePourquoi[] = a.risque.raisons.map((r) => ({
+    texte: texteRaison(a, r),
+    force: forcePoints(r.points),
+    points: r.points,
+  }));
+  const incident = v.attente ?? v.aTraiter ?? v.incidents[0];
+  const surplus = a.droits.surplus.length;
+  const faits = [
+    `${a.outils.length} outil${a.outils.length > 1 ? "s" : ""}`,
+    surplus === 0 ? "aucun droit en trop" : `${surplus} droit${surplus > 1 ? "s" : ""} en trop`,
+    a.appels > 0 ? `${a.appels} action${a.appels > 1 ? "s" : ""}` : null,
+  ].filter(Boolean);
+  return (
+    <article className={`inv-ligne ${v.attente ? "inv-attente" : ""}`} aria-labelledby={`inv-${a.id}`}>
+      <div className="inv-ligne-texte">
+        <h3 id={`inv-${a.id}`} className="inv-nom" title={a.nom}>
+          {a.nom}
+        </h3>
+        <p className="inv-ligne-meta">
+          {[a.proprietaire ?? "Propriétaire non déclaré", ...faits].join(" · ")}
+        </p>
+        {a.role && (
+          <p className="inv-role inv-role-court" title={a.role}>
+            {a.role}
+          </p>
+        )}
+      </div>
+      <div className="inv-ligne-droite">
+        <EtatAgent etat={v.etat} />
+        <span className={`inv-risque r-${niveau.cls}`}>
+          {niveau.lib}
+          <span className="inv-points">{points(a.risque.score)}</span>
+        </span>
+        <Pourquoi
+          titre="Pourquoi ce niveau de risque"
+          intro="Chaque point vient d'un fait que sAIfe a vu ou que l'inventaire déclare."
+          lignes={lignes}
+        />
+        {incident && (
+          <button
+            type="button"
+            className={`lien-incident ${v.attente ? "lien-attente" : ""}`}
+            onClick={() => ouvrirIncident(incident.id)}
+          >
+            {v.attente ? "Décider" : "Voir l'incident"}
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+// État d'un agent : un point et un mot. Le point porte la couleur quand elle a un sens
+// (orange : une décision attend ; vert : Dédale a refusé l'action), le mot reste sobre.
+function EtatAgent({ etat }: { etat: { lib: string; cls: string } }) {
+  return (
+    <span className={`inv-etat e-${etat.cls}`}>
+      <span className="inv-etat-pt" aria-hidden="true" />
+      {etat.lib}
+    </span>
   );
 }
 
@@ -144,7 +232,7 @@ function PucesDroitsEnTrop({ codes, idListe }: { codes: string[]; idListe: strin
   return (
     <span className="inv-puces" id={idListe}>
       {visibles.map((c) => (
-        <span key={c} className="inv-puce" title={c}>
+        <span key={c} className="inv-puce" title={libelleDroit(c)}>
           {libelleDroit(c)}
         </span>
       ))}
@@ -272,21 +360,20 @@ function CarteAgent({
 
   return (
     <article className={`inv-carte ${v.attente ? "inv-attente" : ""}`} aria-labelledby={`inv-${a.id}`}>
+      {/* Le titre prend toute la largeur : deux lignes au plus, puis une ellipse ; le nom
+          complet reste au survol. L'état passe en dessous, avec le propriétaire. */}
       <header className="inv-tete">
-        <div>
-          <h3 id={`inv-${a.id}`} className="inv-nom">{a.nom}</h3>
-          <p className="inv-proprio">
-            {a.proprietaire ?? "Propriétaire non déclaré"}
-            {a.declare === false && " · absent du registre"}
-          </p>
-        </div>
-        <span className={`statut-pill s-${v.etat.cls}`}>
-          <span className="pt" />
-          {v.etat.lib}
-        </span>
+        <h3 id={`inv-${a.id}`} className="inv-nom" title={a.nom}>
+          {a.nom}
+        </h3>
+        <p className="inv-proprio">
+          {a.proprietaire ?? "Propriétaire non déclaré"}
+          {a.declare === false && " · absent du registre"}
+        </p>
+        <EtatAgent etat={v.etat} />
       </header>
 
-      {a.role && <p className="inv-role">{a.role}</p>}
+      <p className="inv-role">{a.role ?? ""}</p>
 
       <dl className="inv-faits">
         <div>
@@ -309,7 +396,7 @@ function CarteAgent({
             )}
           </dd>
         </div>
-        <div>
+        <div className="inv-fait-liste">
           <dt>Droits en trop</dt>
           <dd>
             {a.droits.surplus.length === 0 ? (
@@ -320,7 +407,7 @@ function CarteAgent({
           </dd>
         </div>
         {(a.droits.retires ?? []).length > 0 && (
-          <div>
+          <div className="inv-fait-liste">
             <dt>Droits retirés</dt>
             <dd>
               <DroitsRetires agent={a.id} codes={(a.droits.retires ?? []).map(codeDroit)} />

@@ -43,10 +43,16 @@ export function compter(
     if (attendDecision(i)) aDecider[p] += 1;
   }
   const agentsVus = new Set(
-    sessions.filter((s) => s.source === "interne" && s.agent).map((s) => s.agent as string)
+    sessions
+      .filter((s) => s.source === "interne" && s.agent && !estAgentDedale(s.agent))
+      .map((s) => s.agent as string)
   );
-  // Les agents d'Orbis Pay seulement : les serveurs MCP des postes se comptent à part.
-  const agents = new Set([...inventaire.filter((a) => a.contexte !== "poste").map((a) => a.id), ...agentsVus]).size;
+  // Les agents d'Orbis Pay seulement : les serveurs MCP des postes se comptent à part,
+  // et l'agent des règles appartient à Dédale.
+  const agents = new Set([
+    ...inventaire.filter((a) => a.contexte !== "poste" && !estAgentDedale(a.id, a)).map((a) => a.id),
+    ...agentsVus,
+  ]).size;
   const postes = new Set(sessions.filter((s) => appartientPilier(s.source, "humain")).map(clePoste)).size;
   return {
     aTraiter,
@@ -57,4 +63,10 @@ export function compter(
     actionsVues: activite.length,
     actionsArretees: activite.filter((a) => a.verdict !== "autorise").length,
   };
+}
+
+// Agent de Dédale lui-même (l'agent des règles) : le backend le marque `dedale`,
+// et son identifiant commence par « dedale- ».
+export function estAgentDedale(id: string, a?: Pick<AgentInventaire, "dedale">): boolean {
+  return a?.dedale === true || id.startsWith("dedale-");
 }

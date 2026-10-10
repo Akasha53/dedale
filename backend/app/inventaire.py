@@ -305,6 +305,8 @@ def fiche(store, agent_id: str, *, maintenant: datetime | None = None) -> dict |
         # Propriétaire métier de l'agent : qui répond de ses droits et de ses actes.
         "proprietaire": declare.get("proprietaire"),
         "declare": agent_id in PAR_ID,
+        # Agent de Dédale lui-même (l'agent des règles), pas d'Orbis Pay : la console le range à part.
+        "dedale": bool(declare.get("dedale")),
         "outils": outils,
         "droits": {
             "accordes": _avec_libelles(accordes),
