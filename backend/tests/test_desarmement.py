@@ -64,6 +64,17 @@ def test_desarmement_ouvre_un_incident_avec_son_maillon(client):
     assert des["retraits"][0]["formules"] == ["note_assistant"]  # un code invalide est écarté
 
 
+def test_reponse_finale_d_une_session_prevenue_n_est_pas_une_sortie(client):
+    _session_desarmee(client)
+    client.post("/api/evenements", json=evenement(
+        session_id="S-desarme", source="interne", surface="outil", type="sortie_agent",
+        details={"texte": "Rapport des paiements fournisseurs préparé."}, horodatage=horo(BASE, 2)))
+    (inc,) = client.get("/api/incidents").json()["incidents"]
+    d = client.get(f"/api/incidents/{inc['id']}").json()
+    assert "tentative_sortie" not in {e["etape"] for e in d["chaine"]}
+    assert d["gravite"] == "moyenne"
+
+
 def test_desarmement_texte_neutralise_et_borne(client):
     piege = "<script>alert(1)</script> " + "x" * 2000
     _session_desarmee(client, texte=piege)

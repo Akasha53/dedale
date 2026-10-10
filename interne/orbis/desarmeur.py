@@ -401,7 +401,8 @@ def texte_desarme(texte: str, limite: int = 600) -> str:
 
     t = unicodedata.normalize("NFKC", texte or "")
     t = re.sub(r"[\u0000-\u001f\u007f-\u009f]", " ", t)
-    t = " ".join(desarmer(t).split())
+    # Apostrophe typographique : le backend échappe le HTML, « ' » deviendrait « &#x27; ».
+    t = " ".join(desarmer(t).split()).replace("'", "’")
     if len(t) > limite:
         t = t[:limite].rstrip() + " […]"
     return t

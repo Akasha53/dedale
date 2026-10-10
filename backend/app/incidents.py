@@ -167,6 +167,10 @@ def gravite(chaine: list[dict], source: str) -> str:
     phases = {e.get("etape") for e in chaine}
     if "tentative_sortie" in phases:
         return "critique"
+    # Consigne retirée avant lecture, rien d'autre : l'attaque a été empêchée.
+    if "desarme" in phases and not phases & {"consigne_lue", "regle", "anomalie"} and not any(
+            str(e.get("detail", "")).startswith("action hors périmètre") for e in chaine):
+        return "moyenne"
     if "consigne_lue" in phases or source == "interne":
         return "haute"
     if "action" in phases:
@@ -245,12 +249,31 @@ def _etape_pour(ev: dict, leurres: dict[str, Any]) -> str | None:
     return None
 
 
+def _session_prevenue(evenements: list[dict]) -> bool:
+    """Une consigne a été désarmée avant lecture et aucun canari n'a été touché ensuite."""
+    desarmee = any(e.get("type") == "desarmement"
+                   and ((e.get("details") or {}).get("desarmement") or {}).get("consigne") is True
+                   for e in evenements)
+    return desarmee and not any(e.get("type") == "leurre_touche" for e in evenements)
+
+
+def _reponse_ordinaire(ev: dict) -> bool:
+    details = ev.get("details") or {}
+    return (ev.get("type") == "sortie_agent" and ev.get("source") == "interne"
+            and not details.get("exfiltration") and not ev.get("leurre_id"))
+
+
 def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[dict]:
     """Chaîne de la boîte noire. Chaque étape porte les champs internes (etape, resume) ET les
     champs lus par la console (ordre, phase, titre, detail, techniques, risques)."""
     etapes: list[dict] = []
+    prevenue = _session_prevenue(evenements)
     for ev in sorted(evenements, key=lambda e: (e.get("horodatage") or "", e.get("id", 0))):
         etape = _etape_pour(ev, leurres)
+        if etape == "tentative_sortie" and prevenue and _reponse_ordinaire(ev):
+            # Consigne désarmée avant lecture, aucun canari touché : la réponse finale de l'agent
+            # n'est pas une tentative de sortie de données.
+            continue
         if etape is None:
             continue
         details = ev.get("details") or {}
