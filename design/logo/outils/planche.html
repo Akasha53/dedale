@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Dédale, planche du logo</title>
+<style>
+  :root { --texte:#0d0d0d; --doux:#6b6b6b; --ligne:rgba(0,0,0,.08); }
+  * { box-sizing:border-box; margin:0; }
+  body { font:14px/1.4 -apple-system, "Helvetica Neue", Arial, sans-serif; color:var(--texte); background:#f6f7f9; padding:40px; width:1600px; }
+  h1 { font-size:22px; font-weight:650; letter-spacing:-.01em; margin-bottom:4px; }
+  h2 { font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--doux); margin:28px 0 12px; }
+  .sous { color:var(--doux); margin-bottom:8px; }
+  .rang { display:flex; align-items:flex-end; gap:28px; flex-wrap:wrap; }
+  .case { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .case > span { font:11px/1 ui-monospace, Menlo, monospace; color:var(--doux); }
+  .fond { display:grid; place-items:center; border-radius:14px; box-shadow:0 0 0 1px var(--ligne); background:#fff; }
+  .sombre { background:#1d1d1f; }
+  .pixel img { image-rendering:pixelated; }
+  .onglets { display:flex; gap:0; border-radius:10px; overflow:hidden; box-shadow:0 0 0 1px var(--ligne); }
+  .onglet { display:flex; align-items:center; gap:8px; padding:9px 14px; width:220px; font-size:12.5px; }
+  .clair { background:#dee1e6; } .clair.actif { background:#fff; }
+  .nuit { background:#202124; color:#e8eaed; } .nuit.actif { background:#35363a; }
+  .menu { display:flex; align-items:center; justify-content:flex-end; gap:14px; height:24px; padding:0 12px; width:260px; border-radius:6px; font-size:13px; }
+  .menu.jour { background:rgba(246,246,246,.9); box-shadow:0 0 0 1px var(--ligne); }
+  .menu.nuit2 { background:#2a2a2c; }
+  .menu span { font:500 13px/1 -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  .gabarit { width:18px; height:18px; background:currentColor; -webkit-mask:url(../app-mac/MenuBarIcon@2x.png) center/18px 18px no-repeat; mask:url(../app-mac/MenuBarIcon@2x.png) center/18px 18px no-repeat; }
+</style>
+</head>
+<body>
+  <h1>Dédale, logo</h1>
+  <p class="sous">Source : design/logo/logo-source.png, vectorisée en design/logo/dedale.svg. Toutes les images ci-dessous sont les fichiers produits, à leur taille réelle.</p>
+
+  <h2>Logo</h2>
+  <div class="rang">
+    <div class="case"><div class="fond" style="width:280px;height:280px"><img src="../dedale.svg" width="200" height="200" alt=""></div><span>dedale.svg</span></div>
+    <div class="case"><div class="fond sombre" style="width:280px;height:280px"><img src="../dedale-blanc.svg" width="200" height="200" alt=""></div><span>dedale-blanc.svg</span></div>
+    <div class="case"><div class="fond" style="width:280px;height:280px"><img src="../dedale-noir.svg" width="64" height="64" alt=""></div><span>dedale-noir.svg, 64</span></div>
+    <div class="case"><div class="fond" style="width:280px;height:280px;gap:12px;display:flex;justify-content:center;align-items:center"><img src="../dedale.svg" width="28" height="28" alt=""><b style="font-size:17px;font-weight:600">Dédale</b></div><span>barre latérale, 28</span></div>
+  </div>
+
+  <h2>Icône d'app macOS (AppIcon.iconset, AppIcon.icns)</h2>
+  <div class="rang">
+    <div class="case"><img src="../AppIcon.iconset/icon_512x512@2x.png" width="256" height="256" alt=""><span>1024</span></div>
+    <div class="case"><img src="../AppIcon.iconset/icon_256x256@2x.png" width="256" height="256" alt=""><span>512 (affiché 256)</span></div>
+    <div class="case"><img src="../AppIcon.iconset/icon_128x128@2x.png" width="128" height="128" alt=""><span>256 (128)</span></div>
+    <div class="case"><img src="../AppIcon.iconset/icon_128x128.png" width="128" height="128" alt=""><span>128</span></div>
+    <div class="case"><img src="../AppIcon.iconset/icon_32x32@2x.png" width="64" height="64" alt=""><span>64</span></div>
+    <div class="case"><img src="../AppIcon.iconset/icon_32x32.png" width="32" height="32" alt=""><span>32</span></div>
+    <div class="case"><img src="../AppIcon.iconset/icon_16x16.png" width="16" height="16" alt=""><span>16</span></div>
+    <div class="case pixel"><img src="../AppIcon.iconset/icon_16x16.png" width="96" height="96" alt=""><span>16 × 6</span></div>
+  </div>
+
+  <h2>Barre de menus macOS (MenuBarIcon, gabarit) et en-tête des pop-ups (LogoEntete)</h2>
+  <div class="rang">
+    <div class="case"><div class="menu jour"><span>Wi-Fi</span><span class="gabarit" style="color:#000"></span><span>23:30</span></div><span>clair, 18 pt (@2x)</span></div>
+    <div class="case"><div class="menu nuit2" style="color:#fff"><span>Wi-Fi</span><span class="gabarit"></span><span>23:30</span></div><span>sombre, teinté par macOS</span></div>
+    <div class="case pixel"><div class="fond" style="width:120px;height:120px"><img src="../app-mac/MenuBarIcon.png" width="90" height="90" alt=""></div><span>MenuBarIcon.png 18 × 5</span></div>
+    <div class="case pixel"><div class="fond" style="width:120px;height:120px"><img src="../app-mac/MenuBarIcon@2x.png" width="90" height="90" alt=""></div><span>@2x 36 × 2,5</span></div>
+    <div class="case"><div class="fond" style="width:120px;height:120px"><img src="../app-mac/LogoEntete@2x.png" width="28" height="28" alt=""></div><span>LogoEntete 28 pt</span></div>
+  </div>
+
+  <h2>Favicons et extension Chrome</h2>
+  <div class="rang">
+    <div class="case"><div class="onglets"><div class="onglet clair actif"><img src="../favicons/favicon.svg" width="16" height="16" alt="">Dédale — Console SOC</div><div class="onglet clair"><img src="../favicons/favicon-16.png" width="16" height="16" alt="">Dédale : salariés prévenus</div></div><span>onglets, thème clair (svg et png 16)</span></div>
+    <div class="case"><div class="onglets"><div class="onglet nuit actif"><img src="../favicons/favicon.svg" width="16" height="16" alt="">Dédale — Console SOC</div><div class="onglet nuit"><img src="../favicons/favicon-32.png" width="16" height="16" alt="">Dédale : salariés prévenus</div></div><span>onglets, thème sombre</span></div>
+  </div>
+  <div class="rang" style="margin-top:20px">
+    <div class="case pixel"><img src="../favicons/favicon-16.png" width="64" height="64" alt=""><span>favicon-16 × 4</span></div>
+    <div class="case"><img src="../favicons/favicon-32.png" width="32" height="32" alt=""><span>favicon-32</span></div>
+    <div class="case"><img src="../favicons/favicon-48.png" width="48" height="48" alt=""><span>favicon-48</span></div>
+    <div class="case"><img src="../favicons/apple-touch-icon.png" width="90" height="90" style="border-radius:20px;box-shadow:0 0 0 1px var(--ligne)" alt=""><span>apple-touch-icon 180</span></div>
+    <div class="case"><img src="../extension/icone-16.png" width="16" height="16" alt=""><span>icone-16</span></div>
+    <div class="case"><img src="../extension/icone-32.png" width="32" height="32" alt=""><span>icone-32</span></div>
+    <div class="case"><img src="../extension/icone-48.png" width="48" height="48" alt=""><span>icone-48</span></div>
+    <div class="case"><img src="../extension/icone-128.png" width="128" height="128" alt=""><span>icone-128</span></div>
+    <div class="case"><div class="fond sombre" style="width:150px;height:150px"><img src="../extension/icone-128.png" width="128" height="128" alt=""></div><span>icone-128, fond sombre</span></div>
+  </div>
+</body>
+</html>
