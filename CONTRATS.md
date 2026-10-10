@@ -445,3 +445,12 @@ upload IA → `T1567` (Exfiltration Over Web Service) ; intrusion physique → `
 Additions). OWASP : fit partiel, seuls `humain_secret` et `humain_upload_ia` portent `OWASP LLM02`
 (Sensitive Information Disclosure, l'IA comme réceptacle). Le reste reste côté ATT&CK. À vérifier
 sur attack.mitre.org et genai.owasp.org.
+
+## Avenant du 10 octobre 2026 : décisions, reprise et sorties
+
+Cet avenant précise les anciennes sections, qui restent le journal des choix de conception.
+
+- `POST /api/incidents/{id}/decision` accepte `valider_riposte`, `couper`, `reprendre`, `ignorer` et `clore`. Sur un incident `humain_*`, seules `clore` et `ignorer` sont valides : elles ferment ou classent le dossier sans changer l'état du poste. `clore` est refusé pour un incident d'agent. Sur un incident d'agent, `couper` et `valider_riposte` coupent la session ; `reprendre` la réactive ; `ignorer` la classe sans suite et réactive la session.
+- Le backend écrit les événements, sessions, incidents, leurres et décisions dans SQLite. Au démarrage, il recharge les faits présents avant d'accepter de nouvelles requêtes. Un arrêt normal vide la file d'écriture. Une interruption brutale peut perdre une écriture encore en file ; ce mode de persistance n'est pas une garantie de journal d'audit en production.
+- `GET /api/incidents/{id}/nis2` renvoie un brouillon factuel issu de l'incident, sans appel à un modèle. L'analyste doit vérifier la qualification, l'impact et les délais applicables. Dédale n'envoie aucune notification réglementaire.
+- Les documents ECS décrivent les événements observés. Le champ `threat` relatif à une injection de prompt n'est ajouté que si une étape `consigne_lue` correspond à l'événement d'un incident d'agent ; un avertissement salarié n'est pas une injection de prompt.

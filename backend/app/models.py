@@ -43,5 +43,5 @@ class LeurreIn(BaseModel):
 class DecisionIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    action: Literal["valider_riposte", "couper", "reprendre", "ignorer"]
+    action: Literal["valider_riposte", "couper", "reprendre", "ignorer", "clore"]
     analyste: str = "inconnu"

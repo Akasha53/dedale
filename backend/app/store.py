@@ -8,6 +8,7 @@ l'état depuis SQLite pour survivre à un redémarrage.
 from __future__ import annotations
 
 import threading
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -204,9 +205,146 @@ class Store:
         self.decisions: list[dict] = []
         self._compteur = 0
         self._incident_seq = 0
+        # Diagnostic de reprise des anciennes bases dont le résumé et le journal divergent.
+        self.journaux_incomplets: dict[str, dict[str, int]] = {}
         # Index de résolution route/outil -> leurre (pour l'enchaînement lecture->action).
         self.routes_leurres: dict[str, str] = {}
         self.outils_leurres: dict[str, str] = {}
+
+    def restaurer(self, donnees: dict) -> None:
+        """Prépare un état complet avant de remplacer la mémoire courante.
+
+        Les bases anciennes ne stockaient qu'un résumé de session. Leurs événements
+        permettent de retrouver les drapeaux et droits, sans rejouer les décisions.
+        """
+        from .models import EvenementIn
+
+        def date(valeur):
+            if valeur is None:
+                return None
+            dt = datetime.fromisoformat(valeur.replace("Z", "+00:00"))
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+        nouveau = Store()
+        try:
+            nouveau.enregistrer_leurres([Leurre(**l) for l in donnees["leurres"]])
+            lignes_sessions = {s["id"]: s for s in donnees["sessions"]}
+            ids_par_session = {sid: [] for sid in lignes_sessions}
+            for ligne in donnees["evenements"]:
+                ev = deepcopy(ligne)
+                sid = ev["session_id"]
+                if sid not in lignes_sessions:
+                    raise ValueError(f"Événement {ev['id']} sans session {sid}")
+                ids_par_session[sid].append(ev["id"])
+                leurre = nouveau.leurres.get(ev["leurre_id"])
+                if ev.get("leurre_nature") is None and leurre is not None:
+                    ev["leurre_nature"] = leurre.nature
+                if lignes_sessions[sid]["etat_json"] is None:
+                    nouveau.ingerer(EvenementIn.model_validate(ev), _enregistre=ev)
+                else:
+                    nouveau.evenements[ev["id"]] = ev
+
+            for sid, ligne in lignes_sessions.items():
+                sauvegarde = ligne["etat_json"]
+                if sauvegarde is not None:
+                    valeurs = deepcopy(sauvegarde)
+                    for nom in ("premier_vu", "dernier_vu", "detecte_a", "confine_a",
+                                "contre_injection_servie", "flag_lecture"):
+                        if nom in valeurs:
+                            valeurs[nom] = date(valeurs[nom])
+                    for nom in ("leurres_touches", "user_agents"):
+                        valeurs[nom] = set(valeurs.get(nom, []))
+                    sess = Session(**valeurs)
+                    if sess.id != sid or sess.evenement_ids != ids_par_session[sid]:
+                        raise ValueError(f"État de session incohérent : {sid}")
+                else:
+                    sess = nouveau.sessions.get(sid) or Session(id=sid)
+                    reels = len(sess.evenement_ids)
+                    annonces = ligne["n_evenements"]
+                    if reels != annonces:
+                        # Ancien writer : un résumé peut être en avance ou en retard sur
+                        # les événements réellement écrits. Les deux restent des faits.
+                        nouveau.journaux_incomplets[sid] = {
+                            "evenements_annonces": annonces,
+                            "evenements_persistes": reels,
+                        }
+                    # Une décision analyste enregistrée dans la session prime le replay.
+                    # Si le résumé mentionne plus d'événements que le journal, il garde
+                    # aussi son classement : les événements absents ne sont pas inventés.
+                    champs = ("source", "etat", "verite_terrain")
+                    if reels <= annonces:
+                        champs += ("classement", "score", "signaux")
+                    for nom in champs:
+                        setattr(sess, nom, ligne[nom])
+                    for nom in ("premier_vu", "dernier_vu", "detecte_a", "confine_a"):
+                        setattr(sess, nom, date(ligne[nom]))
+                    sess.leurres_touches |= set(ligne["leurres_touches"])
+                if sauvegarde is not None and len(sess.evenement_ids) != ligne["n_evenements"]:
+                    raise ValueError(f"Journal incomplet dans un état complet : {sid}")
+                nouveau.sessions[sid] = sess
+
+            # Les anciens écrivains ne persistaient pas les touches après ingestion.
+            for ligne in donnees["leurres"]:
+                leurre = Leurre(**ligne)
+                touches = [e for e in nouveau.evenements.values()
+                           if e["type"] == "leurre_touche" and e["leurre_id"] == leurre.id]
+                if len(touches) > leurre.touches:
+                    leurre.touches = len(touches)
+                    leurre.premier_touche = touches[0]["horodatage"]
+                    leurre.dernier_touche = touches[-1]["horodatage"]
+                nouveau.leurres[leurre.id] = leurre
+
+            nouveau.incidents.clear()
+            for ligne in donnees["incidents"]:
+                valeurs = deepcopy(ligne)
+                sess = nouveau.sessions[valeurs["session_id"]]
+                valeurs["cree_a"] = date(valeurs["cree_a"])
+                valeurs["decide_a"] = date(valeurs["decide_a"])
+                valeurs["riposte_validee"] = bool(valeurs["riposte_validee"])
+                inc = Incident(**valeurs)
+                if inc.gravite is None:
+                    inc.gravite = (incidents.gravite_humaine(inc.type, sess.geste_gravite)
+                                   if sess.source in ("humain", "physique")
+                                   else incidents.gravite(inc.chaine, sess.source))
+                if inc.resume is None:
+                    inc.resume = (incidents.resume_humain(inc.chaine, inc.type, sess.flag_passe_outre)
+                                  if sess.source in ("humain", "physique")
+                                  else incidents.resume(inc.chaine, sess.classement, sess.source))
+                absents = {
+                    e.get("evenement_id") for e in inc.chaine
+                    if e.get("evenement_id") is not None
+                    and e["evenement_id"] not in nouveau.evenements
+                }
+                if absents:
+                    tracage_ancien = lignes_sessions[sess.id]["etat_json"] is None
+                    if not tracage_ancien and not all(
+                        e.get("source_non_persistee")
+                        for e in inc.chaine if e.get("evenement_id") in absents
+                    ):
+                        raise ValueError(f"Chaîne d'incident sans événement dans un état complet : {inc.id}")
+                    if tracage_ancien:
+                        for etape in inc.chaine:
+                            if etape.get("evenement_id") in absents:
+                                etape["source_non_persistee"] = True
+                    nouveau.journaux_incomplets.setdefault(sess.id, {
+                        "evenements_annonces": lignes_sessions[sess.id]["n_evenements"],
+                        "evenements_persistes": len(sess.evenement_ids),
+                    })
+                nouveau.incidents[inc.id] = inc
+            for ligne in donnees["decisions"]:
+                if ligne["incident_id"] not in nouveau.incidents:
+                    raise ValueError(f"Décision sans incident : {ligne['incident_id']}")
+                nouveau.decisions.append({k: v for k, v in ligne.items() if k != "id"})
+            nouveau._compteur = max(nouveau.evenements, default=0)
+            nouveau._incident_seq = max(
+                (int(i.removeprefix("INC-")) for i in nouveau.incidents), default=0)
+        except Exception as exc:
+            raise RuntimeError("État Dédale incohérent : démarrage interrompu, base conservée") from exc
+
+        with self.lock:
+            for nom, valeur in vars(nouveau).items():
+                if nom != "lock":
+                    setattr(self, nom, valeur)
 
     # ----- Leurres -----
     def enregistrer_leurres(self, leurres: list) -> list[Leurre]:
@@ -255,11 +393,11 @@ class Store:
                     return True
         return False
 
-    def ingerer(self, ev) -> dict:
+    def ingerer(self, ev, *, _enregistre: dict | None = None) -> dict:
         """Traite un événement (synchrone, rapide) et renvoie le résultat à persister/diffuser."""
         with self.lock:
             horo = _parse_horo(ev.horodatage)
-            eid = self._nouvel_id()
+            eid = self._nouvel_id() if _enregistre is None else _enregistre["id"]
             sess = self.sessions.get(ev.session_id)
             if sess is None:
                 sess = Session(id=ev.session_id, source=ev.source, premier_vu=horo)
@@ -444,6 +582,9 @@ class Store:
             }
             if cadence_s is not None:
                 enreg["details"]["cadence_s"] = cadence_s
+            if _enregistre is not None:
+                # Le journal est déjà neutralisé ; conserver aussi ses ID et dates de réception.
+                enreg = deepcopy(_enregistre)
             self.evenements[eid] = enreg
             sess.evenement_ids.append(eid)
 
@@ -509,6 +650,7 @@ class Store:
         return "interne_canari", f"Agent IA piégé en interne (canari {sess.canari_id or '—'})"
 
     def _maj_incident(self, sess: Session) -> Incident | None:
+        inc = next((i for i in self.incidents.values() if i.session_id == sess.id), None)
         if sess.source in ("humain", "physique"):
             # Pilier humain : ouvre sur un geste passé outre, ou une intrusion physique.
             # Un geste annulé (bon réflexe) n'ouvre rien.
@@ -522,10 +664,14 @@ class Store:
                 or sess.flag_inter_agent
                 or sess.classement == "agent_ia"
             )
-        if not est_incident:
+        if not est_incident and inc is None:
             return None
         typ, titre = self._type_titre(sess)
-        inc = next((i for i in self.incidents.values() if i.session_id == sess.id), None)
+        if inc is not None and sess.id in self.journaux_incomplets and (
+            not est_incident or (typ == "interne_canari" and inc.type != "interne_canari")
+        ):
+            # Le signal qui a spécialisé l'incident peut manquer dans l'ancien journal.
+            typ, titre = inc.type, inc.titre
         if inc is None:
             self._incident_seq += 1
             inc = Incident(
@@ -544,6 +690,7 @@ class Store:
         if inc.type != "externe_agent_ia":
             inc.type, inc.titre = typ, titre
         evs = [self.evenements[i] for i in sess.evenement_ids]
+        ancienne_chaine = inc.chaine
         if sess.source in ("humain", "physique"):
             inc.chaine = incidents.construire_chaine_humaine(evs, self.leurres)
             inc.gravite = incidents.gravite_humaine(typ, sess.geste_gravite)
@@ -552,6 +699,31 @@ class Store:
             inc.chaine = incidents.construire_chaine(evs, self.leurres)
             inc.gravite = incidents.gravite(inc.chaine, sess.source)
             inc.resume = incidents.resume(inc.chaine, sess.classement, sess.source)
+        if sess.id in self.journaux_incomplets:
+            # Un ancien incident peut garder une étape dont l'événement source n'a
+            # jamais été écrit. Ne pas l'effacer lors d'un événement ultérieur.
+            manquantes = [
+                e for e in ancienne_chaine
+                if e.get("evenement_id") not in self.evenements and e not in inc.chaine
+            ]
+            if manquantes:
+                ordre = (
+                    ["contexte", "action_risquee", "avertissement", "choix", "consequence"]
+                    if sess.source in ("humain", "physique") else incidents.ORDRE_ETAPES
+                )
+                inc.chaine.extend(manquantes)
+                inc.chaine.sort(key=lambda e: (
+                    ordre.index(e["etape"]) if e.get("etape") in ordre else 99,
+                    e.get("horodatage") or "",
+                ))
+                for position, etape in enumerate(inc.chaine):
+                    etape["ordre"] = position
+                if sess.source in ("humain", "physique"):
+                    inc.gravite = incidents.gravite_humaine(typ, sess.geste_gravite)
+                    inc.resume = incidents.resume_humain(inc.chaine, typ, sess.flag_passe_outre)
+                else:
+                    inc.gravite = incidents.gravite(inc.chaine, sess.source)
+                    inc.resume = incidents.resume(inc.chaine, sess.classement, sess.source)
         return inc
 
     def _incident_dict(self, inc: Incident) -> dict:
@@ -668,6 +840,11 @@ class Store:
             if inc is None:
                 return None
             sess = self.sessions.get(inc.session_id)
+            est_humain = inc.type.startswith("humain_")
+            if est_humain and action not in ("clore", "ignorer"):
+                raise ValueError("Une décision sur un salarié ne peut pas couper son poste")
+            if not est_humain and action == "clore":
+                raise ValueError("L'action clore est réservée aux incidents humains")
             moment = maintenant()
             if action == "valider_riposte":
                 if sess:
@@ -685,9 +862,11 @@ class Store:
                     sess.etat = "active"
                 inc.statut = "surveille"
             elif action == "ignorer":
-                if sess:
+                if sess and not est_humain:
                     sess.etat = "active"
                 inc.statut = "ignore"
+            elif action == "clore":
+                inc.statut = "clos"
             inc.analyste = analyste
             inc.decide_a = moment
             inc.action = action

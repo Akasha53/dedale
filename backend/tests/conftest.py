@@ -15,11 +15,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app import config
 from app.store import store
 
 
 @pytest.fixture(autouse=True)
-def _reset_store():
+def _reset_store(tmp_path, monkeypatch):
+    # Chaque cycle de vie recharge sa base ; les tests doivent partir d'un journal isolé.
+    monkeypatch.setattr(config, "CHEMIN_DB", tmp_path / "dedale.db")
     store.sessions.clear()
     store.leurres.clear()
     store.incidents.clear()

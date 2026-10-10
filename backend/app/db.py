@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import asdict
+from datetime import datetime
 
 from . import config
 
@@ -46,23 +48,71 @@ def ouvrir() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(_SCHEMA)
+    # Ajouts compatibles avec les bases créées avant le rechargement au démarrage.
+    for table, colonnes in {
+        "sessions": {"etat_json": "TEXT"},
+        "evenements": {"leurre_nature": "TEXT"},
+        "incidents": {"gravite": "TEXT", "resume": "TEXT"},
+    }.items():
+        presentes = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for nom, type_ in colonnes.items():
+            if nom not in presentes:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {nom} {type_}")
     conn.commit()
     return conn
 
 
 def _j(valeur) -> str:
-    return json.dumps(valeur, ensure_ascii=False, default=str)
+    def convertir(v):
+        if isinstance(v, set):
+            return sorted(v)
+        if isinstance(v, datetime):
+            return v.isoformat()
+        raise TypeError(f"Type non sérialisable : {type(v).__name__}")
+    return json.dumps(valeur, ensure_ascii=False, default=convertir)
+
+
+def lire(conn: sqlite3.Connection) -> dict[str, list[dict]]:
+    """Lit un état cohérent ; une ligne illisible interrompt le démarrage."""
+    champs_json = {
+        "evenements": {"details": dict},
+        "sessions": {"signaux": list, "leurres_touches": list, "etat_json": dict},
+        "leurres": {"risques": list, "techniques": list},
+        "incidents": {"chaine": list},
+        "decisions": {},
+    }
+    etat = {}
+    conn.execute("BEGIN")
+    try:
+        for table, champs in champs_json.items():
+            lignes = []
+            for ligne in conn.execute(f"SELECT * FROM {table} ORDER BY id"):
+                objet = dict(ligne)
+                for champ, type_ in champs.items():
+                    if champ == "etat_json" and objet[champ] is None:
+                        continue
+                    valeur = json.loads(objet[champ])
+                    if not isinstance(valeur, type_):
+                        raise ValueError(f"{table}.{champ} : type invalide pour {objet['id']}")
+                    objet[champ] = valeur
+                lignes.append(objet)
+            etat[table] = lignes
+        conn.commit()
+        return etat
+    except Exception as exc:
+        conn.rollback()
+        raise RuntimeError(f"Impossible de recharger la base Dédale {config.CHEMIN_DB}") from exc
 
 
 def ecrire_evenement(conn: sqlite3.Connection, ev: dict) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO evenements
-        (id,horodatage,recu_a,source,surface,type,session_id,leurre_id,ip,user_agent,methode,chemin,outil,details)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (id,horodatage,recu_a,source,surface,type,session_id,leurre_id,ip,user_agent,methode,chemin,outil,details,leurre_nature)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             ev["id"], ev["horodatage"], ev["recu_a"], ev["source"], ev["surface"], ev["type"],
             ev["session_id"], ev["leurre_id"], ev["ip"], ev["user_agent"], ev["methode"],
-            ev["chemin"], ev["outil"], _j(ev["details"]),
+            ev["chemin"], ev["outil"], _j(ev["details"]), ev.get("leurre_nature"),
         ),
     )
 
@@ -70,13 +120,13 @@ def ecrire_evenement(conn: sqlite3.Connection, ev: dict) -> None:
 def ecrire_session(conn: sqlite3.Connection, s) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO sessions
-        (id,source,premier_vu,dernier_vu,etat,classement,score,signaux,leurres_touches,verite_terrain,detecte_a,confine_a,n_evenements)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (id,source,premier_vu,dernier_vu,etat,classement,score,signaux,leurres_touches,verite_terrain,detecte_a,confine_a,n_evenements,etat_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             s.id, s.source, s.premier_vu.isoformat(), s.dernier_vu.isoformat(), s.etat,
             s.classement, s.score, _j(s.signaux), _j(sorted(s.leurres_touches)),
             s.verite_terrain, s.detecte_a.isoformat() if s.detecte_a else None,
-            s.confine_a.isoformat() if s.confine_a else None, len(s.evenement_ids),
+            s.confine_a.isoformat() if s.confine_a else None, len(s.evenement_ids), _j(asdict(s)),
         ),
     )
 
@@ -97,12 +147,12 @@ def ecrire_leurre(conn: sqlite3.Connection, l) -> None:
 def ecrire_incident(conn: sqlite3.Connection, i) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO incidents
-        (id,session_id,type,cree_a,titre,statut,riposte_validee,analyste,decide_a,action,chaine)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        (id,session_id,type,cree_a,titre,statut,riposte_validee,analyste,decide_a,action,chaine,gravite,resume)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             i.id, i.session_id, i.type, i.cree_a.isoformat(), i.titre, i.statut,
             int(i.riposte_validee), i.analyste, i.decide_a.isoformat() if i.decide_a else None,
-            i.action, _j(i.chaine),
+            i.action, _j(i.chaine), i.gravite, i.resume,
         ),
     )
 

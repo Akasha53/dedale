@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from pathlib import Path
+import logging
+from copy import deepcopy
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,13 +24,13 @@ from .ws import diffuseur
 
 # La file est créée dans le cycle de vie, liée à la boucle qui tourne (robuste aux tests qui
 # ouvrent plusieurs boucles). _etat porte la file courante pour les handlers.
-_etat: dict = {"file": None}
+_etat: dict = {"file": None, "erreur_ecriture": None}
 _tache_ecrivain: asyncio.Task | None = None
+_journal = logging.getLogger(__name__)
 
 
-async def _ecrivain(file: asyncio.Queue) -> None:
+async def _ecrivain(file: asyncio.Queue, conn) -> None:
     """Unique écrivain SQLite + diffusion WS. Isole la persistance du chemin de réponse."""
-    conn = db.ouvrir()
     try:
         while True:
             job = await file.get()
@@ -49,9 +50,11 @@ async def _ecrivain(file: asyncio.Queue) -> None:
                 conn.commit()
                 for type_, donnees in job.get("diffusions", []):
                     await diffuseur.diffuser(type_, donnees)
-            except Exception:
-                # Un échec de persistance ne doit jamais faire tomber le service.
+            except Exception as exc:
+                # La surface appelante ne tombe pas, mais le défaut reste visible au SOC.
                 conn.rollback()
+                _etat["erreur_ecriture"] = str(exc)
+                _journal.exception("Échec de persistance Dédale")
             finally:
                 file.task_done()
     finally:
@@ -61,17 +64,29 @@ async def _ecrivain(file: asyncio.Queue) -> None:
 @contextlib.asynccontextmanager
 async def cycle_de_vie(app: FastAPI):
     global _tache_ecrivain
-    config.assurer_dossiers()
+    # La lecture est obligatoire : une base illisible ne doit jamais lancer un SOC vide.
+    conn = db.ouvrir()
+    try:
+        store.restaurer(db.lire(conn))
+    except Exception:
+        conn.close()
+        raise
+    if store.journaux_incomplets:
+        _journal.warning(
+            "Reprise d'une base ancienne avec %d journaux de session incomplets",
+            len(store.journaux_incomplets),
+        )
     file: asyncio.Queue = asyncio.Queue()
     _etat["file"] = file
-    _tache_ecrivain = asyncio.create_task(_ecrivain(file))
+    _etat["erreur_ecriture"] = None
+    _tache_ecrivain = asyncio.create_task(_ecrivain(file, conn))
     try:
         yield
     finally:
         await file.put(None)
         if _tache_ecrivain is not None:
-            with contextlib.suppress(asyncio.CancelledError, asyncio.TimeoutError):
-                await asyncio.wait_for(_tache_ecrivain, timeout=5)
+            # Vide toute la file avant de fermer la connexion sur arrêt normal.
+            await _tache_ecrivain
         _etat["file"] = None
 
 
@@ -89,7 +104,8 @@ def _enfiler(job: dict) -> None:
     if file is None:  # service non démarré : la persistance est optionnelle, on ne bloque pas.
         return
     try:
-        file.put_nowait(job)
+        # Les dataclasses sont mutables ; figer chaque transaction à l'instant de l'appel.
+        file.put_nowait(deepcopy(job))
     except asyncio.QueueFull:  # pragma: no cover - file non bornée
         pass
 
@@ -98,9 +114,11 @@ def _enfiler(job: dict) -> None:
 @app.post("/api/evenements")
 async def recevoir_evenement(ev: EvenementIn):
     res = store.ingerer(ev)
+    leurre = store.leurres.get(res["evenement"]["leurre_id"])
     job = {
         "evenements": [res["evenement"]],
         "sessions": [res["session"]],
+        "leurres": [leurre] if leurre is not None and ev.type == "leurre_touche" else [],
         "incidents": [res["incident"]] if res["incident"] is not None else [],
         "diffusions": res["diffusions"],
     }
@@ -157,15 +175,21 @@ async def incident_detail(iid: str):
 
 @app.post("/api/incidents/{iid}/decision")
 async def decider(iid: str, decision: DecisionIn):
-    res = store.decider(iid, decision.action, decision.analyste)
+    try:
+        res = store.decider(iid, decision.action, decision.analyste)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if res is None:
         raise HTTPException(status_code=404, detail=f"Incident inconnu : {iid}")
-    _enfiler({"decisions": [res["journal"]], "diffusions": res["diffusions"]})
-    # Persiste aussi l'état mis à jour de l'incident et de la session.
+    # La décision et ses deux états associés forment une seule transaction SQLite.
     inc = store.incidents.get(iid)
     sess = store.sessions.get(inc.session_id) if inc else None
-    job = {"incidents": [inc] if inc else [], "sessions": [sess] if sess else []}
-    _enfiler(job)
+    _enfiler({
+        "decisions": [res["journal"]],
+        "incidents": [inc] if inc else [],
+        "sessions": [sess] if sess else [],
+        "diffusions": res["diffusions"],
+    })
     return res["incident"]
 
 
@@ -201,7 +225,16 @@ async def mesures():
 
 @app.get("/api/sante")
 async def sante():
-    return {"service": "dedale-backend", "version": __version__, "statut": "ok"}
+    if _etat["erreur_ecriture"] is not None:
+        return JSONResponse(status_code=503, content={
+            "service": "dedale-backend", "version": __version__,
+            "statut": "degrade", "erreur": "persistance SQLite indisponible",
+        })
+    statut = "degrade" if store.journaux_incomplets else "ok"
+    return {
+        "service": "dedale-backend", "version": __version__, "statut": statut,
+        "journaux_anciens_incomplets": len(store.journaux_incomplets),
+    }
 
 
 # ---------------------------------------------------------------- Temps réel

@@ -58,13 +58,13 @@ Un seul moteur traite trois sources. Chaque module émet des événements vers l
 ### Flux d'un événement
 
 1. Un module envoie `POST /api/evenements`. `backend/app/store.py` (`Store.ingerer`) classe la session en mémoire de façon synchrone (`classement.py` : signaux pondérés, seuils `DEDALE_SEUIL_AGENT_IA`/`DEDALE_SEUIL_SCRIPT`), ouvre ou met à jour l'incident et renvoie une `consigne` en moins de 50 ms.
-2. La persistance SQLite et la diffusion WS passent par une file asyncio que vide un unique écrivain (`main.py`, `_ecrivain`). Un échec de persistance ne remonte jamais à l'appelant.
+2. La persistance SQLite et la diffusion WS passent par une file asyncio que vide un unique écrivain (`main.py`, `_ecrivain`). Un arrêt normal vide cette file ; une interruption brutale peut perdre un élément encore en attente. Un échec de persistance ne remonte pas à l'appelant, mais l'état de santé signale la dégradation.
 3. Le module applique la consigne : `labyrinthe`, `contre_injection` ou `bloquer` côté `leurres/` ; `suspendre` côté `interne/`, dont la passerelle retient l'appel d'outil et interroge `GET /api/sessions/{id}` chaque seconde jusqu'à `active` ou `coupee`. Pour `humain`/`physique`, la consigne vaut toujours `aucune` : le poste n'est jamais bloqué.
-4. L'analyste décide par `POST /api/incidents/{id}/decision`. `couper` et `valider_riposte` passent la session en `coupee`, `reprendre` et `ignorer` en `active`.
+4. L'analyste décide par `POST /api/incidents/{id}/decision`. Pour un agent, `couper` et `valider_riposte` passent la session en `coupee`, `reprendre` et `ignorer` en `active`. Pour un incident `humain_*`, seules `clore` et `ignorer` sont valides et ne changent pas l'état du poste.
 
 Un module ne doit jamais tomber si le backend est absent : chaque client (`leurres/orbis/backend.py`, `poste/garde/backend.py`, la passerelle interne) avale l'erreur et continue sans consigne.
 
-L'état en mémoire du `Store` fait autorité pour toutes les lectures de l'API. SQLite (`data/dedale.db`, ignoré par git) n'est qu'un journal en écriture. Le docstring de `store.py` annonce un rechargement au démarrage, mais `db.py` ne contient que des fonctions d'écriture : un redémarrage du backend repart à vide.
+L'état en mémoire du `Store` fait autorité pour les lectures de l'API. SQLite (`data/dedale.db`, ignoré par git) conserve les faits et sert à reconstruire cet état au démarrage. Les anciennes bases, créées avant le rechargement, peuvent contenir un journal partiel ; conserver leur contenu et vérifier la migration avant une démo.
 
 ### Neutralisation du texte piégé
 
@@ -82,7 +82,7 @@ Le banc préfixe ses sessions `banc-<verite>-NNNN` (`humain|script|agentia|inter
 
 ### Modèles
 
-`DEDALE_MODELE_AGENT` (défaut `claude-sonnet-5-5`) et `DEDALE_MODELE_LEGER` (défaut `claude-haiku-5-5`), clé `ANTHROPIC_API_KEY` dans `.env` (voir `.env.example`). Sans clé, l'agent interne passe par `claude -p`. `DEDALE_CERVEAU` force le cerveau de l'agent interne (`interne/orbis/cerveau.py`) : `CerveauScripte` déterministe, tempérament `prudent` ou `naif`, pour les tests et la démo reproductible. `DEDALE_LLM=off` coupe tout appel modèle côté backend et retombe sur des gabarits.
+`DEDALE_MODELE_AGENT` (défaut `claude-sonnet-5-5`) et `DEDALE_MODELE_LEGER` (défaut `claude-haiku-5-5`), clé `ANTHROPIC_API_KEY` dans `.env` (voir `.env.example`). Sans clé, l'agent interne peut passer par `claude -p`. `DEDALE_CERVEAU` force le cerveau de l'agent interne (`interne/orbis/cerveau.py`) : `CerveauScripte` déterministe, tempérament `prudent` ou `naif`, pour les tests et la démo reproductible. La démo commune utilise ce cerveau scripté. Le brouillon NIS2 du backend est déterministe, sans appel modèle.
 
 ## Tests
 

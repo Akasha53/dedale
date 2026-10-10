@@ -34,6 +34,46 @@ def test_export_ecs(client):
     assert doc["@timestamp"]
     assert doc["event"]["module"] == "dedale"
     assert doc["dedale"]["session_id"] == "S-exp"
+    assert doc["dedale"]["contexte"] == "agent_ia"
+    assert "threat" not in doc
+    assert any(d.get("threat", {}).get("tactic", {}).get("name") == "LLM prompt injection"
+               for d in r["documents"])
+
+
+def test_brouillon_agent_suit_la_decision_reelle(client):
+    iid = _incident_externe(client)
+    client.post(f"/api/incidents/{iid}/decision", json={"action": "couper", "analyste": "alice"})
+    coupe = client.get(f"/api/incidents/{iid}/nis2").json()["texte"]
+    assert "a coupé la session de l'agent" in coupe
+    assert "Tentative de sortie de données observée" in coupe
+    assert "aboutissement et données concernées à confirmer" in coupe
+    assert "bloquée par le leurre" not in coupe
+
+    client.post(f"/api/incidents/{iid}/decision", json={"action": "reprendre", "analyste": "alice"})
+    repris = client.get(f"/api/incidents/{iid}/nis2").json()["texte"]
+    assert "a repris la session de l'agent" in repris
+    assert "a coupé la session de l'agent" not in repris
+
+
+def test_brouillon_et_ecs_humains_ne_parlent_pas_d_injection(client):
+    client.post("/api/evenements", json=evenement(
+        session_id="H-export", source="humain", surface="poste", type="avertissement",
+        details={"categorie": "phishing", "choix": "continuer", "lien": "https://suspect.example"},
+    ))
+    iid = client.get("/api/incidents").json()["incidents"][0]["id"]
+    texte = client.get(f"/api/incidents/{iid}/nis2").json()["texte"]
+    assert "Un salarié a poursuivi l'ouverture d'un lien suspect" in texte
+    assert "éventuelle fuite de données : à confirmer" in texte
+    assert "injection de consigne" not in texte
+    assert "session de l'agent est suspendue" not in texte
+
+    ecs = client.get(f"/api/incidents/{iid}/export?format=ecs").json()
+    assert ecs["documents"][0]["dedale"]["contexte"] == "geste_humain"
+    assert "threat" not in ecs["documents"][0]
+
+    client.post(f"/api/incidents/{iid}/decision", json={"action": "clore", "analyste": "alice"})
+    clos = client.get(f"/api/incidents/{iid}/nis2").json()["texte"]
+    assert "aucun blocage du poste n'est attesté" in clos
 
 
 def test_export_sigma_yaml_valide(client):

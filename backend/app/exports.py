@@ -44,6 +44,7 @@ def _ecs_un(ev: dict) -> dict:
     doc = {
         "@timestamp": ev.get("horodatage"),
         "event": {
+            "id": str(ev.get("id")),
             "kind": "event",
             "category": [cat],
             "type": types,
@@ -73,12 +74,21 @@ def _ecs_un(ev: dict) -> dict:
 def vers_ecs(incident: dict, evenements: list[dict]) -> dict:
     sess = incident.get("session") or {}
     docs = [_ecs_un(e) for e in evenements]
-    # Annotation threat sur chaque document (ATLAS/OWASP Agentic).
-    for d in docs:
-        d["threat"] = {
-            "framework": "MITRE ATLAS / OWASP Agentic",
-            "tactic": {"name": "LLM prompt injection"},
-        }
+    type_inc = incident.get("type") or ""
+    est_humain = type_inc.startswith("humain_")
+    injection_ids = {
+        e.get("evenement_id") for e in incident.get("chaine", [])
+        if e.get("etape") == "consigne_lue"
+    }
+    for ev, d in zip(evenements, docs):
+        d["dedale"]["incident_type"] = type_inc
+        d["dedale"]["contexte"] = "geste_humain" if est_humain else "agent_ia"
+        # Un avertissement sur le poste n'est pas une injection de prompt.
+        if ev.get("id") in injection_ids and not est_humain:
+            d["threat"] = {
+                "framework": "MITRE ATLAS / OWASP Agentic",
+                "tactic": {"name": "LLM prompt injection"},
+            }
     return {
         "incident": {
             "id": incident.get("id"),
