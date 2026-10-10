@@ -215,4 +215,4 @@ Résultats, périmètre et valeurs fictives autorisées : [docs/SCAN_SECRETS.md]
 
 ## Documents
 
-[Déroulé de la démo du jury](docs/DEMO_JURY.md), [guide complet de la démo](docs/DEMO.md), [fiche jury](docs/FICHE_JURY.md) et sa [version PDF](docs/FICHE_JURY.pdf), [deck](docs/pitch/dedale-pitch-8-slides.pdf), [mesures](docs/mesures/resultats.md), [contrats entre modules](CONTRATS.md), README de chaque module.
+[Déroulé de la démo du jury](docs/DEMO_JURY.md), [guide complet de la démo](docs/DEMO.md), [fiche jury](docs/FICHE_JURY.md) et sa [version PDF](docs/FICHE_JURY.pdf), [deck](docs/pitch/saife-pitch-8-slides.pdf), [mesures](docs/mesures/resultats.md), [contrats entre modules](CONTRATS.md), README de chaque module.

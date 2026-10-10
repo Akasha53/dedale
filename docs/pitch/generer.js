@@ -1,18 +1,18 @@
-// Génère le deck modifiable de Dédale avec pptxgenjs (npm install pptxgenjs).
+// Génère le deck modifiable de sAIfe avec pptxgenjs (npm install pptxgenjs).
 // Thème clair, celui de la console et de la landing. Les captures viennent du prototype.
 // Les chiffres de la slide 5 viennent de docs/mesures/resultats.md (python3 docs/mesures/mesurer.py).
 const path = require('path');
 const pptxgen = require('pptxgenjs');
 
 const racine = path.resolve(__dirname, '../..');
-const sortie = path.join(__dirname, 'dedale-pitch-8-slides.pptx');
+const sortie = path.join(__dirname, 'saife-pitch-8-slides.pptx');
 const image = (chemin) => path.join(racine, chemin);
 const pptx = new pptxgen();
 pptx.layout = 'LAYOUT_WIDE';
-pptx.author = 'Équipe Dédale';
-pptx.subject = 'Démonstration du prototype Dédale, Secure Horizons 2026';
-pptx.title = 'Dédale : salariés et agents IA, une même console SOC';
-pptx.company = 'Dédale';
+pptx.author = 'Équipe sAIfe';
+pptx.subject = 'Démonstration du prototype sAIfe, Secure Horizons 2026';
+pptx.title = 'sAIfe : salariés et agents IA, une même console SOC';
+pptx.company = 'sAIfe';
 pptx.lang = 'fr-FR';
 pptx.theme = {
   headFontFace: 'Arial',
@@ -57,10 +57,21 @@ function texte(slide, contenu, x, y, w, h, options={}) {
     ...options,
   });
 }
+// Logotype : « sAIfe », jamais en capitales, « AI » en gras dans la même couleur.
+// Une option de run à false hérite de la boîte (pptxgenjs) : la boîte qui porte
+// le logotype ne met donc pas bold, chaque run le précise.
+function marque(suite, grasSuite=false) {
+  return [
+    {text:'s'}, {text:'AI', options:{bold:true}}, {text:'fe'},
+    {text:suite, options:grasSuite ? {bold:true} : {}},
+  ];
+}
 function titre(slide, numero, rubrique, libelle, sousTitre) {
   fond(slide);
-  texte(slide, rubrique.toUpperCase(), 0.65, 0.37, 8, 0.31,
-        {fontSize:11, color:C.accent, bold:true, charSpacing:1.2});
+  // Une rubrique en runs (logotype) n'est pas passée en capitales.
+  const enRuns = Array.isArray(rubrique);
+  texte(slide, enRuns ? rubrique : rubrique.toUpperCase(), 0.65, 0.37, 8, 0.31,
+        {fontSize:11, color:C.accent, bold:!enRuns, charSpacing:1.2});
   texte(slide, libelle, 0.65, 0.83, 12.05, 0.66,
         {fontSize:30, bold:true, fit:'shrink'});
   if (sousTitre) texte(slide, sousTitre, 0.67, 1.49, 11.95, 0.48,
@@ -69,7 +80,7 @@ function titre(slide, numero, rubrique, libelle, sousTitre) {
 }
 function pied(slide, numero) {
   slide.addShape(S.line, {x:0.65,y:7.11,w:12.05,h:0,line:{color:C.trait,width:0.8}});
-  texte(slide, 'DÉDALE  /  SECURE HORIZONS 2026  /  PROTOTYPE LOCAL',
+  texte(slide, marque('  /  SECURE HORIZONS 2026  /  PROTOTYPE LOCAL'),
         0.65, 7.17, 10.6, 0.19,
         {fontFace:'Courier New',fontSize:8.2,color:C.faible,charSpacing:0.5});
   texte(slide, `${String(numero).padStart(2,'0')} / 08`, 11.6, 7.16, 1.1, 0.2,
@@ -103,8 +114,8 @@ const URL_MCP = 'https://invariantlabs.ai/blog/mcp-github-vulnerability';
 // 1. Problème
 {
   const slide = pptx.addSlide();
-  titre(slide,1,'Dédale  /  Le problème','Un contenu piégé vise deux lecteurs : le salarié et l’agent',
-        'Trois cas documentés, aucun ne vient de Dédale.');
+  titre(slide,1,marque('  /  LE PROBLÈME', true),'Un contenu piégé vise deux lecteurs : le salarié et l’agent',
+        'Trois cas documentés, aucun ne vient de sAIfe.');
   const cartes = [
     {tag:'SALARIÉ', c:C.accent, gros:'33 %', txt:'des salariés non formés échouent aux tests de phishing simulés. Après un an de formation : 4 %.',
      src:'KnowBe4, rapport 2025', url:URL_KB},
@@ -134,7 +145,7 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
 // 2. Solution
 {
   const slide = pptx.addSlide();
-  titre(slide,2,'La solution','Un seul moteur pour le salarié et pour l’agent','Dédale intervient une seconde avant le geste, en local, et c’est un humain qui tranche.');
+  titre(slide,2,'La solution','Un seul moteur pour le salarié et pour l’agent','sAIfe intervient une seconde avant le geste, en local, et c’est un humain qui tranche.');
   const cartes = [
     {n:'01',t:'Prévenir',d:'Pop-up avant le clic sur le poste. Consigne cachée retirée avant que l’agent la lise.',c:C.accent},
     {n:'02',t:'Retenir',d:'Tout envoi d’un agent hors de l’entreprise attend l’analyste avant de partir.',c:C.ardoise},
@@ -153,7 +164,7 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
         0.68,5.75,12.0,0.4,{fontSize:16,bold:true,fit:'shrink'});
   texte(slide,'On contrôle l’action de l’agent, pas seulement le texte qu’il lit : une consigne paraphrasée peut passer un filtre, pas la retenue.',
         0.68,6.3,12.0,0.4,{fontSize:12.5,color:C.faible,fit:'shrink'});
-  slide.addNotes('VERSION 3 MIN : garder cette slide.\nUn pare-feu protège les tuyaux ; Dédale protège ceux qui décident d’ouvrir. Le poste du salarié n’est jamais coupé : il avertit, la personne choisit, sauf un geste critique (virement, export de clients) qui attend un second regard. Pour l’agent, la passerelle désarme le contenu avant lecture et retient l’appel sortant avant exécution. Ce qu’on ne fait pas : tout bloquer, remplacer le SIEM (on lui envoie des incidents ECS et des règles Sigma par l’API), classer les documents de l’entreprise. Le brouillon NIS2 est à relire, ce n’est ni une qualification ni une notification envoyée. Référentiels de lecture, sans certification : NIST CSF 2.0, MITRE ATT&CK et ATLAS, OWASP agentique.');
+  slide.addNotes('VERSION 3 MIN : garder cette slide.\nUn pare-feu protège les tuyaux ; sAIfe protège ceux qui décident d’ouvrir. Le poste du salarié n’est jamais coupé : il avertit, la personne choisit, sauf un geste critique (virement, export de clients) qui attend un second regard. Pour l’agent, la passerelle désarme le contenu avant lecture et retient l’appel sortant avant exécution. Ce qu’on ne fait pas : tout bloquer, remplacer le SIEM (on lui envoie des incidents ECS et des règles Sigma par l’API), classer les documents de l’entreprise. Le brouillon NIS2 est à relire, ce n’est ni une qualification ni une notification envoyée. Référentiels de lecture, sans certification : NIST CSF 2.0, MITRE ATT&CK et ATLAS, OWASP agentique.');
 }
 
 // 3. Volet poste
@@ -173,7 +184,7 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
   capture(slide,'app-mac/captures/mail.png',7.1,2.12,4.9,3.81,'Pop-up de l’app Mac, prototype local');
   texte(slide,'Prévu avant un déploiement : conservation de 90 jours, salariés informés et CSE consulté, aucun score sur une personne.',
         0.68,6.45,12.0,0.4,{fontSize:14,color:C.doux,fit:'shrink'});
-  slide.addNotes('VERSION 3 MIN : sauter cette slide, garder une phrase dans la démo : le poste avertit, le salarié décide.\nCe qui est en place, module par module (même texte que la section Vie privée de la landing et le panneau « Ce que Dédale regarde sur ce poste ») : mails reçus, onglet actif, téléchargements, agents IA installés, chacun avec son interrupteur. Part au SOC : la catégorie, le domaine et le choix du salarié ; l’empreinte d’un fichier ; l’inventaire des agents sans secret. La copie désarmée d’un mail jugé frauduleux part du serveur de messagerie, pas du poste. « Annuler » envoie aussi un événement : la SOC compte un piège évité, sans ouvrir de dossier. Jamais lus : presse-papiers, frappes, écran, contenu des pages, historique. Jamais envoyés : le contenu d’un fichier, la valeur d’un secret, les autres mails.\nPour le DPO : la console montre « Salarié 4821 · Finance », jamais un nom ; lever l’identité demande un motif, l’acte est scellé et le journal ne garde pas le nom révélé.\nPrévu, pas encore fait : durée de conservation de 90 jours, information des salariés et consultation du CSE, aucun score sur une personne. Le volet poste est une option.');
+  slide.addNotes('VERSION 3 MIN : sauter cette slide, garder une phrase dans la démo : le poste avertit, le salarié décide.\nCe qui est en place, module par module (même texte que la section Vie privée de la landing et le panneau « Ce que sAIfe regarde sur ce poste ») : mails reçus, onglet actif, téléchargements, agents IA installés, chacun avec son interrupteur. Part au SOC : la catégorie, le domaine et le choix du salarié ; l’empreinte d’un fichier ; l’inventaire des agents sans secret. La copie désarmée d’un mail jugé frauduleux part du serveur de messagerie, pas du poste. « Annuler » envoie aussi un événement : la SOC compte un piège évité, sans ouvrir de dossier. Jamais lus : presse-papiers, frappes, écran, contenu des pages, historique. Jamais envoyés : le contenu d’un fichier, la valeur d’un secret, les autres mails.\nPour le DPO : la console montre « Salarié 4821 · Finance », jamais un nom ; lever l’identité demande un motif, l’acte est scellé et le journal ne garde pas le nom révélé.\nPrévu, pas encore fait : durée de conservation de 90 jours, information des salariés et consultation du CSE, aucun score sur une personne. Le volet poste est une option.');
 }
 
 // 4. Démo
