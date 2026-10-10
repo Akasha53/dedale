@@ -5,7 +5,7 @@
 // console le rend comme du texte, jamais comme du HTML.
 
 import type { DocumentSource, Incident, SourceLue } from "../types";
-import { decoderEntites } from "./preuve";
+import { decoderEntites, desarmer } from "./preuve";
 
 const GENRES: Record<string, SourceLue["genre"]> = {
   mail: "mail",
@@ -75,11 +75,12 @@ export function versSourceLue(doc: DocumentSource): SourceLue {
   const genre = GENRES[doc.type ?? ""] ?? "document";
   return {
     genre,
-    titre: decoderEntites(doc.titre ?? "Contenu lu par l'agent"),
-    de: doc.expediteur ? decoderEntites(doc.expediteur) : doc.origine === "externe" ? "extérieur à Orbis Pay" : undefined,
-    a: doc.destinataire ? decoderEntites(doc.destinataire) : undefined,
+    titre: desarmer(doc.titre ?? "Contenu lu par l'agent"),
+    de: doc.expediteur ? desarmer(doc.expediteur) : doc.origine === "externe" ? "extérieur à Orbis Pay" : undefined,
+    a: doc.destinataire ? desarmer(doc.destinataire) : undefined,
     date: dateLisible(doc.date),
-    morceaux: ajuster(morceauxDe(doc)),
+    // Liens et domaines désarmés jusque dans le corps : rien ne se copie tel quel.
+    morceaux: ajuster(morceauxDe(doc)).map((m) => ({ ...m, texte: desarmer(m.texte) })),
     note: NOTES[genre],
   };
 }

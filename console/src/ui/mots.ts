@@ -138,24 +138,63 @@ export function phraseSalarie(type?: TypeIncident, choix?: "continuer" | "annule
   return `${geste}. Dédale l'a prévenu au moment du geste.`;
 }
 
-// État d'un incident, pour la liste et l'en-tête.
-export function etatIncident(inc: Incident): { lib: string; cls: string } {
-  const humain = inc.source === "humain" || (inc.type ?? "").startsWith("humain_");
-  if (inc.statut === "ignore") return { lib: "Classé sans suite", cls: "neutre" };
-  if (humain) {
-    if (inc.statut === "clos") return { lib: "Traité", cls: "ok" };
-    return { lib: "À traiter", cls: "attente" };
+// Refus d'office : la passerelle a refusé l'action elle-même (droit absent du
+// jeton de tâche, faux collègue), sans attendre personne. Le détail porte le
+// journal (riposte « bloquer_… ») ; la liste n'a que la chaîne : un maillon
+// riposte qui suit l'action de moins d'une seconde et demie, sans décision
+// humaine avant lui. Une riposte après décision, ou au bout du délai
+// d'attente, ne compte pas.
+export function refusDOffice(inc: Incident): boolean {
+  if (inc.source !== "interne" && !(inc.type ?? "").startsWith("interne_")) return false;
+  if (inc.evenements?.length) {
+    return inc.evenements.some(
+      (e) => e.type === "riposte" && /^bloquer_/.test(String((e.details as Record<string, unknown> | undefined)?.action ?? ""))
+    );
   }
-  if (inc.etat === "coupee") return { lib: "Agent arrêté", cls: "ok" };
-  if ((inc.correctifs?.length ?? 0) > 0 && inc.statut !== "surveille") return { lib: "Droit retiré", cls: "ok" };
-  if (inc.etat === "suspendue" && inc.statut !== "clos") return { lib: "À décider", cls: "attente" };
-  if (inc.statut === "surveille" || inc.etat === "active") return { lib: "Repris, surveillé", cls: "libere" };
-  return { lib: "Traité", cls: "ok" };
+  const t = (iso?: string | null) => (iso ? new Date(iso).getTime() : Number.NaN);
+  const decisions = (inc.decisions ?? []).map((d) => t(d.horodatage));
+  const chaine = inc.chaine ?? [];
+  return chaine.some((m, k) => {
+    if (m.phase !== "riposte") return false;
+    const tr = t(m.horodatage);
+    const action = [...chaine.slice(0, k)].reverse().find((x) => x.phase === "outil" || x.phase === "sortie");
+    const ta = t(action?.horodatage);
+    if (Number.isNaN(tr) || Number.isNaN(ta) || tr < ta || tr - ta > 1500) return false;
+    return !decisions.some((d) => d <= tr);
+  });
 }
 
-// Un incident reste dans la liste tant qu'il attend une décision. Couper,
-// laisser passer, retirer un droit, clore ou classer le règle.
+// État d'un incident, pour la liste et l'en-tête. `cls` porte la couleur :
+// attente (orange) seulement quand un appel attend une décision humaine.
+// `aTraiter` garde la ligne dans la liste : un refus d'office reste à clore.
+export function etatIncident(inc: Incident): { lib: string; cls: string; aTraiter: boolean } {
+  const humain = inc.source === "humain" || (inc.type ?? "").startsWith("humain_");
+  if (inc.statut === "ignore") return { lib: "Classé sans suite", cls: "neutre", aTraiter: false };
+  if (humain) {
+    if (inc.statut === "clos") return { lib: "Clos", cls: "neutre", aTraiter: false };
+    return { lib: "À traiter", cls: "attente", aTraiter: true };
+  }
+  if (inc.etat === "coupee") return { lib: "Agent arrêté", cls: "ok", aTraiter: false };
+  if (inc.statut === "clos") return { lib: "Clos", cls: "neutre", aTraiter: false };
+  if (inc.etat === "suspendue" && refusDOffice(inc)) {
+    // Retirer le droit en cause règle aussi le dossier, comme pour les autres.
+    if ((inc.correctifs?.length ?? 0) > 0) return { lib: "Droit retiré", cls: "ok", aTraiter: false };
+    return { lib: "Refusé, à clore", cls: "ok", aTraiter: true };
+  }
+  if (inc.etat === "suspendue") return { lib: "À décider", cls: "attente", aTraiter: true };
+  if (inc.statut === "surveille" || inc.etat === "active") return { lib: "Repris, surveillé", cls: "libere", aTraiter: false };
+  if ((inc.correctifs?.length ?? 0) > 0) return { lib: "Droit retiré", cls: "ok", aTraiter: false };
+  return { lib: "Traité", cls: "ok", aTraiter: false };
+}
+
+// Un incident reste dans la liste tant qu'il demande un geste de l'analyste :
+// une décision, ou la clôture d'un refus d'office.
 export function estATraiter(inc: Incident): boolean {
+  return etatIncident(inc).aTraiter;
+}
+
+// Un appel est suspendu et attend un humain : seul cas « à décider » (orange).
+export function attendDecision(inc: Incident): boolean {
   return etatIncident(inc).cls === "attente";
 }
 

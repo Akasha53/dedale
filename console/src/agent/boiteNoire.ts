@@ -15,8 +15,13 @@ import { documentDe, sourcePour } from "./sources";
 import { libelleDroit, libelleOutil, majuscule, sansCodes } from "../ui/mots";
 
 export type CleMaillon = "source" | "consigne" | "intention" | "appel" | "decision" | "resultat" | "correctif";
-// neutre : fait établi ; alerte : geste hostile ; attente : bloqué en attente
-// du SOC ; protege : rien n'est sorti ; libere : l'action a été relâchée.
+// Une seule règle de couleur pour toute la frise :
+// neutre (gris) : ce qui s'est passé sans danger, la lecture, le but annoncé ;
+// alerte (rouge) : l'étape dangereuse, l'instruction cachée et l'action tentée ;
+// protege (vert) : ce qui protège, le refus, la coupure, le droit retiré,
+//   le résultat sûr ;
+// attente (orange) : seulement ce qui attend encore une décision humaine ;
+// libere (gris) : l'analyste a laissé passer, rien ne protège ni n'attend.
 export type TonMaillon = "neutre" | "alerte" | "attente" | "protege" | "libere" | "absent";
 
 export interface Brut {
@@ -43,6 +48,7 @@ export interface MaillonAgent {
   ton: TonMaillon;
   enCours?: boolean; // décision en attente : compteur vivant
   cliquable?: boolean; // étape « Lecture » : le contenu lu s'ouvre en entier
+  icone?: string; // picto propre à l'étape (frise salarié) ; sinon celui de `cle`
   detail: DetailMaillon;
 }
 
@@ -58,6 +64,14 @@ export interface AppelCible {
 
 export type Issue = "attente" | "coupee" | "reprise" | "bloquee" | "surveillee";
 
+// Refus d'office : la passerelle a refusé l'action elle-même (droit absent du
+// jeton de tâche, faux collègue), sans attendre personne.
+export interface RefusDedale {
+  horodatage?: string;
+  delai: number; // ms entre l'action tentée et le refus
+  usurpation: boolean;
+}
+
 export interface LectureAgent {
   maillons: MaillonAgent[];
   appel: AppelCible | null; // dernière action retenue
@@ -65,6 +79,7 @@ export interface LectureAgent {
   issue: Issue;
   detection?: string;
   derniereDecision?: Decision;
+  refus?: RefusDedale;
   enJeu: string; // ce que l'action retenue ferait, en une phrase
 }
 
@@ -102,7 +117,11 @@ const DECISION_TITRE: Record<string, string> = {
   valider_riposte: "L'analyste a coupé l'agent",
   reprendre: "L'analyste a laissé passer l'action",
   ignorer: "L'analyste a classé l'alerte sans suite",
-  clore: "L'analyste a clos le dossier",
+  clore: "L'analyste a clos l'incident",
+};
+
+const DECISION_POURQUOI: Record<string, string> = {
+  clore: "Dédale avait déjà refusé l'action. L'analyste ferme le dossier.",
 };
 
 const DECISION_RISQUE: Record<string, string> = {
@@ -111,6 +130,12 @@ const DECISION_RISQUE: Record<string, string> = {
   reprendre: "L'action est passée telle quelle, une seule fois : l'agent n'a gagné aucun droit.",
   ignorer: "L'alerte est classée : l'agent reprend son travail, toujours surveillé.",
 };
+
+// Un clos ou un laisser-passer ne protège rien : gris. Couper protège : vert.
+function tonDecision(action: string): TonMaillon {
+  if (action === "couper" || action === "valider_riposte") return "protege";
+  return action === "clore" ? "neutre" : "libere";
+}
 
 // Ce qu'une action aurait provoqué si rien ne l'avait arrêtée.
 const RISQUE_OUTIL: Record<string, string> = {
@@ -253,7 +278,7 @@ function resultatDe(issue: Issue, dejaPasse: boolean, horodatage: string | undef
         horodatage: undefined,
         titre: "Rien n'est sorti pour l'instant",
         texte: "L'action reste bloquée tant que vous n'avez pas choisi.",
-        ton: "attente",
+        ton: "neutre",
       };
     default:
       return { ...base, titre: "Agent actif, sous surveillance", texte: "Aucune action n'attend de décision.", ton: "neutre" };
@@ -268,10 +293,11 @@ function decisionMaillon(d: Decision, i: number): MaillonAgent {
     titre: DECISION_TITRE[d.action] ?? `Décision : ${d.action}`,
     texte: `Décision prise par ${d.analyste}.`,
     horodatage: d.horodatage,
-    ton: d.action === "reprendre" || d.action === "ignorer" ? "libere" : "protege",
+    ton: tonDecision(d.action),
     detail: {
       brut: bruts(brut("Choix", (DECISION_TITRE[d.action] ?? d.action).replace(/^L'analyste a /, "")), brut("Par", d.analyste)),
-      pourquoi: "Dédale n'agit jamais seul : il met l'agent en pause et c'est l'analyste qui tranche.",
+      pourquoi:
+        DECISION_POURQUOI[d.action] ?? "Dédale n'agit jamais seul : il met l'agent en pause et c'est l'analyste qui tranche.",
       risque: DECISION_RISQUE[d.action],
       refs: [],
     },
@@ -410,6 +436,29 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     evConsigne?.horodatage ?? touches[0]?.horodatage ?? cibles[0]?.horodatage ?? inc.temps_session?.detecte_a ?? undefined;
 
   const issue = issueDe(inc, derniereDecision, Boolean(ripBlocage));
+
+  // Délai du refus d'office : de l'action refusée au refus de la passerelle.
+  let refus: RefusDedale | undefined;
+  if (ripBlocage) {
+    const tRefus = temps(ripBlocage.horodatage);
+    const usurpation = String(details(ripBlocage).action ?? "") === "bloquer_usurpation";
+    const visee = usurpation
+      ? usurpationEv
+      : [...appels]
+          .reverse()
+          .find(
+            (e) =>
+              details(e).violation_droits &&
+              (!ripBlocage.outil || e.outil === ripBlocage.outil) &&
+              !(temps(e.horodatage) > tRefus)
+          );
+    const tAction = temps(visee?.horodatage);
+    refus = {
+      horodatage: ripBlocage.horodatage,
+      delai: Number.isNaN(tAction) || Number.isNaN(tRefus) ? Number.NaN : Math.max(0, tRefus - tAction),
+      usurpation,
+    };
+  }
   const statutFerme = inc.statut === "clos" || inc.statut === "ignore";
   const appelLiberable =
     issue === "attente" && !statutFerme && appel !== null && (appel.retenu || !appel.horsJeton) && !usurpationEv;
@@ -544,7 +593,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       titre: piege ? "Il change de but" : "Il sort de sa tâche",
       texte: `Il annonce : « ${court(sansCodes(objectif), 150)} »`,
       horodatage: evIntention?.horodatage,
-      ton: "alerte",
+      ton: "neutre",
       detail: {
         brut: bruts(brut("Ce que l'agent annonce", preuveInerte(objectif, 600)), brut("Outil visé", evIntention?.outil, { mono: true })),
         pourquoi: pourquoiTache,
@@ -560,7 +609,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       titre: "Il change de but",
       texte: "Il laisse sa tâche de côté pour suivre l'instruction cachée.",
       horodatage: toucheSource.horodatage,
-      ton: "alerte",
+      ton: "neutre",
       detail: { brut: [], pourquoi: pourquoiTache, risque: risqueIntention, refs: [] },
     });
   } else if (appel?.horsJeton) {
@@ -571,24 +620,18 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       titre: "Il sort de sa tâche",
       texte: `Il veut ${libelleOutil(appel.outil)}, ce que sa tâche ne demande pas.`,
       horodatage: appel.horodatage,
-      ton: "alerte",
+      ton: "neutre",
       detail: { brut: [], pourquoi: pourquoiTache, risque: risqueIntention, refs: [] },
     });
   }
 
   // 4. Actions retenues, chacune suivie de la décision qui l'a tranchée.
+  // L'action tentée est l'étape dangereuse : rouge, quelle que soit la suite.
+  // Ce qui l'a arrêtée (refus, décision, résultat) porte sa propre couleur.
   cibles.forEach((c, i) => {
     const t = temps(c.horodatage);
     const tranchee = decisions.find((d) => !Number.isNaN(t) && temps(d.horodatage) >= t);
-    const ton: TonMaillon = tranchee
-      ? tranchee.action === "reprendre" || tranchee.action === "ignorer"
-        ? "libere"
-        : "protege"
-      : ripBlocage
-        ? "protege"
-        : issue === "attente"
-          ? "attente"
-          : "protege";
+    const ton: TonMaillon = "alerte";
     const d = details(c.ev);
     const adresse = adresseVisee(d.parametres);
     const exfil = d.exfiltration as Record<string, unknown> | undefined;
@@ -634,23 +677,53 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     });
   });
 
-  // 5. Décisions, ou l'attente.
+  // 5. Le refus d'office, les décisions, ou l'attente.
+  if (ripBlocage) {
+    const dRef = details(ripBlocage);
+    const usurpation = String(dRef.action ?? "") === "bloquer_usurpation";
+    const outil = ripBlocage.outil ?? appel?.outil;
+    maillons.push({
+      cle: "decision",
+      id: "decision-refus",
+      lib: LIB.decision,
+      titre: "Dédale a refusé l'action",
+      texte: usurpation
+        ? "L'ordre venait d'un faux collègue. Dédale l'a refusé sans attendre personne."
+        : "L'action sortait des droits de sa tâche. Dédale l'a refusée sans attendre personne.",
+      horodatage: ripBlocage.horodatage,
+      ton: "protege",
+      detail: {
+        brut: bruts(
+          brut("Refusé en", refus ? dureeCourte(refus.delai) : ""),
+          brut("Droit manquant", typeof dRef.scope_requis === "string" ? libelleDroit(dRef.scope_requis) : ""),
+          brut("Accès de l'agent", dRef.jeton_revoque === true ? "retirés aussitôt" : "")
+        ),
+        pourquoi: usurpation
+          ? "Un ordre d'un autre agent doit porter une signature valide. Sans elle, Dédale refuse d'office."
+          : "Une action hors des droits de la tâche est refusée d'office. C'est une règle fixe : personne n'a à trancher.",
+        risque: outil ? RISQUE_OUTIL[outil] : undefined,
+        refs: [],
+      },
+    });
+  }
   decisions.forEach((d, i) => maillons.push(decisionMaillon(d, i)));
-  if (decisions.length === 0) {
+  if (decisions.length === 0 && !ripBlocage) {
+    // Orange seulement si un appel est vraiment suspendu et attend un humain.
+    const attend = !statutFerme && issue === "attente";
     maillons.push({
       cle: "decision",
       id: "decision-attente",
       lib: LIB.decision,
-      titre: statutFerme ? "Dossier fermé sans décision notée" : "En attente de votre décision",
-      texte: statutFerme ? undefined : "Dédale a mis l'agent en pause. Il attend votre choix.",
+      titre: attend ? "En attente de votre décision" : statutFerme ? "Dossier fermé sans décision notée" : "Aucune décision notée",
+      texte: attend ? "Dédale a mis l'agent en pause. Il attend votre choix." : undefined,
       // Après la dernière action retenue : c'est elle qui attend.
       horodatage: appel?.horodatage ?? detection,
-      ton: statutFerme ? "neutre" : "attente",
-      enCours: !statutFerme && (issue === "attente" || issue === "bloquee"),
+      ton: attend ? "attente" : "neutre",
+      enCours: attend,
       detail: {
         brut: [],
         pourquoi: "Dédale n'agit jamais seul : il met l'agent en pause et c'est l'analyste qui tranche.",
-        risque: statutFerme ? undefined : "Tant que personne ne décide, rien ne part.",
+        risque: attend ? "Tant que personne ne décide, rien ne part." : undefined,
         refs: [],
       },
     });
@@ -661,7 +734,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
   const dejaPasse = decisions.some((d) => d.action === "reprendre") && issue === "coupee";
   const dRes = details(ripResultat);
   maillons.push(
-    resultatDe(issue, dejaPasse, ripResultat?.horodatage ?? inc.temps_session?.confine_a ?? derniereDecision?.horodatage ?? undefined, {
+    resultatDe(issue, dejaPasse, ripResultat?.horodatage ?? inc.temps_session?.confine_a ?? derniereDecision?.horodatage ?? ripBlocage?.horodatage ?? undefined, {
       brut: bruts(
         brut("Compte rendu de la passerelle", preuveInerte(texteClair(dRes.resultat) || texteClair(dRes.raison), 400)),
         brut("Accès retirés", dRes.jeton_revoque === true ? "oui" : "")
@@ -678,8 +751,17 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     issue,
     detection,
     derniereDecision,
+    refus,
     enJeu: enJeuDe(appel),
   };
+}
+
+// « 1 ms », « 240 ms », « 1,2 s » : assez fin pour un refus automatique.
+export function dureeCourte(delta: number): string {
+  if (!Number.isFinite(delta)) return "un instant";
+  if (delta < 1) return "< 1 ms";
+  if (delta < 1000) return `${Math.round(delta)} ms`;
+  return `${(delta / 1000).toFixed(1).replace(".", ",")} s`;
 }
 
 const PHASE_CLE: Record<string, CleMaillon> = {
@@ -708,7 +790,7 @@ function depuisChaine(inc: Incident, decisions: Decision[]): LectureAgent {
       titre: sansCodes(preuveInerte(m.titre, 120)),
       texte: sansCodes(preuveInerte(m.detail, 220)) || undefined,
       horodatage: m.horodatage,
-      ton: cle === "source" ? "neutre" : cle === "appel" ? (issue === "attente" ? "attente" : "protege") : "alerte",
+      ton: cle === "source" || cle === "intention" ? "neutre" : "alerte",
       cliquable: cle === "source" && Boolean(m.document_source || m.canari_id || m.leurre_id),
       detail: {
         brut: bruts(brut("Constat", preuveInerte(m.detail, 600)), brut("Canary", m.canari_id, { mono: true })),
@@ -725,15 +807,16 @@ function depuisChaine(inc: Incident, decisions: Decision[]): LectureAgent {
   const maillons: MaillonAgent[] = chaine.map(versMaillon);
   decisions.forEach((d, i) => maillons.push(decisionMaillon(d, i)));
   if (decisions.length === 0) {
+    const attend = !statutFerme && issue === "attente";
     maillons.push({
       cle: "decision",
       id: "decision-attente",
       lib: LIB.decision,
-      titre: statutFerme ? "Dossier fermé" : "En attente de votre décision",
-      texte: statutFerme ? undefined : "Dédale a mis l'agent en pause. Il attend votre choix.",
+      titre: attend ? "En attente de votre décision" : statutFerme ? "Dossier fermé" : "Aucune décision notée",
+      texte: attend ? "Dédale a mis l'agent en pause. Il attend votre choix." : undefined,
       horodatage: chaine.find((m) => m.phase === "consigne")?.horodatage ?? outil?.horodatage,
-      ton: statutFerme ? "neutre" : "attente",
-      enCours: !statutFerme && issue === "attente",
+      ton: attend ? "attente" : "neutre",
+      enCours: attend,
       detail: VIDE,
     });
   }

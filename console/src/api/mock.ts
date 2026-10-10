@@ -838,7 +838,8 @@ export function creerSourceMock(): SourceDonnees {
       }
       i.decisions.push({ action, analyste, horodatage: new Date().toISOString() });
       i.statut = action === "ignorer" ? "ignore" : action === "reprendre" ? "surveille" : "clos";
-      if (!humain) {
+      // « clore » ferme le dossier sans toucher à la session (refus d'office).
+      if (!humain && action !== "clore") {
         const s = sessions.find((x) => x.id === i.session_id);
         const etat = action === "couper" || action === "valider_riposte" ? "coupee" : "active";
         i.etat = etat;

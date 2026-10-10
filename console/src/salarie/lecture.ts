@@ -1,0 +1,370 @@
+// Geste d'un salarié, lu pour l'écran : la chaîne du backend parle en codes
+// (« action risquée détectée », « passé outre »). On la réécrit en phrases
+// simples, selon ce qu'il faisait : mail reçu, lien cliqué, pièce jointe,
+// copier-coller, mail sortant, dépôt de fichier. Les détails viennent de
+// l'avertissement du poste (`details` de l'événement), relié à chaque étape
+// par `evenement_id`. Tout texte venu du poste est désarmé avant affichage.
+
+import type { Decision, Evenement, Incident, MaillonChaine } from "../types";
+import type { Brut, DetailMaillon, MaillonAgent, TonMaillon } from "../agent/boiteNoire";
+import { desarmer, preuveInerte } from "../agent/preuve";
+import { fusionnerRefs, lireRef } from "../agent/references";
+import { sansCodes } from "../ui/mots";
+
+export type Genre = "mail_recu" | "lien" | "piece" | "coller" | "mail_sortant" | "depot" | "autre";
+
+const PAR_CONTEXTE: Record<string, Genre> = {
+  "mail reçu": "mail_recu",
+  "navigation web": "lien",
+  "pièce jointe": "piece",
+  "copier-coller": "coller",
+  "mail sortant": "mail_sortant",
+  "dépôt de fichier": "depot",
+};
+
+const PAR_TYPE: Record<string, Genre> = {
+  humain_phishing: "lien",
+  humain_secret: "coller",
+  humain_mail_externe: "mail_sortant",
+  humain_upload_ia: "depot",
+};
+
+type Details = Record<string, unknown>;
+
+function texte(v: unknown): string {
+  return typeof v === "string" ? desarmer(v).trim() : "";
+}
+
+function genreDe(d: Details, type?: string): Genre {
+  const ctx = typeof d.contexte === "string" ? d.contexte : "";
+  return PAR_CONTEXTE[ctx] ?? PAR_TYPE[type ?? ""] ?? "autre";
+}
+
+// Ce qu'il faisait au moment du geste.
+const CONTEXTE: Record<Genre, string> = {
+  mail_recu: "Un mail est arrivé dans sa boîte",
+  lien: "Il naviguait sur le web",
+  piece: "Un mail avec une pièce jointe est arrivé",
+  coller: "Il travaillait dans un outil en ligne",
+  mail_sortant: "Il écrivait un mail",
+  depot: "Il préparait un dépôt de fichier",
+  autre: "Sur son poste",
+};
+
+// Le geste risqué, en titre court.
+const GESTE: Record<Genre, string> = {
+  mail_recu: "Il a ouvert un faux mail d'Orbis Pay",
+  lien: "Il a cliqué sur un faux site d'Orbis Pay",
+  piece: "Il a voulu ouvrir une pièce jointe piégée",
+  coller: "Il a voulu coller une clé secrète",
+  mail_sortant: "Il envoyait des données à l'extérieur",
+  depot: "Il déposait un fichier confidentiel en ligne",
+  autre: "Il a fait un geste risqué",
+};
+
+const POURQUOI: Record<Genre, string> = {
+  mail_recu: "Le mail imite Orbis Pay mais ne vient pas d'Orbis Pay.",
+  lien: "Le lien mène à un site qui imite Orbis Pay sans en faire partie.",
+  piece: "Le fichier a les marques d'une pièce jointe piégée.",
+  coller: "Dédale a reconnu une clé secrète dans ce que le salarié allait coller.",
+  mail_sortant: "Le destinataire est hors de l'entreprise et le mail contient des données sensibles.",
+  depot: "Ce service n'est pas validé par Orbis Pay et le fichier est confidentiel.",
+  autre: "Dédale a reconnu un geste qui expose l'entreprise.",
+};
+
+const RISQUE: Record<Genre, string> = {
+  mail_recu: "En suivant le lien, le salarié aurait donné son mot de passe à un faux site.",
+  lien: "Le salarié aurait tapé son mot de passe sur un faux site.",
+  piece: "Le fichier aurait pu installer un logiciel malveillant sur le poste.",
+  coller: "La clé aurait été exposée à un service extérieur, sans retour possible.",
+  mail_sortant: "Les données seraient sorties de l'entreprise.",
+  depot: "Le fichier serait stocké chez un service que l'entreprise ne contrôle pas.",
+  autre: "Le geste aurait pu exposer des données de l'entreprise.",
+};
+
+// Le geste en une phrase, pour l'encadré « Le geste ».
+function phraseGeste(g: Genre, d: Details): string {
+  const de = texte(d.expediteur);
+  const affiche = texte(d.expediteur_affiche);
+  const fichier = texte(d.fichier);
+  const cible = texte(d.cible);
+  switch (g) {
+    case "mail_recu":
+      return affiche && de
+        ? `Le salarié a ouvert un mail signé « ${affiche} », envoyé en réalité par ${de}. Son lien mène à un faux site.`
+        : "Le salarié a ouvert un faux mail d'Orbis Pay. Son lien mène à un faux site.";
+    case "lien":
+      return "Le salarié a cliqué sur un lien qui mène à un faux site d'Orbis Pay.";
+    case "piece":
+      return fichier
+        ? `Le salarié a voulu ouvrir « ${fichier} », une pièce jointe piégée.`
+        : "Le salarié a voulu ouvrir une pièce jointe piégée.";
+    case "coller":
+      return cible
+        ? `Le salarié a voulu coller une clé secrète dans ${cible}, hors de l'entreprise.`
+        : "Le salarié a voulu coller une clé secrète hors de l'entreprise.";
+    case "mail_sortant":
+      return "Le salarié a voulu envoyer des données de l'entreprise à une adresse extérieure.";
+    case "depot":
+      return fichier && cible
+        ? `Le salarié a voulu déposer « ${fichier} », un fichier confidentiel, sur ${cible}.`
+        : "Le salarié a voulu déposer un fichier confidentiel sur un service non autorisé.";
+    default:
+      return "Le salarié a fait un geste risqué sur son poste.";
+  }
+}
+
+// Ce qui précise le geste, sous son titre.
+function texteGeste(g: Genre, d: Details): string | undefined {
+  const lien = texte(d.lien) || texte(d.url);
+  const fichier = texte(d.fichier);
+  const cible = texte(d.cible);
+  switch (g) {
+    case "mail_recu": {
+      const de = texte(d.expediteur);
+      const affiche = texte(d.expediteur_affiche);
+      return affiche && de ? `Signé « ${affiche} », il est envoyé par ${de}.` : de ? `Il est envoyé par ${de}.` : undefined;
+    }
+    case "lien":
+      return lien ? `Le lien mène à ${lien}.` : undefined;
+    case "piece":
+      if (!fichier) return undefined;
+      return d.expediteur_externe ? `« ${fichier} » vient d'un expéditeur extérieur.` : `Le fichier s'appelle « ${fichier} ».`;
+    case "coller":
+      return cible ? `Il voulait la coller dans ${cible}.` : undefined;
+    case "mail_sortant": {
+      const dest = Array.isArray(d.destinataires_externes) ? d.destinataires_externes.map(texte).filter(Boolean).join(", ") : "";
+      return dest ? `Le mail part vers ${dest}.` : undefined;
+    }
+    case "depot":
+      return fichier && cible ? `« ${fichier} » vers ${cible}.` : undefined;
+    default:
+      return undefined;
+  }
+}
+
+function brutsGeste(g: Genre, d: Details): Brut[] {
+  const lignes: [string, unknown, boolean?][] = [
+    ["Expéditeur affiché", d.expediteur_affiche],
+    ["Adresse réelle", d.expediteur, true],
+    ["Objet", d.objet],
+    ["Lien", d.lien ?? d.url, true],
+    ["Fichier", d.fichier, true],
+    ["Où", d.cible],
+    ["Destinataires", Array.isArray(d.destinataires_externes) ? d.destinataires_externes.join(", ") : undefined, true],
+    ["Ce que Dédale a repéré", d.categorie_secret ?? d.indice],
+  ];
+  return lignes
+    .map(([lib, v, mono]) => ({ lib, valeur: texte(v), mono: Boolean(mono) }))
+    .filter((b) => b.valeur && !(g === "mail_recu" && b.lib === "Où"));
+}
+
+export interface MessageAffiche {
+  titre: string;
+  explication: string;
+  lien: string; // lien ou fichier en cause, désarmé ; vide sinon
+}
+
+export interface LectureSalarie {
+  geste?: string;
+  message?: MessageAffiche;
+  maillons: MaillonAgent[];
+}
+
+const LIB: Record<string, string> = {
+  contexte: "Contexte",
+  entree: "Contexte",
+  action_risquee: "Geste risqué",
+  avertissement: "Alerte de Dédale",
+  choix: "Choix du salarié",
+  consequence: "Suite",
+  sortie: "Suite",
+  riposte: "Suite",
+};
+
+const ICONE: Record<string, string> = {
+  contexte: "ecran",
+  entree: "ecran",
+  action_risquee: "curseur",
+  avertissement: "bouclier",
+  choix: "choix",
+  consequence: "resultat",
+  sortie: "resultat",
+  riposte: "resultat",
+};
+
+const DECISION: Record<string, string> = {
+  clore: "L'analyste a clos le dossier",
+  ignorer: "L'analyste a classé le dossier sans suite",
+};
+
+function refsDe(m: MaillonChaine) {
+  return fusionnerRefs(
+    (m.risques ?? []).map((r) => lireRef(r.id)),
+    (m.techniques ?? []).map((t) => {
+      const r = lireRef(t.id, t.cadre);
+      return r ? { ...r, nom: t.nom } : null;
+    })
+  );
+}
+
+export function lireGesteSalarie(inc: Incident): LectureSalarie {
+  const chaine = [...(inc.chaine ?? [])].sort(
+    (a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? "") || a.ordre - b.ordre
+  );
+  const evs = new Map<number, Evenement>((inc.evenements ?? []).map((e) => [e.id, e]));
+  const avertissements = (inc.evenements ?? []).filter((e) => e.type === "avertissement");
+  // L'avertissement qui a fait remonter le dossier : le dernier passé outre,
+  // sinon le dernier tout court.
+  const principal =
+    [...avertissements].reverse().find((e) => (e.details as Details | undefined)?.choix === "continuer") ??
+    avertissements[avertissements.length - 1];
+  const dPrincipal = (principal?.details ?? {}) as Details;
+  const genrePrincipal = genreDe(dPrincipal, inc.type);
+  const ferme = inc.statut === "clos" || inc.statut === "ignore";
+
+  // Détails de l'avertissement lié à une étape ; le contexte prend celui qui suit.
+  const detailsDe = (m: MaillonChaine, k: number): Details => {
+    const e = m.evenement_id != null ? evs.get(m.evenement_id) : undefined;
+    if (e?.type === "avertissement") return (e.details ?? {}) as Details;
+    const suivant = etapes.slice(k + 1).find((x) => x.evenement_id != null && evs.get(x.evenement_id)?.type === "avertissement");
+    const ev = suivant?.evenement_id != null ? evs.get(suivant.evenement_id) : undefined;
+    return (ev?.details ?? dPrincipal) as Details;
+  };
+
+  // Une seule « Suite » par geste : le backend en pose parfois deux d'affilée.
+  const etapes = chaine.filter(
+    (m, k) => !((m.phase === "consequence" || m.phase === "sortie") && (chaine[k - 1]?.phase === "consequence" || chaine[k - 1]?.phase === "sortie"))
+  );
+  const maillons: MaillonAgent[] = etapes.map((m, k) => {
+    const d = detailsDe(m, k);
+    const g = genreDe(d, inc.type);
+    const observe = sansCodes(desarmer(m.detail ?? ""));
+    const base = {
+      cle: "source" as const,
+      id: `sal-${m.ordre}-${k}`,
+      lib: LIB[m.phase] ?? "Étape",
+      horodatage: m.horodatage,
+      icone: ICONE[m.phase] ?? "resultat",
+    };
+    const refs = refsDe(m);
+    switch (m.phase) {
+      case "contexte":
+      case "entree":
+        return {
+          ...base,
+          titre: CONTEXTE[g],
+          texte: observe || undefined,
+          ton: "neutre" as TonMaillon,
+          detail: {
+            brut: observe ? [{ lib: "Observé sur le poste", valeur: observe }] : [],
+            pourquoi: "Dédale suit ce qui se passe sur le poste sans rien bloquer.",
+            refs,
+          },
+        };
+      case "action_risquee":
+        return {
+          ...base,
+          titre: GESTE[g],
+          texte: texteGeste(g, d),
+          ton: "alerte" as TonMaillon,
+          detail: {
+            brut: brutsGeste(g, d),
+            pourquoi: texte(d.raison) ? `${POURQUOI[g]} Indice : ${texte(d.raison)}.` : POURQUOI[g],
+            risque: RISQUE[g],
+            refs,
+          },
+        };
+      case "avertissement": {
+        const titre = texte(d.titre);
+        const explication = texte(d.explication);
+        return {
+          ...base,
+          titre: "Dédale l'a prévenu",
+          texte: titre ? `« ${titre} »` : "Une alerte s'est affichée sur son écran.",
+          ton: "protege" as TonMaillon,
+          detail: {
+            brut: [
+              ...(titre ? [{ lib: "Titre de l'alerte", valeur: titre }] : []),
+              ...(explication ? [{ lib: "Message", valeur: explication }] : []),
+              ...(typeof d.gravite === "string" ? [{ lib: "Gravité annoncée", valeur: d.gravite }] : []),
+            ],
+            pourquoi: "Dédale prévient au moment du geste, avant qu'il n'aboutisse.",
+            risque: "Sans cette alerte, le salarié n'aurait rien vu passer.",
+            refs,
+          },
+        };
+      }
+      case "choix": {
+        const continue_ = d.choix === "continuer" || /continu|outre/i.test(m.detail ?? "");
+        return {
+          ...base,
+          titre: continue_ ? "Il a continué malgré l'alerte" : "Il a annulé son geste",
+          texte: continue_ ? "Il a cliqué sur « Continuer quand même »." : "Il a suivi l'alerte et cliqué sur « Annuler ».",
+          ton: (continue_ ? "alerte" : "protege") as TonMaillon,
+          detail: {
+            brut: [{ lib: "Choix", valeur: continue_ ? "continuer quand même" : "annuler" }],
+            pourquoi: "Dédale ne bloque pas le poste : le salarié reste libre de choisir.",
+            risque: continue_ ? RISQUE[g] : undefined,
+            refs,
+          },
+        };
+      }
+      default:
+        return {
+          ...base,
+          titre: "Le dossier est arrivé au SOC",
+          texte: "Le geste a abouti malgré l'alerte.",
+          ton: "neutre" as TonMaillon,
+          detail: {
+            brut: [],
+            pourquoi: "Le salarié a continué malgré l'alerte : le dossier remonte au SOC.",
+            risque: RISQUE[g],
+            refs,
+          },
+        };
+    }
+  });
+
+  // La décision de l'analyste : orange tant que le dossier attend, gris ensuite.
+  const decisions: Decision[] = [...(inc.decisions ?? [])].sort((a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? ""));
+  decisions.forEach((dec, i) =>
+    maillons.push({
+      cle: "decision",
+      id: `sal-decision-${i}`,
+      lib: "Décision",
+      titre: DECISION[dec.action] ?? `Décision : ${dec.action}`,
+      texte: `Décision prise par ${dec.analyste}.`,
+      horodatage: dec.horodatage,
+      ton: "neutre",
+      detail: { brut: [{ lib: "Par", valeur: dec.analyste }], pourquoi: "Dédale prévient le salarié, l'analyste décide de la suite.", refs: [] },
+    })
+  );
+  if (decisions.length === 0) {
+    maillons.push({
+      cle: "decision",
+      id: "sal-decision-attente",
+      lib: "Décision",
+      titre: ferme ? "Dossier fermé" : "En attente de votre décision",
+      texte: ferme ? undefined : "Clore le dossier ou le classer sans suite.",
+      horodatage: undefined,
+      ton: ferme ? "neutre" : "attente",
+      detail: { brut: [], pourquoi: "Dédale prévient le salarié, l'analyste décide de la suite.", refs: [] } as DetailMaillon,
+    });
+  }
+
+  const titreMsg = texte(dPrincipal.titre);
+  const explication = texte(dPrincipal.explication);
+  return {
+    geste: principal ? phraseGeste(genrePrincipal, dPrincipal) : undefined,
+    message:
+      titreMsg || explication
+        ? {
+            titre: titreMsg,
+            explication,
+            lien: preuveInerte(dPrincipal.lien ?? dPrincipal.url ?? dPrincipal.fichier ?? "", 200),
+          }
+        : undefined,
+    maillons,
+  };
+}

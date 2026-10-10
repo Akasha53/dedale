@@ -63,11 +63,26 @@ qu'il répond.
    repérée, ce qu'elle aurait pu provoquer, l'heure précise et les références
    OWASP / ATLAS / ATT&CK, repliées. L'étape « Lecture » ouvre le mail ou le
    document en entier, partie piégée surlignée (`document_source` du maillon
-   source, sinon `GET /api/incidents/{id}/source`). À droite, trois choix,
+   source, sinon `GET /api/incidents/{id}/source`). À droite, les choix,
    chacun expliqué en une ligne : couper l'agent, laisser passer l'action,
-   retirer un droit (`POST /api/incidents/{id}/retirer-droit`).
-4. **Incident salarié**. Le geste, le message affiché par Dédale, le choix du
-   salarié, les étapes dépliables, et deux choix : clore ou classer sans suite.
+   retirer un droit (`POST /api/incidents/{id}/retirer-droit`). Quand la
+   passerelle a déjà refusé l'action d'office (droit absent du jeton, faux
+   collègue), l'écran le dit (« Refusé par Dédale en 1 ms »), sans compteur,
+   et propose d'abord « Clore l'incident » ; couper reste possible en second.
+4. **Incident salarié** (`src/salarie/lecture.ts`). Le geste, le vrai message
+   de la pop-up avec le lien désarmé en dessous, puis les étapes, dépliables
+   comme celles des agents et réécrites selon le cas (mail reçu, lien cliqué,
+   pièce jointe, copier-coller, mail sortant, dépôt de fichier). Deux choix :
+   clore ou classer sans suite.
+
+Une règle de couleur vaut pour toutes les frises et tous les états : gris
+pour ce qui est neutre (lecture, but annoncé, suite), rouge pour l'étape
+dangereuse (instruction cachée, action tentée, salarié qui passe outre), vert
+pour ce qui protège (refus, coupure, alerte affichée, droit retiré, résultat
+sûr), orange seulement pour ce qui attend encore une décision humaine.
+
+Tout lien, adresse ou domaine venu du terrain s'affiche désarmé (`hxxp://`,
+`[.]`) par `desarmer` de `src/agent/preuve.ts`.
 5. **Mesures** : détection, faux positifs, temps de détection et de
    confinement.
 

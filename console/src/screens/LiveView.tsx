@@ -11,7 +11,8 @@ import {
   tempsRelatif,
 } from "../ui/primitives";
 import { TexteCanary } from "../ui/Canary";
-import { decoder, estATraiter, libelleOutil, nomAgent, raisonActivite, sansCodes, VERDICT } from "../ui/mots";
+import { desarmer } from "../agent/preuve";
+import { attendDecision, decoder, estATraiter, libelleOutil, nomAgent, raisonActivite, refusDOffice, sansCodes, VERDICT } from "../ui/mots";
 
 const FIL_COURT = 8;
 
@@ -94,7 +95,7 @@ export function LiveView({
 type Compteur = { lib: string; val: number; sous: string; alerte?: boolean };
 
 function compteursAgents(agents: Session[], incidents: Incident[], activite: Activite[]): Compteur[] {
-  const aDecider = incidents.filter(estATraiter).length;
+  const aDecider = incidents.filter(attendDecision).length;
   const arretees = activite.filter((a) => a.verdict !== "autorise").length;
   return [
     { lib: "Agents surveillés", val: agents.length, sous: "agents IA d'Orbis Pay" },
@@ -132,7 +133,7 @@ function FilAgents({
   const [tout, setTout] = useState(false);
   // Une action retenue n'attend plus rien une fois son incident tranché.
   const enAttente = useMemo(
-    () => new Set(incidents.filter(estATraiter).map((i) => i.id)),
+    () => new Set(incidents.filter(attendDecision).map((i) => i.id)),
     [incidents]
   );
   const lignes = tout ? activite : activite.slice(0, FIL_COURT);
@@ -190,7 +191,7 @@ function LigneActivite({
         <span className="fil-pt" />
         {v.lib}
       </span>
-      <span className="fil-texte" title={a.raison ? decoder(a.raison) : undefined}>
+      <span className="fil-texte" title={a.raison ? desarmer(decoder(a.raison)) : undefined}>
         <strong>{nomAgent(a.agent)}</strong> veut {libelleOutil(a.outil)}
         <span className="fil-raison">
           {" · "}
@@ -216,6 +217,7 @@ function statutSession(s: Session, inc?: Incident): { lib: string; cls: string }
     return ouvert ? { lib: "Geste risqué signalé", cls: "attente" } : { lib: "Rien à signaler", cls: "ok" };
   }
   if (s.etat === "coupee") return { lib: "Arrêté", cls: "neutre" };
+  if (s.etat === "suspendue" && inc && refusDOffice(inc)) return { lib: "Action refusée par Dédale", cls: "ok" };
   if (s.etat === "suspendue") return { lib: "En pause, attend votre décision", cls: "attente" };
   if (s.classement === "agent_ia" && ouvert) return { lib: "Détourné, surveillé", cls: "alerte" };
   return { lib: "Normal", cls: "ok" };

@@ -1,25 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDonnees } from "../api/store";
-import type { ChoixSalarie, DecisionAction, Incident, MaillonChaine, Pilier } from "../types";
-import { IncidentAgent } from "../agent/IncidentAgent";
-import type { DetailMaillon } from "../agent/boiteNoire";
-import { DetailEtape, Depliant } from "../agent/Depliant";
-import { preuveInerte } from "../agent/preuve";
-import { fusionnerRefs, lireRef } from "../agent/references";
+import type { ChoixSalarie, DecisionAction, Incident, Pilier } from "../types";
+import { FriseEtapes, IncidentAgent } from "../agent/IncidentAgent";
 import { SyntheseBloc, useSynthese } from "../agent/Synthese";
+import { lireGesteSalarie } from "../salarie/lecture";
 import { appartientPilier, BadgeChoixSalarie, heure, libelleType, PILIERS, SegmentsPiliers, Spinner } from "../ui/primitives";
-import { decoder, estATraiter, etatIncident, GRAVITE, phraseSalarie, sansCodes, titreIncident } from "../ui/mots";
-
-const PHASE_LIB: Record<string, string> = {
-  entree: "Contexte",
-  contexte: "Contexte",
-  action_risquee: "Geste risqué",
-  avertissement: "Alerte de Dédale",
-  choix: "Choix du salarié",
-  consequence: "Suite",
-  sortie: "Suite",
-  riposte: "Suite",
-};
+import { estATraiter, etatIncident, GRAVITE, phraseSalarie, titreIncident } from "../ui/mots";
 
 const VIDE_PILIER: Record<Pilier, string> = {
   humain: "Aucun incident salarié. Les postes sont calmes.",
@@ -344,17 +330,14 @@ function estIncidentHumain(inc: Incident): boolean {
   return inc.source === "humain" || inc.source === "physique" || (inc.type ?? "").startsWith("humain_");
 }
 
-// Geste, alerte et choix, lus sur l'incident d'abord, puis dans la chaîne.
-function infosGeste(inc: Incident): { geste?: string; avertissement?: string; choix?: ChoixSalarie } {
+// Choix du salarié, lu sur l'incident d'abord, puis dans la chaîne et le journal.
+function choixDe(inc: Incident): ChoixSalarie | undefined {
   const chaine = inc.chaine ?? [];
   const averti = [...chaine].reverse().find((x) => x.phase === "avertissement");
-  const action = [...chaine].reverse().find((x) => x.phase === "action_risquee");
   const choixMaillon = [...chaine].reverse().find((x) => x.phase === "choix");
   const evenement = [...(inc.evenements ?? [])].reverse().find((e) => e.type === "avertissement");
-  const details = evenement?.details ?? {};
-  const texte = (valeur: unknown) => (typeof valeur === "string" && valeur.trim() ? valeur.trim() : undefined);
-  const brut = details.choix;
-  const choix =
+  const brut = evenement?.details?.choix;
+  return (
     inc.choix ??
     averti?.choix ??
     (brut === "continuer" || brut === "annuler" ? brut : undefined) ??
@@ -362,13 +345,8 @@ function infosGeste(inc: Incident): { geste?: string; avertissement?: string; ch
       ? "annuler"
       : choixMaillon?.detail.includes("continu") || choixMaillon?.detail.includes("passé outre")
         ? "continuer"
-        : undefined);
-  const nettoyer = (t?: string) => (t ? sansCodes(decoder(t)).replace(/^\[leurre, neutralisé\]\s*/i, "") : undefined);
-  return {
-    geste: nettoyer(inc.geste ?? action?.detail),
-    avertissement: nettoyer(inc.avertissement ?? texte(details.message) ?? averti?.detail),
-    choix,
-  };
+        : undefined)
+  );
 }
 
 function IncidentSalarie({
@@ -383,11 +361,30 @@ function IncidentSalarie({
   trancher: (a: DecisionAction) => void;
 }) {
   const { synthese, prete } = useSynthese(incident);
-  const { geste, avertissement, choix } = infosGeste(incident);
+  const choix = choixDe(incident);
+  const lecture = useMemo(() => lireGesteSalarie(incident), [incident]);
   const etat = etatIncident(incident);
   const ferme = incident.statut === "clos" || incident.statut === "ignore";
-  const chaine = [...(incident.chaine ?? [])].sort(
-    (a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? "") || a.ordre - b.ordre
+
+  const avant = (
+    <div className="sal-avant">
+      {lecture.geste && (
+        <div className="geste-bloc">
+          <div className="geste-lib">Le geste</div>
+          <div className="geste-val">{lecture.geste}</div>
+        </div>
+      )}
+      {lecture.message && (
+        <div className="geste-bloc">
+          <div className="geste-lib">Le message affiché par Dédale</div>
+          <div className="sal-message">
+            {lecture.message.titre && <span className="sal-message-titre">{lecture.message.titre}</span>}
+            {lecture.message.explication && <span className="sal-message-texte">{lecture.message.explication}</span>}
+            {lecture.message.lien && <span className="sal-message-lien">{lecture.message.lien}</span>}
+          </div>
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -407,39 +404,27 @@ function IncidentSalarie({
       </section>
 
       <div className="ag-grille">
-        <section className="ag-coque ag-zone-chaine" aria-labelledby="sal-chaine-titre">
-          <div className="ag-noyau">
-            <header className="ag-carte-tete">
-              <div>
-                <span className="ag-sourcil">Sur le poste</span>
-                <h3 id="sal-chaine-titre">Ce que le salarié a vu et fait</h3>
-              </div>
-              <BadgeChoixSalarie choix={choix} />
-            </header>
-            {geste && (
-              <div className="geste-bloc">
-                <div className="geste-lib">Le geste</div>
-                <div className="geste-val">{geste}</div>
-              </div>
-            )}
-            {avertissement && (
-              <div className="geste-bloc">
-                <div className="geste-lib">Le message affiché par Dédale</div>
-                <div className="geste-popup">{avertissement}</div>
-              </div>
-            )}
-            {chaine.length > 0 && <FriseSalarie chaine={chaine} incident={incident} />}
-          </div>
-        </section>
+        <FriseEtapes
+          maillons={lecture.maillons}
+          sourcil="Sur le poste"
+          titre="Ce que le salarié a vu et fait"
+          idTitre="sal-chaine-titre"
+          droite={<BadgeChoixSalarie choix={choix} />}
+          avant={avant}
+          maintenant={0}
+        />
 
-        <section className="ag-coque ag-zone-decision issue-salarie" aria-labelledby="sal-decision-titre">
+        <section
+          className={`ag-coque ag-zone-decision issue-salarie ${ferme ? "issue-salarie-clos" : "issue-salarie-attente"}`}
+          aria-labelledby="sal-decision-titre"
+        >
           <div className="ag-noyau">
             <header className="ag-carte-tete">
               <div>
                 <span className="ag-sourcil">Votre décision</span>
                 <h3 id="sal-decision-titre" className="ag-etat-long">
                   <span className="ag-etat-point" />
-                  {ferme ? (incident.statut === "ignore" ? "Classé sans suite" : "Dossier fermé") : "Le dossier attend"}
+                  {ferme ? (incident.statut === "ignore" ? "Classé sans suite" : "Dossier clos") : "Le dossier attend votre décision"}
                 </h3>
               </div>
             </header>
@@ -479,94 +464,6 @@ function IncidentSalarie({
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-
-// Pourquoi Dédale a réagi et ce que le geste aurait provoqué, par type.
-const POURQUOI_GESTE: Record<string, string> = {
-  humain_secret: "Dédale a reconnu une clé secrète dans ce que le salarié allait coller.",
-  humain_mail_externe: "Le destinataire est hors de l'entreprise et la pièce jointe ressemble à des données clients.",
-  humain_upload_ia: "Ce service d'IA n'est pas autorisé par Orbis Pay et le fichier contient des données internes.",
-  humain_phishing: "Le lien mène à un site qui imite Orbis Pay sans en faire partie.",
-};
-const RISQUE_GESTE: Record<string, string> = {
-  humain_secret: "La clé aurait été exposée à un service extérieur, sans retour possible.",
-  humain_mail_externe: "Les données clients seraient sorties de l'entreprise.",
-  humain_upload_ia: "Le fichier serait stocké chez un service que l'entreprise ne contrôle pas.",
-  humain_phishing: "Le mot de passe du salarié aurait été volé.",
-};
-
-function detailSalarie(m: MaillonChaine, inc: Incident): DetailMaillon {
-  const type = inc.type ?? "";
-  const texte = sansCodes(decoder(m.detail ?? "")).replace(/^\[leurre, neutralisé\]\s*/i, "");
-  const refs = fusionnerRefs(
-    (m.risques ?? []).map((r) => lireRef(r.id)),
-    (m.techniques ?? []).map((t) => {
-      const r = lireRef(t.id, t.cadre);
-      return r ? { ...r, nom: t.nom } : null;
-    })
-  );
-  const base = { brut: texte ? [{ lib: "Observé sur le poste", valeur: preuveInerte(texte, 600) }] : [], refs };
-  switch (m.phase) {
-    case "action_risquee":
-      return { ...base, pourquoi: POURQUOI_GESTE[type], risque: RISQUE_GESTE[type] };
-    case "avertissement":
-      return {
-        ...base,
-        brut: [
-          ...base.brut,
-          ...(m.choix ? [{ lib: "Choix du salarié", valeur: m.choix === "annuler" ? "il a annulé" : "il a continué" }] : []),
-        ],
-        pourquoi: POURQUOI_GESTE[type] ?? "Dédale prévient au moment du geste, avant qu'il n'aboutisse.",
-        risque: "Sans cette alerte, le salarié n'aurait rien vu passer.",
-      };
-    case "choix":
-      return { ...base, pourquoi: "Dédale ne bloque pas le poste : le salarié reste libre de choisir." };
-    case "consequence":
-    case "sortie":
-      return {
-        ...base,
-        pourquoi: "Le salarié a continué malgré l'alerte : le dossier remonte au SOC.",
-        risque: RISQUE_GESTE[type],
-      };
-    default:
-      return { ...base, pourquoi: "Dédale observe le poste sans rien bloquer." };
-  }
-}
-
-function FriseSalarie({ chaine, incident }: { chaine: MaillonChaine[]; incident: Incident }) {
-  const [ouverts, setOuverts] = useState<Set<number>>(() => new Set());
-  const basculer = (i: number) =>
-    setOuverts((s) => {
-      const c = new Set(s);
-      if (c.has(i)) c.delete(i);
-      else c.add(i);
-      return c;
-    });
-  return (
-    <div className="frise">
-      {chaine.map((m, i) => {
-        const ouvert = ouverts.has(i);
-        const id = `sal-etape-${i}`;
-        return (
-          <div key={`${m.ordre}-${i}`} className={`maillon phase-${m.phase} ${ouvert ? "deplie" : ""}`}>
-            <span className="puce" />
-            <button type="button" className="sal-etape-btn" aria-expanded={ouvert} aria-controls={id} onClick={() => basculer(i)}>
-              <span className="m-titre">
-                <span className="m-phase">{PHASE_LIB[m.phase] ?? "Étape"}</span>
-                <strong>{sansCodes(decoder(m.titre))}</strong>
-                <span className="m-heure">{heure(m.horodatage)}</span>
-                <span className="ag-chevron" aria-hidden="true" />
-              </span>
-              <span className="m-detail">{sansCodes(decoder(m.detail)).replace(/^\[leurre, neutralisé\]\s*/i, "")}</span>
-            </button>
-            <Depliant ouvert={ouvert} id={id}>
-              <DetailEtape detail={detailSalarie(m, incident)} horodatage={m.horodatage} />
-            </Depliant>
-          </div>
-        );
-      })}
     </div>
   );
 }

@@ -13,7 +13,23 @@ const base = {
   "aria-hidden": true,
 };
 
-const TRACES: Record<CleMaillon | "couper" | "reprendre" | "chrono" | "bouclier" | "fermer" | "oeil" | "direct" | "incidents" | "mesures" | "entreprise", JSX.Element> = {
+const TRACES: Record<
+  | CleMaillon
+  | "couper"
+  | "reprendre"
+  | "chrono"
+  | "bouclier"
+  | "fermer"
+  | "oeil"
+  | "direct"
+  | "incidents"
+  | "mesures"
+  | "entreprise"
+  | "ecran"
+  | "curseur"
+  | "choix",
+  JSX.Element
+> = {
   source: (
     <>
       <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
@@ -92,7 +108,23 @@ const TRACES: Record<CleMaillon | "couper" | "reprendre" | "chrono" | "bouclier"
     </>
   ),
   bouclier: <path d="M12 3 19.5 6v5.5c0 4.4-3.2 8-7.5 9.5-4.3-1.5-7.5-5.1-7.5-9.5V6z" />,
+  // Frise salarié : le poste, le geste, le choix.
+  ecran: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="11.5" rx="2" />
+      <path d="M9 20h6M12 16v4" />
+    </>
+  ),
+  curseur: <path d="M6 4.5 18 11l-5.2 1.6L10.5 18z" />,
+  choix: (
+    <>
+      <path d="M12 20v-6.5M12 13.5 6.5 8M12 13.5 17.5 8" />
+      <path d="M6.5 11.5V8H10M17.5 11.5V8H14" />
+    </>
+  ),
 };
+
+export type NomIcone = keyof typeof TRACES;
 
 export function Icone({ nom, taille = 18 }: { nom: keyof typeof TRACES; taille?: number }) {
   return (

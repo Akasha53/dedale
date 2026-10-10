@@ -8,6 +8,7 @@ import { useDonnees } from "../api/store";
 import type { Incident, RaisonConfiance, Synthese } from "../types";
 import { TexteCanary } from "../ui/Canary";
 import { ACTION_CONSEILLEE, libelleDroit, sansCodes } from "../ui/mots";
+import { desarmer } from "./preuve";
 
 export function useSynthese(incident: Incident): { synthese: Synthese | null; prete: boolean } {
   const { getSynthese } = useDonnees();
@@ -96,7 +97,7 @@ export function SyntheseBloc({
       ) : (
         <div className="syn-phrases">
           {phrases.map((p, i) => (
-            <p key={i}>{p}</p>
+            <p key={i}>{desarmer(p)}</p>
           ))}
         </div>
       )}

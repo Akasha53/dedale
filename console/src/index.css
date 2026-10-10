@@ -4800,3 +4800,95 @@ mark.piege {
     justify-self: start;
   }
 }
+
+/* =====================================================================
+   États d'un incident (10 octobre, 21 h). Une règle de couleur pour tout
+   l'écran : gris pour ce qui est neutre, rouge pour l'étape dangereuse,
+   vert pour ce qui protège, orange seulement pour ce qui attend encore une
+   décision humaine.
+   ===================================================================== */
+.issue-attente .ag-etat-long {
+  color: var(--script);
+}
+.issue-refusee .ag-etat-long,
+.issue-coupee .ag-etat-long {
+  color: var(--ok);
+}
+.issue-reprise .ag-etat-long,
+.issue-close .ag-etat-long,
+.issue-classee .ag-etat-long,
+.issue-surveillee .ag-etat-long,
+.issue-salarie-clos .ag-etat-long {
+  color: var(--texte);
+}
+.issue-salarie-attente .ag-etat-long {
+  color: var(--script);
+}
+.issue-attente .ag-depuis {
+  color: var(--script);
+}
+
+/* « Couper » en option secondaire : contour, texte rouge. */
+.ag-pilule-couper-second {
+  border-color: var(--bord-fort);
+  background: #ffffff;
+  color: var(--alerte);
+}
+.ag-pilule-couper-second:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--alerte) 40%, transparent);
+  background: color-mix(in srgb, var(--alerte) 4%, #ffffff);
+}
+.ag-pilule-couper-second .ag-rond {
+  background: color-mix(in srgb, var(--alerte) 8%, #ffffff);
+}
+.ag-pilule-clore .ag-rond {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Toute la ligne d'une étape répond au clic, picto compris. */
+.ag-rail {
+  cursor: pointer;
+}
+.ag-maillon:hover .ag-etape-btn {
+  background: var(--survol);
+}
+
+/* Frise salarié : le message vu par le salarié, puis le lien désarmé. */
+.sal-message {
+  border: 0;
+  border-left: 3px solid var(--script);
+  border-radius: 12px;
+  background: #f9f9f9;
+  padding: 12px 16px;
+}
+.sal-message-titre {
+  display: block;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--texte);
+}
+.sal-message-texte {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--texte-doux);
+}
+.sal-message-lien {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--texte-faible);
+  overflow-wrap: anywhere;
+}
+
+/* « Clore l'incident » d'un agent : même gabarit que les autres choix
+   (texte à gauche, picto à droite) ; la version salarié reste centrée. */
+.ag-zone-decision:not(.issue-salarie) .ag-pilule-clore {
+  justify-content: space-between;
+  padding: 5px 5px 5px 20px;
+}
+.sal-avant {
+  margin-bottom: 26px;
+}

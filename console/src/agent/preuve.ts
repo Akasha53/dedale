@@ -54,12 +54,19 @@ function desarmerUrl(url: string): string {
   return `${proto.toLowerCase() === "https" ? "hxxps" : "hxxp"}://${couperDomaine(hote)}${resteMasque}`;
 }
 
-// Forme inerte d'une preuve : entités décodées, image markdown décrite,
-// liens désarmés, jetons canaris masqués, longueur bornée.
-export function preuveInerte(brut: unknown, max = 320): string {
+// Texte désarmé pour l'affichage courant : entités décodées, préfixe de
+// neutralisation retiré, liens en hxxp://, domaines et adresses coupés
+// (« [.] »), jetons canaris masqués. Ni coupé ni tassé : la mise en page du
+// texte reste celle d'origine. Tout texte venu du terrain passe par là.
+export function desarmer(brut: unknown): string {
   if (brut == null) return "";
   let t = typeof brut === "string" ? brut : JSON.stringify(brut);
   t = sansPrefixe(decoderEntites(t)).texte;
+  return desarmerLiens(t);
+}
+
+function desarmerLiens(texte: string): string {
+  let t = texte;
   // ![alt](url) : une image markdown est le vecteur de sortie, on la décrit.
   t = t.replace(/!\[[^\]]*\]\(([^)\s]+)\)/g, (_m, url) => `[image → ${desarmerUrl(url)}]`);
   t = t.replace(/https?:\/\/[^\s)"'\]]+/gi, (url) => desarmerUrl(url));
@@ -69,12 +76,17 @@ export function preuveInerte(brut: unknown, max = 320): string {
   );
   // Domaines nus (hors adresses mail et hôtes internes d'Orbis Pay) : coupés.
   t = t.replace(
-    /(?<![@\w.[\]-])((?:[a-z0-9-]+\.)+(?:example|com|net|org|io|fr|ru|xyz|info|biz|co|app|dev))\b/gi,
+    /(?<![@\w.[\]-])((?:[a-z0-9-]+\.)+(?:example|com|net|org|io|fr|ru|xyz|info|biz|co|app|dev|help))\b/gi,
     (d) => (HOTES_INTERNES.has(d.toLowerCase()) ? d : couperDomaine(d))
   );
   // Jetons canaris (faux secrets d'Orbis Pay) : jamais affichés en entier.
-  t = t.replace(/\b([A-Z]{3,}-CANARY-[A-Z0-9]{4})-[A-Za-z0-9]+/g, "$1-••••");
-  t = t.replace(/\s+/g, " ").trim();
+  return t.replace(/\b([A-Z]{3,}-CANARY-[A-Z0-9]{4})-[A-Za-z0-9]+/g, "$1-••••");
+}
+
+// Forme inerte d'une preuve : entités décodées, image markdown décrite,
+// liens désarmés, jetons canaris masqués, longueur bornée.
+export function preuveInerte(brut: unknown, max = 320): string {
+  const t = desarmer(brut).replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max).trimEnd()} […]` : t;
 }
 
