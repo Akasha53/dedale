@@ -190,7 +190,7 @@ final class Messagerie {
         } else if let s = texte(d, ["raison_principale", "raisons", "raison", "explication", "pourquoi"]) {
             raisons.append(s)
         }
-        raisons = raisons.map { phrase(Avertissement.nettoyer($0, max: 160)) }.filter { !$0.isEmpty }
+        raisons = raisons.map { phrase(Avertissement.nettoyer($0, max: 320)) }.filter { !$0.isEmpty }
 
         let codes = (d["signaux"] as? [[String: Any]] ?? []).compactMap { $0["code"] as? String }
         let paiement = !codesVirement.isDisjoint(with: codes)

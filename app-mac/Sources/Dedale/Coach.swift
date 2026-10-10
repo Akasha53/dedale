@@ -78,8 +78,10 @@ enum Coach {
                 repere = trouve.repere
             }
         }
-        return Fiche(piege: Avertissement.nettoyer(piege, max: 150),
-                     repere: Avertissement.nettoyer(repere, max: 150))
+        // Assez long pour une raison entière (domaine imité et vrai domaine compris) : le coach
+        // passe à la ligne, il ne coupe jamais une phrase au milieu.
+        return Fiche(piege: Avertissement.nettoyer(piege, max: 320),
+                     repere: Avertissement.nettoyer(repere, max: 200))
     }
 
     /// La première phrase : un point suivi d'une espace ou de la fin, pas celui d'un nom de
