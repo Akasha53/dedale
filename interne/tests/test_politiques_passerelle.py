@@ -111,6 +111,37 @@ def test_retenir_puis_couper(backend, monkeypatch):
     assert p.jeton_tache.revoque
 
 
+def test_droit_retire_par_une_regle(backend, monkeypatch):
+    """Règle de moindre privilège : l'outil piégé est refusé pour « droit retiré », sans être
+    exécuté, et les outils de la tâche passent."""
+    questions: list = []
+
+    def demander(base, corps):
+        questions.append(corps)
+        if corps["scope"] == "coffre:lire":
+            regle = {**REGLE, "effet": "droit_retire", "droit": "coffre:lire",
+                     "constat": "droit coffre:lire retiré par la règle n°1"}
+            return {"verdict": "droit_retire", "regle": regle, "regles": [regle]}
+        return {"verdict": "aucune", "regle": None, "regles": []}
+
+    monkeypatch.setattr(politiques, "demander", demander)
+    p = _passerelle(backend.base)
+    lus = []
+    res = p.appel_outil("lire_coffre", {"entree": "sauvegarde"}, lambda entree: lus.append(entree))
+    assert lus == [] and res["erreur"] == "outil refusé : droit retiré par l’analyste"
+    assert res["droit"] == "coffre:lire" and "coffre:lire" in p.droits_retires
+    assert p.appels_refuses[-1] == {"outil": "lire_coffre", "raison": "droit retiré"}
+    ev = backend.evenements("appel_outil")[-1]
+    assert ev["details"]["verdict"] == "refuse" and ev["details"]["droit_retire"] == "coffre:lire"
+    # La relance est refusée par la passerelle seule, sans redemander au backend.
+    n = len(questions)
+    p.appel_outil("lire_coffre", {"entree": "sauvegarde"}, lambda entree: lus.append(entree))
+    assert lus == [] and len(questions) == n
+    f, fait = _envoi()
+    p.appel_outil("envoyer_rapport", {"destinataire": "jean.moreau@orbispay.example", "contenu": "x"}, f)
+    assert fait == ["jean.moreau@orbispay.example"]
+
+
 def test_aucune_regle_ou_backend_muet(backend, monkeypatch):
     # Le faux backend ne connaît pas la route : aucune règle, l'appel suit son cours.
     p = _passerelle(backend.base)

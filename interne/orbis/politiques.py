@@ -7,7 +7,10 @@ garde (`backend/app/politiques.py`). Avant un appel, la passerelle demande au ba
 - `bloquer` : l'appel ne s'exécute pas ; l'agent reçoit un refus et continue ;
 - `retenir` : l'appel attend une décision de l'analyste prise après la retenue
   (`reprendre` le libère, `couper` arrête l'agent, rien dans le délai le refuse) ;
-- `alerter` : l'appel passe, un événement `regle` ouvre une alerte dans la console.
+- `alerter` : l'appel passe, un événement `regle` ouvre une alerte dans la console ;
+- `droit_retire` : une règle de moindre privilège a retiré le droit que l'outil exige. L'appel
+  est refusé avant exécution, avec le motif « droit retiré », exactement comme un droit retiré
+  depuis un incident, et la passerelle garde ce retrait pour le reste de la session.
 
 Chaque déclenchement part au backend avec `details.politique` : il devient un maillon
 « règle n°… » de la boîte noire. Si le backend ne répond pas, aucune règle ne s'applique et
@@ -47,6 +50,15 @@ def appliquer(passerelle, nom: str, params: dict, scope: str | None):
         "scope": scope, "parametres": masquer(params, passerelle.jetons),
         "horodatage": maintenant_iso(),
     })
+    if isinstance(rep, dict) and rep.get("verdict") == "droit_retire":
+        regle = rep.get("regle") if isinstance(rep.get("regle"), dict) else {}
+        code = scope or regle.get("droit")
+        if not isinstance(code, str) or not code:
+            return None
+        # Même chemin qu'un retrait fait depuis un incident : le droit sort du jeton et des
+        # droits accordés, et tout outil qui l'exige est refusé sans attendre l'analyste.
+        passerelle._noter_retraits({"droits_retires": [code]})
+        return passerelle._refuser_droit_retire(nom, code)
     if not isinstance(rep, dict) or rep.get("verdict") not in ("bloquer", "retenir", "alerter"):
         return None
     regle = rep.get("regle") if isinstance(rep.get("regle"), dict) else {}

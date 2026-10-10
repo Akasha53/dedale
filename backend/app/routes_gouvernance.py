@@ -22,11 +22,23 @@ def _store():
     return main.store
 
 
+def _aligner_droits() -> None:
+    """Droits retirés par les règles de moindre privilège : Store aligné, sessions persistées."""
+    from . import main
+
+    st = main.store
+    sessions = politiques.synchroniser(st)
+    if sessions:
+        main._enfiler({"sessions": sessions,
+                       "diffusions": [("session", st._session_vue(x)) for x in sessions]})
+
+
 class PhraseIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     phrase: str = Field(default="", max_length=500)
-    mode: str = "regles"
+    # Sans mode : le modèle lit la phrase, les motifs prennent le relais. « regles » : motifs seuls.
+    mode: str | None = None
 
 
 class ActivationIn(BaseModel):
@@ -51,45 +63,64 @@ class EvaluationIn(BaseModel):
 # ------------------------------------------------------------------ règles du SOC
 @routeur.post("/api/politiques/analyser")
 async def analyser_politique(corps: PhraseIn):
-    """Phrase en français → règle proposée et reformulation à faire valider. N'active rien."""
+    """Phrase en français → règle proposée et reformulation à faire valider. N'active rien.
+    `compris_par` dit qui a compris : « modèle » ou « motifs »."""
     if not corps.phrase.strip():
         raise HTTPException(status_code=400, detail="La phrase est vide.")
-    if corps.mode not in ("regles", "modele"):
+    if corps.mode not in (None, "regles", "modele"):
         raise HTTPException(status_code=400, detail="mode doit valoir 'regles' ou 'modele'")
-    if corps.mode == "modele":
-        return await politiques.analyser_avec_modele(corps.phrase)
-    return politiques.analyser(corps.phrase)
+    _aligner_droits()
+    if corps.mode == "regles":
+        return politiques.analyser(corps.phrase, _store())
+    return await politiques.analyser_avec_modele(corps.phrase, _store())
 
 
 @routeur.post("/api/politiques", status_code=201)
 async def activer_politique(corps: ActivationIn):
-    """Active une règle relue par l'analyste : la règle proposée, ou la phrase réanalysée."""
+    """Active une règle relue par l'analyste : la règle proposée, ou la phrase réanalysée.
+    Une règle de moindre privilège retire les droits tout de suite."""
+    _aligner_droits()
     regle = corps.regle
     if regle is None:
-        analyse = politiques.analyser(corps.phrase)
-        if not analyse["comprise"]:
+        analyse = politiques.analyser(corps.phrase, _store())
+        if not analyse["comprise"] or analyse["regle"] is None:
             raise HTTPException(status_code=400, detail=analyse["texte"])
         regle = analyse["regle"]
     try:
-        return politiques.registre.activer(regle, corps.phrase, corps.analyste)
+        entree = politiques.registre.activer(regle, corps.phrase, corps.analyste, _store())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _aligner_droits()
+    return entree
 
 
 @routeur.get("/api/politiques")
 async def lister_politiques(toutes: bool = False):
+    _aligner_droits()
     compte = politiques.declenchements(_store())
     regles = [{**r, **compte.get(r["id"], {"declenchements": 0, "dernier_declenchement": None})}
               for r in politiques.registre.lister(toutes=toutes)]
+    moteur, _raison = politiques.moteur_modele()
     return {"politiques": regles, "mode_modele": politiques.modele_actif(),
-            "formes": politiques.FORMES}
+            "lecteur": {"moteur": moteur or "motifs",
+                        "modele": politiques._nom_modele() if moteur else None},
+            "journal": politiques.registre.verifier(),
+            "formes": politiques.FORMES, "exemple_moindre": politiques.EXEMPLE_MOINDRE}
+
+
+@routeur.get("/api/politiques/journal")
+async def journal_politiques():
+    """Actes scellés : activations, retraits de règle, droits retirés puis rendus."""
+    return {"actes": politiques.registre.journal(), "verification": politiques.registre.verifier()}
 
 
 @routeur.delete("/api/politiques/{rid}")
 async def retirer_politique(rid: str, analyste: str = "inconnu"):
+    """Retire une règle. Pour une règle de moindre privilège, rend les droits aux agents."""
     r = politiques.registre.retirer(rid, analyste)
     if r is None:
         raise HTTPException(status_code=404, detail=f"Règle active inconnue : {rid}")
+    _aligner_droits()
     return {"retiree": r["id"], "politique": r}
 
 
