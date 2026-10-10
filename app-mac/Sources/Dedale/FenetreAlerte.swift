@@ -78,7 +78,9 @@ final class FenetreAlerte: NSObject {
         let a = avertissement
         let w = Self.interieur
         let entete = Gabarit.entete(titre: "Dédale", puce: a.libelleCategorie)
-        let message = Gabarit.paragraphe(a.message, taille: 17, graisse: .semibold, couleur: Teinte.encre, largeur: w)
+        // Geste critique : titre bâti sur les champs structurés, jamais sur le texte reçu.
+        let message = Gabarit.paragraphe(a.quatreYeux ? DemandeQuatreYeux.titre(pour: a) : a.message, taille: 17,
+                                         graisse: .semibold, couleur: Teinte.encre, largeur: w)
 
         // Pour un mail : « objet » · expéditeur, sur une ligne, désarmés.
         var ligneMail: NSTextField?
@@ -91,7 +93,7 @@ final class FenetreAlerte: NSObject {
             ligneMail = t
         }
         let detail = Gabarit.paragraphe(a.detail, taille: 13, couleur: Teinte.texte, largeur: w)
-        detail.isHidden = a.detail.isEmpty
+        detail.isHidden = a.detail.isEmpty || a.quatreYeux
 
         if a.mail != nil {
             boutonVoir = BoutonDedale(titre: "Voir le mail", style: .lien, cible: self, action: #selector(voir))

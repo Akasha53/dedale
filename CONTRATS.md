@@ -1033,7 +1033,12 @@ Des faits structurés, jamais le corps d'un mail : type de geste, nature dite en
 
 Le texte de la pop-up passe désarmé dans le champ `donnees_non_fiables` : désarmeur de `interne/`, puis liens en `hxxp`, domaines en `[.]`, 280 caractères au plus. Le prompt système dit que ce champ est une donnée. S'il portait une consigne adressée à une IA, le fait `consigne_retiree: true` suffit aux règles pour refuser.
 
-La sortie est un JSON strict : `decision`, `motif`, `confiance` pour un geste ; `priorite`, `decision_proposee`, `motif`, `confiance` pour un pré-tri. Une clé en trop, une valeur hors liste, un motif vide ou une confiance hors de [0, 1] font rejeter la sortie.
+La sortie est un JSON strict : `decision`, `motif_salarie`, `motif_soc`, `confiance` pour un geste ; `priorite`, `decision_proposee`, `motif`, `confiance` pour un pré-tri. Une clé en trop, une valeur hors liste, un `motif_soc` vide ou une confiance hors de [0, 1] font rejeter la sortie.
+
+Deux motifs pour un geste :
+
+- `motif_salarie` : la phrase que lit le salarié, en français courant, 220 caractères au plus. Par exemple « 12 400 fiches clients vers une adresse personnelle, c'est hors des usages de l'entreprise. » Elle ne contient jamais d'identifiant technique : ni nom de champ en snake_case, ni `true`/`false`/`null`, ni JSON, ni lien, ni adresse, ni pseudonyme, ni nom du modèle, ni consigne recopiée. Absente ou fautive, elle est remplacée par la phrase des règles quand elles ont la même issue, sinon par une phrase par défaut selon le geste (« Ce virement présente des signes inhabituels : il est bloqué par précaution. »).
+- `motif_soc` : le détail technique pour l'analyste, affiché par la console. `motif` en reste l'alias, pour les lecteurs déjà branchés.
 
 ### Geste critique (quatre yeux)
 
@@ -1048,7 +1053,9 @@ Déclencheur : un `avertissement` qui porte `details.quatre_yeux: "demande"`, se
 ```json
 {"demande_id": "a1b2c3", "incident_id": "INC-0003", "acte": "quatre_yeux", "statut": "tranchee",
  "decision": "refuse", "action": "refuser",
- "motif": "Continuer sur un mail jugé frauduleux : refus d'office.",
+ "motif_salarie": "Ce geste fait suite à un mail que Dédale a reconnu comme une arnaque.",
+ "motif_soc": "Continuer sur un mail que l'analyseur juge frauduleux : refus d'office.",
+ "motif": "Continuer sur un mail que l'analyseur juge frauduleux : refus d'office.",
  "tranche_par": "Haiku", "mode": "cli", "modele": "claude-haiku-5-5", "confiance": 0.93,
  "duree_ms": 1830, "repli": null, "garde_fou": false,
  "horodatage": "2026-10-10T21:40:02+00:00", "evenement_id": 42}
@@ -1056,7 +1063,7 @@ Déclencheur : un `avertissement` qui porte `details.quatre_yeux: "demande"`, se
 
 - `statut` vaut `en_cours` tant que le relecteur travaille (les autres champs valent alors `null`), puis `tranchee`. 404 si la demande est inconnue.
 - `mode` : `api`, `cli` ou `regles`. `repli` vaut `null`, ou `limite_usage`, `delai`, `panne`, `sortie_invalide`, `sans_modele` quand le modèle n'a pas tranché, et `quota` pour un pré-tri au-delà de `DEDALE_RELECTEUR_MAX_MINUTE` appels par minute (20 par défaut). `garde_fou: true` quand les règles ont annulé un accord du modèle.
-- App Mac (`QuatreYeux.swift`) : elle sonde cette route toutes les 0,4 s et relit `GET /api/incidents` chaque seconde comme avant. Trois réponses 404 (backend sans relecteur) arrêtent la sonde, et l'attente d'un analyste reprend avec son délai de 90 s. La pop-up affiche « Relu par Dédale en 1,8 s : refusé. », le motif, puis « Tranché par Haiku » ou « Tranché par les règles de Dédale ». La `consequence` de la riposte devient « Refusé par le relecteur Dédale (Haiku) en 1,8 s : le geste n'a pas eu lieu. »
+- App Mac (`QuatreYeux.swift`) : elle sonde cette route toutes les 0,4 s et relit `GET /api/incidents` chaque seconde comme avant. Trois réponses 404 (backend sans relecteur) arrêtent la sonde, et l'attente d'un analyste reprend avec son délai de 90 s. La pop-up affiche « Refusé » ou « Accordé », `motif_salarie`, en cas de refus « Si c'est légitime, demande à ton responsable de le confirmer à l'équipe sécurité. », puis « Vérifié automatiquement en 3,5 s. L'équipe sécurité peut revenir sur cette décision. » Ni `motif_soc` ni le nom du modèle n'apparaissent côté salarié. Le titre d'une pop-up de geste critique ne reprend jamais le texte reçu sur le port local ou tiré d'un mail : il est bâti sur `geste`, `cible` (une adresse valide seulement) et les nombres du message (`DedaleNoyau/TitreGeste.swift`), par exemple « Export de 40 fiches clients vers direction.financiere@orbispay.example ». Le texte de `detail` n'est pas affiché. La `consequence` de la riposte devient « Refusé par le relecteur Dédale (Haiku) en 1,8 s : le geste n'a pas eu lieu. »
 
 ### Pré-tri de chaque incident
 
@@ -1071,6 +1078,7 @@ Déclencheur : un `avertissement` qui porte `details.quatre_yeux: "demande"`, se
  "duree_ms": 2400, "repli": null, "horodatage": "2026-10-10T21:38:12+00:00", "evenement_id": 57}
 ```
 
+- `motif_soc` vaut `motif`, `motif_salarie` vaut `null` : le pré-tri ne s'adresse qu'à la SOC.
 - `priorite` : `haute`, `normale` ou `basse`. `decision_proposee` reprend le vocabulaire de `POST /api/incidents/{id}/decision` permis pour ce type : `couper`, `reprendre`, `ignorer`, `valider_riposte`, `clore` pour un agent ; `clore`, `ignorer`, `accorder`, `refuser` pour un salarié.
 - `doute` : confiance sous 0,7. `a_regarder` : doute ou priorité haute, sur un incident encore `ouvert`.
 - Tant qu'aucun pré-tri n'est scellé, la route rend celui des règles avec `statut: "en_cours"`. 404 si l'incident est inconnu.
@@ -1088,7 +1096,9 @@ Chaque décision est un événement de la session de l'incident, scellé dans la
  "details": {"acte": "quatre_yeux", "incident_id": "INC-0003", "demande_id": "a1b2c3",
    "relecteur": "Dédale", "modele": "claude-haiku-5-5", "mode": "cli", "tranche_par": "Haiku",
    "decision": "refuse", "priorite": null, "decision_proposee": "refuser",
-   "motif": "Continuer sur un mail jugé frauduleux : refus d'office.",
+   "motif_salarie": "Ce geste fait suite à un mail que Dédale a reconnu comme une arnaque.",
+   "motif_soc": "Continuer sur un mail que l'analyseur juge frauduleux : refus d'office.",
+   "motif": "Continuer sur un mail que l'analyseur juge frauduleux : refus d'office.",
    "confiance": 0.93, "duree_ms": 1830, "repli": null, "garde_fou": false}}
 ```
 
@@ -1107,7 +1117,7 @@ Il n'entre pas dans la boîte noire et ne touche ni au classement ni aux gestes 
 
 ### À faire côté console
 
-Sur un incident à quatre yeux, afficher la relecture (« Relu par Haiku en 1,8 s : refusé », puis le motif) avec Accorder et Refuser en recours. Afficher la file `GET /api/relecteur/file` et, sur chaque incident, la priorité et la décision proposée de `/tri`. Écouter `relecture` sur le WS. Aligner le mock.
+Sur un incident à quatre yeux, afficher la relecture (« Relu par Haiku en 1,8 s : refusé », puis `motif_soc`) avec Accorder et Refuser en recours. `motif_salarie` peut s'afficher à côté, comme « ce qu'a lu le salarié ». Afficher la file `GET /api/relecteur/file` et, sur chaque incident, la priorité et la décision proposée de `/tri`. Écouter `relecture` sur le WS. Aligner le mock.
 
 ## Avenant du 10 octobre 2026 : app Mac, poste (téléchargements, agents IA, transparence)
 

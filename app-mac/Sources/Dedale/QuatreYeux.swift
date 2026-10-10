@@ -1,3 +1,4 @@
+import DedaleNoyau
 import Foundation
 
 /// Les quatre yeux : un geste critique (virement, export de données clients) ne passe pas sur
@@ -18,10 +19,11 @@ final class DemandeQuatreYeux {
         case injoignable
     }
 
-    /// Ce que le relecteur a décidé : la pop-up l'affiche, la boîte noire le cite.
+    /// Ce que le relecteur a décidé. Le salarié ne lit que `motifSalarie`, en français courant ;
+    /// le motif technique et le nom du modèle restent dans la console.
     struct Relecture {
         let accorde: Bool
-        let motif: String
+        let motifSalarie: String
         let tranchePar: String
         let dureeMs: Int
 
@@ -51,26 +53,35 @@ final class DemandeQuatreYeux {
 
     // MARK: Textes de la pop-up
 
-    static let titreAttente = "Relecture par Dédale…"
+    /// Titre de la pop-up : jamais le texte reçu, qui peut venir d'un attaquant. On le bâtit sur
+    /// les champs structurés (geste, cible) et sur les seuls nombres du message.
+    static func titre(pour a: Avertissement) -> String {
+        TitreGeste.titre(geste: a.geste, categorie: a.categorie, message: "\(a.message) \(a.detail)",
+                         cible: a.cible, depuisUnMail: a.mail != nil)
+    }
+
+    static let titreAttente = "Vérification en cours…"
+    static let conseilRefus = "Si c'est légitime, demande à ton responsable de le confirmer à l'équipe sécurité."
 
     static func texteAttente(restant: Int) -> String {
         if delai - restant < attenteRelecteur {
-            return "Le relecteur vérifie ce geste. La SOC voit sa décision."
+            return "Dédale vérifie ce geste, cela prend quelques secondes."
         }
-        return "Pas encore de réponse. Sans décision de la SOC dans \(restant) s, le geste est refusé."
+        return "Pas encore de réponse. Sans décision de l'équipe sécurité dans \(restant) s, le geste est refusé."
     }
 
     static func texteIssue(_ issue: Issue, relecture r: Relecture?) -> String {
         if let r, issue == .accorde || issue == .refuse {
-            let qui = r.tranchePar == "règles" ? "les règles de Dédale" : r.tranchePar
-            return "Relu par Dédale en \(r.duree) : \(r.accorde ? "accordé" : "refusé").\n\(r.motif)\n"
-                + "Tranché par \(qui). La SOC peut revenir sur cette décision."
+            var lignes = [r.motifSalarie]
+            if !r.accorde { lignes.append(conseilRefus) }
+            lignes.append("Vérifié automatiquement en \(r.duree). L'équipe sécurité peut revenir sur cette décision.")
+            return lignes.joined(separator: "\n")
         }
         switch issue {
-        case .accorde: return "La SOC a validé ce geste. Vous pouvez continuer."
-        case .refuse: return "La SOC a refusé ce geste. Il n'aura pas lieu."
-        case .expire: return "Pas de réponse de la SOC à temps. Le geste n'aura pas lieu."
-        case .injoignable: return "La SOC est injoignable. Le geste n'aura pas lieu."
+        case .accorde: return "L'équipe sécurité a validé ce geste. Tu peux continuer."
+        case .refuse: return "L'équipe sécurité a refusé ce geste. Il n'aura pas lieu.\n\(conseilRefus)"
+        case .expire: return "Pas de réponse de l'équipe sécurité à temps : le geste n'aura pas lieu.\n\(conseilRefus)"
+        case .injoignable: return "L'équipe sécurité est injoignable : le geste n'aura pas lieu."
         }
     }
 
@@ -171,8 +182,11 @@ final class DemandeQuatreYeux {
                let json = try? JSONSerialization.jsonObject(with: donnees) as? [String: Any],
                json["statut"] as? String == "tranchee",
                let decision = json["decision"] as? String, decision == "accorde" || decision == "refuse" {
-                let motif = (json["motif"] as? String).map { String($0.prefix(220)) } ?? ""
-                r = Relecture(accorde: decision == "accorde", motif: motif,
+                // Jamais `motif` ni `motif_soc` : ce sont les détails techniques de la SOC.
+                let defaut = decision == "accorde" ? "Rien d'inhabituel n'a été repéré dans ce geste."
+                    : "Ce geste présente des signes inhabituels : il est bloqué par précaution."
+                let phrase = (json["motif_salarie"] as? String).map { String($0.prefix(220)) } ?? ""
+                r = Relecture(accorde: decision == "accorde", motifSalarie: phrase.isEmpty ? defaut : phrase,
                               tranchePar: (json["tranche_par"] as? String) ?? "règles",
                               dureeMs: (json["duree_ms"] as? NSNumber)?.intValue ?? 0)
             }
