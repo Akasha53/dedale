@@ -80,183 +80,184 @@ function capture(slide,chemin,x,y,w,h,legende) {
                      {fontSize:9.2,color:C.faible,fontFace:'Courier New'});
 }
 
-// 1. Couverture
+// 1. Problème
 {
   const slide = pptx.addSlide();
-  slide.addImage({path:image('landing/img/gen/hero.png'),x:0,y:0,w:W,h:H});
-  slide.addShape(S.rect,{x:0,y:0,w:7.65,h:H,
-    line:{color:C.nuit,transparency:100},fill:{color:C.nuit,transparency:8}});
-  slide.addShape(S.rect,{x:7.65,y:0,w:2.0,h:H,
-    line:{color:C.nuit,transparency:100},fill:{color:C.nuit,transparency:55}});
-  etiquette(slide,'TRACK 2  ·  CYBERSÉCURITÉ',0.78,0.79,3.0);
-  texte(slide,'Dédale',0.77,1.74,6.5,0.95,{fontSize:54,bold:true});
-  texte(slide,'Le garde du corps des salariés\net des agents IA',0.8,2.85,6.35,1.35,
-        {fontSize:28,bold:true,breakLine:false,fit:'shrink'});
-  ligne(slide,0.8,4.45,2.7,4.45,C.cyan,3);
-  texte(slide,'Même console SOC. Deux gestes à risque.\nUne décision humaine traçable.',
-        0.8,4.74,5.9,0.95,{fontSize:19,color:C.doux,breakLine:false});
-  texte(slide,'Prototype local · 10 octobre 2026',0.8,6.66,5.1,0.28,
-        {fontFace:'Courier New',fontSize:10,color:C.doux});
-  slide.addNotes('Ouvrir sur les deux acteurs qui lisent et agissent. Le deck décrit le prototype du 10 octobre 2026. L’application native, les connexions Outlook/Gmail et le déploiement sur site sont la cible produit, pas des fonctions disponibles ici.');
-}
-
-// 2. Problème et donnée sourcée
-{
-  const slide = pptx.addSlide();
-  titre(slide,2,'Problème','Deux lecteurs, un même piège','Un message frauduleux peut orienter un salarié ou détourner un agent qui lit à sa place.');
+  titre(slide,1,'Dédale  /  Le problème','Un salarié sur trois échoue encore aux tests de phishing','Et les agents IA lisent déjà les mêmes boîtes mail, avec des droits.');
   bloc(slide,0.67,2.17,4.28,3.92,{fond:C.panneau2,bord:C.cyan});
   texte(slide,'33,1 %',0.95,2.48,3.7,1.0,{fontSize:58,bold:true,color:C.cyan});
-  texte(slide,'Taux initial de personnes susceptibles d’interagir avec une simulation de phishing, avant formation.',
+  texte(slide,'des personnes interagissent avec une simulation de phishing avant toute formation.',
         0.99,3.51,3.62,1.29,{fontSize:18,fit:'shrink'});
   ligne(slide,0.98,5.03,4.62,5.03,C.trait,0.8);
-  texte(slide,'67,7 M de tests · 62 400 organisations',0.98,5.18,3.65,0.39,
+  texte(slide,'67 M de tests · plus de 62 000 organisations',0.98,5.18,3.65,0.39,
         {fontFace:'Courier New',fontSize:10.2,color:C.doux,fit:'shrink'});
   capture(slide,'landing/img/gen/mail-garde.png',5.26,2.18,7.39,4.16);
-  texte(slide,'Source : KnowBe4, Phishing by Industry Benchmarking Report 2025. Illustration conceptuelle ; chiffre hors Dédale.',
+  texte(slide,'Source : KnowBe4, Phishing by Industry Benchmarking Report 2025. Chiffre hors Dédale ; image d’illustration.',
         0.68,6.55,11.9,0.35,{fontSize:10.4,color:C.faible,fit:'shrink',
           hyperlink:{url:'https://www.knowbe4.com/resources/reports/2025-phishing-by-industry-benchmarking-report'}});
-  slide.addNotes('Le benchmark KnowBe4 2025 annonce 33,1 % de Phish-prone Percentage initial, basé sur 67,7 millions de tests simulés dans 62 400 organisations. Ne pas dire que 33,1 % des salariés cliquent sur de vrais mails frauduleux. Source : https://www.knowbe4.com/resources/reports/2025-phishing-by-industry-benchmarking-report');
+  slide.addNotes('Ouvrir sur la faille humaine. KnowBe4 2025 : 33,1 % de taux initial (Phish-prone Percentage) sur environ 67 millions de tests simulés. Ce n’est pas la part de salariés qui cliquent sur de vrais mails frauduleux, et ce n’est pas une mesure de Dédale. Le taux tombe autour de 4 % après un an de formation : la formation aide, elle ne suffit pas. Source : https://www.knowbe4.com/resources/reports/2025-phishing-by-industry-benchmarking-report');
 }
 
-// 3. Angle commun
+// 2. L'angle
 {
   const slide = pptx.addSlide();
-  titre(slide,3,'Angle','Le risque apparaît au moment d’agir','Le prototype surveille deux chemins, avec des réponses adaptées à chacun.');
-  bloc(slide,0.68,2.15,5.89,3.83,{fond:C.panneau2,bord:C.cyan});
-  bloc(slide,6.77,2.15,5.89,3.83,{fond:C.panneau2,bord:C.violet});
-  etiquette(slide,'SALARIÉ',0.97,2.48,1.55,C.cyan);
-  etiquette(slide,'AGENT IA',7.05,2.48,1.71,C.violet);
-  texte(slide,'Un mail frauduleux arrive',0.98,3.08,5.12,0.52,{fontSize:21,bold:true});
-  texte(slide,'Le garde signale le geste. Camille choisit annuler ou continuer.',
-        0.98,3.78,4.93,1.0,{fontSize:17,color:C.doux,fit:'shrink'});
-  texte(slide,'Annuler évite l’incident simulé. Continuer ouvre un dossier.',
-        0.98,5.14,4.98,0.52,{fontSize:14.2,color:C.cyan,fit:'shrink'});
-  texte(slide,'Une consigne se cache dans un mail ou un outil',7.06,3.08,5.18,0.8,
-        {fontSize:21,bold:true,fit:'shrink'});
-  texte(slide,'La passerelle retient l’appel. L’analyste choisit couper ou reprendre.',
-        7.06,4.06,4.96,0.91,{fontSize:17,color:C.doux,fit:'shrink'});
-  texte(slide,'Couper arrête l’agent. Reprendre libère l’appel retenu.',
-        7.06,5.14,5.02,0.52,{fontSize:14.2,color:C.violet,fit:'shrink'});
-  texte(slide,'Dans cette démo : gestes salariés simulés et agent interne scripté.',
-        0.68,6.34,11.98,0.35,{fontSize:12.8,color:C.faible,fit:'shrink'});
-  slide.addNotes('Faire la distinction à voix haute : le choix du salarié ne coupe jamais le poste. Pour l’agent, le contrôle humain s’applique à un appel d’outil retenu. La variante droits refuse localement un appel hors du jeton de tâche.');
+  titre(slide,2,'L’angle','La faille, c’est celui qui clique','Dans une entreprise, deux maillons lisent, cliquent et agissent.');
+  bloc(slide,0.68,2.15,5.89,3.55,{fond:C.panneau2,bord:C.cyan});
+  bloc(slide,6.77,2.15,5.89,3.55,{fond:C.panneau2,bord:C.violet});
+  etiquette(slide,'SALARIÉS',0.97,2.48,1.7,C.cyan);
+  etiquette(slide,'AGENTS IA',7.05,2.48,1.85,C.violet);
+  texte(slide,'Un mail de phishing',0.98,3.08,5.2,0.52,{fontSize:23,bold:true});
+  texte(slide,'Un faux expéditeur, un lien piégé, et la personne clique.',
+        0.98,3.8,4.95,1.2,{fontSize:18,color:C.doux,fit:'shrink'});
+  texte(slide,'Une instruction cachée',7.06,3.08,5.2,0.52,{fontSize:23,bold:true});
+  texte(slide,'Dans un mail ou dans la description d’un outil, et l’agent agit.',
+        7.06,3.8,4.95,1.2,{fontSize:18,color:C.doux,fit:'shrink'});
+  texte(slide,'Même faille, deux visages. Personne ne surveille les deux ensemble.',
+        0.68,6.0,12.0,0.45,{fontSize:18,bold:true,color:C.blanc,fit:'shrink'});
+  slide.addNotes('Un pare-feu protège les tuyaux ; Dédale protège ceux qui décident d’ouvrir. Phrase à dire : Dédale est le rempart entre l’extérieur et les deux seuls maillons qui, dans une entreprise, cliquent, lisent et agissent : vos salariés et vos agents IA. Référentiel pour l’agent : Top 10 OWASP des applications agentiques (empoisonnement d’outils).');
 }
 
-// 4. Chaîne SOC
+// 3. La solution
 {
   const slide = pptx.addSlide();
-  titre(slide,4,'Méthode','Une enquête dans la même console','Chaque incident relie le signal, l’action tentée, la décision et son résultat.');
+  titre(slide,3,'La solution','Un garde du corps, une seconde avant le geste','Dédale tourne en local, sur chaque poste et chaque agent.');
+  const lignes = [
+    ['01','Il repère le geste à risque : mail frauduleux, lien piégé, outil empoisonné.'],
+    ['02','Il le retient avant qu’il parte.'],
+    ['03','La personne tranche : annuler ou continuer.'],
+    ['04','La SOC voit tout dans une seule console.'],
+  ];
+  lignes.forEach((l,i)=>{
+    texte(slide,l[0],0.72,2.3+i*1.0,0.6,0.5,{fontFace:'Courier New',fontSize:15,color:i%2?C.violet:C.cyan,bold:true});
+    texte(slide,l[1],1.4,2.2+i*1.0,4.7,0.75,{fontSize:17.5,fit:'shrink'});
+  });
+  capture(slide,'landing/img/gen/salarie-garde.png',6.45,2.18,6.2,3.49,'Image d’illustration');
+  texte(slide,'Un pare-feu protège les tuyaux. Dédale protège ceux qui décident d’ouvrir.',
+        0.68,6.35,12.0,0.4,{fontSize:15,color:C.doux,fit:'shrink'});
+  slide.addNotes('Le garde du poste ne coupe jamais le poste du salarié : il avertit, la personne choisit. Pour l’agent, c’est l’appel d’outil qui est retenu.');
+}
+
+// 4. Le même moteur
+{
+  const slide = pptx.addSlide();
+  titre(slide,4,'Le même moteur','Un seul moteur pour l’humain et pour l’agent','Chaque incident suit la même chaîne, du signal à l’export.');
   const cartes = [
-    {n:'01',t:'Observer',d:'Événement du poste ou de la passerelle de l’agent',c:C.cyan},
-    {n:'02',t:'Reconstituer',d:'Boîte noire : source, signal, outil et conséquence',c:C.violet},
-    {n:'03',t:'Décider',d:'Choix explicite du salarié ou de l’analyste SOC',c:C.cyan},
-    {n:'04',t:'Exporter',d:'ECS, Sigma et brouillon NIS2 à relire',c:C.violet},
+    {n:'01',t:'Détecter',d:'Le geste à risque, au poste ou à la passerelle de l’agent.',c:C.cyan},
+    {n:'02',t:'Boîte noire',d:'Source, consigne, outil appelé, décision, résultat.',c:C.violet},
+    {n:'03',t:'L’humain tranche',d:'Le salarié ou l’analyste SOC choisit. Rien ne se bloque tout seul.',c:C.cyan},
+    {n:'04',t:'NIS2 et SIEM',d:'Brouillon de notification et export ECS / Sigma.',c:C.violet},
   ];
   cartes.forEach((o,i)=>{
-    const x=0.68+i*3.17;
-    bloc(slide,x,2.39,2.91,3.26,{fond:C.panneau2,bord:o.c});
+    const x=0.68+i*3.07;
+    bloc(slide,x,2.39,2.8,3.26,{fond:C.panneau2,bord:o.c});
     texte(slide,o.n,x+0.22,2.68,0.65,0.43,{fontFace:'Courier New',fontSize:16.5,color:o.c,bold:true});
-    texte(slide,o.t,x+0.22,3.29,2.4,0.44,{fontSize:20,bold:true});
-    ligne(slide,x+0.22,3.9,x+2.67,3.9,C.trait,0.9);
-    texte(slide,o.d,x+0.22,4.13,2.42,1.06,{fontSize:15.1,color:C.doux,fit:'shrink'});
+    texte(slide,o.t,x+0.22,3.29,2.5,0.44,{fontSize:20,bold:true,fit:'shrink'});
+    ligne(slide,x+0.22,3.9,x+2.58,3.9,C.trait,0.9);
+    texte(slide,o.d,x+0.22,4.13,2.36,1.2,{fontSize:15.1,color:C.doux,fit:'shrink'});
   });
-  texte(slide,'Le brouillon NIS2 n’est ni une qualification juridique ni une notification envoyée.',
+  texte(slide,'Le brouillon NIS2 est à relire : ce n’est ni une qualification juridique ni une notification envoyée.',
         0.68,6.15,12.0,0.4,{fontSize:13.2,color:C.faible,fit:'shrink'});
-  slide.addNotes('Montrer que le dossier est consultable dans la console et que les exports sont dérivés des faits. Ne pas présenter le brouillon NIS2 comme un envoi réglementaire automatique.');
+  slide.addNotes('Référentiels de lecture, sans prétendre à une certification : NIST CSF 2.0 (Détecter, Répondre), MITRE ATT&CK et ATLAS, OWASP agentique. Aucun taux du banc synthétique n’est annoncé comme performance produit.');
 }
 
-// 5. Démo
+// 5. La démo
 {
   const slide = pptx.addSlide();
-  titre(slide,5,'Démo','Du mail au dossier d’incident','Un seul lancement crée les deux scènes sur le backend local.');
-  bloc(slide,0.68,2.15,4.15,3.98,{fond:C.panneau2,bord:C.cyan});
-  etiquette(slide,'./demo.sh',0.98,2.48,1.91,C.cyan);
-  texte(slide,'1  Camille reçoit un mail frauduleux et choisit annuler ou continuer.',
-        0.99,3.07,3.48,0.96,{fontSize:16.9,fit:'shrink'});
-  ligne(slide,0.99,4.22,4.46,4.22,C.trait,0.9);
-  texte(slide,'2  L’agent lit un mail piégé. Son appel sortant attend la décision SOC.',
-        0.99,4.48,3.5,1.12,{fontSize:16.9,fit:'shrink'});
-  capture(slide,'landing/img/shots/incident-boite-noire.png',5.16,2.28,7.52,3.74,
-          'Capture du prototype local, 10 octobre 2026');
-  texte(slide,'La démo utilise Orbis Pay, une entreprise fictive, et ne transmet aucun rapport réel.',
-        0.68,6.47,12.0,0.37,{fontSize:11.5,color:C.faible,fit:'shrink'});
-  slide.addNotes('Commande du guide : ./lancer.sh, puis ./demo.sh. Montrer le choix salarié ; pour voir un incident humain, choisir continuer. Dans la console, ouvrir ensuite l’incident de l’agent et décider couper. La capture représente le prototype local au 10 octobre 2026 ; la démo vivante fait foi.');
+  titre(slide,5,'La démo','Ce que vous allez voir en direct','Une commande, trois minutes, hors ligne.');
+  bloc(slide,0.68,2.15,4.9,3.98,{fond:C.panneau2,bord:C.cyan});
+  const etapes = [
+    'Camille ouvre un faux mail : la pop-up l’arrête avant le clic.',
+    'Un agent interne lit un mail piégé et tente un appel d’outil.',
+    'La passerelle retient l’appel. La console reconstruit la chaîne.',
+    'L’analyste coupe ou reprend. Export SIEM et brouillon NIS2.',
+  ];
+  etapes.forEach((t,i)=>{
+    texte(slide,`${i+1}`,0.98,2.45+i*0.88,0.4,0.4,{fontFace:'Courier New',fontSize:15,color:i%2?C.violet:C.cyan,bold:true});
+    texte(slide,t,1.45,2.35+i*0.88,3.95,0.75,{fontSize:15.2,fit:'shrink'});
+  });
+  capture(slide,'landing/img/shots/incident-boite-noire.png',5.9,2.28,6.75,3.36,
+          'Console SOC, prototype local du 10 octobre 2026');
+  texte(slide,'Entreprise fictive Orbis Pay. L’agent est scripté pour que la démo soit reproductible.',
+        0.68,6.47,12.0,0.37,{fontSize:12,color:C.faible,fit:'shrink'});
+  slide.addNotes('Lancer ./lancer.sh puis ./demo.sh. Pour voir un incident côté salarié, choisir continuer. Dans la console, ouvrir l’incident de l’agent et décider couper. Dire clairement : une tentative retenue n’est pas une fuite réussie, et nous ne revendiquons aucun taux de réussite d’attaque sur des modèles réels.');
 }
 
-// 6. Preuve technique agents
+// 6. Déploiement
 {
   const slide = pptx.addSlide();
-  titre(slide,6,'Preuve technique','L’appel d’outil est le point de contrôle','Canari, journal d’outil et décision humaine sont visibles dans le même incident.');
-  capture(slide,'landing/img/shots/outil-mcp-piege.png',0.68,2.21,8.08,4.03,
-          'Capture du scénario outil MCP piégé, données fictives');
-  bloc(slide,9.03,2.21,3.63,4.03,{fond:C.panneau2,bord:C.violet});
-  etiquette(slide,'OUTIL MCP PIÉGÉ',9.28,2.49,2.85,C.violet);
-  texte(slide,'Une consigne suspecte se cache dans la description de l’outil.',
-        9.29,3.13,2.98,0.81,{fontSize:16.5,fit:'shrink'});
-  ligne(slide,9.29,4.14,12.27,4.14,C.trait,0.9);
-  texte(slide,'La passerelle retient l’appel sortant. L’analyste coupe ou reprend.',
-        9.29,4.37,2.98,0.95,{fontSize:16.5,fit:'shrink'});
-  texte(slide,'Hors droits : l’appel est refusé localement.',
-        9.29,5.55,2.98,0.45,{fontSize:12.8,color:C.violet,fit:'shrink'});
-  slide.addNotes('Préciser que l’agent du parcours commun est scripté et les secrets sont faux. Un outil MCP empoisonné correspond à la variante --avec-mcp ; une tentative hors droits à --avec-droits. Ce ne sont pas des attaques sur un service réel. Ne pas affirmer une exfiltration réussie lorsque seul un appel a été tenté.');
-}
-
-// 7. État et déploiement
-{
-  const slide = pptx.addSlide();
-  titre(slide,7,'Déploiement','Ce qui tourne. Ce qu’il reste à intégrer.','Le prototype local prouve le flux de défense, pas une surveillance native des postes.');
+  titre(slide,6,'Déploiement','Rien ne sort de l’entreprise','La cible produit d’un côté, ce qui tourne aujourd’hui de l’autre.');
   bloc(slide,0.68,2.19,5.91,3.96,{fond:C.panneau2,bord:C.cyan});
   bloc(slide,6.77,2.19,5.89,3.96,{fond:C.panneau2,bord:C.violet});
-  etiquette(slide,'AUJOURD’HUI',0.98,2.49,2.22,C.cyan);
-  etiquette(slide,'CIBLE PRODUIT',7.07,2.49,2.55,C.violet);
-  const actuel=[
-    'Gestes salariés simulés et avertissement',
-    'Agent fictif et appels d’outils locaux',
-    'Backend, console SOC, incidents et exports',
-  ];
+  etiquette(slide,'CIBLE PRODUIT',0.98,2.49,2.55,C.cyan);
+  etiquette(slide,'PROTOTYPE AUJOURD’HUI',7.07,2.49,3.1,C.violet);
   const futur=[
-    'Application de poste discrète',
-    'Connexions messagerie et navigateur autorisées',
-    'Passerelle pour les agents déployés sur site',
+    'Une appli de poste, discrète, en arrière-plan',
+    'Un serveur sur site : les données restent chez le client',
+    'Un tableau de bord pour la SOC',
   ];
-  actuel.forEach((t,i)=>{
-    texte(slide,`${i+1}.`,0.99,3.22+i*0.77,0.42,0.39,
-          {fontFace:'Courier New',fontSize:14,color:C.cyan});
-    texte(slide,t,1.48,3.16+i*0.77,4.77,0.58,
-          {fontSize:16.0,fit:'shrink'});
-  });
+  const actuel=[
+    'Gestes salariés simulés, pop-up d\u2019avertissement',
+    'Agent scripté, passerelle et outils locaux',
+    'Console SOC, boîte noire, exports',
+  ];
   futur.forEach((t,i)=>{
-    texte(slide,`${i+1}.`,7.08,3.22+i*0.77,0.42,0.39,
-          {fontFace:'Courier New',fontSize:14,color:C.violet});
-    texte(slide,t,7.57,3.16+i*0.77,4.72,0.58,
-          {fontSize:16.0,fit:'shrink'});
+    texte(slide,`${i+1}.`,0.99,3.22+i*0.77,0.42,0.39,{fontFace:'Courier New',fontSize:14,color:C.cyan});
+    texte(slide,t,1.48,3.16+i*0.77,4.77,0.58,{fontSize:16.0,fit:'shrink'});
   });
-  texte(slide,'Mesures du banc : trafic synthétique. Aucune performance en production annoncée.',
+  actuel.forEach((t,i)=>{
+    texte(slide,`${i+1}.`,7.08,3.22+i*0.77,0.42,0.39,{fontFace:'Courier New',fontSize:14,color:C.violet});
+    texte(slide,t,7.57,3.16+i*0.77,4.72,0.58,{fontSize:16.0,fit:'shrink'});
+  });
+  texte(slide,'Pas de surveillance native du Mac ni de connexion Outlook ou Gmail dans cette démo.',
         0.68,6.45,12.0,0.37,{fontSize:12.3,color:C.faible,fit:'shrink'});
-  slide.addNotes('Le produit visé fonctionnerait dans l’environnement de l’entreprise. Aucune intégration native Mac, Outlook ou Gmail n’est actuellement livrée. Les taux du banc ne peuvent pas être extrapolés à la production.');
+  slide.addNotes('Distinguer à voix haute ce qui est livré et ce qui est visé. Les intégrations messagerie et navigateur, la gestion des identités et la rétention viennent après le hackathon.');
 }
 
-// 8. Marché, équipe, suite
+// 7. Marché et modèle
 {
   const slide = pptx.addSlide();
-  titre(slide,8,'Suite','Prouver la valeur chez un client cible','Notre hypothèse : organisations avec beaucoup de salariés, données sensibles et agents IA en déploiement.');
-  bloc(slide,0.68,2.18,6.01,3.96,{fond:C.panneau2,bord:C.cyan});
-  texte(slide,'Première validation',0.99,2.52,5.36,0.52,{fontSize:22,bold:true});
-  texte(slide,'Un pilote instrumenté : scénarios indépendants, erreurs du détecteur, temps de traitement par l’analyste et limites documentées.',
-        0.99,3.29,5.17,1.47,{fontSize:18,fit:'shrink'});
-  ligne(slide,0.99,5.12,6.35,5.12,C.trait,0.9);
-  texte(slide,'Aucun prospect cité comme client acquis.',0.99,5.39,5.16,0.37,
-        {fontSize:12.9,color:C.cyan,fit:'shrink'});
-  bloc(slide,6.91,2.18,5.75,3.96,{fond:C.panneau2,bord:C.violet});
-  texte(slide,'Équipe du hackathon',7.23,2.52,5.0,0.52,{fontSize:22,bold:true});
-  texte(slide,'Guilhem · Paul\nPierre-Antoine · Théophile',7.23,3.41,4.92,1.26,
-        {fontSize:24,breakLine:false,fit:'shrink'});
-  ligne(slide,7.23,5.12,12.31,5.12,C.trait,0.9);
-  texte(slide,'Démo et code : entreprise fictive Orbis Pay',7.23,5.39,5.08,0.38,
-        {fontSize:12.9,color:C.violet,fit:'shrink'});
-  texte(slide,'Voir le parcours et ses limites : docs/DEMO.md',0.68,6.45,12.0,0.36,
-        {fontFace:'Courier New',fontSize:11.2,color:C.faible});
-  slide.addNotes('Les secteurs fintech, santé, SaaS et marketplace sont des terrains de recherche, pas une validation commerciale. Les noms de prospects évoqués dans le cadrage ne figurent pas ici faute de preuve d’adoption d’agents et de contact commercial. Présenter les quatre membres de l’équipe sans attribuer de rôle non confirmé.');
+  titre(slide,7,'Marché et modèle','Des entreprises à la fois nombreuses et outillées en agents','Hypothèses à valider, pas des clients.');
+  bloc(slide,0.68,2.19,3.9,3.96,{fond:C.panneau2,bord:C.cyan});
+  etiquette(slide,'CLIENT IDÉAL',0.98,2.49,1.95,C.cyan);
+  texte(slide,'Beaucoup de salariés, des agents IA déjà en production, des données sensibles.',
+        0.98,3.1,3.3,1.7,{fontSize:16.5,fit:'shrink'});
+  texte(slide,'Soumis à NIS2, DORA ou l’AI Act.',0.98,5.05,3.3,0.6,{fontSize:13.5,color:C.cyan,fit:'shrink'});
+  bloc(slide,4.72,2.19,4.1,3.96,{fond:C.panneau2,bord:C.violet});
+  etiquette(slide,'5 COMPTES À VÉRIFIER',5.02,2.49,2.75,C.violet);
+  ['Revolut','Qonto','Doctolib','Alan','Back Market'].forEach((n,i)=>{
+    texte(slide,n,5.02,3.1+i*0.52,3.5,0.4,{fontSize:18,bold:i===0});
+  });
+  texte(slide,'Adoption réelle d’agents non confirmée.',5.02,5.75,3.6,0.3,{fontSize:11.5,color:C.violet,fit:'shrink'});
+  bloc(slide,8.96,2.19,3.7,3.96,{fond:C.panneau2,bord:C.cyan});
+  etiquette(slide,'PRIX (HYPOTHÈSE)',9.26,2.49,2.4,C.cyan);
+  texte(slide,'5 à 30 €',9.26,3.2,3.2,0.9,{fontSize:38,bold:true,color:C.cyan,fit:'shrink'});
+  texte(slide,'par utilisateur et par mois, selon que l’entreprise ajoute la supervision des agents.',
+        9.26,4.2,3.1,1.4,{fontSize:15,color:C.doux,fit:'shrink'});
+  texte(slide,'Aucun de ces comptes n’est client, ni même contacté. À éviter en premier client : les spécialistes d’infra, qui le font en interne.',
+        0.68,6.38,12.0,0.5,{fontSize:12,color:C.faible,fit:'shrink'});
+  slide.addNotes('Volet mails : presque toutes les grandes entreprises. Volet agents, plus cher : fintech, SaaS, santé, marketplaces. Les cinq noms sont des candidats plausibles, pas une validation commerciale. La fourchette 5 à 30 euros est un ordre de grandeur à tester, pas une grille tarifaire.');
+}
+
+// 8. Équipe
+{
+  const slide = pptx.addSlide();
+  titre(slide,8,'Équipe','Quatre personnes, un week-end','Secure Horizons, Track 2.');
+  const gens=[
+    ['Guilhem','Capteurs, passerelle, boîte noire',C.cyan],
+    ['Paul','Scénario, modèle économique, pitch',C.violet],
+    ['Pierre-Antoine','',C.cyan],
+    ['Théophile','',C.violet],
+  ];
+  gens.forEach((g,i)=>{
+    const x=0.68+i*3.07;
+    bloc(slide,x,2.39,2.8,2.6,{fond:C.panneau2,bord:g[2]});
+    texte(slide,g[0],x+0.22,2.9,2.5,0.5,{fontSize:22,bold:true,fit:'shrink'});
+    ligne(slide,x+0.22,3.6,x+2.58,3.6,C.trait,0.9);
+    if (g[1]) texte(slide,g[1],x+0.22,3.8,2.36,0.9,{fontSize:15,color:C.doux,fit:'shrink'});
+  });
+  texte(slide,'Démo et code : entreprise fictive Orbis Pay. Dépôt et guide de démo : docs/DEMO.md',
+        0.68,6.45,12.0,0.36,{fontFace:'Courier New',fontSize:11.2,color:C.faible});
+  slide.addNotes('Rôles de Pierre-Antoine et de Théophile à confirmer par eux avant dimanche 12 h ; ne rien écrire qu’ils n’ont pas validé.');
 }
 
 pptx.writeFile({fileName:sortie}).then(()=>console.log(sortie));
