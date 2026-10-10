@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "name": "dedale-pitch",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "node generer.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "4.0.1"
+  }
+}

@@ -1,10 +1,41 @@
 # Dédale
 
-Des pièges que seul un agent IA suit. Dehors, Dédale reconnaît les agents IA qui attaquent la surface exposée d'une entreprise, les perd dans un labyrinthe et leur fait avouer leur objectif. Dedans, il attrape l'agent IA de l'entreprise quand un mail ou un document piégé l'a détourné. Une boîte noire montre au SOC toute la chaîne, et un humain valide chaque riposte forte.
+Dédale réunit la protection des salariés et des agents IA dans une même console SOC. Un salarié peut suivre un lien trompeur ; son assistant peut obéir à une instruction cachée dans un mail. Le garde du poste avertit le salarié, la passerelle retient l'appel suspect de l'agent, et la boîte noire conserve les événements et les décisions.
 
 Projet du hackathon Secure Horizons (ESSEC, 10-11 octobre 2026), Track 2. Entreprise et données fictives.
 
 Contrats entre modules : [CONTRATS.md](CONTRATS.md).
+
+## Préparer la démo
+
+Il faut Python 3.12 ou plus, `uv`, Node.js, npm et `curl`. Depuis un clone neuf :
+
+```bash
+cd console && npm ci && cd ..
+cd backend && uv sync && cd ..
+cd leurres && uv sync && cd ..
+cd interne && uv sync && cd ..
+```
+
+Puis, dans deux terminaux à la racine :
+
+```bash
+./lancer.sh                  # backend, surface de leurres et console
+# Dans un autre terminal :
+./demo.sh                    # choix salarié, puis décision de l'analyste dans la console
+```
+
+La console de développement est sur `http://localhost:5173`. Le [guide de démonstration](docs/DEMO.md) décrit les choix, les résultats attendus et les commandes de vérification.
+
+## Ce qui fonctionne aujourd'hui
+
+Le prototype utilise des gestes salariés simulés et un agent interne avec des outils locaux. La démo commune emploie un cerveau scripté reproductible ; elle ne dépend pas d'une session Claude disponible. Les événements, incidents, décisions et exports passent par les modules du produit. Le backend recharge son journal SQLite après un arrêt normal ; une base illisible interrompt le démarrage.
+
+Il n'y a pas encore de surveillance native du Mac, de connexion à Outlook/Gmail ou d'intégration à Claude Code. Les appels, chatbots, délégations entre agents et mémoire persistante restent un chantier interrompu. La démo principale ne les utilise pas. Le physique reste une piste d'extension.
+
+Pour un salarié, « annuler » évite le geste simulé et « continuer » ouvre un incident. Le SOC ne coupe pas son poste. Pour un agent, « couper » arrête la session et révoque son jeton ; « reprendre » autorise l'appel retenu. L'envoi d'un rapport dans la démo reste local et fictif.
+
+Les exports ECS/Sigma portent les faits de l'incident. Le texte NIS2 est un brouillon à qualifier et à relire ; aucun envoi réglementaire n'est automatique. Les taux du banc concernent son trafic synthétique et ne prédisent pas une performance en production.
 
 ## Modules
 
@@ -14,7 +45,21 @@ Contrats entre modules : [CONTRATS.md](CONTRATS.md).
 
 - **leurres/** (agent B) — Surface exposée d'Orbis Pay : site vitrine + API + doc (FastAPI, port 8701) et serveur MCP leurre (port 8711). 15 leurres `L-xxxx` invisibles pour un humain, saillants pour un lecteur automatique (commentaires HTML, robots.txt/security.txt/ai-plugin.json, faux secrets et identifiants, routes internes, faux outils MCP). Chaque requête émet un événement au backend et applique la consigne reçue (`labyrinthe`, `contre_injection`, `bloquer`) ; labyrinthe déterministe et borné côté serveur. Lancement : `cd leurres && uv run python lancer.py`. Voir [leurres/NOTES-mapping.md](leurres/NOTES-mapping.md) pour les mappings OWASP/ATLAS à confirmer.
 
-- **`console/`** — console web du SOC (Vite + React + TS), recentrée sur « l'humain, le maillon faible ». Trois piliers côte à côte (ouverture par défaut sur les salariés) : **Salariés** (source `humain`/`physique` — geste risqué, avertissement du garde du corps sur le poste, choix continuer/annuler, cinq types `humain_secret` 🔑, `humain_mail_externe` ✉, `humain_upload_ia` ☁, `humain_phishing` 🎣, `humain_intrusion_physique` 🚪), **Agents IA** (interne : canari, outil/MCP piégé, droits trop larges, etc.) et **Réserve — surface externe**. Les salariés surveillés et les gestes risqués arrêtés sont les compteurs principaux. Quatre écrans de l'analyste (temps réel, incident/boîte noire, leurres, mesures), mapping des types centralisé dans `ui/primitives.tsx`, et dégradé propre tant que le backend ne renvoie pas ces types. Voir [console/README.md](console/README.md).
+- **`console/`** : console web du SOC (Vite + React + TS), commune aux salariés et aux agents IA. Trois vues (salariés par défaut, agents IA, surface externe en réserve), quatre écrans (temps réel, incidents, leurres, mesures). Les incidents exposent la chaîne, le choix du salarié ou la décision de l'analyste, les droits de l'agent et les exports. Voir [console/README.md](console/README.md).
 - **`interne/`** — agent IA interne d'Orbis Pay (boîte mail et documents synthétiques, outils natifs et MCP) et passerelle « boîte noire » qui journalise tout, détecte l'exfiltration EchoLeak et l'usage d'un faux secret canari, puis retient l'appel en attendant la décision de l'analyste. V2 : outil MCP piégé par sa description (canari `outil_mcp_piege`, incident `interne_outil_mcp`) et moindre privilège (jeton limité à la tâche, action hors scope bloquée, incident `interne_droits`, vue `GET /api/agents`). Voir [interne/README.md](interne/README.md).
-- **`poste/`** — le garde du corps du poste du salarié (avenant « humain, le maillon faible »). Un agent local observe une action risquée avant qu'elle n'aboutisse (secret collé dans un chat/IA externe, mail de données sensibles hors domaine, dépôt confidentiel sur une IA/cloud non autorisé, lien ou pièce jointe de phishing), avertit le salarié avec un choix continuer/annuler, et émet au backend `source: humain`, `surface: poste`, `type: avertissement` puis l'incident (`humain_secret`/`humain_mail_externe`/`humain_upload_ia`/`humain_phishing`) si le salarié passe outre. Non bloquant, ne tombe jamais si le backend est absent. Pop-up terminal et page HTML filmable (`poste/demo/popup.html`). Lancement : `cd poste && uv run python -m garde.simulateur`. Voir [poste/README.md](poste/README.md).
-- **`landing/`** — page de présentation (HTML/CSS statique, sans dépendance). Récit « l'humain, le maillon faible » : les salariés en tête d'affiche (geste à risque intercepté sur le poste), les agents IA ensuite, le physique en extension ; même moteur détection → boîte noire → décision humaine → export. Ouvrir `landing/index.html`.
+- **`poste/`** : simulateur de gestes salariés (secret collé, mail externe, dépôt vers une IA, phishing). Il affiche un avertissement, laisse choisir `continuer` ou `annuler`, puis envoie le fait au backend quand il est joignable. Il ne surveille pas les applications du poste. Lancement : `cd poste && uv run python -m garde.simulateur`. Voir [poste/README.md](poste/README.md).
+- **`landing/`** : page de présentation (HTML/CSS statique). Salariés et agents IA partagent la détection, la boîte noire, les décisions et les exports. Les illustrations de poste montrent la cible produit ; les textes distinguent le prototype des intégrations futures. Ouvrir `landing/index.html`.
+
+## Vérifier
+
+```bash
+cd backend && uv run --extra dev pytest
+cd ../interne && uv run --extra dev pytest
+cd ../poste && uv run --extra dev pytest
+cd ../leurres && uv run pytest
+cd ../attaque && uv run --extra dev pytest
+cd ../console && npm run build
+cd .. && python3 -m unittest discover -s scripts/tests
+```
+
+Le [plan issu de la session Nila](docs/PLAN_NILA_2026-10-10.md) explique le pitch et les limites. Les supports de jury et la procédure de scan des secrets sont dans `docs/` et `scripts/`.
