@@ -154,10 +154,23 @@ Typographie : police du système (`ui-sans-serif, -apple-system, BlinkMacSystemF
 
 Mouvement : une courbe, `cubic-bezier(0.23, 1, 0.32, 1)`, 160 ms pour un appui (`scale(0.98)`), 200 ms pour un survol.
 
+## Corrigé ce soir
+
+Captures après dans `captures/design-audit/apres/` (écrans entiers) et `captures/design-audit/apres/details/` (élément par élément), mêmes noms que les captures avant.
+
+- Jetons : `design/jetons.css`, chargé par la landing (`<link>`, avec repli si la page sort du dépôt) et par la console (`@import` en tête de `console/src/finitions.css`, que Vite inline à la compilation). Les anciennes variables de la console pointent vers ces jetons.
+- Monospace décoratif : 114 textes en monospace dans la console avant, 14 après, tous des adresses ou des noms de fichier. Plus aucun sur la landing.
+- Panneau « Votre décision » (P0) : titre noir, point d'état aligné sur la première ligne, « depuis… » en gris. Agent et salarié.
+- En-tête d'incident (P1) : pastilles grises, la couleur tient dans un point ; « Journal intact » en gris.
+- Temps de réaction à 390 px (P1), triangle natif de « Pourquoi ce niveau de certitude » (P1), filet orange du message salarié (P1), chevron de l'étape « Résultat » (P2), pastille « Analyste » neutre au repos (P2), champ du motif de décision en pilule.
+- Références MITRE et OWASP (P1) : ni monospace ni lettres espacées.
+- Landing (P1) : plus de cyan, références en police du système, grand titre desserré, cartes « Ce qui tourne » sur le même décalage 7/5. Les cinq captures de console de `landing/img/v2/` sont refaites sur les données du jury, avec le nouveau logo, au même cadrage ; les PNG sources sont dans `captures/design-audit/apres/landing-img/`.
+- Pop-up de démo (P0) : l'alerte Mac reproduite prend la pilule noire et le nouveau logo de la vraie app ; plus de cyan ; rouge et vert des jetons. Le générateur `poste/garde/popup.py` produit toujours la même page.
+- `index.css` : la règle `.pastille-logo` et les trois `@font-face` (Space Grotesk, IBM Plex Mono) sont retirées ; le build perd 42 ko de polices.
+
 ## Ce qui reste aux autres agents
 
-- Agent Inventaire, `console/src/agent/Inventaire.tsx` et ses règles CSS : titre de carte sur toute la largeur avec la pastille d'état en dessous ; « Droits en trop » en texte gris séparé par des virgules, avec un seul point rouge devant le libellé, jamais une pilule sur deux lignes ; un seul style de bouton au pied de la carte ; grille en `repeat(auto-fill, minmax(320px, 1fr))` ; à 390 px, retirer le puits gris intérieur.
+- Agent Inventaire, `console/src/agent/Inventaire.tsx` et ses règles CSS : titre de carte sur toute la largeur avec la pastille d'état en dessous ; « Droits en trop » en texte gris séparé par des virgules, avec un seul point rouge devant le libellé, jamais une pilule sur deux lignes ; un seul style de bouton au pied de la carte ; grille en `repeat(auto-fill, minmax(320px, 1fr))` ; à 390 px, retirer le puits gris intérieur. La capture d'ouverture de la landing (`landing/img/v2/console-temps-reel.webp`) montre ces cartes : à refaire après leur passage.
 - Agent listes, « Les postes » et « Ce que font les agents » : la couleur sur le point seulement, le mot du statut en gris ; colonnes alignées sur une grille fixe.
-- Agent app Mac, `Interface.swift` : un seul indicateur vert dans le menu, retrait du port et de la variable d'environnement, « le SOC ».
-- Agent logo : le carré « D » de la barre latérale, de l'alerte Mac et des captures de la landing sera à remplacer ; les captures `landing/img/v2/*.webp` devront être refaites après son passage.
+- Agent app Mac, `Interface.swift` : un seul indicateur vert dans le menu, retrait du port et de la variable d'environnement, « le SOC ». Dans l'écran « C'est annulé », la phrase du piège est coupée (« dont le domaine es… »). Les deux images de l'alerte Mac sur la landing (`app-alerte-mail.webp`, `app-coach.webp`) gardent l'ancien carré « D » et le bouton cyan : à refaire depuis `captures/app-theme/logo/` une fois la phrase réparée.
 - Backend ou relecteur : la certitude du résumé (95 %) et celle du pré-tri (85 %) se contredisent.

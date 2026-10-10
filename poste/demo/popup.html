@@ -65,8 +65,8 @@
   .alerte { width:min(400px,100%); display:grid; gap:10px; padding:20px; border-radius:22px; background:#f7f7f8; box-shadow:0 0 0 1px var(--bord), 0 24px 48px -20px rgba(13,13,13,.28); animation:surgir .6s var(--courbe) both; }
   @keyframes surgir { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:none; } }
   .alerte-tete { display:flex; align-items:center; gap:10px; }
-  .alerte-ico { width:34px; height:34px; flex:none; border-radius:10px; display:grid; place-items:center; color:#fff; background:var(--texte); }
-  .alerte-ico svg { width:18px; height:18px; }
+  .alerte-ico { width:28px; height:28px; flex:none; display:grid; place-items:center; color:var(--texte); }
+  .alerte-ico svg { width:28px; height:28px; }
   .alerte-nom { font-weight:600; font-size:14px; }
   .alerte-cat { margin-left:auto; padding:3px 10px; border-radius:8px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); font-size:12px; font-weight:500; color:var(--doux); }
   .alerte-titre { font-size:19px; font-weight:650; letter-spacing:-.015em; line-height:1.25; margin-top:4px; }
@@ -195,7 +195,7 @@
         <div class="voile">
           <div class="alerte" role="group" aria-label="Alerte de Dédale sur le mail">
             <div class="alerte-tete">
-              <span class="alerte-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5 4.5 5.4v5.9c0 4.6 3.1 8.6 7.5 10.2 4.4-1.6 7.5-5.6 7.5-10.2V5.4L12 2.5Zm0 2.2v14.5c-3.2-1.4-5.3-4.5-5.3-7.9V6.9L12 4.7Z"/></svg></span>
+              <span class="alerte-ico"><svg viewBox="0 0 750 750" fill="currentColor" aria-hidden="true"><path d="M251.18 0.24L505.20 0.24A13.4 13.4 0 0 1 518.60 13.64L518.60 29.28A37.3 37.3 0 0 1 501.32 60.76L182.60 263.48A28.5 28.5 0 0 0 169.40 287.53L169.40 383.35A9.0 9.0 0 0 1 166.05 390.35L60.42 475.65A37.1 37.1 0 0 1 0.01 446.79L0.01 201.22A57.2 57.2 0 0 1 23.05 155.35L215.34 12.12A60.0 60.0 0 0 1 251.18 0.24Z"/><path d="M749.98 315.89L749.98 527.88A76.1 76.1 0 0 1 717.54 590.22L513.07 733.41A90.5 90.5 0 0 1 461.15 749.78L327.98 749.78A18.3 18.3 0 0 1 309.68 731.48L309.68 655.58A42.2 42.2 0 0 1 331.34 618.71L534.24 505.66A33.0 33.0 0 0 0 551.18 476.84L551.18 403.96A12.0 12.0 0 0 1 555.66 394.61L689.46 286.91A37.2 37.2 0 0 1 749.98 315.89Z"/><circle cx="368.44" cy="374.17" r="124.55"/></svg></span>
               <span class="alerte-nom">Dédale</span>
               <span class="alerte-cat">Hameçonnage</span>
             </div>

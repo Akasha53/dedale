@@ -112,6 +112,7 @@ button:not(:disabled):active {
 /* ---- En-tête d'un incident : la couleur tient dans un point ---- */
 .ag-entete-haut .gravite,
 .ag-entete-haut .ag-etat,
+.ag-entete-haut .inc-etat,
 .ag-entete-haut .integrite.i-ok {
   display: inline-flex;
   align-items: center;
@@ -126,7 +127,8 @@ button:not(:disabled):active {
   box-shadow: none;
   animation: none;
 }
-.ag-entete-haut .gravite::before {
+.ag-entete-haut .gravite::before,
+.ag-entete-haut .inc-etat::before {
   content: "";
   width: 6px;
   height: 6px;
@@ -140,6 +142,12 @@ button:not(:disabled):active {
 }
 .ag-entete-haut .gravite.moyenne::before {
   background: var(--attente);
+}
+.ag-entete-haut .inc-etat.e-attente::before {
+  background: var(--attente);
+}
+.ag-entete-haut .inc-etat.e-ok::before {
+  background: var(--regle);
 }
 .ag-entete-haut .ag-etat .ag-etat-point {
   width: 6px;
