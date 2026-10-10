@@ -17,11 +17,12 @@ from typing import Any
 from . import gouvernance
 
 # Ordre canonique des étapes de la boîte noire.
-ORDRE_ETAPES = ["appat", "consigne_lue", "action", "regle", "anomalie", "tentative_sortie", "riposte",
-                "correctif"]
+ORDRE_ETAPES = ["appat", "desarme", "consigne_lue", "action", "regle", "anomalie", "tentative_sortie",
+                "riposte", "correctif"]
 
 _LIBELLES = {
     "appat": "Document/mail piégé rencontré",
+    "desarme": "Désarmé avant lecture",
     "consigne_lue": "Consigne cachée lue",
     "action": "Action sur une route ou un outil découvert",
     "tentative_sortie": "Tentative de sortie de données",
@@ -34,6 +35,7 @@ _LIBELLES = {
 # Correspondance étape interne -> phase lue par la console.
 _PHASE = {
     "appat": "entree",
+    "desarme": "desarme",
     "consigne_lue": "consigne",
     "action": "outil",
     "tentative_sortie": "sortie",
@@ -203,12 +205,18 @@ def _etape_pour(ev: dict, leurres: dict[str, Any]) -> str | None:
     # Correctif appliqué par l'analyste depuis la console (droit retiré à l'agent).
     if typ == "correctif":
         return "correctif"
+    # Désarmeur de la passerelle : la consigne a été retirée avant que l'agent la lise.
+    if typ == "desarmement":
+        return "desarme"
     # Gouvernance : règle écrite par le SOC, écart à l'habitude de l'agent (gouvernance.py).
     if isinstance(details.get("politique"), dict):
         return "regle"
     if isinstance(details.get("anomalie"), dict):
         return "anomalie"
     if typ == "sortie_agent" or details.get("exfiltration"):
+        return "tentative_sortie"
+    # Règle de la passerelle : un outil sortant vise une adresse hors d'Orbis Pay.
+    if nature == "envoi_externe":
         return "tentative_sortie"
     # Outil MCP piégé : la consigne vit dans la DESCRIPTION de l'outil. Qu'elle soit portée par
     # le canari touché (nature outil_mcp_piege) ou par l'appel qui découvre l'outil, c'est l'étape
@@ -301,6 +309,9 @@ def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[d
         # Maillon « source » : le document lu, complet et déjà désarmé à l'ingestion.
         if isinstance(details.get("document_source"), dict):
             etapes[-1]["document_source"] = details["document_source"]
+        # Maillon « désarmé avant lecture » : ce qui a été retiré, déjà neutralisé à l'ingestion.
+        if isinstance(details.get("desarmement"), dict):
+            etapes[-1]["desarmement"] = details["desarmement"]
     # Ordre chronologique : la frise se lit dans l'ordre où les choses se sont passées.
     etapes.sort(key=lambda s: cle_chronologique(s, ORDRE_ETAPES))
     for i, e in enumerate(etapes):

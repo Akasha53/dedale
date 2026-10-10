@@ -124,3 +124,61 @@ def desarmer_document(doc: object) -> dict | None:
         "desarme": True,
     })
     return sortie
+
+
+# --- Désarmeur de la passerelle interne : ce qui a été retiré avant lecture ---------------
+# `details.desarmement` (voir CONTRATS.md, avenant « désarmeur »). Le texte retiré arrive déjà
+# désarmé par la passerelle ; on ne garde que les champs connus, on borne les listes et on
+# neutralise chaque texte comme un champ piégé. Rien n'en ressort actionnable.
+_CODE = re.compile(r"^[a-z_]{1,40}$")
+
+
+def _codes(valeur, limite: int = 12) -> list[str]:
+    if not isinstance(valeur, list):
+        return []
+    return [v for v in valeur if isinstance(v, str) and _CODE.match(v)][:limite]
+
+
+def _empreinte_longueur(valeur) -> dict:
+    valeur = valeur if isinstance(valeur, dict) else {}
+    empreinte = valeur.get("empreinte")
+    longueur = valeur.get("longueur")
+    return {"empreinte": empreinte if _IDENT_DOC.match(str(empreinte or "")) else None,
+            "longueur": longueur if isinstance(longueur, int) and longueur >= 0 else None}
+
+
+def desarmer_desarmement(valeur: object) -> dict | None:
+    """Forme exposée de `details.desarmement`."""
+    if not isinstance(valeur, dict):
+        return None
+    retraits = []
+    for r in valeur.get("retraits") if isinstance(valeur.get("retraits"), list) else []:
+        if not isinstance(r, dict) or len(retraits) >= 20:
+            continue
+        retraits.append({
+            "technique": r.get("technique") if _CODE.match(str(r.get("technique") or "")) else "inconnue",
+            "libelle": neutraliser(r.get("libelle") or "", 80),
+            "consigne": r.get("consigne") is True,
+            "formules": _codes(r.get("formules")),
+            "langues": _codes(r.get("langues"), 8),
+            "texte": neutraliser(r.get("texte") or "", 600),
+            **_empreinte_longueur(r),
+        })
+    duree = valeur.get("duree_ms")
+    return {
+        "nature": valeur.get("nature") if _CODE.match(str(valeur.get("nature") or "")) else "document",
+        "document": neutraliser(valeur.get("document") or "", 120),
+        "origine": valeur.get("origine") if valeur.get("origine") in ("externe", "interne") else "inconnue",
+        "canari_id": valeur.get("canari_id") if _IDENT_DOC.match(str(valeur.get("canari_id") or "")) else None,
+        "consigne": valeur.get("consigne") is True,
+        "mode": valeur.get("mode") if valeur.get("mode") in ("retirer", "encadrer") else "retirer",
+        "techniques": _codes(valeur.get("techniques")),
+        "formules": _codes(valeur.get("formules")),
+        "langues": _codes(valeur.get("langues"), 8),
+        "retraits": retraits,
+        "nombre_retraits": len(retraits),
+        "avant": _empreinte_longueur(valeur.get("avant")),
+        "apres": _empreinte_longueur(valeur.get("apres")),
+        "duree_ms": round(float(duree), 3) if isinstance(duree, (int, float)) and duree >= 0 else None,
+        "actionnable": False,
+    }

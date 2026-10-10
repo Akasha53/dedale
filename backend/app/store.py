@@ -100,6 +100,7 @@ class Session:
     flag_chatbot: bool = False        # V3a : injection de prompt via le chatbot
     flag_inter_agent: bool = False    # V3b : délégation inter-agent non authentifiée (ASI07)
     flag_memoire: bool = False        # V4  : mémoire long terme empoisonnée
+    flag_desarme: bool = False        # consigne retirée par le désarmeur avant lecture
     # Pilier humain (« le maillon faible ») : gestes risqués captés par le garde du corps du poste.
     flag_humain: bool = False
     geste_categorie: str | None = None          # dernière catégorie de geste observée
@@ -549,6 +550,12 @@ class Store:
             if isinstance(details.get("provenance_invalide"), dict):
                 sess.flag_inter_agent = True
 
+            # Désarmeur de la passerelle : une consigne retirée avant que l'agent la lise.
+            desarme = details.get("desarmement")
+            if (ev.type == "desarmement" and sess.source == "interne" and isinstance(desarme, dict)
+                    and desarme.get("consigne") is True):
+                sess.flag_desarme = True
+
             # --- Pilier humain : le garde du corps du poste ---
             # Un avertissement porte le geste risqué et le choix du salarié (continuer/annuler).
             # Passer outre un avertissement sérieux est un signal fort ; annuler est le bon réflexe.
@@ -625,6 +632,9 @@ class Store:
             if "document_source" in details:
                 # Mail ou document piégé : montré en entier à l'analyste, mais désarmé.
                 enreg["details"]["document_source"] = securite.desarmer_document(details["document_source"])
+            if "desarmement" in details:
+                # Ce que le désarmeur a retiré : gardé pour l'analyste, jamais actionnable.
+                enreg["details"]["desarmement"] = securite.desarmer_desarmement(details["desarmement"])
             if cadence_s is not None:
                 enreg["details"]["cadence_s"] = cadence_s
             if _enregistre is not None:
@@ -713,6 +723,10 @@ class Store:
             return "interne_droits", f"Agent interne hors de son périmètre de droits (droit {scope})"
         if not sess.flag_canari and (sess.regles_declenchees or sess.anomalies):
             return gouvernance.type_titre(sess)
+        if sess.flag_desarme and not sess.flag_canari:
+            return "interne_desarme", "Consigne cachée retirée avant que l’agent la lise"
+        if sess.canari_nature == "envoi_externe":
+            return "interne_envoi_externe", "Envoi hors d’Orbis Pay retenu avant exécution"
         return "interne_canari", f"Agent IA piégé en interne (canari {sess.canari_id or '—'})"
 
     def _maj_incident(self, sess: Session) -> Incident | None:
@@ -728,6 +742,7 @@ class Store:
                 sess.flag_canari
                 or sess.flag_droits
                 or sess.flag_inter_agent
+                or sess.flag_desarme
                 or sess.classement == "agent_ia"
                 or bool(sess.regles_declenchees or sess.anomalies)
             )
