@@ -29,7 +29,7 @@ const EXTENSION = path.resolve(ICI, "..");
 const BACKEND = path.resolve(EXTENSION, "..", "backend");
 const TEMP = mkdtempSync(path.join(tmpdir(), "dedale-extension-"));
 const iCaptures = process.argv.indexOf("--captures");
-const CAPTURES = iCaptures > 0 ? path.resolve(process.argv[iCaptures + 1]) : TEMP;
+const CAPTURES = iCaptures > 0 ? path.resolve(process.argv[iCaptures + 1]) : null;
 
 const processus = [];
 const resultats = [];
@@ -176,10 +176,11 @@ class Onglet {
   }
 
   async capture(nom) {
+    if (!CAPTURES) return;
     const { data } = await this.cmd("Page.captureScreenshot", { format: "png" });
     const fichier = path.join(CAPTURES, nom);
     writeFileSync(fichier, Buffer.from(data, "base64"));
-    return fichier;
+    console.log(`     capture : ${fichier}`);
   }
 
   fermer() {
@@ -276,7 +277,7 @@ async function principal() {
   for (const theme of ["light", "dark"]) {
     await onglet.cmd("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] });
     await pause(400); // fin des transitions de couleur
-    console.log(`     capture : ${await onglet.capture(`avertissement-${theme === "light" ? "clair" : "sombre"}.png`)}`);
+    await onglet.capture(`avertissement-${theme === "light" ? "clair" : "sombre"}.png`);
   }
   await onglet.cmd("Emulation.setEmulatedMedia", { features: [] });
 
@@ -325,7 +326,7 @@ async function principal() {
   await attendre(surAvertissement, "avertissement punycode");
   await attendre(async () => (await texte("#domaine")) === "оrbispay.example", "domaine Unicode affiché");
   verifier((await texte("#reel")) === "Adresse réelle : xn--rbispay-8ig.example", "adresse réelle en punycode affichée");
-  console.log(`     capture : ${await onglet.capture("avertissement-punycode.png")}`);
+  await onglet.capture("avertissement-punycode.png");
   await onglet.eval(`document.getElementById("revenir").click()`);
   await attendre(async () => !(await surAvertissement()), "retour arrière (punycode)");
   verifier((await onglet.adresse()) === sosie, "retour arrière vers la page précédente (punycode)", await onglet.adresse());
@@ -365,11 +366,11 @@ async function principal() {
   await popup.cmd("Emulation.setDeviceMetricsOverride", { width: 332, height: 300, deviceScaleFactor: 2, mobile: false });
   await popup.cmd("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
   await pause(400);
-  console.log(`     capture : ${await popup.capture("icone.png")}`);
+  await popup.capture("icone.png");
   await reglages.cmd("Page.reload");
   await attendre(() => reglages.eval(`document.getElementById("backend").value.includes("${pFerme}")`), "réglages rechargés");
   await reglages.eval(`(() => { const e = document.getElementById("essai"); e.value = "orbis-pay.example"; e.dispatchEvent(new Event("input")); })()`);
-  console.log(`     capture : ${await reglages.capture("reglages.png")}`);
+  await reglages.capture("reglages.png");
 
   console.log(`requêtes reçues par le faux site : ${visites.join(", ")}`);
   [onglet, reglages, popup].forEach((o) => o.fermer());
@@ -393,7 +394,7 @@ try {
   nettoyer();
   await pause(1500);
   nettoyer("SIGKILL");
-  if (CAPTURES !== TEMP) rmSync(TEMP, { recursive: true, force: true });
+  rmSync(TEMP, { recursive: true, force: true });
   console.log(echecs ? `\n${echecs} échec(s).` : `\nTout est vert (${resultats.length} vérifications).`);
   process.exit(echecs ? 1 : 0);
 }
