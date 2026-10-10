@@ -14,6 +14,10 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp "$BIN" "$APP/Contents/MacOS/Dedale"
 cp "$ICI/Ressources/Info.plist" "$APP/Contents/Info.plist"
+# Logo : icône de l'app (CFBundleIconFile), icône de barre de menus en gabarit et logo
+# d'en-tête des fenêtres, copiés depuis design/logo/ dans Ressources/.
+mkdir -p "$APP/Contents/Resources"
+cp "$ICI/Ressources/AppIcon.icns" "$ICI"/Ressources/LogoEntete*.png "$ICI"/Ressources/MenuBarIcon*.png "$APP/Contents/Resources/"
 # Règles communes des sites louches, les mêmes que l'extension Chrome.
 mkdir -p "$APP/Contents/Resources"
 cp "$ICI/../partage/regles-sites.json" "$APP/Contents/Resources/regles-sites.json"

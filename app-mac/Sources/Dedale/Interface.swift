@@ -186,6 +186,49 @@ final class VueRetournee: NSView {
     override var isFlipped: Bool { true }
 }
 
+// MARK: - Logo
+
+/// Le logo de Dédale (`design/logo/`, copié dans `Ressources/`) : deux crochets qui
+/// s'emboîtent autour d'un disque. Les PNG sont lus dans le paquet de l'app, sinon dans le
+/// dossier `Ressources/` d'app-mac quand le binaire tourne depuis `.build/` (captures, essais).
+enum Logo {
+    /// Logo noir de l'en-tête des fenêtres, 28 points.
+    static let entete: NSImage? = image("LogoEntete", taille: NSSize(width: 28, height: 28))
+
+    /// Icône de la barre de menus, 18 points, en gabarit : macOS la teinte selon la barre.
+    static let barreDeMenus: NSImage? = {
+        let i = image("MenuBarIcon", taille: NSSize(width: 18, height: 18))
+        i?.isTemplate = true
+        i?.accessibilityDescription = "Dédale"
+        return i
+    }()
+
+    /// Image de `taille` points faite de `<nom>.png`, `@2x` et `@3x`, pour rester nette sur
+    /// tous les écrans.
+    static func image(_ nom: String, taille: NSSize) -> NSImage? {
+        let image = NSImage(size: taille)
+        for suffixe in ["", "@2x", "@3x"] {
+            guard let url = fichier(nom + suffixe), let donnees = try? Data(contentsOf: url),
+                  let rep = NSBitmapImageRep(data: donnees) else { continue }
+            rep.size = taille
+            image.addRepresentation(rep)
+        }
+        return image.representations.isEmpty ? nil : image
+    }
+
+    private static func fichier(_ nom: String) -> URL? {
+        if let url = Bundle.main.url(forResource: nom, withExtension: "png") { return url }
+        // Binaire lancé depuis .build/ : remonter jusqu'à app-mac/Ressources.
+        var dossier = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
+        for _ in 0..<6 {
+            let candidat = dossier.appendingPathComponent("Ressources/\(nom).png")
+            if FileManager.default.fileExists(atPath: candidat.path) { return candidat }
+            dossier.deleteLastPathComponent()
+        }
+        return nil
+    }
+}
+
 // MARK: - Panneau
 
 /// Fenêtre flottante sans bord, au-dessus de tout, sur tous les bureaux.
@@ -294,8 +337,18 @@ enum Gabarit {
         return fond
     }
 
-    /// La marque de la console (`.pastille-logo`) : tuile noire, « D » blanc.
+    /// Le logo noir de Dédale, 28 points. Sans ses PNG, la marque de la console
+    /// (`.pastille-logo` : tuile noire, « D » blanc).
     static func badgeBouclier() -> NSView {
+        if let logo = Logo.entete {
+            let vue = NSImageView(image: logo)
+            vue.imageScaling = .scaleProportionallyUpOrDown
+            vue.translatesAutoresizingMaskIntoConstraints = false
+            vue.widthAnchor.constraint(equalToConstant: 28).isActive = true
+            vue.heightAnchor.constraint(equalToConstant: 28).isActive = true
+            vue.setAccessibilityLabel("Dédale")
+            return vue
+        }
         let fond = NSView()
         fond.wantsLayer = true
         fond.layer?.backgroundColor = Teinte.encre.cgColor

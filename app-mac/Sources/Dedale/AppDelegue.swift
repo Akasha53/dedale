@@ -186,9 +186,12 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ligneEtat.attributedTitle = NSAttributedString(string: titre, attributes: [
             .font: NSFont.systemFont(ofSize: Taille.bouton, weight: .semibold), .foregroundColor: Teinte.encre])
         ligneEtat.image = Gabarit.symbole(symbole + ".fill", taille: 13, couleurs: [couleur])
-        let image = NSImage(systemSymbolName: symbole, accessibilityDescription: "Dédale : \(titre)")
+        // Le logo en gabarit dans la barre de menus ; le bouclier de l'état reste en repli.
+        let image = Logo.barreDeMenus ?? NSImage(systemSymbolName: symbole, accessibilityDescription: "Dédale : \(titre)")
         image?.isTemplate = true
         element?.button?.image = image
+        // Protection en pause : le logo s'estompe, comme un élément désactivé.
+        element?.button?.appearsDisabled = actifs == 0
         element?.button?.toolTip = "Dédale : \(titre)"
     }
 
