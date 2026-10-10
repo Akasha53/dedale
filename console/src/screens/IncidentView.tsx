@@ -10,6 +10,7 @@ import { desarmer } from "../agent/preuve";
 import { lireGesteSalarie } from "../salarie/lecture";
 import { useAnalyste } from "../ui/analyste";
 import { BlocConfirmation } from "../ui/Confirmation";
+import { BandeauConfidentialite } from "../ui/Confidentialite";
 import { compter } from "../ui/compteurs";
 import { appartientPilier, BadgeChoixSalarie, heure, libelleType, SegmentsPiliers, Spinner } from "../ui/primitives";
 import { attendDecision, estATraiter, etatIncident, GRAVITE, phraseSalarie, quiIncident, titreIncident } from "../ui/mots";
@@ -199,6 +200,7 @@ export function IncidentView({
       <ListeIncidents key={pilier} incidents={incidentsVue} courant={idCourant} choisir={choisir} />
 
       {erreurDetail && <div className="decision-erreur" role="alert">{erreurDetail}</div>}
+      {detail && detail.id === idCourant && <BandeauConfidentialite incident={detail} />}
       {!idCourant ? null : !detail || detail.id !== idCourant ? (
         <Spinner />
       ) : estIncidentAgent(detail) ? (

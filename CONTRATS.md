@@ -1712,3 +1712,76 @@ Le proxy de Vite (`console/vite.config.ts`) ajoute l'en-tête côté serveur : l
 - La passerelle lit une session, et la passerelle comme le poste ses décisions, dès qu'ils en connaissent l'identifiant.
 - La console construite et servie par le backend sur 8700 (`console/dist`) n'a pas de jeton : elle se sert par Vite, sur 5173.
 - L'extension Chrome garde le jeton du poste en clair dans `chrome.storage.local`.
+
+## Avenant du 11 octobre 2026 : besoin d'en connaître, deux espaces
+
+Ce que Dédale fait remonter porte des données confidentielles : montants, bénéficiaires, IBAN, noms de clients. L'équipe sécurité traite des menaces ; elle n'a pas à lire ces données, ni à valider un virement. Un geste retenu sans signal de fraude est confirmé par le responsable du salarié ou par la finance. Deux espaces, deux identités : la console du SOC (`analyste`) et l'espace de validation métier (`validateur`). Code : `backend/app/besoin_d_en_connaitre.py`, `backend/app/validation_metier.py`, une ligne dans `main.py` (`validation_metier.brancher(app, _enfiler)`), un filtre posé sur `ws.diffuseur`. Tests : `backend/tests/test_besoin_d_en_connaitre.py`.
+
+### Console du SOC : données métier minimisées
+
+Pour le jeton `analyste` seulement, toute réponse 2xx de `/api/incidents…`, `/api/sessions…`, `/api/activite` et `/api/relecteur/…`, et tout message du flux `/ws`, passe par `minimiser` :
+
+- un montant devient une tranche : `moins de 1 k€`, `entre 1 et 10 k€`, `entre 10 et 50 k€`, `entre 50 et 100 k€`, `entre 100 et 500 k€`, `entre 500 k€ et 1 M€`, `plus de 1 M€`. Un champ chiffré (`montant`, `montant_eur`, `montant_habituel_eur`, `montant_max_eur`, `ordre_de_grandeur`…) vaut `null` et `<champ>_tranche` porte la tranche. Dans un texte, « 48 500 € » devient « [entre 10 et 50 k€] » ;
+- un bénéficiaire devient `[bénéficiaire masqué]` : la liste des connus, tout nom passé en `beneficiaire`, et le nom écrit après « à », « au », « chez », « pour » dans un virement ;
+- un IBAN devient `[IBAN masqué]`, même réduit à « FR76 •••• •••• 6789 » ; « •••• 6789 » devient « •••• » ;
+- la clé `confidentiel` disparaît ; les événements `validation_demandee` et `validation_decidee` sont réduits à `{acte, demande_id, statut, verdict, validation_metier, message}`, avec `validation_metier` à `demandée`, `confirmé par le responsable` ou `refusé par le responsable`.
+
+Restent tels quels : les identifiants, sceaux, empreintes, horodatages et codes, les volumes (« 40 fiches »), et un seuil de règle précédé de « plus de », « au-dessus de », « plafond »… Les règles, mesures, inventaires et leurres ne passent pas par ce filtre. La passerelle, le poste et le validateur reçoivent les réponses inchangées. Une erreur de minimisation rend 500, jamais la réponse en clair.
+
+La vue d'un dossier sans signal de fraude porte `confidentialite: {"niveau": "minimise", "signal_fraude": null, "mention": "Montants en tranches, bénéficiaire et IBAN masqués…"}`, dès qu'elle avait quelque chose à masquer.
+
+### Signal de fraude : le détail en clair, la consultation au journal
+
+`GET /api/incidents/{id}` et ses sous-routes `source`, `synthese`, `rapport`, `export`, `nis2`, `decision`, et `GET /api/sessions/{id}`, s'ouvrent en clair quand le dossier porte un signal de fraude :
+
+- salarié : un signal `fraude: true` de `relecteur.signaux_geste` (mail frauduleux ou douteux, geste juste après une alerte passée outre, consigne cachée, rafale, compte personnel, export hors de l'entreprise) ; repli tant que les signaux manquent : mail jugé frauduleux ou douteux, consigne retirée, RIB changé après un mail ;
+- agent : un canari touché, une consigne désarmée, ou un incident `interne_canari`, `interne_outil_mcp`, `interne_inter_agent`, `interne_memoire`, `interne_desarme`.
+
+La réponse porte alors :
+
+```json
+{"confidentialite": {"niveau": "en_clair",
+  "signal_fraude": "Ce geste arrive juste après une alerte sur un mail ou un site douteux.",
+  "detail": {"geste": "virement", "montant_eur": 48500.0, "beneficiaire": "Compta Express", "iban": "•••• 6655",
+             "volume": null, "destination": null},
+  "mention": "Détail visible : signal de fraude. Ce geste arrive juste après… Cette consultation est notée au journal scellé."}}
+```
+
+`detail` vient de `details.confidentiel` de la demande à quatre yeux, que le relecteur pose sur un geste en fraude (`besoin_d_en_connaitre.detail_confidentiel(faits, details)` : montant exact, bénéficiaire, quatre derniers chiffres de l'IBAN), ou de `details.virement` d'un appel de paiement. La consultation est un acte scellé de la session : événement `console`, `acte: "consultation"`, `analyste: "console du SOC"`, `motif: "Détail visible : signal de fraude. <raison>"`, `message: "<méthode> <route>"`. Un par minute et par dossier au plus, parce que la console relit le détail à chaque changement. La vérification du journal et le pré-tri restent minimisés et ne comptent pas. Les listes et le flux `/ws` restent minimisés, même en fraude. Console : `ui/Confidentialite.tsx` affiche ce bandeau au-dessus du dossier, et la boîte noire lit `montant_tranche`.
+
+### Espace de validation métier : `/validation/`
+
+Page à part de la console (`console/validation/index.html`, `console/src/validation/`), sans la navigation du SOC. Le build produit deux pages. En dev, le proxy de Vite pose le jeton `validateur` sur `/api/validation/` pour une page ouverte sous `/validation`. Routes, toutes en `auth.VALIDATEUR` (403 pour l'analyste, le poste et la passerelle) :
+
+- `GET /api/validation/file` : `{"gestes": [fiche…], "traites": [fiche…], "total": n}`, à confirmer du plus récent au plus ancien, puis les vingt derniers tranchés ;
+- `GET /api/validation/gestes/{id}` : une fiche, `id` étant le `demande_id`. 404 si inconnu ;
+- `POST /api/validation/gestes/{id}/decision` `{"decision": "accorder" | "refuser", "motif", "validateur", "qualite": "responsable" | "finance"}` : motif de 4 caractères au moins et nom de 2 au moins (400 sinon), 409 si déjà tranché. Rend la fiche à jour.
+
+```json
+{"id": "v-atelier", "geste": "virement", "titre": "Virement", "montant_eur": 3480, "lecture_du_montant": "certain",
+ "volume": null, "destination": null,
+ "beneficiaire": {"nom": "Atelier Nord", "connu": true, "nature": "fournisseur", "objet": "maintenance des terminaux",
+                  "montant_habituel_eur": 3480},
+ "iban": "•••• •••• •••• •••• 0042", "rib": "nouveau",
+ "demande": "Virement de 3 480 € à Atelier Nord, facture 2026-118, nouveau RIB •••• 0042.",
+ "demandeur": {"nom": "Camille Martin", "service": "Finance"},
+ "motif": "Ce RIB n'a jamais servi pour Atelier Nord.", "raisons": ["Ce RIB n'a jamais servi pour Atelier Nord."],
+ "demande_le": "…", "statut": "en_attente" | "accorde" | "refuse",
+ "decision": null | {"decision": "accorde", "validateur": "Claire Dubois (finance)", "motif": "…", "horodatage": "…"}}
+```
+
+La fiche se tire de l'événement `validation_demandee` du relecteur (avenant « Dédale ne se montre que s'il y a un signal »). Ni score, ni URL, ni code de signal, ni modèle, ni agent : le motif est la phrase en français des signaux sans fraude. Un IBAN écrit par le salarié est réduit à ses quatre derniers chiffres, un bénéficiaire hors liste est nommé d'après sa demande. La décision passe par `relecteur.valider_metier` : événement scellé `validation_decidee`, signé « <nom> (<qualité>) », et entrée de mémoire du relecteur. La SOC n'en voit que le sens. `?geste=<id>` ouvre une fiche (lien à envoyer au responsable).
+
+### Vie privée
+
+Séparation des rôles et besoin d'en connaître : la console du SOC lit des tranches, ni bénéficiaire ni IBAN ; le responsable du salarié ou la finance lit le détail d'un geste retenu, sans aucune télémétrie de sécurité. Le détail ne s'ouvre au SOC que sur un signal de fraude, et chaque consultation est notée au journal scellé.
+
+### Comment l'humain garde la main
+
+Un geste retenu sans fraude est tranché par le responsable du salarié ou la finance, avec un motif et une signature scellés dans le journal ; l'équipe sécurité garde la main sur les menaces et ne valide pas les virements.
+
+### Limites
+
+- Un jeton `validateur` pour tous les responsables et la finance : un responsable voit les gestes des autres équipes. En production, le rattachement salarié → responsable vient de l'annuaire et filtre la file.
+- La minimisation est faite par l'API : la base SQLite garde le détail en clair, comme elle garde le reste du journal.
+- Un nom de bénéficiaire écrit autrement que « à <Nom> » dans un texte libre peut passer sans être masqué.

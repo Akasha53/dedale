@@ -151,8 +151,11 @@ const DECISION_RISQUE: Record<string, string> = {
   ignorer: "L'alerte est classée : l'agent reprend son travail, toujours surveillé.",
 };
 
-// Montant lisible : « 3 480,00 € ».
+// Montant lisible : « 3 480,00 € ». Sans signal de fraude, la console du SOC ne
+// reçoit qu'une tranche (« entre 1 et 10 k€ ») : besoin_d_en_connaitre.py.
 export function montantLisible(v: Virement): string {
+  const tranche = (v as Virement & { montant_tranche?: string }).montant_tranche;
+  if (tranche) return tranche;
   const devise = v.devise || "EUR";
   try {
     return new Intl.NumberFormat("fr-FR", { style: "currency", currency: devise }).format(v.montant);
@@ -162,10 +165,14 @@ export function montantLisible(v: Virement): string {
 }
 
 // « un virement de 3 480,00 € à Atelier Nord (FR76 •••• •••• 6789) »
+// Minimisé : « un virement d'un montant compris entre 1 et 10 k€ à un bénéficiaire masqué ».
 export function phraseVirement(v: Virement): string {
-  const vers = v.beneficiaire ? ` à ${v.beneficiaire}` : "";
-  const iban = v.iban_masque ? ` (${v.iban_masque})` : "";
-  return `un virement de ${montantLisible(v)}${vers}${iban}`;
+  const tranche = (v as Virement & { montant_tranche?: string }).montant_tranche;
+  const montant = tranche?.startsWith("entre") ? `d'un montant compris ${tranche}` : `de ${montantLisible(v)}`;
+  const masque = (t?: string | null) => Boolean(t && t.startsWith("["));
+  const vers = v.beneficiaire ? (masque(v.beneficiaire) ? " à un bénéficiaire masqué" : ` à ${v.beneficiaire}`) : "";
+  const iban = v.iban_masque && !masque(v.iban_masque) ? ` (${v.iban_masque})` : "";
+  return `un virement ${montant}${vers}${iban}`;
 }
 
 // Un clos ou un laisser-passer ne protège rien : gris. Couper protège : vert.
@@ -477,9 +484,11 @@ function horsEntreprise(adresse: string | null): boolean {
 function lireVirement(v: unknown): Virement | undefined {
   if (!v || typeof v !== "object") return undefined;
   const o = v as Record<string, unknown>;
-  if (typeof o.montant !== "number") return undefined;
+  const tranche = typeof o.montant_tranche === "string" ? o.montant_tranche : undefined;
+  if (typeof o.montant !== "number" && !tranche) return undefined;
   return {
-    montant: o.montant,
+    montant: typeof o.montant === "number" ? o.montant : Number.NaN,
+    ...(tranche ? { montant_tranche: tranche } : {}),
     devise: typeof o.devise === "string" ? o.devise : "EUR",
     beneficiaire: typeof o.beneficiaire === "string" ? o.beneficiaire : undefined,
     iban_masque: typeof o.iban_masque === "string" ? o.iban_masque : null,

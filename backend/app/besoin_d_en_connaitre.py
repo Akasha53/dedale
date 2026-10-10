@@ -214,7 +214,10 @@ def masquer_texte(texte: str, noms: re.Pattern | None = None) -> str:
 # Actes de l'espace de validation métier : la SOC n'en garde que le sens, sans montant, bénéficiaire,
 # texte du salarié, nom du validateur ni motif.
 ACTES_METIER = {"validation_demandee", "validation_decidee"}
-MENTION_METIER = "Réglé avec le responsable du salarié ou la finance. Détail réservé à la validation métier."
+MENTION_METIER = {"validation_demandee": "À régler avec le responsable du salarié ou la finance. Détail réservé "
+                                         "à la validation métier.",
+                  "validation_decidee": "Réglé avec le responsable du salarié ou la finance. Détail réservé "
+                                        "à la validation métier."}
 
 
 def acte_metier_reduit(details: dict) -> dict:
@@ -225,7 +228,8 @@ def acte_metier_reduit(details: dict) -> dict:
     if isinstance(issue, dict):
         issue = issue.get(details.get("verdict"), "tranché par le responsable")
     return {"acte": acte, "demande_id": details.get("demande_id"), "statut": details.get("statut"),
-            "verdict": details.get("verdict"), "validation_metier": issue, "message": MENTION_METIER}
+            "verdict": details.get("verdict"), "validation_metier": issue,
+            "message": MENTION_METIER.get(acte, MENTION_METIER["validation_decidee"])}
 
 
 def minimiser(objet: Any, noms: re.Pattern | None = None, _cle: str | None = None,
