@@ -71,6 +71,28 @@ def _iban(beneficiaire: dict) -> str | None:
     return f"•••• •••• •••• •••• {fin}" if len(fin) == 4 else None
 
 
+_ADRESSE = re.compile(r"[\w.+-]+@[\w-]+(?:(?:\[\.\]|\.)[\w-]+)+")
+
+
+_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ \u00a0]?[A-Z0-9]{4}){2,7}(?:[ \u00a0]?[A-Z0-9]{1,4})?\b")
+
+
+def _sans_iban(texte: str | None) -> str | None:
+    """Le texte du salarié, chaque IBAN réduit à ses quatre derniers chiffres."""
+    if not texte:
+        return texte
+    return _IBAN.sub(lambda m: "•••• " + re.sub(r"\W", "", m.group(0))[-4:], texte)
+
+
+def _destination(d: dict, faits: dict) -> str | None:
+    """L'adresse écrite dans la demande (désarmée, `[.]` rendu en `.`), sinon le domaine."""
+    m = _ADRESSE.search(d.get("texte") or "")
+    if m:
+        return m.group(0).replace("[.]", ".")
+    dest = faits.get("destination")
+    return dest.get("domaine") if isinstance(dest, dict) else None
+
+
 def _fiche(demande: dict, decision: dict | None) -> dict:
     d = demande.get("details") or {}
     faits = d.get("faits_memoire") or {}
@@ -87,12 +109,11 @@ def _fiche(demande: dict, decision: dict | None) -> dict:
         "montant_eur": d.get("montant_eur"),
         "lecture_du_montant": faits.get("lecture_du_montant"),
         "volume": d.get("volume") if geste == "export_clients" else None,
-        "destination": ((faits.get("destination") or {}).get("domaine")
-                        if geste == "export_clients" and isinstance(faits.get("destination"), dict) else None),
+        "destination": _destination(d, faits) if geste == "export_clients" else None,
         "beneficiaire": None,
         "iban": None,
         "rib": None,
-        "demande": d.get("texte"),
+        "demande": _sans_iban(d.get("texte")),
         "demandeur": {"nom": p["nom"] if p else None, "service": p["service"] if p else None},
         "motif": " ".join(raisons) or d.get("motif_salarie"),
         "raisons": raisons,
@@ -101,7 +122,11 @@ def _fiche(demande: dict, decision: dict | None) -> dict:
         "decision": None,
     }
     if geste == "virement":
-        fiche["beneficiaire"] = {"nom": d.get("beneficiaire") or b.get("nom"),
+        # Un bénéficiaire hors liste n'a pas de fiche : son nom est celui que le salarié a écrit.
+        ecrit = besoin_d_en_connaitre.nom_dans_texte(d.get("texte") or "")
+        nom = d.get("beneficiaire") if d.get("beneficiaire_connu") else None
+        cle = b.get("cle_nom") if isinstance(b.get("cle_nom"), str) else None
+        fiche["beneficiaire"] = {"nom": nom or (ecrit[0] if ecrit else None) or (cle.title() if cle else None),
                                  "connu": bool(d.get("beneficiaire_connu")),
                                  "nature": b.get("nature"), "objet": b.get("objet"),
                                  "montant_habituel_eur": b.get("montant_habituel_eur")}

@@ -139,5 +139,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    // Deux pages : la console du SOC, et l'espace de validation métier sur /validation/.
+    rollupOptions: { input: { console: "index.html", validation: "validation/index.html" } },
   },
 });

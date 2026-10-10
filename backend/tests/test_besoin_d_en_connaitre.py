@@ -137,7 +137,7 @@ def test_le_validateur_voit_le_detail_et_tranche(client, regles):
     fiche = file["gestes"][0]
     assert fiche["id"] == "v1" and fiche["montant_eur"] == 3480 and fiche["titre"] == "Virement"
     assert fiche["beneficiaire"]["nom"] == "Atelier Nord" and fiche["beneficiaire"]["connu"] is True
-    assert fiche["iban"].endswith("0042") and "1111" not in fiche["iban"]
+    assert fiche["iban"].endswith("0042") and "1111" not in json.dumps(fiche)
     assert fiche["rib"] == "nouveau" and fiche["motif"].startswith("Ce RIB n'a jamais servi pour Atelier Nord")
     assert fiche["demandeur"] == {"nom": "Camille Martin", "service": "Finance"}
     # Aucune télémétrie de sécurité : ni score, ni URL, ni agent, ni modèle.

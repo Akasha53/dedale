@@ -134,6 +134,12 @@ def _noms_metier() -> re.Pattern | None:
                 if isinstance(brut, str):
                     noms.add(brut)
             # « Virement de 48 500 € à Compta Express » : le nom écrit après « à », « au », « chez ».
+            for brut in ((d.get("confidentiel") or {}).get("beneficiaire") if isinstance(d.get("confidentiel"), dict)
+                         else None, d.get("beneficiaire_masque")):
+                if isinstance(brut, str) and not brut.endswith("caractères)"):
+                    noms.add(brut)
+            if e.get("type") == "validation_demandee" and isinstance(d.get("texte"), str):
+                noms.update(nom_dans_texte(d["texte"]) or [])
             if d.get("geste") == "virement" and isinstance(d.get("message"), str):
                 for m in relecteur._RE_NOM.finditer(relecteur.texte_lisible(d["message"])):
                     noms.add(re.sub(r"(?:\s+(?:du|de|des|la|le|et|&))+$", "", m.group(1)).strip())
@@ -146,6 +152,24 @@ def _noms_metier() -> re.Pattern | None:
     motif = re.compile(r"(?<![\w])(?:" + "|".join(motifs) + r")(?![\w])", re.IGNORECASE) if motifs else None
     _cache_noms.update(version=version, motif=motif)
     return motif
+
+
+def nom_dans_texte(texte: str) -> list[str]:
+    """Noms écrits après « à », « au », « chez », « pour » : « à Compta Express »."""
+    from . import relecteur
+
+    sortie = []
+    for m in relecteur._RE_NOM.finditer(relecteur.texte_lisible(texte)):
+        nom = re.sub(r"(?:\s+(?:du|de|des|la|le|et|&))+$", "", m.group(1)).strip()
+        if len(nom) >= 3:
+            sortie.append(nom)
+    return sortie
+
+
+def _phrase(raison: str) -> str:
+    raison = raison.strip()
+    raison = raison[:1].upper() + raison[1:]
+    return raison if raison.endswith((".", "!", "?")) else raison + "."
 
 
 def _valeur(nombre_brut: str, mult: str | None) -> float | None:
@@ -367,7 +391,7 @@ def journaliser_consultation(iid: str, raison: str, chemin: str) -> dict | None:
         if inc is None or sess is None:
             return None
         note = store._note_console(inc, sess, "consultation", ANALYSTE_CONSULTATION,
-                                   {"motif": f"{MENTION_CLAIR} ({raison[:160]})", "message": chemin[:120]})
+                                   {"motif": f"{MENTION_CLAIR}. {_phrase(raison[:160])}", "message": chemin[:120]})
         _dernieres_consultations[iid] = maintenant
     # L'acte, sa session et son incident : une seule transaction, comme les autres actes.
     persister({"evenements": [note], "sessions": [sess], "incidents": [inc]})
@@ -404,7 +428,7 @@ def preparer_reponse(chemin: str, methode: str, corps: Any) -> Any:
         if isinstance(corps, dict):
             corps = {**corps, "confidentialite": {
                 "niveau": "en_clair", "signal_fraude": raison, "detail": detail,
-                "mention": f"{MENTION_CLAIR} ({raison}). Cette consultation est notée au journal scellé."}}
+                "mention": f"{MENTION_CLAIR}. {_phrase(raison)} Cette consultation est notée au journal scellé."}}
         return corps
     if isinstance(sortie, dict):
         sortie["confidentialite"] = {"niveau": "minimise", "signal_fraude": None, "mention": MENTION_MINIMISE}
