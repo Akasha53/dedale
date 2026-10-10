@@ -1317,3 +1317,7 @@ Demande de Guilhem (10 octobre, 22:40) : la barre est un agent qui modifie les r
 ### Vérifié le 10 octobre
 
 Sur un backend isolé, « j'aimerais que tu enlèves les permissions en trop aux agents » est comprise par l'agent des règles en 4 s (session 1, un appel, fermée), puis appliquée (11 droits, 3 agents). `orbis.demo --scenario jury` : `lire_coffre` refusé, « droit coffre:lire retiré par l'analyste », coffre lu 0 fois, rapport envoyé à jean.moreau@orbispay.example. Captures dans `captures/regles/`.
+
+## Avenant : carte d'agent, droits retirés (10 octobre, 23 h)
+
+Aucun champ nouveau. La carte d'inventaire (`console/src/agent/Inventaire.tsx`) affiche désormais `droits.retires` de `GET /api/agents` : une ligne « Droits retirés », chaque droit en gris barré. Pour un droit retiré par une règle de moindre privilège encore active, la carte lit `GET /api/politiques` (`intention`, `retraits`, `numero`, `par`, `creee_a`) et ajoute « Retirés par la règle n°N, par <analyste> à HH:MM », puis « Rendre les droits », qui passe par `DELETE /api/politiques/{id}` après une confirmation. La confirmation dit combien d'agents la règle couvre, puisque rendre les droits retire la règle entière. Un droit retiré depuis un incident n'a pas de règle : il reste affiché seul, sans bouton. La puce « +N » des droits en trop est un bouton qui déplie la liste complète et la replie.

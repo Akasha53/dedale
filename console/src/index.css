@@ -5816,6 +5816,32 @@ abbr.canary:focus::after {
   outline: 2px solid #0d0d0d;
   outline-offset: 2px;
 }
+/* Droits retirés par l'analyste : gris barré, puis la règle et « Rendre les droits ». */
+.inv-puce-retire {
+  background: #f4f4f4;
+  color: var(--texte-faible);
+  text-decoration: line-through;
+}
+.inv-retrait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+.inv-retrait .lien-incident.inv-rendre {
+  font-size: 12.5px;
+  padding: 3px 10px;
+  border: 1px solid var(--bord-fort);
+  background: #ffffff;
+}
+.inv-retrait .lien-incident.inv-rendre:hover {
+  background: var(--survol);
+}
+.inv-retrait .lien-incident.inv-rendre.confirme {
+  border-color: #0d0d0d;
+}
 
 /* « Pourquoi ? » d'une carte d'agent : s'ouvre sous le bouton, vers la droite,
    et passe au-dessus des panneaux suivants. */

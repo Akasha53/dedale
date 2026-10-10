@@ -3,11 +3,13 @@
 // trop, son niveau de risque expliqué et sa résistance mesurée sur le banc.
 // Les agents qui attendent une décision passent en tête.
 
-import { useMemo, useState } from "react";
-import type { AgentInventaire, Incident, Session, Signal } from "../types";
+import { useEffect, useMemo, useState } from "react";
+import { useDonnees } from "../api/store";
+import type { AgentInventaire, Incident, Politique, Session, Signal } from "../types";
+import { useAnalyste } from "../ui/analyste";
 import { Pourquoi, type Force, type LignePourquoi } from "../ui/Pourquoi";
 import { attendDecision, decoder, estATraiter, libelleDroit, sansCodes } from "../ui/mots";
-import { tempsRelatif } from "../ui/primitives";
+import { heure, tempsRelatif } from "../ui/primitives";
 
 const NIVEAU: Record<string, { lib: string; cls: string }> = {
   eleve: { lib: "Risque élevé", cls: "eleve" },
@@ -141,6 +143,87 @@ function PucesDroitsEnTrop({ codes, idListe }: { codes: string[]; idListe: strin
   );
 }
 
+// Droits retirés : chaque code, barré, puis la règle du SOC qui l'a retiré (qui, à
+// quelle heure) et « Rendre les droits ». Un retrait fait depuis un incident n'a pas
+// de règle : il s'affiche seul. Les détails viennent de `GET /api/politiques`, champ
+// `retraits` des règles de moindre privilège (CONTRATS.md, avenant des règles).
+type RegleRetrait = Politique & {
+  intention?: string;
+  retraits?: { agent: string; droits: (string | { code: string })[] }[];
+};
+
+const codeDroit = (d: string | { code: string }) => (typeof d === "string" ? d : d.code);
+
+function DroitsRetires({ agent, codes }: { agent: string; codes: string[] }) {
+  const { politiques, retirerPolitique } = useDonnees();
+  const analyste = useAnalyste();
+  const regles = useMemo(
+    () =>
+      (politiques as RegleRetrait[]).filter(
+        (p) =>
+          p.active !== false &&
+          p.intention === "moindre_privilege" &&
+          p.retraits?.some((l) => l.agent === agent && l.droits.some((d) => codes.includes(codeDroit(d))))
+      ),
+    [politiques, agent, codes]
+  );
+  return (
+    <>
+      <span className="inv-puces">
+        {codes.map((c) => (
+          <span key={c} className="inv-puce inv-puce-retire" title={`${c} : retiré`}>
+            {libelleDroit(c)}
+          </span>
+        ))}
+      </span>
+      {regles.map((p) => (
+        <RegleDuRetrait key={p.id} p={p} rendre={() => retirerPolitique(p.id, analyste || "analyste")} />
+      ))}
+    </>
+  );
+}
+
+function RegleDuRetrait({ p, rendre }: { p: RegleRetrait; rendre: () => Promise<void> }) {
+  const [confirme, setConfirme] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  useEffect(() => {
+    if (!confirme) return;
+    const t = window.setTimeout(() => setConfirme(false), 5000);
+    return () => window.clearTimeout(t);
+  }, [confirme]);
+  const agents = p.retraits?.length ?? 1;
+  const qui = [p.par ? `par ${p.par}` : null, p.creee_a ? `à ${heure(p.creee_a).slice(0, 5)}` : null]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <span className="inv-retrait">
+      <span className="inv-doux">
+        Retirés par la règle n°{p.numero}
+        {qui ? `, ${qui}` : ""}
+      </span>
+      <button
+        type="button"
+        className={`lien-incident inv-rendre ${confirme ? "confirme" : ""}`}
+        onClick={() => {
+          if (!confirme) {
+            setConfirme(true);
+            return;
+          }
+          setConfirme(false);
+          rendre().catch((e) => setErreur(e instanceof Error ? e.message : "Les droits n'ont pas pu être rendus."));
+        }}
+      >
+        {confirme
+          ? agents > 1
+            ? `Confirmer : rendre les droits des ${agents} agents`
+            : "Confirmer : rendre les droits"
+          : "Rendre les droits"}
+      </button>
+      {erreur && <span className="decision-erreur">{erreur}</span>}
+    </span>
+  );
+}
+
 function CarteAgent({
   v,
   ouvrirIncident,
@@ -197,6 +280,14 @@ function CarteAgent({
             )}
           </dd>
         </div>
+        {(a.droits.retires ?? []).length > 0 && (
+          <div>
+            <dt>Droits retirés</dt>
+            <dd>
+              <DroitsRetires agent={a.id} codes={(a.droits.retires ?? []).map(codeDroit)} />
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Résistance</dt>
           <dd>
