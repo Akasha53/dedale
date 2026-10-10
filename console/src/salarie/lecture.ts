@@ -84,14 +84,14 @@ const POURQUOI: Record<Genre, string> = {
   mail_recu: "Le mail a les marques d'une fraude : son expéditeur, ses liens ou sa demande ne collent pas.",
   lien: "Le lien mène à un site qui imite Orbis Pay sans en faire partie.",
   piece: "Le fichier a les marques d'une pièce jointe piégée.",
-  coller: "Dédale a reconnu une clé secrète dans ce que le salarié allait coller.",
+  coller: "sAIfe a reconnu une clé secrète dans ce que le salarié allait coller.",
   mail_sortant: "Le destinataire est hors de l'entreprise et le mail contient des données sensibles.",
   depot: "Ce service n'est pas validé par Orbis Pay et le fichier est confidentiel.",
   signal: "Le salarié a jugé ce mail suspect et l'a signalé lui-même.",
   fichier: "Le fichier peut lancer un programme et vient de l'extérieur.",
   virement: "Un virement est un geste critique : il ne part qu'avec une double validation.",
   export: "Un export de données clients est un geste critique : il ne part qu'avec une double validation.",
-  autre: "Dédale a reconnu un geste qui expose l'entreprise.",
+  autre: "sAIfe a reconnu un geste qui expose l'entreprise.",
 };
 
 const RISQUE: Record<Genre, string> = {
@@ -135,7 +135,7 @@ function phraseGeste(g: Genre, d: Details): string {
     case "mail_recu":
       return affiche && de
         ? `Le salarié a ouvert un mail signé « ${affiche} », envoyé en réalité par ${de}. Son lien mène à un faux site.`
-        : "Le salarié a ouvert un mail frauduleux malgré l'alerte de Dédale.";
+        : "Le salarié a ouvert un mail frauduleux malgré l'alerte de sAIfe.";
     case "lien":
       return "Le salarié a cliqué sur un lien qui mène à un faux site d'Orbis Pay.";
     case "piece":
@@ -245,7 +245,7 @@ function brutsGeste(g: Genre, d: Details): Brut[] {
     ["Fichier", d.fichier, true],
     ["Où", d.cible],
     ["Destinataires", Array.isArray(d.destinataires_externes) ? d.destinataires_externes.join(", ") : undefined, true],
-    ["Ce que Dédale a repéré", d.categorie_secret ?? d.indice],
+    ["Ce que sAIfe a repéré", d.categorie_secret ?? d.indice],
   ];
   return lignes
     .map(([lib, v, mono]) => ({ lib, valeur: texte(v), mono: Boolean(mono) }))
@@ -269,7 +269,7 @@ const LIB: Record<string, string> = {
   entree: "Contexte",
   action_risquee: "Geste risqué",
   signalement: "Signalement",
-  avertissement: "Alerte de Dédale",
+  avertissement: "Alerte de sAIfe",
   choix: "Choix du salarié",
   consequence: "Suite",
   sortie: "Suite",
@@ -362,7 +362,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
           ton: "neutre" as TonMaillon,
           detail: {
             brut: observe ? [{ lib: "Observé sur le poste", valeur: observe }] : [],
-            pourquoi: "Dédale suit ce qui se passe sur le poste sans rien bloquer.",
+            pourquoi: "sAIfe suit ce qui se passe sur le poste sans rien bloquer.",
             refs,
           },
         };
@@ -402,7 +402,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
         const explication = texte(d.explication);
         return {
           ...base,
-          titre: "Dédale l'a prévenu",
+          titre: "sAIfe l'a prévenu",
           texte: titre ? `« ${titre} »` : "Une alerte s'est affichée sur son écran.",
           ton: "protege" as TonMaillon,
           detail: {
@@ -411,7 +411,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
               ...(explication ? [{ lib: "Message", valeur: explication }] : []),
               ...(typeof d.gravite === "string" ? [{ lib: "Gravité annoncée", valeur: d.gravite }] : []),
             ],
-            pourquoi: "Dédale prévient au moment du geste, avant qu'il n'aboutisse.",
+            pourquoi: "sAIfe prévient au moment du geste, avant qu'il n'aboutisse.",
             risque: "Sans cette alerte, le salarié n'aurait rien vu passer.",
             refs,
           },
@@ -433,7 +433,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
           ton: (continue_ ? "alerte" : "protege") as TonMaillon,
           detail: {
             brut: [{ lib: "Choix", valeur: continue_ ? "continuer quand même" : "annuler" }],
-            pourquoi: "Dédale ne bloque pas le poste : le salarié reste libre de choisir.",
+            pourquoi: "sAIfe ne bloque pas le poste : le salarié reste libre de choisir.",
             risque: continue_ ? RISQUE_PASSE[g] : undefined,
             risqueTitre: continue_ ? TITRE_PASSE : undefined,
             refs,
@@ -442,7 +442,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
       }
       default: {
         // Geste suspendu, relu ou tranché : le backend dit son vrai état, on le reprend.
-        const etat = /relu par Dédale|suspendu|refusé|accordé|aucune décision/i.test(observe) ? observe : "";
+        const etat = /relu par (?:sAIfe|Dédale)|suspendu|refusé|accordé|aucune décision/i.test(observe) ? observe : "";
         const nAPasEuLieu = /refus|aucune décision/i.test(etat);
         const accorde = !nAPasEuLieu && /accord/i.test(etat);
         return {
@@ -485,7 +485,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
       ton: dec.action === "refuser" ? "protege" : "neutre",
       detail: {
         brut: [{ lib: "Par", valeur: dec.analyste }, ...(motif ? [{ lib: "Motif", valeur: motif }] : [])],
-        pourquoi: "Dédale prévient le salarié, l'analyste décide de la suite.",
+        pourquoi: "sAIfe prévient le salarié, l'analyste décide de la suite.",
         refs: [],
       },
     });
@@ -551,7 +551,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
       texte: ferme ? undefined : inc.quatre_yeux && !inc.quatre_yeux.issue ? "Accorder ou refuser le geste." : "Clore le dossier ou le classer sans suite.",
       horodatage: undefined,
       ton: ferme ? "neutre" : "attente",
-      detail: { brut: [], pourquoi: "Dédale prévient le salarié, l'analyste décide de la suite.", refs: [] } as DetailMaillon,
+      detail: { brut: [], pourquoi: "sAIfe prévient le salarié, l'analyste décide de la suite.", refs: [] } as DetailMaillon,
     });
   }
 

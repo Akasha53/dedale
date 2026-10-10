@@ -8,6 +8,7 @@ import { compter } from "./ui/compteurs";
 import { SelecteurAnalyste } from "./ui/analyste";
 import { Icone } from "./agent/icones";
 import logoDedale from "./assets/dedale.svg";
+import { Logotype } from "./ui/Logotype";
 import type { Pilier } from "./types";
 
 // La page « Leurres » (screens/LeurresView.tsx) est sortie de la navigation :
@@ -22,7 +23,7 @@ const ENTETE_PILIER: Record<
   interne: {
     reel: {
       titre: "Agents IA en direct",
-      desc: "Chaque action d'un agent passe par Dédale. Une action douteuse attend votre décision.",
+      desc: "Chaque action d'un agent passe par sAIfe. Une action douteuse attend votre décision.",
     },
     incident: {
       titre: "Incidents des agents IA",
@@ -32,7 +33,7 @@ const ENTETE_PILIER: Record<
   humain: {
     reel: {
       titre: "Salariés en direct",
-      desc: "Dédale prévient le salarié avant un geste risqué et le laisse choisir. Les noms restent masqués.",
+      desc: "sAIfe prévient le salarié avant un geste risqué et le laisse choisir. Les noms restent masqués.",
     },
     incident: {
       titre: "Incidents des salariés",
@@ -43,7 +44,7 @@ const ENTETE_PILIER: Record<
 
 const ENTETE_MESURES = {
   titre: "Mesures",
-  desc: "Ce que Dédale repère, ce qu'il rate, et à quelle vitesse.",
+  desc: "Ce que sAIfe repère, ce qu'il rate, et à quelle vitesse.",
 };
 
 function enteteDe(ecran: Ecran, pilier: Pilier): { titre: string; desc: string } {
@@ -115,7 +116,7 @@ export function App() {
         <div className="logo">
           <img className="logo-dedale" src={logoDedale} width={28} height={28} alt="" />
           <div>
-            <div className="marque">Dédale</div>
+            <div className="marque"><Logotype /></div>
             <div className="sous">Console de sécurité</div>
           </div>
         </div>
@@ -142,7 +143,7 @@ export function App() {
             Orbis Pay
           </div>
           <div className="note-laterale">
-            Dédale surveille les agents IA d'Orbis Pay et prévient les salariés
+            sAIfe surveille les agents IA d'Orbis Pay et prévient les salariés
             avant un geste risqué.
           </div>
         </div>

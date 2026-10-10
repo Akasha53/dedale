@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import logoDedale from "../assets/dedale.svg";
+import { Logotype } from "../ui/Logotype";
 import {
   chargerFile,
   contrepartie,
@@ -105,10 +106,10 @@ export function EspaceValidation() {
   return (
     <div className="val">
       <header className="val-entete">
-        <a className="val-marque" href="./" aria-label="Dédale, validation métier">
+        <a className="val-marque" href="./" aria-label="sAIfe, validation métier">
           <img src={logoDedale} width={28} height={28} alt="" />
           <span>
-            <span className="val-nom">Dédale</span>
+            <span className="val-nom"><Logotype /></span>
             <span className="val-sous">Validation métier · Orbis Pay</span>
           </span>
         </a>
@@ -120,7 +121,7 @@ export function EspaceValidation() {
           <span className="val-sourcil">Responsable et finance</span>
           <h1>Gestes à confirmer</h1>
           <p>
-            Dédale a retenu ces gestes parce qu'un détail sort de l'habitude : bénéficiaire nouveau, RIB qui
+            sAIfe a retenu ces gestes parce qu'un détail sort de l'habitude : bénéficiaire nouveau, RIB qui
             change, montant élevé. Confirmez ou refusez, avec un motif. L'équipe sécurité ne voit ni les
             montants ni les bénéficiaires.
           </p>
@@ -145,7 +146,7 @@ export function EspaceValidation() {
                 <Fiche key={courante.id} fiche={courante} apresDecision={apresDecision} />
               ) : (
                 <Message titre="Rien à confirmer">
-                  Un geste retenu par Dédale apparaît ici quelques secondes après la demande du salarié.
+                  Un geste retenu par sAIfe apparaît ici quelques secondes après la demande du salarié.
                 </Message>
               )}
             </section>
@@ -262,7 +263,7 @@ function Fiche({ fiche, apresDecision }: { fiche: FicheGeste; apresDecision: (f:
 
         {fiche.raisons.length > 0 || fiche.motif ? (
           <div className="val-pourquoi">
-            <h3>Pourquoi Dédale l'a retenu</h3>
+            <h3>Pourquoi sAIfe l'a retenu</h3>
             {fiche.raisons.length > 0 ? (
               <ul>
                 {fiche.raisons.map((r) => (
@@ -334,8 +335,8 @@ function Tranche({ fiche }: { fiche: FicheGeste }) {
       {d?.motif && <p className="val-citation">{d.motif}</p>}
       <p className="val-note">
         {accorde
-          ? "Le salarié peut relancer son geste : Dédale le laissera passer pour ce bénéficiaire et un montant proche."
-          : "Si le salarié relance ce geste, Dédale le retiendra de nouveau."}
+          ? "Le salarié peut relancer son geste : sAIfe le laissera passer pour ce bénéficiaire et un montant proche."
+          : "Si le salarié relance ce geste, sAIfe le retiendra de nouveau."}
       </p>
     </div>
   );

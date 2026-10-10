@@ -359,7 +359,7 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
         </form>
         {(agent || (analyse && (analyse as Analyse).lecteur?.moteur === "motifs")) && (
           <p className="regle-vide" style={{ marginTop: 8 }} aria-live="polite">
-            {agent ? traceAgent(agent) : "Lu par les motifs de Dédale, sans modèle."}
+            {agent ? traceAgent(agent) : "Lu par les motifs de sAIfe, sans modèle."}
           </p>
         )}
         <p className="regle-vide" style={{ marginTop: 8 }}>
@@ -466,7 +466,7 @@ function LigneRegle({ p, retirer }: { p: PolitiqueVue; retirer: () => Promise<vo
         <span className="regle-meta">
           {moindre
             ? `La passerelle refuse les outils qui les exigent. ${n === 0 ? "Aucun appel refusé" : `${n} appel${n > 1 ? "s" : ""} refusé${n > 1 ? "s" : ""}${derniere}`}`
-            : `${effet ? `Dédale ${effet} l'action. ` : ""}${n === 0 ? "Jamais déclenchée" : `Déclenchée ${n} fois${p.dernier_declenchement ? `, dernière à ${heure(p.dernier_declenchement).slice(0, 5)}` : ""}`}`}
+            : `${effet ? `sAIfe ${effet} l'action. ` : ""}${n === 0 ? "Jamais déclenchée" : `Déclenchée ${n} fois${p.dernier_declenchement ? `, dernière à ${heure(p.dernier_declenchement).slice(0, 5)}` : ""}`}`}
           {p.par ? ` · activée par ${p.par}` : ""}
         </span>
         {erreur && <span className="decision-erreur">{erreur}</span>}

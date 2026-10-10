@@ -51,7 +51,7 @@ export function DetailEtape({ detail, horodatage }: { detail: DetailMaillon; hor
       )}
       {detail.pourquoi && (
         <section className="dp-bloc">
-          <h5>Pourquoi Dédale l'a repéré</h5>
+          <h5>Pourquoi sAIfe l'a repéré</h5>
           <p className="dp-texte">
             <TexteCanary texte={detail.pourquoi} />
           </p>

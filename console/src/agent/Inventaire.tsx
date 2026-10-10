@@ -84,7 +84,7 @@ function etatAgent(sessions: Session[], incidents: Incident[], attente?: Inciden
   const derniere = [...sessions].sort((a, b) => (b.derniere_vue ?? "").localeCompare(a.derniere_vue ?? ""))[0];
   if (!derniere) return { lib: "Aucune activité", cls: "neutre" };
   if (derniere.etat === "coupee") return { lib: "Coupé par le SOC", cls: "neutre" };
-  if (derniere.etat === "suspendue") return { lib: "Action refusée par Dédale", cls: "ok" };
+  if (derniere.etat === "suspendue") return { lib: "Action refusée par sAIfe", cls: "ok" };
   const inc = incidents.find((i) => i.session_id === derniere.id);
   if (inc?.statut === "surveille") return { lib: "Action laissée passer, surveillé", cls: "neutre" };
   return { lib: "En service", cls: "neutre" };
@@ -446,7 +446,7 @@ function CarteAgent({
         </span>
         <Pourquoi
           titre={`Pourquoi ce niveau de risque`}
-          intro="Chaque point vient d'un fait que Dédale a vu ou que l'inventaire déclare."
+          intro="Chaque point vient d'un fait que sAIfe a vu ou que l'inventaire déclare."
           lignes={lignes}
         />
         <span className="inv-espace" />

@@ -79,7 +79,7 @@ export function etatVue(incident: Incident, issue: Issue): EtatVue {
 
 const ETAT: Record<EtatVue, { lib: string; cls: string }> = {
   attente: { lib: "À décider", cls: "attente" },
-  refusee: { lib: "Refusée par Dédale", cls: "bloquee" },
+  refusee: { lib: "Refusée par sAIfe", cls: "bloquee" },
   coupee: { lib: "Agent arrêté", cls: "coupee" },
   reprise: { lib: "Laissé passer, surveillé", cls: "reprise" },
   close: { lib: "Clos", cls: "surveillee" },
@@ -104,12 +104,12 @@ function repliAgent(lecture: LectureAgent, type?: string): string[] {
   const fin = resultat ? `${resultat.titre}.` : "";
   if (type === "interne_desarme")
     return [
-      "Un contenu venu de l'extérieur cachait une instruction pour l'agent. Dédale l'a retirée avant que l'agent le lise.",
+      "Un contenu venu de l'extérieur cachait une instruction pour l'agent. sAIfe l'a retirée avant que l'agent le lise.",
       "L'agent a reçu la version propre et n'a rien suivi. Vous pouvez relire ce qui a été retiré, puis clore.",
     ];
   if (type === "interne_envoi_externe")
     return [
-      "L'agent a voulu envoyer quelque chose à une adresse hors d'Orbis Pay. Dédale retient tout envoi vers l'extérieur avant qu'il parte.",
+      "L'agent a voulu envoyer quelque chose à une adresse hors d'Orbis Pay. sAIfe retient tout envoi vers l'extérieur avant qu'il parte.",
       `${lecture.enJeu} ${fin}`.trim(),
     ];
   if (type && REPLI_MEDIATION[type]) return [REPLI_MEDIATION[type], fin].filter(Boolean);
@@ -117,7 +117,7 @@ function repliAgent(lecture: LectureAgent, type?: string): string[] {
     return ["Une règle écrite par le SOC s'est appliquée à une action de l'agent.", `${lecture.enJeu} ${fin}`.trim()];
   if (type === "interne_anomalie")
     return [
-      "L'agent est sorti de son habitude de travail. Dédale le signale sans l'arrêter.",
+      "L'agent est sorti de son habitude de travail. sAIfe le signale sans l'arrêter.",
       "Relisez l'écart dans la boîte noire, puis clorez le dossier ou coupez l'agent.",
     ];
   return [
@@ -242,7 +242,7 @@ function Chrono({
   // Refus d'office : la décision, c'est le refus. Rien à attendre, pas de compteur.
   const decision = lecture.refus
     ? {
-        lib: "Refusé par Dédale en",
+        lib: "Refusé par sAIfe en",
         val: dureeCourte(lecture.refus.delai),
         sous: "sans attendre personne",
         vivant: false,
@@ -523,7 +523,7 @@ function PanneauDecision({
       : lecture.issue === "reprise"
         ? "Déjà fait : l'action est passée."
         : lecture.refus
-          ? "Dédale a déjà refusé cette action."
+          ? "sAIfe a déjà refusé cette action."
           : "Aucune action n'attend de décision.";
   const aideRetirer = retrait.fait
     ? `Fait : l'agent ne peut plus ${retrait.fait}.`
@@ -576,7 +576,7 @@ function PanneauDecision({
     vue === "attente" && lecture.detection
       ? `depuis ${duree(maintenant - ms(lecture.detection))}`
       : lecture.refus && (vue === "refusee" || vue === "close")
-        ? `Refusé par Dédale en ${dureeCourte(lecture.refus.delai)}, sans attendre personne.`
+        ? `Refusé par sAIfe en ${dureeCourte(lecture.refus.delai)}, sans attendre personne.`
         : null;
   const enJeu = vue === "attente" ? lecture.enJeu : lecture.enJeu.replace(/^L'agent veut /, "L'agent voulait ");
 

@@ -143,18 +143,18 @@ export function raisonActivite(a: Activite, enAttente = true): string {
   }
   if (a.verdict === "retenu") {
     const suite = enAttente ? ", attend votre décision" : "";
-    if (/canar[iy]/i.test(r)) return `elle emporte un faux secret posé par Dédale${suite}`;
+    if (/canar[iy]/i.test(r)) return `elle emporte un faux secret posé par sAIfe${suite}`;
     if (/hors des domaines|envoi vers/i.test(r)) return `envoi hors d'Orbis Pay${suite}`;
     if (/règle/i.test(r)) return `une règle du SOC l'a retenue${suite}`;
     if (droit) return `accès ${droit} non prévu${suite}`;
-    return enAttente ? "attend votre décision" : "retenue par Dédale";
+    return enAttente ? "attend votre décision" : "retenue par sAIfe";
   }
   if (/coup/i.test(r)) return "annulée : l'agent a été arrêté";
   if (/règle/i.test(r)) return "bloquée par une règle du SOC";
   if (/retir/i.test(r)) return "ce droit lui a été retiré";
   if (/délai|aucune décision/i.test(r)) return "personne n'a répondu à temps";
   if (droit) return `accès ${droit} non prévu pour sa tâche`;
-  return "bloquée par Dédale";
+  return "bloquée par sAIfe";
 }
 
 // Titre court d'un incident, sans code ni identifiant.
@@ -209,17 +209,17 @@ export function phraseSalarie(type?: TypeIncident, choix?: "continuer" | "annule
   if (type === "humain_signalement") return "Un salarié a signalé lui-même un mail qu'il trouvait suspect.";
   if (contexte === "telechargement")
     return choix === "annuler"
-      ? "Un salarié a téléchargé un fichier à risque. Dédale l'a prévenu et il l'a mis de côté."
-      : "Un salarié a téléchargé un fichier à risque. Dédale l'a prévenu, il l'a gardé quand même.";
+      ? "Un salarié a téléchargé un fichier à risque. sAIfe l'a prévenu et il l'a mis de côté."
+      : "Un salarié a téléchargé un fichier à risque. sAIfe l'a prévenu, il l'a gardé quand même.";
   const geste =
     type === "humain_phishing" && contexte === "navigation"
       ? "Un salarié a ouvert un site qui imite Orbis Pay"
       : type === "humain_phishing" && contexte === "mail reçu"
         ? "Un salarié a ouvert le lien d'un faux mail"
         : GESTES[type ?? ""] ?? "Un salarié a fait un geste risqué";
-  if (choix === "annuler") return `${geste}. Dédale l'a prévenu et il a annulé.`;
-  if (choix === "continuer") return `${geste}. Dédale l'a prévenu, il a continué quand même.`;
-  return `${geste}. Dédale l'a prévenu au moment du geste.`;
+  if (choix === "annuler") return `${geste}. sAIfe l'a prévenu et il a annulé.`;
+  if (choix === "continuer") return `${geste}. sAIfe l'a prévenu, il a continué quand même.`;
+  return `${geste}. sAIfe l'a prévenu au moment du geste.`;
 }
 
 // Refus d'office : la passerelle a refusé l'action elle-même (droit absent du

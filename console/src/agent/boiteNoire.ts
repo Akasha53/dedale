@@ -141,7 +141,7 @@ const DECISION_TITRE: Record<string, string> = {
 };
 
 const DECISION_POURQUOI: Record<string, string> = {
-  clore: "Dédale avait déjà refusé l'action. L'analyste ferme le dossier.",
+  clore: "sAIfe avait déjà refusé l'action. L'analyste ferme le dossier.",
 };
 
 const DECISION_RISQUE: Record<string, string> = {
@@ -273,7 +273,7 @@ function gouvernanceDe(inc: Incident): MaillonAgent[] {
           ton: (bloque || /attente/i.test(detail) ? "protege" : "neutre") as TonMaillon,
           detail: {
             brut: bruts(brut("Constat", detail)),
-            pourquoi: "Une règle écrite par le SOC s'applique à cette action. Dédale l'a vérifiée avant que l'action parte.",
+            pourquoi: "Une règle écrite par le SOC s'applique à cette action. sAIfe l'a vérifiée avant que l'action parte.",
             refs: [],
           },
         };
@@ -286,7 +286,7 @@ function gouvernanceDe(inc: Incident): MaillonAgent[] {
           ton: "alerte" as TonMaillon,
           detail: {
             brut: bruts(brut("Écart mesuré", detail)),
-            pourquoi: "Dédale apprend l'habitude de chaque agent et signale un écart net. L'agent n'est pas arrêté.",
+            pourquoi: "sAIfe apprend l'habitude de chaque agent et signale un écart net. L'agent n'est pas arrêté.",
             refs: [],
           },
         };
@@ -297,7 +297,7 @@ function gouvernanceDe(inc: Incident): MaillonAgent[] {
         texte: detail,
         ton: "protege" as TonMaillon,
         detail: {
-          brut: bruts(brut("Ce que Dédale a retiré", detail)),
+          brut: bruts(brut("Ce que sAIfe a retiré", detail)),
           pourquoi: "La passerelle nettoie ce que l'agent va lire : il reçoit la version sans l'instruction cachée.",
           refs: [],
         },
@@ -378,7 +378,7 @@ function resultatDe(issue: Issue, dejaPasse: boolean, horodatage: string | undef
       return {
         ...base,
         titre: "Rien n'est sorti",
-        texte: "Dédale a refusé l'action et retiré à l'agent les accès de cette tâche.",
+        texte: "sAIfe a refusé l'action et retiré à l'agent les accès de cette tâche.",
         ton: "protege",
       };
     case "reprise":
@@ -412,7 +412,7 @@ function decisionMaillon(d: Decision, i: number, motif?: string): MaillonAgent {
         brut("Motif", motif ?? "")
       ),
       pourquoi:
-        DECISION_POURQUOI[d.action] ?? "Dédale n'agit jamais seul : il retient l'action et c'est l'analyste qui tranche.",
+        DECISION_POURQUOI[d.action] ?? "sAIfe n'agit jamais seul : il retient l'action et c'est l'analyste qui tranche.",
       risque: DECISION_RISQUE[d.action],
       refs: [],
     },
@@ -422,7 +422,7 @@ function decisionMaillon(d: Decision, i: number, motif?: string): MaillonAgent {
 function enJeuDe(appel: AppelCible | null, horsOrbis = false): string {
   if (!appel) return "Aucune action n'attend de décision.";
   const quoi = appel.virement ? `L'agent veut faire ${phraseVirement(appel.virement)}` : `L'agent veut ${libelleOutil(appel.outil)}`;
-  if (appel.porteCanari) return `${quoi} en y glissant un faux secret posé par Dédale.`;
+  if (appel.porteCanari) return `${quoi} en y glissant un faux secret posé par sAIfe.`;
   if (appel.horsJeton && appel.scope) return `${quoi}, ce que sa tâche ne prévoit pas.`;
   if (horsOrbis) return `${quoi}, vers une adresse hors d'Orbis Pay.`;
   return `${quoi}.`;
@@ -652,8 +652,8 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
           brut("Empreinte", docSource?.empreinte ?? (details(evSource).source as Record<string, unknown> | undefined)?.empreinte, { mono: true })
         ),
         pourquoi: externe
-          ? "Ce contenu vient de l'extérieur : Dédale le traite comme non fiable et regarde ce que l'agent en fait."
-          : "Dédale note ce que l'agent lit, pour pouvoir remonter la chaîne si un incident survient.",
+          ? "Ce contenu vient de l'extérieur : sAIfe le traite comme non fiable et regarde ce que l'agent en fait."
+          : "sAIfe note ce que l'agent lit, pour pouvoir remonter la chaîne si un incident survient.",
         risque: "Un contenu venu de l'extérieur peut donner des ordres à l'agent sans que personne ne le voie.",
         refs: fusionnerRefs(refsDe(inc, [evSource, mcpEv]), refsBoiteNoire(evs, "source")),
       },
@@ -709,7 +709,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
           ? "Un faux collègue lui a donné un ordre"
           : "Une instruction cachée, invisible pour un humain",
       texte: prevenu
-        ? "Dédale l'a retirée : l'agent a reçu le contenu sans elle."
+        ? "sAIfe l'a retirée : l'agent a reçu le contenu sans elle."
         : demande
           ? `Elle lui demande de ${court(sansCodes(demande))}.`
           : textePiege
@@ -722,13 +722,13 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       detail: {
         brut: bruts(
           brut("Texte caché", textePiege ? preuveInerte(textePiege, 900) : "", { piege: true }),
-          brut("Constat de Dédale", textePiege ? "" : preuveInerte(extrait || descr, 400)),
+          brut("Constat de sAIfe", textePiege ? "" : preuveInerte(extrait || descr, 400)),
           brut("Piège touché", canary, { mono: true })
         ),
         pourquoi: mcpEv
           ? "La description de l'outil donne des ordres à l'agent : un outil honnête ne fait pas ça."
           : canary
-            ? "Un piège posé par Dédale a été touché : ce texte ne s'adresse pas à une personne, seul un agent IA le lit et le suit."
+            ? "Un piège posé par sAIfe a été touché : ce texte ne s'adresse pas à une personne, seul un agent IA le lit et le suit."
             : "Le contenu donne des ordres à l'agent, hors de sa tâche.",
         risque: demande
           ? `Si l'agent l'avait suivie jusqu'au bout, il aurait pu ${court(sansCodes(demande), 200)}.`
@@ -799,7 +799,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     const canaris = Array.isArray(exfil?.canaris) ? (exfil!.canaris as string[]).join(", ") : "";
     const pourquoi = [
       c.horsJeton && c.scope ? `L'outil n'est pas dans les droits de sa tâche : il exige « ${libelleDroit(c.scope)} ».` : "",
-      c.porteCanari ? "Un faux secret posé par Dédale se trouve dans ce que l'agent voulait envoyer." : "",
+      c.porteCanari ? "Un faux secret posé par sAIfe se trouve dans ce que l'agent voulait envoyer." : "",
       horsEntreprise(adresse) ? "L'adresse visée est hors de l'entreprise." : "",
     ]
       .filter(Boolean)
@@ -807,14 +807,14 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     // Une seule vérité par action : retenue puis annulée, laissée passer, ou en attente.
     const suite =
       ripBlocage && !tranchee
-        ? "Dédale l'a refusée."
+        ? "sAIfe l'a refusée."
         : !tranchee
           ? statutFerme
-            ? "Dédale l'a retenue."
-            : "Dédale l'a retenue : elle attend votre décision."
+            ? "sAIfe l'a retenue."
+            : "sAIfe l'a retenue : elle attend votre décision."
           : tranchee.action === "reprendre" || tranchee.action === "ignorer"
-            ? "Dédale l'a retenue, puis l'analyste l'a laissée passer."
-            : "Dédale l'a retenue, puis l'analyste l'a annulée.";
+            ? "sAIfe l'a retenue, puis l'analyste l'a laissée passer."
+            : "sAIfe l'a retenue, puis l'analyste l'a annulée.";
     const touchesLiees = touches.filter((e) => e.outil === c.outil && temps(e.horodatage) >= t);
     maillons.push({
       cle: "appel",
@@ -824,8 +824,8 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       texte: [
         c.porteCanari
           ? horsEntreprise(adresse)
-            ? "Elle emporte un faux secret posé par Dédale, vers une adresse hors d'Orbis Pay."
-            : "Elle emporte un faux secret posé par Dédale."
+            ? "Elle emporte un faux secret posé par sAIfe, vers une adresse hors d'Orbis Pay."
+            : "Elle emporte un faux secret posé par sAIfe."
           : c.horsJeton && c.scope
             ? `Sa tâche ne prévoit pas l'accès « ${libelleDroit(c.scope)} ».`
             : horsEntreprise(adresse)
@@ -852,7 +852,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
           brut("Adresse visée", adresse ?? "", { mono: true }),
           brut("Canary emporté", canaris, { mono: true })
         ),
-        pourquoi: pourquoi || "L'action suit l'instruction cachée : Dédale la retient avant qu'elle s'exécute.",
+        pourquoi: pourquoi || "L'action suit l'instruction cachée : sAIfe la retient avant qu'elle s'exécute.",
         risque: RISQUE_OUTIL[c.outil] ?? "L'action aurait été exécutée avec les accès de l'agent, sans contrôle.",
         refs: fusionnerRefs(refsDe(inc, [c.ev, ...touchesLiees]), refsBoiteNoire(evs, "appel_outil", c.outil)),
       },
@@ -868,10 +868,10 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       cle: "decision",
       id: "decision-refus",
       lib: LIB.decision,
-      titre: "Dédale a refusé l'action",
+      titre: "sAIfe a refusé l'action",
       texte: usurpation
-        ? "L'ordre venait d'un faux collègue. Dédale l'a refusé sans attendre personne."
-        : "L'action sortait des droits de sa tâche. Dédale l'a refusée sans attendre personne.",
+        ? "L'ordre venait d'un faux collègue. sAIfe l'a refusé sans attendre personne."
+        : "L'action sortait des droits de sa tâche. sAIfe l'a refusée sans attendre personne.",
       horodatage: ripBlocage.horodatage,
       ton: "protege",
       detail: {
@@ -881,7 +881,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
           brut("Accès de l'agent", dRef.jeton_revoque === true ? "retirés aussitôt" : "")
         ),
         pourquoi: usurpation
-          ? "Un ordre d'un autre agent doit porter une signature valide. Sans elle, Dédale refuse d'office."
+          ? "Un ordre d'un autre agent doit porter une signature valide. Sans elle, sAIfe refuse d'office."
           : "Une action hors des droits de la tâche est refusée d'office. C'est une règle fixe : personne n'a à trancher.",
         risque: outil ? RISQUE_OUTIL[outil] : undefined,
         refs: [],
@@ -910,7 +910,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       enCours: attend,
       detail: {
         brut: [],
-        pourquoi: "Dédale n'agit jamais seul : il retient l'action et c'est l'analyste qui tranche.",
+        pourquoi: "sAIfe n'agit jamais seul : il retient l'action et c'est l'analyste qui tranche.",
         risque: attend ? "Tant que personne ne décide, rien ne part." : undefined,
         refs: [],
       },
@@ -953,7 +953,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
         brut("Compte rendu de la passerelle", preuveInerte(texteClair(dRes.resultat) || texteClair(dRes.raison), 400)),
         brut("Accès retirés", dRes.jeton_revoque === true ? "oui" : "")
       ),
-      pourquoi: ripResultat ? "Confirmé par la passerelle de Dédale, qui contrôle chaque action de l'agent." : undefined,
+      pourquoi: ripResultat ? "Confirmé par la passerelle de sAIfe, qui contrôle chaque action de l'agent." : undefined,
       refs: [],
     })
   );

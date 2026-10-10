@@ -26,7 +26,7 @@ function depuisLeurre(incident: Incident, leurres: Leurre[], base: SourceLue): S
     ...base,
     titre: desarmer(l.emplacement) || base.titre,
     morceaux: [{ texte: desarmer(l.description), piege: true }],
-    note: "La passerelle n'a pas transmis le texte d'origine. Voici ce que Dédale sait du piège que l'agent a suivi.",
+    note: "La passerelle n'a pas transmis le texte d'origine. Voici ce que sAIfe sait du piège que l'agent a suivi.",
   };
 }
 

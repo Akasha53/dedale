@@ -113,7 +113,7 @@ export function sourcePour(inc: Incident): SourceLue {
     morceaux: [
       {
         texte:
-          "Le texte complet n'a pas été transmis à la console. Dédale en garde une empreinte pour la preuve, sans recopier l'instruction cachée.",
+          "Le texte complet n'a pas été transmis à la console. sAIfe en garde une empreinte pour la preuve, sans recopier l'instruction cachée.",
       },
     ],
   };

@@ -73,8 +73,8 @@ function contenu(c: Constat): string | null {
   if (canaris.length)
     morceaux.push(
       canaris.length > 1
-        ? `les canary ${enumerer(canaris)} (des faux secrets posés par Dédale, valeurs masquées)`
-        : `le canary ${canaris[0]} (un faux secret posé par Dédale, valeur masquée)`
+        ? `les canary ${enumerer(canaris)} (des faux secrets posés par sAIfe, valeurs masquées)`
+        : `le canary ${canaris[0]} (un faux secret posé par sAIfe, valeur masquée)`
     );
   const secrets = liste(c.secrets);
   if (secrets.length) morceaux.push(secrets.length > 1 ? `${secrets.length} secrets (masqués)` : "un secret (masqué)");
@@ -136,9 +136,9 @@ export function phrasesMediation(incident: Incident, vue: EtatVue): string[] | n
 // Résumés de repli du contrat, quand l'événement n'est pas encore arrivé.
 export const REPLI_MEDIATION: Record<string, string> = {
   interne_outil_inconnu:
-    "L'agent a appelé un outil qui n'est pas dans sa boîte à outils. Dédale retient tout outil qu'il ne connaît pas avant qu'il s'exécute.",
+    "L'agent a appelé un outil qui n'est pas dans sa boîte à outils. sAIfe retient tout outil qu'il ne connaît pas avant qu'il s'exécute.",
   interne_canal_detourne:
-    "L'agent a glissé une donnée sensible ou une adresse extérieure dans un outil qui ne sert pas à envoyer. Dédale l'a retenu avant qu'il s'exécute.",
+    "L'agent a glissé une donnée sensible ou une adresse extérieure dans un outil qui ne sert pas à envoyer. sAIfe l'a retenu avant qu'il s'exécute.",
   interne_outil_modifie:
-    "Un outil déjà utilisé a changé de description pendant la session. Dédale retient son prochain appel jusqu'à votre décision.",
+    "Un outil déjà utilisé a changé de description pendant la session. sAIfe retient son prochain appel jusqu'à votre décision.",
 };

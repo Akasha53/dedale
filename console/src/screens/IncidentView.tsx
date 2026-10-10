@@ -530,7 +530,7 @@ function IncidentSalarie({
       )}
       {lecture.message && (
         <div className="geste-bloc">
-          <div className="geste-lib">Le message affiché par Dédale</div>
+          <div className="geste-lib">Le message affiché par sAIfe</div>
           <div className="sal-message">
             {lecture.message.titre && <span className="sal-message-titre">{lecture.message.titre}</span>}
             {lecture.message.explication && <span className="sal-message-texte">{lecture.message.explication}</span>}
@@ -629,7 +629,7 @@ function IncidentSalarie({
               <p className="ag-enjeu">
                 {quatreYeux
                   ? "Le salarié a demandé à continuer un geste critique. Son poste attend votre accord : sans réponse, le geste est refusé."
-                  : "Dédale ne bloque jamais le poste : il prévient le salarié, puis vous décidez de la suite."}
+                  : "sAIfe ne bloque jamais le poste : il prévient le salarié, puis vous décidez de la suite."}
               </p>
             )}
 

@@ -1,0 +1,10 @@
+/* Logotype sAIfe : « AI » plus gras que « s » et « fe », même couleur. */
+.logotype {
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.logotype b {
+  font-weight: 700;
+  color: inherit;
+}

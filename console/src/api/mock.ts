@@ -299,7 +299,7 @@ const incidents: Incident[] = [
         ordre: 2,
         phase: "avertissement",
         horodatage: ilYA(35),
-        titre: "Dédale le prévient",
+        titre: "sAIfe le prévient",
         detail: "Message affiché : « Destinataire hors d'Orbis Pay, et la pièce jointe ressemble à une base clients. »",
         choix: "continuer",
       },
@@ -360,7 +360,7 @@ const incidents: Incident[] = [
         ordre: 2,
         phase: "avertissement",
         horodatage: ilYA(18),
-        titre: "Dédale la prévient",
+        titre: "sAIfe la prévient",
         detail: "Message affiché : « Ce site imite Orbis Pay. Ne saisissez pas votre mot de passe. »",
         choix: "continuer",
       },
@@ -641,7 +641,7 @@ function syntheseDe(i: Incident): Synthese {
   const r = (code: string, effet: number, texte: string) => ({ code, effet, texte });
   const conseil = (action: string) => ({
     action,
-    rappel: "Vous décidez : Dédale n'agit jamais seul.",
+    rappel: "Vous décidez : sAIfe n'agit jamais seul.",
     deja_appliquee: derniere?.action === action,
   });
   switch (i.id) {
@@ -655,7 +655,7 @@ function syntheseDe(i: Incident): Synthese {
               ? derniere.action === "reprendre"
                 ? "L'agent a suivi l'instruction. L'analyste a laissé passer l'export : l'agent reste surveillé."
                 : "L'agent a suivi l'instruction. L'analyste l'a coupé avant l'export : rien n'est sorti."
-              : "L'agent a suivi l'instruction et a demandé l'export. Dédale a retenu l'action avant qu'elle parte : rien n'est sorti.",
+              : "L'agent a suivi l'instruction et a demandé l'export. sAIfe a retenu l'action avant qu'elle parte : rien n'est sorti.",
           },
         ],
         confiance: {
@@ -679,7 +679,7 @@ function syntheseDe(i: Incident): Synthese {
         incident_id: i.id,
         phrases: [
           { texte: "L'agent de rapprochement bancaire a lu la description d'un outil qui cachait une instruction : recopier les IBAN des clients dans son rapport." },
-          { texte: "Il a voulu utiliser cet outil. Dédale a retenu l'action, puis l'analyste a coupé l'agent : rien n'est sorti." },
+          { texte: "Il a voulu utiliser cet outil. sAIfe a retenu l'action, puis l'analyste a coupé l'agent : rien n'est sorti." },
         ],
         confiance: {
           score: 0.9,
@@ -701,7 +701,7 @@ function syntheseDe(i: Incident): Synthese {
         incident_id: i.id,
         phrases: [
           { texte: "L'agent des factures devait seulement rapprocher les factures d'octobre." },
-          { texte: "Il a voulu faire un virement, ce que sa tâche ne prévoit pas. Dédale a retenu l'action : aucun argent n'est parti." },
+          { texte: "Il a voulu faire un virement, ce que sa tâche ne prévoit pas. sAIfe a retenu l'action : aucun argent n'est parti." },
         ],
         confiance: {
           score: 0.62,
@@ -718,7 +718,7 @@ function syntheseDe(i: Incident): Synthese {
         incident_id: i.id,
         phrases: [
           { texte: "Salarié 5408, au support, a joint la base clients à un mail pour une adresse personnelle." },
-          { texte: "Dédale l'a prévenu au moment de l'envoi. Il a continué quand même : le fichier est parti." },
+          { texte: "sAIfe l'a prévenu au moment de l'envoi. Il a continué quand même : le fichier est parti." },
         ],
         confiance: { score: 0.8, niveau: "elevee", raisons: [r("passe_outre", 0.35, "Il a continué malgré l'alerte.")] },
         decision_recommandee: conseil("clore"),
@@ -729,7 +729,7 @@ function syntheseDe(i: Incident): Synthese {
         incident_id: i.id,
         phrases: [
           { texte: "Salarié 2731, à la compta, a cliqué sur un lien dans un faux mail qui imitait le service informatique." },
-          { texte: "Dédale l'a prévenue que le site était faux. Elle a continué et a saisi son mot de passe : il faut le changer." },
+          { texte: "sAIfe l'a prévenue que le site était faux. Elle a continué et a saisi son mot de passe : il faut le changer." },
         ],
         confiance: { score: 0.85, niveau: "elevee", raisons: [r("passe_outre", 0.35, "Elle a continué malgré l'alerte.")] },
         decision_recommandee: conseil("clore"),
@@ -873,7 +873,7 @@ export function creerSourceMock(): SourceDonnees {
         regle: comprise ? { effet: "bloquer" } : null,
         manques: comprise ? [] : ["interdiction"],
         texte: comprise
-          ? `Voilà ce que j'ai compris : ${phrase.trim().replace(/\.$/, "")}. Si cela arrive, Dédale bloque l'action avant qu'elle parte. Activer ?`
+          ? `Voilà ce que j'ai compris : ${phrase.trim().replace(/\.$/, "")}. Si cela arrive, sAIfe bloque l'action avant qu'elle parte. Activer ?`
           : "Je n'ai pas compris ce qu'il faut interdire. Exemple : « L'agent de tri des mails ne doit jamais envoyer de mail hors d'Orbis Pay ».",
       };
     },

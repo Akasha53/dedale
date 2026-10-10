@@ -70,7 +70,7 @@ function Certitude({ vue }: { vue: VueCertitude }) {
     );
   }
   return (
-    <div className={`syn-certitude c-${vue.niveau}`} title="Certitude calculée par Dédale à partir des signes observés">
+    <div className={`syn-certitude c-${vue.niveau}`} title="Certitude calculée par sAIfe à partir des signes observés">
       <span className="syn-certitude-val">{vue.texte}</span>
       <span className="syn-jauge" aria-hidden="true">
         <span style={{ transform: `scaleX(${vue.pct / 100})` }} />
@@ -141,7 +141,7 @@ export function SyntheseBloc({
               </li>
             ))}
           </ul>
-          <p className="syn-rappel">Vous décidez : Dédale n'agit jamais seul.</p>
+          <p className="syn-rappel">Vous décidez : sAIfe n'agit jamais seul.</p>
         </details>
       )}
     </section>
