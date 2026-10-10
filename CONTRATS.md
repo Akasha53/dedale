@@ -1029,7 +1029,7 @@ Un modèle rapide relit à la place d'un analyste qui ne peut pas regarder la co
 
 ### Ce que le modèle reçoit
 
-Des faits structurés, jamais le corps d'un mail : type de geste, catégorie, gravité, verdict de l'analyseur de mails et codes de ses signaux, domaine de destination et s'il appartient à `orbispay.example`, montant et bénéficiaire masqué quand ils sont connus, salarié pseudonymisé (`S-` suivi de 6 caractères hexadécimaux) et ses gestes récents. Pour un agent : type d'incident, classement, phases de la boîte noire, canaris, règles et anomalies, virement résumé.
+Des faits structurés, jamais le corps d'un mail : type de geste, nature dite en clair (« envoi de données par mail ou par fichier » plutôt que le code `mail_externe`, que le modèle prenait pour un mail extérieur), verdict de l'analyseur de mails et codes de ses signaux, domaine de destination et s'il appartient à `orbispay.example`, montant, volume et bénéficiaire masqué quand ils sont connus, salarié pseudonymisé (`S-` suivi de 6 caractères hexadécimaux) et ses gestes antérieurs à la demande. Un geste critique ayant toujours la gravité `critique`, elle n'est pas transmise. La CLI tourne avec `--effort low`, `--tools ""`, `--no-session-persistence` et `--safe-mode` quand l'option existe. Pour un agent : type d'incident, classement, phases de la boîte noire, canaris, règles et anomalies, virement résumé.
 
 Le texte de la pop-up passe désarmé dans le champ `donnees_non_fiables` : désarmeur de `interne/`, puis liens en `hxxp`, domaines en `[.]`, 280 caractères au plus. Le prompt système dit que ce champ est une donnée. S'il portait une consigne adressée à une IA, le fait `consigne_retiree: true` suffit aux règles pour refuser.
 
@@ -1055,8 +1055,8 @@ Déclencheur : un `avertissement` qui porte `details.quatre_yeux: "demande"`, se
 ```
 
 - `statut` vaut `en_cours` tant que le relecteur travaille (les autres champs valent alors `null`), puis `tranchee`. 404 si la demande est inconnue.
-- `mode` : `api`, `cli` ou `regles`. `repli` vaut `null`, ou `limite_usage`, `delai`, `panne`, `sortie_invalide`, `sans_modele` quand le modèle n'a pas tranché. `garde_fou: true` quand les règles ont annulé un accord du modèle.
-- La pop-up de l'app Mac affiche « Relu par Dédale en 1,8 s : refusé. », le motif, et qui a tranché.
+- `mode` : `api`, `cli` ou `regles`. `repli` vaut `null`, ou `limite_usage`, `delai`, `panne`, `sortie_invalide`, `sans_modele` quand le modèle n'a pas tranché, et `quota` pour un pré-tri au-delà de `DEDALE_RELECTEUR_MAX_MINUTE` appels par minute (20 par défaut). `garde_fou: true` quand les règles ont annulé un accord du modèle.
+- App Mac (`QuatreYeux.swift`) : elle sonde cette route toutes les 0,4 s et relit `GET /api/incidents` chaque seconde comme avant. Trois réponses 404 (backend sans relecteur) arrêtent la sonde, et l'attente d'un analyste reprend avec son délai de 90 s. La pop-up affiche « Relu par Dédale en 1,8 s : refusé. », le motif, puis « Tranché par Haiku » ou « Tranché par les règles de Dédale ». La `consequence` de la riposte devient « Refusé par le relecteur Dédale (Haiku) en 1,8 s : le geste n'a pas eu lieu. »
 
 ### Pré-tri de chaque incident
 
