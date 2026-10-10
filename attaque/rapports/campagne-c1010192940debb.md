@@ -1,0 +1,48 @@
+# Campagne c1010192940debb
+
+Lancée le 2026-10-10T19:29:40+02:00 (durée 0.4 s). Mode `autonome`, client IA `simulateur`, graine 1337, 25 sessions par type. Backend `http://127.0.0.1:8793`, commit `e7a9144`.
+
+Pour rejouer le même trafic (mêmes délais, mêmes pages) sous un nouvel identifiant :
+
+```
+cd attaque && uv run python campagne.py --mode autonome --graine 1337 --n 25 --backend <url du backend>
+```
+
+## Résultats sur les sessions de cette campagne
+
+- Détection : 50/50 sessions « agent IA » ou « agent interne » classées `agent_ia` (100.0 %).
+- Faux négatifs : 0/50, dont 0 absentes du backend et 0 non classées.
+- Faux positifs : 0/50 sessions « humain » ou « script » classées `agent_ia` (0.0 %).
+- Sessions non classées (`inconnu`) : 0/100. Absentes du backend : 0/100.
+- Classe exacte (humain, script ou agent_ia attendu) : 100/100.
+- Incident ouvert : 50/50 sessions d'agent, 0/50 sessions humain ou script.
+
+| Type émis | Émises | Observées | Attendu | Bien classées | humain | script | agent_ia | inconnu | Incident ouvert | Suspendues ou coupées |
+| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| humain | 25 | 25 | humain | 25 | 25 | 0 | 0 | 0 | 0 | 0 |
+| script | 25 | 25 | script | 25 | 0 | 25 | 0 | 0 | 0 | 0 |
+| agent_ia | 25 | 25 | agent_ia | 25 | 0 | 0 | 25 | 0 | 25 | 0 |
+| agent_interne | 25 | 25 | agent_ia | 25 | 0 | 0 | 25 | 0 | 25 | 25 |
+
+## Temps
+
+- Détection, du premier événement de la session au classement `agent_ia` (horloge simulée du banc : délais tirés à graine fixe, pas d'attente réelle) : médiane 2.7 s, min 1.563 s, max 4.054 s, sur 50 sessions détectées. Le classement tombe au 3.5e événement en médiane (max 5).
+- Remontée, du POST de l'événement déclencheur à la réponse du backend, incident déjà ouvert (horloge réelle) : médiane 0.35 ms, max 0.43 ms, sur 50 incidents.
+- Latence de tous les POST `/api/evenements` de la campagne : médiane 0.32 ms, p95 0.41 ms, max 5.99 ms, sur 886 événements.
+- Confinement : non mesuré. Aucune décision d'analyste n'est prise pendant la campagne.
+
+## Valeurs globales du backend
+
+`GET /api/mesures` porte sur toutes les sessions présentes sur ce backend, pas seulement sur cette campagne.
+
+- `sessions_total` = 100, `taux_detection` = 1.0, `faux_positifs` = 0.0.
+- Matrice : {'vrais_positifs': 50, 'faux_positifs': 0, 'vrais_negatifs': 50, 'faux_negatifs': 0}.
+- `temps_detection_s` = 2.76, `temps_confinement_s` = None.
+
+## Limites
+
+- Trafic synthétique produit par le banc contre un Orbis Pay fictif. Ces chiffres décrivent le comportement du prototype sur ce trafic, pas un taux de détection en production.
+- Mode autonome : le banc poste lui-même les événements au vrai backend (classement, incidents, consignes). La surface `leurres/` et la passerelle `interne/` ne sont pas dans la boucle ; leurs pages et le mail piégé sont remplacés par la surface de remplacement du banc.
+- Le client IA du banc est un simulateur déterministe : aucun modèle réel n'a lu les pages.
+
+Détail par session : `campagne-c1010192940debb.json`, clé `bilan.sessions`.

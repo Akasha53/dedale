@@ -454,3 +454,55 @@ Cet avenant précise les anciennes sections, qui restent le journal des choix de
 - Le backend écrit les événements, sessions, incidents, leurres et décisions dans SQLite. Au démarrage, il recharge les faits présents avant d'accepter de nouvelles requêtes. Un arrêt normal vide la file d'écriture. Une interruption brutale peut perdre une écriture encore en file ; ce mode de persistance n'est pas une garantie de journal d'audit en production.
 - `GET /api/incidents/{id}/nis2` renvoie un brouillon factuel issu de l'incident, sans appel à un modèle. L'analyste doit vérifier la qualification, l'impact et les délais applicables. Dédale n'envoie aucune notification réglementaire.
 - Les documents ECS décrivent les événements observés. Le champ `threat` relatif à une injection de prompt n'est ajouté que si une étape `consigne_lue` correspond à l'événement d'un incident d'agent ; un avertissement salarié n'est pas une injection de prompt.
+
+## Avenant du 10 octobre 2026 : scénario jury de l'agent interne
+
+Le scénario jury (`interne/orbis/jury.py`, `python -m orbis.demo --scenario jury`) fait tourner la passerelle en mode protégé : `Passerelle(..., retenir_hors_scope=True, decision_fraiche=True)`. Il n'ajoute ni endpoint ni type d'événement. Les champs ci-dessous sont posés dans `details` ; le backend les stocke tels quels, sauf `extrait` et `objectif`, qu'il neutralise.
+
+### Décision attendue
+
+L'appel hors jeton ou porteur d'un canari est retenu avant exécution. À la retenue, la passerelle compte les décisions de l'incident (`GET /api/incidents`, champ `decisions`). Elle attend ensuite une décision plus récente et l'état de session qui va avec : `couper` ou `valider_riposte` avec `coupee`, `reprendre` ou `ignorer` avec `active`. Une décision antérieure à la retenue ne libère rien.
+
+- `couper` : l'appel ne s'exécute jamais, le jeton est révoqué, tout appel suivant est refusé.
+- `reprendre` : seul l'appel retenu s'exécute. Le jeton ne gagne aucun droit ; un nouvel appel du même genre est retenu et attend une nouvelle décision.
+- aucune décision dans le délai : l'appel est refusé, le jeton reste valide. Pas de coupure sans décision humaine.
+
+### Champs par maillon
+
+`details.maillon` vaut `source`, `consigne`, `intention`, `appel_outil`, `decision` ou `resultat`.
+
+| Maillon | Événement | Champs de `details` |
+|---|---|---|
+| `source` | `entree_agent` | `extrait`, `source` : `{document, empreinte, longueur, origine, confiance}` |
+| `consigne` | `entree_agent`, `leurre_id` du canari | `extrait`, `consigne_detectee: true`, `empreinte`, `canari_id` |
+| `intention` | `appel_outil` | `objectif` (phrase annoncée par l'agent), `statut` |
+| `appel_outil` | `appel_outil`, `leurre_id` du canari visé | `retenu: true`, `motif` (`droits` ou `canari`), `parametres` masqués, `chrono` ; motif `droits` : `violation_droits` ; motif `canari` : `exfiltration` `{statut, canaris}` et `extrait` |
+| `appel_outil` | `leurre_touche`, un par canari relevé | `type` (nature du canari), `detail`, `extrait`, et `exfiltration` si motif `canari` |
+| `decision` | `riposte` | `action` (`couper`, `reprendre`, ou `bloquer` sans décision), `decision`, `analyste`, `chrono` |
+| `resultat` | `riposte` | `action` (`appel_annule`, `appel_libere`, `appel_refuse`), `resultat`, `chrono`, `jeton_revoque` après coupure, `contexte`, `boite_noire`, `references` |
+
+Après une coupure, un nouvel appel produit un `riposte` de maillon `resultat` avec `action: "appel_refuse"`, `raison`, `resultat`, `contexte`, `boite_noire` et `references`, sans `chrono`.
+
+- `details.chrono` : dates ISO à la milliseconde `demande_a`, `detection_a`, `envoi_console_a`, `accuse_console_a`, `decision_a`, `resultat_a`, et durées en millisecondes `detection_ms`, `envoi_console_ms`, `accuse_console_ms`, `attente_decision_ms`, `application_ms`, `total_ms`. Un point pas encore atteint est absent : l'appel retenu ne porte que la demande, la détection et l'envoi à la console.
+- `details.contexte` : `{session_id, tache, jeton: {id, scopes, revoque}}`.
+- `details.boite_noire` : les maillons notés par la passerelle, `{ordre, maillon, horodatage, t_ms, titre, detail, outil, canari_id, preuve, references}`. Une preuve garde une empreinte, une longueur et l'identifiant du canari, jamais le texte de la consigne ni la valeur d'une clé.
+- `details.references` : `[{cadre, id, nom}]` cumulées sur la chaîne, sans doublon. `cadre` vaut `OWASP agentique`, `MITRE ATLAS` ou `MITRE ATT&CK`.
+- Tout ce qui sort de la passerelle passe par `masquer` : un faux secret devient `[canari C-xxxx masqué]`, la partie requête d'une URL est retirée.
+
+### Ce que le backend renvoie dans la chaîne
+
+Le texte d'un champ piégé est neutralisé une fois, à l'ingestion (`store.ingerer`). `chaine[].detail` reprend ce texte stocké, raccourci à 240 caractères sans couper une entité HTML. Il ne porte qu'un préfixe `[leurre, neutralisé]` et n'échappe le HTML qu'une fois.
+
+Pour un événement de source `interne`, `chaine[].techniques` reçoit des techniques ATT&CK ajoutées par le backend, `{id, nom, cadre: "ATT&CK", a_confirmer}`. Elles s'ajoutent aux repères OWASP et ATLAS du leurre, sans doublon. `a_confirmer` signale un rapprochement plausible, à vérifier sur attack.mitre.org avant la fiche défense.
+
+| Maillon | Technique | `a_confirmer` |
+|---|---|---|
+| appel hors jeton (`violation_droits`) | `T1078` Valid Accounts | oui |
+| droit `coffre:lire` demandé, ou canari `canari_coffre` | `T1555` Credentials from Password Stores | non |
+| droit `paiement:executer` demandé | `T1657` Financial Theft | oui |
+| outil MCP suspect, ou canari `outil_mcp_piege` | `T1195` Supply Chain Compromise | oui |
+| sortie, `exfiltration`, ou trouvaille sortante (`exfiltration_markdown`, `faux_secret`) | `T1048` Exfiltration Over Alternative Protocol | oui |
+
+Une technique déjà posée par le leurre garde sa place et prend le nom officiel. Les techniques venues des seuls leurres n'ont pas de champ `a_confirmer`. Un appel hors jeton qui ne porte pas `OWASP ASI03` le reçoit dans `risques`. Les sources `externe`, `humain` et `physique` ne changent pas.
+
+Banc (`attaque/`) : le canari `C-0001` de la surface de remplacement est de nature `consigne_cachee`, comme le canari mail `C-7A3F` de `interne/`. Le banc le touche quand l'agent suit la consigne du mail ; déclaré `canari_mail`, il ouvrait l'incident sans signal IA et la session restait `inconnu`.
