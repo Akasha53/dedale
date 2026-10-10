@@ -283,3 +283,24 @@ def test_phrases_libres_comprises_par_l_agent(client, modele):
         r = _analyser(client, phrase)
         assert r["compris_par"] == "modèle" and attendu in r["texte"], (phrase, r["texte"])
         assert client.post("/api/politiques", json={"phrase": phrase, "regle": r["regle"]}).status_code == 201
+
+
+def test_suivi_en_direct(client, modele):
+    """La console voit l'instance pendant qu'elle travaille : ouverte, ses appels, puis fermée."""
+    client.post("/api/politiques", json={"phrase": PHRASE_TRI})
+    avant = client.get("/api/politiques/agent").json()["derniere"]
+    vu: dict = {}
+
+    async def deuxieme_tour():
+        vu.update(agent_regles.suivi(avant)["session"])  # ce que la route renvoie à cet instant
+        return tour(appel("proposer_retrait", id="R-0001"))
+
+    modele(tour(appel("lire_regles")), deuxieme_tour)
+    r = _analyser(client, "retire la règle sur les mails")
+    assert vu["etat"] == "ouverte" and vu["numero"] == avant + 1
+    assert [e["libelle"] for e in vu["etapes"]] == ["lit les règles"]
+    fin = client.get(f"/api/politiques/agent?apres={avant}").json()["session"]
+    assert fin["etat"] == "fermée" and fin["jeton_revoque"] and fin["modele"] == "test"
+    assert [e["libelle"] for e in fin["etapes"]] == ["lit les règles", "prépare le retrait de la règle"]
+    assert r["agent_regles"]["etapes"] == fin["etapes"]
+    assert client.get(f"/api/politiques/agent?apres={fin['numero']}").json()["session"] is None

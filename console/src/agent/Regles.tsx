@@ -37,12 +37,21 @@ interface Changement {
   intention?: string;
   rien_a_retirer?: boolean;
 }
+interface EtapeAgent {
+  outil: string;
+  libelle: string;
+  verdict: string;
+}
 interface SessionAgent {
   session: string;
   numero: number;
   appels: number;
   refus?: number;
   etat: string;
+  modele?: string | null;
+  etapes?: EtapeAgent[];
+  jeton_revoque?: boolean;
+  duree_ms?: number | null;
   raison_fin?: string | null;
 }
 type Analyse = AnalysePolitique & {
@@ -83,12 +92,51 @@ function lecture(a: Analyse): string | null {
   return a.repli ? `Compris par les motifs : ${a.repli.replace(/ : lecture par motifs$/, "")}` : "Compris par les motifs";
 }
 
-// « Agent des règles · session 12 · 3 appels · fermée »
-function ligneSession(a: Analyse): string | null {
-  const s = a.agent_regles;
-  if (!s) return null;
-  const refus = s.refus ? ` · ${s.refus} refusé${s.refus > 1 ? "s" : ""}` : "";
-  return `Agent des règles · session ${s.numero} · ${s.appels} appel${s.appels > 1 ? "s" : ""}${refus} · ${s.etat}`;
+function secondes(ms?: number | null): string {
+  return `${((ms ?? 0) / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
+}
+
+// « Agent des règles (Haiku) · session regles-0012 · lit les règles · prépare la
+// modification · session fermée · jeton révoqué · 2 appels en 7,8 s », rempli au
+// fil des appels.
+function traceAgent(s: SessionAgent): string {
+  const morceaux = [`Agent des règles (${nomModele(s.modele)}) · session ${s.session}`];
+  for (const e of s.etapes ?? []) morceaux.push(e.verdict === "refuse" ? `${e.libelle}, refusé` : e.libelle);
+  if (s.etat === "fermée") {
+    const n = s.appels;
+    morceaux.push(
+      `session fermée${s.jeton_revoque === false ? "" : " · jeton révoqué"} · ${n} appel${n > 1 ? "s" : ""} en ${secondes(s.duree_ms)}`
+    );
+  }
+  return morceaux.join(" · ");
+}
+
+// Suivi de l'instance pendant qu'elle travaille : `GET /api/politiques/agent`.
+// Hors ligne (console sur le mock), la route n'existe pas et rien ne s'affiche.
+async function derniereSession(): Promise<number | null> {
+  try {
+    const r = await fetch("/api/politiques/agent");
+    if (!r.ok) return null;
+    const d = (await r.json()) as { derniere?: number };
+    return typeof d.derniere === "number" ? d.derniere : null;
+  } catch {
+    return null;
+  }
+}
+
+async function suivreSession(apres: number, arret: { fini: boolean }, maj: (s: SessionAgent) => void) {
+  while (!arret.fini) {
+    try {
+      const r = await fetch(`/api/politiques/agent?apres=${apres}`);
+      if (r.ok) {
+        const d = (await r.json()) as { session?: SessionAgent | null };
+        if (d.session && !arret.fini) maj(d.session);
+      }
+    } catch {
+      /* backend muet : on attend la réponse de l'analyse */
+    }
+    await new Promise((ok) => window.setTimeout(ok, 300));
+  }
 }
 
 function nonCompris(a: Analyse): string | null {
@@ -182,6 +230,7 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
   const [occupe, setOccupe] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [fait, setFait] = useState<string | null>(null);
+  const [agent, setAgent] = useState<SessionAgent | null>(null);
   const champ = useRef<HTMLTextAreaElement>(null);
   const zone = useRef<HTMLElement>(null);
 
@@ -211,11 +260,20 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
     setOccupe(true);
     setErreur(null);
     setFait(null);
+    setAnalyse(null);
+    setAgent(null);
+    const arret = { fini: false };
+    const apres = await derniereSession();
+    if (apres !== null) void suivreSession(apres, arret, setAgent);
     try {
-      setAnalyse(await analyserPolitique(phrase.trim()));
+      const a = (await analyserPolitique(phrase.trim())) as Analyse;
+      arret.fini = true;
+      setAgent(a.agent_regles ?? null);
+      setAnalyse(a);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "La phrase n'a pas pu être relue.");
     } finally {
+      arret.fini = true;
       setOccupe(false);
     }
   };
@@ -232,6 +290,7 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
         setFait(ch.intention === MOINDRE ? `Droits rendus : règle n°${ch.numero} retirée.` : `Règle n°${ch.numero} retirée.`);
         setPhrase("");
         setAnalyse(null);
+        setAgent(null);
         return;
       }
       const p = (await activerPolitique(analyse.phrase, analyse.regle, analyste || "analyste")) as PolitiqueVue;
@@ -248,6 +307,7 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
       }
       setPhrase("");
       setAnalyse(null);
+      setAgent(null);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "La règle n'a pas pu être activée.");
     } finally {
@@ -283,6 +343,7 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
               onChange={(e) => {
                 setPhrase(e.target.value);
                 setAnalyse(null);
+                setAgent(null);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -292,10 +353,15 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
               }}
             />
             <button type="submit" className="regle-btn" disabled={!phrase.trim() || occupe}>
-              {occupe && !analyse ? "Lecture…" : "Proposer"}
+              {occupe && !analyse ? "L'agent lit…" : "Proposer"}
             </button>
           </div>
         </form>
+        {(agent || (analyse && (analyse as Analyse).lecteur?.moteur === "motifs")) && (
+          <p className="regle-vide" style={{ marginTop: 8 }} aria-live="polite">
+            {agent ? traceAgent(agent) : "Lu par les motifs de Dédale, sans modèle."}
+          </p>
+        )}
         <p className="regle-vide" style={{ marginTop: 8 }}>
           Exemple :{" "}
           <button
@@ -321,11 +387,6 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
             {(lecture(analyse as Analyse) ?? nonCompris(analyse as Analyse)) && (
               <span className="regle-meta" style={{ marginTop: 8 }}>
                 {lecture(analyse as Analyse) ?? nonCompris(analyse as Analyse)}
-              </span>
-            )}
-            {ligneSession(analyse as Analyse) && (
-              <span className="regle-meta" title={(analyse as Analyse).agent_regles?.raison_fin ?? undefined}>
-                {ligneSession(analyse as Analyse)}
               </span>
             )}
             {applicable(analyse as Analyse) && (

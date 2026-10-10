@@ -55,6 +55,35 @@ def duree_max() -> float:
     return min(max(v, 0.05), 60.0)
 
 
+# Ce que l'agent fait, dit en clair dans la console pendant qu'il travaille.
+LIBELLES_OUTILS = {
+    "lire_regles": "lit les règles",
+    "lire_inventaire": "lit l'inventaire",
+    "proposer_regle": "prépare la règle",
+    "proposer_modification": "prépare la modification",
+    "proposer_retrait": "prépare le retrait de la règle",
+    "proposer_retrait_droits": "prépare le retrait des droits",
+}
+
+# Suivi en direct des dernières instances, lu par `GET /api/politiques/agent` pendant que la
+# barre attend sa réponse. En mémoire seulement : le journal scellé reste la trace qui fait foi.
+SUIVI_MAX = 20
+_suivi: dict[int, dict] = {}
+
+
+def suivi(apres: int | None = None) -> dict:
+    """`derniere` : dernier numéro attribué. Avec `apres`, la première instance de numéro
+    supérieur (celle que la console vient de lancer), telle qu'elle est à cet instant."""
+    with _verrou:
+        derniere = _dernier["numero"]
+        if apres is None:
+            return {"derniere": derniere, "session": None}
+        suivants = sorted(n for n in _suivi if n > apres)
+        vue = _suivi[suivants[0]] if suivants else None
+        return {"derniere": derniere,
+                "session": {**vue, "etapes": [dict(e) for e in vue["etapes"]]} if vue else None}
+
+
 class SessionFermee(Exception):
     """Un appel arrive après la fermeture : il n'existe plus d'instance pour le servir."""
 
@@ -103,17 +132,20 @@ def _propre(valeur, profondeur: int = 0):
 class PasserelleRegles:
     """Contrôle et journalise chaque appel de l'agent des règles. Une instance par phrase."""
 
-    def __init__(self, store, numero: int, duree: float) -> None:
+    def __init__(self, store, numero: int, duree: float, modele: str | None = None) -> None:
         self.store = store
         self.numero = numero
         self.session_id = f"{PREFIXE}{numero:04d}"
         self.jeton = Jeton(numero, duree)
+        self.modele = modele
         self.debut = time.monotonic()
         self.appels = 0
         self.refus = 0
+        self.etapes: list[dict] = []
         self.fermee = False
         self.raison_fin: str | None = None
         self.duree_ms: int | None = None
+        self._publier()
         self._emettre("entree_agent", "console", None, {
             "texte": "Phrase de l'analyste reçue par la barre « Écrire une règle ».",
             "droits": {"tache": TACHE, "accordes": inventaire._avec_libelles([DROIT]),
@@ -135,6 +167,7 @@ class PasserelleRegles:
         self._emettre("appel_outil", "outil", nom, {
             "parametres": _propre(params), "scope_requis": DROIT, "scope_dans_jeton": True,
             "verdict": "autorise", "raison": "droit « proposer des règles » dans le jeton"})
+        self._etape(nom, "autorise")
         try:
             return fonction(**params)
         except (ValueError, TypeError) as exc:
@@ -144,7 +177,20 @@ class PasserelleRegles:
         self.refus += 1
         self._emettre("appel_outil", "outil", nom, {
             "parametres": _propre(params), "verdict": "refuse", "raison": raison, "scope_vise": DROIT})
+        self._etape(nom, "refuse", raison)
         return {"erreur": f"appel refusé : {raison}"}
+
+    def _etape(self, nom: str, verdict: str, raison: str | None = None) -> None:
+        libelle = LIBELLES_OUTILS.get(nom) or f"appel {nom} refusé"
+        self.etapes.append({"outil": nom, "libelle": libelle, "verdict": verdict, "raison": raison,
+                            "t_ms": round((time.monotonic() - self.debut) * 1000)})
+        self._publier()
+
+    def _publier(self) -> None:
+        with _verrou:
+            _suivi[self.numero] = self.resume()
+            for n in sorted(_suivi)[:-SUIVI_MAX]:
+                del _suivi[n]
 
     def fermer(self, raison: str) -> None:
         """Révoque le jeton et écrit le dernier maillon. Idempotent, ne lève jamais."""
@@ -158,10 +204,12 @@ class PasserelleRegles:
             "texte": f"Session fermée : {raison}. Jeton {self.jeton.id} révoqué.",
             "session_fermee": True, "jeton_revoque": True, "appels": self.appels,
             "raison_fin": raison, "duree_ms": self.duree_ms})
+        self._publier()
 
     def resume(self) -> dict:
-        return {"agent": AGENT_ID, "nom": NOM, "session": self.session_id, "numero": self.numero,
-                "appels": self.appels, "refus": self.refus,
+        return {"agent": AGENT_ID, "nom": NOM, "modele": self.modele, "session": self.session_id,
+                "numero": self.numero, "appels": self.appels, "refus": self.refus,
+                "etapes": [dict(e) for e in self.etapes],
                 "etat": "fermée" if self.fermee else "ouverte", "jeton": self.jeton.id,
                 "jeton_revoque": self.jeton.revoque, "raison_fin": self.raison_fin,
                 "duree_ms": self.duree_ms}
@@ -404,7 +452,8 @@ async def traiter(phrase: str, store, moteur: str) -> dict:
     Renvoie `{"analyse": proposition ou None, "session": résumé de la session fermée}`. La
     fermeture est garantie par `finally` : proposition, refus, erreur, délai ou annulation."""
     duree = duree_max()
-    passerelle = PasserelleRegles(store, prochain_numero(store), duree)
+    modele = politiques._nom_modele() if moteur in ("api", "cli") else moteur
+    passerelle = PasserelleRegles(store, prochain_numero(store), duree, modele)
     outils = Outils(store, phrase)
     resultats: list[dict] = []
     etat = {"analyse": None, "raison": "interrompue", "vides": 0}

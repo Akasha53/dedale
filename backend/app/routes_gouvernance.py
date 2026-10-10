@@ -111,6 +111,15 @@ async def lister_politiques(toutes: bool = False):
             "formes": politiques.FORMES, "exemple_moindre": politiques.EXEMPLE_MOINDRE}
 
 
+@routeur.get("/api/politiques/agent")
+async def suivi_agent_regles(apres: int | None = None):
+    """Agent des règles en direct : la console lit `derniere` avant d'envoyer sa phrase, puis
+    interroge `?apres=<derniere>` pendant que l'instance travaille (appels, puis fermeture)."""
+    from . import agent_regles
+
+    return agent_regles.suivi(apres)
+
+
 @routeur.get("/api/politiques/journal")
 async def journal_politiques():
     """Actes scellés : activations, retraits de règle, droits retirés puis rendus."""
