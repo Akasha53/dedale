@@ -39,7 +39,7 @@ _CLIENT_ID = re.compile(r"^[a-z0-9_]{1,40}$")
 
 LIBELLES_DROITS = {
     "shell": "Lancer des commandes sur le poste (shell)",
-    "mail": "Lire ou envoyer des mails",
+    "mail": "Lire et envoyer des mails",
     "disque_entier": "Lire tout le disque",
 }
 LIBELLES_TYPES = {
@@ -47,7 +47,17 @@ LIBELLES_TYPES = {
     "reseau": "réseau", "autre": "autre",
 }
 # Points de risque par droit, sur la même échelle que l'inventaire d'Orbis (moyen ≥ 4, élevé ≥ 8).
-POINTS = {"shell": 4, "disque_entier": 4, "mail": 3}
+# Points de risque par facteur, sur l'échelle de l'inventaire d'Orbis (moyen ≥ 4, élevé ≥ 8) :
+# chacun suffit à passer « moyen », deux ensemble ou plus mènent à « élevé ». Le shell compte
+# double : il lit tout ce que l'utilisateur lit et peut tout envoyer, il est « élevé » à lui seul.
+POINTS_FACTEUR = {"shell": 6, "disque_entier": 4, "mail": 4, "navigateur": 4, "distant": 4, "canal": 2}
+# Ce qu'un serveur peut lire sur le poste, et ce par quoi il peut le faire sortir.
+LECTURES = {"fichiers", "mail", "shell", "navigateur"}
+SORTIES = {"mail", "reseau", "navigateur", "shell"}
+LIBELLES_LECTURE = {"fichiers": "des fichiers", "mail": "des mails", "shell": "tout ce que le shell atteint",
+                    "navigateur": "des pages ouvertes avec les sessions du salarié"}
+LIBELLES_SORTIE = {"mail": "des mails", "reseau": "vers le réseau", "navigateur": "par le navigateur",
+                   "shell": "par le shell", "distant": "vers son serveur distant"}
 
 # Garde-fou côté backend, en plus du filtre de l'app : un nom à l'allure de jeton est masqué.
 _SECRET = re.compile(
@@ -188,21 +198,63 @@ def resume(p: dict) -> dict:
 
 
 def _risque(a: dict) -> dict:
-    raisons = [{"code": f"droit_{d}", "points": POINTS[d], "texte": LIBELLES_DROITS[d] + ".", "references": [d]}
-               for d in a["droits_risques"]]
+    """Niveau de risque d'un serveur MCP de poste : une somme de points, chacun nommé.
+
+    Font monter le niveau : l'envoi de mails, le shell, l'accès à tout le disque, le navigateur
+    piloté et un serveur distant (l'app n'envoie pas son hôte : il n'est donc jamais vérifié).
+    Un serveur qui lit des données et peut les faire sortir (canal de sortie) est au moins
+    « moyen », quel que soit son score.
+    """
+    types, droits = set(a["types"]), set(a["droits_risques"])
+    raisons: list[dict] = []
+
+    def ajouter(code: str, points: int, texte: str, references: list[str]) -> None:
+        raisons.append({"code": code, "points": points, "texte": texte, "references": references})
+
+    if "mail" in droits:
+        ajouter("droit_mail", POINTS_FACTEUR["mail"],
+                "Droit « mails » : il lit la boîte et peut envoyer des mails au nom du salarié.", ["mail"])
+    if "shell" in droits:
+        ajouter("droit_shell", POINTS_FACTEUR["shell"],
+                "Droit « shell » : il lance n'importe quelle commande sur le poste.", ["shell"])
+    if "disque_entier" in droits:
+        ajouter("droit_disque_entier", POINTS_FACTEUR["disque_entier"],
+                "Droit « tout le disque » : il lit tous les fichiers du poste, pas un seul dossier.",
+                ["disque_entier"])
+    if "navigateur" in types:
+        ajouter("navigateur_pilote", POINTS_FACTEUR["navigateur"],
+                "Navigateur piloté : il ouvre des pages avec les sessions du salarié et peut remplir des formulaires.",
+                ["navigateur"])
     if a["transport"] == "distant":
-        raisons.append({"code": "serveur_distant", "points": 1,
-                        "texte": "Serveur distant : les données passent par un service extérieur.",
-                        "references": []})
+        ajouter("serveur_distant", POINTS_FACTEUR["distant"],
+                "Serveur distant non vérifié : ce qu'il reçoit part vers un service extérieur au poste.",
+                ["distant"])
+
+    lit = sorted(types & LECTURES)
+    sort = sorted((types & SORTIES) | ({"distant"} if a["transport"] == "distant" else set()))
+    canal = bool(lit) and bool(sort)
+    if canal:
+        nom_lit = ", ".join(LIBELLES_LECTURE[t] for t in lit)
+        nom_sort = ", ".join(LIBELLES_SORTIE[t] for t in sort)
+        ajouter("canal_de_sortie", POINTS_FACTEUR["canal"],
+                f"Canal de sortie : le même serveur lit ({nom_lit}) et peut envoyer ({nom_sort}).",
+                lit + [s for s in sort if s not in lit])
+
     score = sum(r["points"] for r in raisons)
     niveau = ("eleve" if score >= inventaire.SEUIL_ELEVE else "moyen" if score >= inventaire.SEUIL_MOYEN
               else "faible")
+    if canal and niveau == "faible":
+        niveau = "moyen"
     mots = {"eleve": "élevé", "moyen": "moyen", "faible": "faible"}
-    explication = (f"Risque {mots[niveau]} ({score} points). " + " ".join(r["texte"] for r in raisons)
-                   if raisons else "Risque faible : aucun droit risqué.")
+    if raisons:
+        explication = f"Risque {mots[niveau]} ({score} points). " + " ".join(r["texte"] for r in raisons)
+        if canal and score < inventaire.SEUIL_MOYEN:
+            explication += " Un canal de sortie compte au moins comme un risque moyen."
+    else:
+        explication = "Risque faible : ni droit à risque, ni canal de sortie."
     return {"niveau": niveau, "score": score,
             "seuils": {"moyen": inventaire.SEUIL_MOYEN, "eleve": inventaire.SEUIL_ELEVE},
-            "raisons": raisons, "explication": explication}
+            "canal_de_sortie": canal, "raisons": raisons, "explication": explication}
 
 
 def fiches_inventaire() -> list[dict]:
@@ -212,6 +264,10 @@ def fiches_inventaire() -> list[dict]:
         for a in p["agents"]:
             ident = f"poste:{p['poste']}:{a['client_id']}:{a['serveur']}"
             droits = [{"code": d, "libelle": LIBELLES_DROITS[d]} for d in a["droits_risques"]]
+            if "navigateur" in a["types"]:
+                droits.append({"code": "navigateur", "libelle": "Piloter un navigateur"})
+            if a["transport"] == "distant":
+                droits.append({"code": "distant", "libelle": "Envoyer à un serveur distant"})
             types = ", ".join(LIBELLES_TYPES[t] for t in a["types"])
             sortie.append({
                 "id": ident,

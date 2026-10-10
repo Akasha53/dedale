@@ -43,7 +43,7 @@ def test_inventaire_recu_puis_visible_dans_api_agents(client):
     assert terminal["id"] == "poste:poste-mac-1a2b3c4d:cursor:terminal"
     assert terminal["risque"]["niveau"] == "eleve"
     assert [d["code"] for d in terminal["droits"]["accordes"]] == ["shell", "disque_entier"]
-    assert next(f for f in poste if f["serveur"] == "recherche")["risque"]["niveau"] == "faible"
+    assert next(f for f in poste if f["serveur"] == "recherche")["risque"]["niveau"] == "moyen"
     # Les agents d'Orbis restent en tête, inchangés.
     assert inv[0]["id"] == "orbis-assistant"
 
@@ -93,3 +93,73 @@ def test_corps_invalides(client):
 
 def test_la_fiche_d_un_agent_d_orbis_reste_servie(client):
     assert client.get("/api/agents/orbis-assistant").status_code == 200
+
+
+# --- calcul du risque : un test par cas -------------------------------------------------------
+
+def _risque_de(client, **agent) -> dict:
+    a = {"client": "Cursor", "client_id": "cursor", "serveur": "essai", "types": ["autre"],
+         "droits_risques": [], "transport": "local", **agent}
+    client.post("/api/agents/poste", json=_corps(agents=[a]))
+    fiche = next(f for f in client.get("/api/agents").json()["inventaire"] if f.get("contexte") == "poste")
+    return fiche["risque"]
+
+
+def test_risque_mail_lit_et_envoie_est_moyen_et_nomme_le_droit(client):
+    r = _risque_de(client, serveur="boite-mail-finance", types=["mail"], droits_risques=["mail"])
+    assert r["niveau"] == "moyen"
+    assert r["canal_de_sortie"] is True
+    codes = [x["code"] for x in r["raisons"]]
+    assert codes == ["droit_mail", "canal_de_sortie"]
+    assert "Droit « mails »" in r["explication"] and "envoyer des mails" in r["explication"]
+    assert "lit (des mails) et peut envoyer (des mails)" in r["explication"]
+
+
+def test_risque_shell_seul_fait_monter_le_niveau(client):
+    r = _risque_de(client, types=["shell"], droits_risques=["shell"])
+    assert r["niveau"] == "eleve"  # shell 6 + canal de sortie 2 (le shell lit et fait sortir)
+    assert "Droit « shell »" in r["explication"]
+
+
+def test_risque_tout_le_disque(client):
+    r = _risque_de(client, types=["fichiers"], droits_risques=["disque_entier"])
+    assert r["niveau"] == "moyen"
+    assert r["canal_de_sortie"] is False
+    assert "Droit « tout le disque »" in r["explication"]
+
+
+def test_risque_navigateur_pilote(client):
+    r = _risque_de(client, types=["navigateur"])
+    assert r["niveau"] == "moyen"
+    assert [x["code"] for x in r["raisons"]] == ["navigateur_pilote", "canal_de_sortie"]
+    assert "Navigateur piloté" in r["explication"]
+
+
+def test_risque_serveur_distant_non_verifie(client):
+    r = _risque_de(client, types=["reseau"], transport="distant")
+    assert r["niveau"] == "moyen"
+    assert "Serveur distant non vérifié" in r["explication"]
+
+
+def test_risque_canal_de_sortie_sans_droit_a_risque_reste_au_moins_moyen(client):
+    # Lit des fichiers d'un seul dossier et peut les envoyer sur le réseau : score 2, plancher moyen.
+    r = _risque_de(client, types=["fichiers", "reseau"])
+    assert r["score"] == 2
+    assert r["niveau"] == "moyen"
+    assert "Canal de sortie : le même serveur lit (des fichiers) et peut envoyer (vers le réseau)." in r["explication"]
+    assert "au moins comme un risque moyen" in r["explication"]
+
+
+def test_risque_cumule_eleve(client):
+    r = _risque_de(client, types=["shell", "fichiers"], droits_risques=["shell", "disque_entier"])
+    assert r["niveau"] == "eleve"
+    assert {"droit_shell", "droit_disque_entier", "canal_de_sortie"} <= {x["code"] for x in r["raisons"]}
+
+
+def test_risque_faible_sans_droit_ni_canal(client):
+    r = _risque_de(client, types=["reseau"])
+    assert r["niveau"] == "faible"
+    assert r["raisons"] == []
+    assert r["explication"] == "Risque faible : ni droit à risque, ni canal de sortie."
+    r2 = _risque_de(client, types=["fichiers"])
+    assert r2["niveau"] == "faible"
