@@ -1,0 +1,34 @@
+title: 'Dédale : Agent IA interne qui suit une consigne cachée dans un mail ou un document'
+id: 55f6d255-7126-59b7-b4f1-79aaed4afbbe
+status: test
+description: 'L''agent a lu un mail ou un document qui portait une consigne cachée et l''a suivie : le piège posé
+  dans ce contenu a été touché. Injection indirecte (MITRE ATLAS AML.T0051).'
+references:
+- https://attack.mitre.org/techniques/T1566/001/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1566.001
+logsource:
+  product: dedale
+  category: injection
+detection:
+  selection:
+    event.module: dedale
+    event.action: leurre_touche
+    event.dataset: dedale.interne
+    rule.name:
+    - canari_document
+    - canari_mail
+    - consigne_cachee
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Test de résistance lancé par l'équipe sécurité (campagne du banc)
+level: high

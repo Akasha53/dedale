@@ -1,0 +1,30 @@
+title: 'Dédale : Mail signalé par un salarié'
+id: 993b93e8-b715-5680-bf26-aa0af93f3fdd
+status: test
+description: Un salarié a signalé un mail suspect depuis son poste. Utile surtout quand l'analyseur l'avait jugé
+  sûr.
+references:
+- https://attack.mitre.org/techniques/T1566/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1566
+logsource:
+  product: dedale
+  category: phishing
+detection:
+  selection:
+    event.module: dedale
+    event.action: signalement
+    event.dataset: dedale.humain
+  condition: selection
+fields:
+- user.name
+- user.group.name
+- url.domain
+- destination.domain
+- dedale.incident.id
+falsepositives:
+- Mail commercial légitime signalé par prudence
+level: low

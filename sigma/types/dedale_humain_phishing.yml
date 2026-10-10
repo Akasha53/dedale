@@ -1,0 +1,31 @@
+title: 'Dédale : Salarié qui passe outre l''alerte sur un lien de phishing'
+id: 3586195b-25dc-5920-8959-e2352ddb7576
+status: test
+description: Le poste a affiché une alerte sur un lien de phishing ou un site sosie, et le salarié a continué.
+references:
+- https://attack.mitre.org/techniques/T1566/002/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1566.002
+logsource:
+  product: dedale
+  category: phishing
+detection:
+  selection:
+    event.module: dedale
+    event.action: avertissement
+    event.dataset: dedale.humain
+    labels.categorie: phishing
+    event.type: allowed
+  condition: selection
+fields:
+- user.name
+- user.group.name
+- url.domain
+- destination.domain
+- dedale.incident.id
+falsepositives:
+- Site partenaire légitime au nom proche de la marque
+level: high

@@ -1,0 +1,38 @@
+title: 'Dédale : Gros envoi vers une IA générative publique, journaux du proxy'
+id: 9aad0f31-ea9d-53fb-8070-c75ab436e8af
+status: test
+description: 'Requête POST de plus de 100 ko vers un service d''IA générative grand public : souvent un fichier
+  déposé dans la conversation.'
+references:
+- https://attack.mitre.org/techniques/T1567/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.exfiltration
+- attack.t1567
+logsource:
+  category: proxy
+detection:
+  selection:
+    url.domain|endswith:
+    - chatgpt.com
+    - chat.openai.com
+    - claude.ai
+    - gemini.google.com
+    - copilot.microsoft.com
+    - perplexity.ai
+    - chat.mistral.ai
+    - chat.deepseek.com
+    - poe.com
+    - huggingface.co
+    http.request.method: POST
+    http.request.body.bytes|gte: 100000
+  condition: selection
+fields:
+- source.ip
+- user.name
+- url.domain
+- http.request.body.bytes
+falsepositives:
+- Abonnement entreprise au service d'IA, avec contrat de traitement
+level: medium

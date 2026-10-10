@@ -1,0 +1,30 @@
+title: 'Dédale : Chatbot interne détourné par un message'
+id: 71d7509f-d261-5be0-8fed-9c9270a06924
+status: test
+description: Un message adressé au chatbot portait une consigne qui l'a détourné de sa tâche.
+references:
+- https://attack.mitre.org/techniques/T1566/003/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1566.003
+logsource:
+  product: dedale
+  category: injection
+detection:
+  selection:
+    event.module: dedale
+    event.action: leurre_touche
+    event.dataset: dedale.interne
+    rule.name: injection_chatbot
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Test de résistance lancé par l'équipe sécurité
+level: high

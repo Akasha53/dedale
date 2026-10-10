@@ -1,0 +1,30 @@
+title: 'Dédale : Outil détourné en canal de sortie'
+id: 2869c06e-345a-5c92-855e-149004df0cfe
+status: test
+description: Un outil prévu pour autre chose (recherche, note) a servi à faire sortir des données.
+references:
+- https://attack.mitre.org/techniques/T1567/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.exfiltration
+- attack.t1567
+logsource:
+  product: dedale
+  category: exfiltration
+detection:
+  selection:
+    event.module: dedale
+    event.action: leurre_touche
+    event.dataset: dedale.interne
+    rule.name: canal_detourne
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Outil de recherche qui envoie légitimement une requête longue
+level: high

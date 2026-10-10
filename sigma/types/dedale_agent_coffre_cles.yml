@@ -1,0 +1,32 @@
+title: 'Dédale : Coffre de clés lu ou demandé par un agent IA'
+id: 70b41b60-757a-538b-a425-c6b6e8861549
+status: test
+description: Un agent a appelé l'outil de lecture du coffre de clés d'API, ou demandé le droit qui l'ouvre.
+references:
+- https://attack.mitre.org/techniques/T1555/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.credential-access
+- attack.t1555
+logsource:
+  product: dedale
+  category: identifiants
+detection:
+  base:
+    event.module: dedale
+    event.action: appel_outil
+  selection_outil:
+    labels.outil: lire_coffre
+  selection_droit:
+    labels.droit_requis: coffre:lire
+  condition: base and 1 of selection_*
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Agent d'exploitation autorisé à faire tourner les clés
+level: high

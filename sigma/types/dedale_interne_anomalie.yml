@@ -1,0 +1,36 @@
+title: 'Dédale : Agent IA qui s''écarte de son habitude'
+id: ce9ede6e-10aa-59ca-ad8e-3361859693b5
+status: test
+description: Pic d'appels, outil jamais utilisé ou volume lu inhabituel pour cet agent.
+references:
+- https://attack.mitre.org/techniques/T1078/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.privilege-escalation
+- attack.t1078
+- detection.threat-hunting
+logsource:
+  product: dedale
+  category: gouvernance
+detection:
+  selection:
+    event.module: dedale
+    event.action: appel_outil
+    event.dataset: dedale.interne
+    labels.anomalie:
+    - pic_appels
+    - outil_inhabituel
+    - volume_lu
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+- labels.anomalie
+falsepositives:
+- Nouvelle tâche confiée à l'agent
+- Fin de mois ou clôture comptable
+level: low

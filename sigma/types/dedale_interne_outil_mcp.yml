@@ -1,0 +1,33 @@
+title: 'Dédale : Agent IA interne piégé par la description d''un outil MCP'
+id: 5d6e069e-d73c-5772-b59f-c72e5e697dca
+status: test
+description: La description d'un outil MCP branché à l'agent portait une consigne cachée, et l'agent l'a suivie
+  (empoisonnement d'outil).
+references:
+- https://attack.mitre.org/techniques/T1195/002/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1195.002
+logsource:
+  product: dedale
+  category: chaine_approvisionnement
+detection:
+  selection:
+    event.module: dedale
+    event.action: leurre_touche
+    event.dataset: dedale.interne
+    rule.name:
+    - outil_mcp_piege
+    - faux_outil_mcp
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Serveur MCP de test volontairement piégé
+level: high

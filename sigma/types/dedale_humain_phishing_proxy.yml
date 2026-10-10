@@ -1,0 +1,40 @@
+title: 'Dédale : Domaine sosie de la marque ouvert depuis le réseau, journaux du proxy'
+id: bbfb7e7c-59f5-5333-b8f8-82b2ecade83d
+status: test
+description: Un poste a ouvert un domaine qui imite la marque (tiret, chiffre à la place d'une lettre, lettre doublée,
+  homoglyphe en punycode). Remplacer la marque fictive Orbis Pay par la vôtre.
+references:
+- https://attack.mitre.org/techniques/T1566/002/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1566.002
+logsource:
+  category: proxy
+detection:
+  selection_sosie:
+    url.domain|contains:
+    - orbispay-
+    - -orbispay
+    - orbis-pay
+    - 0rbispay
+    - orb1spay
+    - orbisspay
+    - orbispaay
+    - orbispai
+    - xn--rbispay
+  selection_sous_domaine:
+    url.domain|startswith: orbispay.
+  filtre_legitime:
+  - url.domain: orbispay.example
+  - url.domain|endswith: .orbispay.example
+  condition: 1 of selection_* and not filtre_legitime
+fields:
+- source.ip
+- user.name
+- url.domain
+- url.original
+falsepositives:
+- Domaine de campagne marketing enregistré par l'entreprise elle-même
+level: high

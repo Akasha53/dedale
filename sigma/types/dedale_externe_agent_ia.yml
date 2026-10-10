@@ -1,0 +1,30 @@
+title: 'Dédale : Agent IA attaquant pris par un leurre de la surface exposée'
+id: 44273dc2-78d5-5256-93b1-30d877e0c850
+status: test
+description: 'Un visiteur a suivi un piège que seul un agent IA suit : consigne cachée, fausse route listée dans
+  robots.txt, faux secret ou faux outil MCP. Un humain ne voit pas ces pièges.'
+references:
+- https://attack.mitre.org/techniques/T1595/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.reconnaissance
+- attack.t1595
+logsource:
+  product: dedale
+  category: surface_exposee
+detection:
+  selection:
+    event.module: dedale
+    event.action: leurre_touche
+    event.dataset: dedale.externe
+  condition: selection
+fields:
+- source.ip
+- user_agent.original
+- url.path
+- rule.id
+- rule.name
+falsepositives:
+- Robot d'indexation qui lit robots.txt et suit une route interdite
+level: high

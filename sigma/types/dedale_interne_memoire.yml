@@ -1,0 +1,30 @@
+title: 'Dédale : Agent IA interne détourné par sa mémoire'
+id: 9753a174-61da-5558-a074-f4ff81fb89dd
+status: test
+description: Une entrée empoisonnée de la mémoire longue de l'agent a modifié son comportement.
+references:
+- https://attack.mitre.org/techniques/T1565/001/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.impact
+- attack.t1565.001
+logsource:
+  product: dedale
+  category: injection
+detection:
+  selection:
+    event.module: dedale
+    event.action: leurre_touche
+    event.dataset: dedale.interne
+    rule.name: memoire_empoisonnee
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Test de résistance lancé par l'équipe sécurité
+level: high

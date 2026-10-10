@@ -1,0 +1,31 @@
+title: 'Dédale : Export de données clients soumis à double validation'
+id: abf00689-c75d-5705-bda6-80fd69d142cd
+status: test
+description: Un salarié a demandé un export de données clients que Dédale a suspendu pour une double validation.
+references:
+- https://attack.mitre.org/techniques/T1048/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.exfiltration
+- attack.t1048
+logsource:
+  product: dedale
+  category: exfiltration
+detection:
+  selection:
+    event.module: dedale
+    event.action: avertissement
+    event.dataset: dedale.humain
+    labels.quatre_yeux: demande
+    labels.geste: export_clients
+  condition: selection
+fields:
+- user.name
+- user.group.name
+- url.domain
+- destination.domain
+- dedale.incident.id
+falsepositives:
+- Export prévu pour un audit ou une migration
+level: high

@@ -1,0 +1,32 @@
+title: 'Dédale : Fichier confidentiel déposé vers une IA non autorisée'
+id: 0a07718c-a1a1-568d-9321-7ddf7c2d191a
+status: test
+description: Le salarié a déposé un fichier confidentiel dans un service d'IA générative que l'entreprise n'autorise
+  pas, malgré l'alerte.
+references:
+- https://attack.mitre.org/techniques/T1567/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.exfiltration
+- attack.t1567
+logsource:
+  product: dedale
+  category: exfiltration
+detection:
+  selection:
+    event.module: dedale
+    event.action: avertissement
+    event.dataset: dedale.humain
+    labels.categorie: upload_ia
+    event.type: allowed
+  condition: selection
+fields:
+- user.name
+- user.group.name
+- url.domain
+- destination.domain
+- dedale.incident.id
+falsepositives:
+- Service d'IA approuvé depuis, pas encore dans la liste
+level: medium

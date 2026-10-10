@@ -1,0 +1,35 @@
+title: 'Dédale : Envoi de données hors de l''entreprise par un agent IA'
+id: 0752a846-b48e-5b8a-86e9-de0fd4f02da4
+status: test
+description: L'agent a tenté d'envoyer des données vers l'extérieur. La passerelle a retenu l'envoi avant exécution.
+references:
+- https://attack.mitre.org/techniques/T1048/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.exfiltration
+- attack.t1048
+logsource:
+  product: dedale
+  category: exfiltration
+detection:
+  base:
+    event.module: dedale
+    event.dataset: dedale.interne
+  selection_piege:
+    event.action: leurre_touche
+    rule.name: envoi_externe
+  selection_sortie:
+    event.action: sortie_agent
+    labels.exfiltration: oui
+  condition: base and 1 of selection_*
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+- destination.domain
+falsepositives:
+- Envoi prévu vers un partenaire, absent de la liste des destinataires
+level: critical

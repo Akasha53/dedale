@@ -1,0 +1,30 @@
+title: 'Dédale : Agent IA interne piégé par la transcription d''un appel'
+id: 034c52e3-674c-5938-b6a1-477af329d5f4
+status: test
+description: La transcription d'un appel téléphonique lue par l'agent portait une consigne, et l'agent l'a suivie.
+references:
+- https://attack.mitre.org/techniques/T1566/004/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1566.004
+logsource:
+  product: dedale
+  category: injection
+detection:
+  selection:
+    event.module: dedale
+    event.action: leurre_touche
+    event.dataset: dedale.interne
+    rule.name: canari_appel
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Test de résistance lancé par l'équipe sécurité
+level: high

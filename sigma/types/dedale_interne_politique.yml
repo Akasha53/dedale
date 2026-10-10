@@ -1,0 +1,31 @@
+title: 'Dédale : Règle du SOC déclenchée par un agent IA'
+id: d53063a1-0452-5a99-a2ce-f5340e4410ed
+status: test
+description: Un appel d'outil a déclenché une règle écrite par le SOC (blocage, retenue ou droit retiré).
+references:
+- https://attack.mitre.org/techniques/T1078/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.privilege-escalation
+- attack.t1078
+logsource:
+  product: dedale
+  category: gouvernance
+detection:
+  selection:
+    event.module: dedale
+    event.action: appel_outil
+    event.dataset: dedale.interne
+    rule.ruleset: dedale-regles-soc
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+- rule.description
+falsepositives:
+- Règle trop large qui attrape un usage prévu
+level: medium

@@ -1,0 +1,32 @@
+title: 'Dédale : Virement soumis à double validation'
+id: bc2618c9-fa0f-57da-901b-179034755510
+status: test
+description: 'Un salarié a demandé un virement que Dédale a suspendu pour une double validation : relecture, puis
+  décision d''un responsable.'
+references:
+- https://attack.mitre.org/techniques/T1657/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.impact
+- attack.t1657
+logsource:
+  product: dedale
+  category: fraude
+detection:
+  selection:
+    event.module: dedale
+    event.action: avertissement
+    event.dataset: dedale.humain
+    labels.quatre_yeux: demande
+    labels.geste: virement
+  condition: selection
+fields:
+- user.name
+- user.group.name
+- url.domain
+- destination.domain
+- dedale.incident.id
+falsepositives:
+- Virement fournisseur habituel au-dessus du seuil de double validation
+level: critical

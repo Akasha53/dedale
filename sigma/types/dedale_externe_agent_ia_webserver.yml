@@ -1,0 +1,31 @@
+title: 'Dédale : Requête vers une route-leurre, journaux du serveur web'
+id: 127ac862-a039-5e34-b13f-91b47c0ab0b0
+status: test
+description: Requête sur une route qui n'existe que comme piège (listée dans robots.txt ou dans un commentaire caché).
+  Adapter la liste aux routes-leurres déployées sur le site.
+references:
+- https://attack.mitre.org/techniques/T1595/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.reconnaissance
+- attack.t1595
+logsource:
+  category: webserver
+detection:
+  selection:
+    url.path:
+    - /api/internal/export-clients
+    - /api/internal/debug
+    - /.git/config
+    - /sauvegardes/orbis-prod.sql
+    - /.well-known/ai-plugin.json
+  condition: selection
+fields:
+- source.ip
+- user_agent.original
+- url.path
+- http.response.status_code
+falsepositives:
+- Audit de sécurité autorisé qui parcourt les routes cachées
+level: high

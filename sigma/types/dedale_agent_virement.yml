@@ -1,0 +1,32 @@
+title: 'Dédale : Virement tenté par un agent IA, arrêté'
+id: 66312d62-3c10-5e3d-94b7-8b96b46effb0
+status: test
+description: Un agent a demandé un virement et la passerelle l'a retenu ou refusé.
+references:
+- https://attack.mitre.org/techniques/T1657/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.impact
+- attack.t1657
+logsource:
+  product: dedale
+  category: fraude
+detection:
+  selection:
+    event.module: dedale
+    event.action: appel_outil
+    labels.outil:
+    - executer_paiement
+    - emettre_virement
+    event.outcome: failure
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Paiement fournisseur prévu, retenu par une règle trop stricte
+level: critical

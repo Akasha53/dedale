@@ -1,0 +1,31 @@
+title: 'Dédale : Appel d''un outil absent de l''inventaire de l''agent'
+id: 91ff63b2-5e22-5535-b0af-b796555f9e39
+status: test
+description: L'agent a voulu appeler un outil qui ne figure pas dans son inventaire déclaré. La passerelle l'a retenu
+  avant exécution.
+references:
+- https://attack.mitre.org/techniques/T1195/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1195
+logsource:
+  product: dedale
+  category: chaine_approvisionnement
+detection:
+  selection:
+    event.module: dedale
+    event.action: leurre_touche
+    event.dataset: dedale.interne
+    rule.name: outil_inconnu
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Outil ajouté au serveur MCP avant sa déclaration à l'inventaire
+level: medium

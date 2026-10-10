@@ -1,0 +1,30 @@
+title: 'Dédale : Consigne cachée retirée avant lecture par l''agent'
+id: e58333b3-4b11-5a5a-a5ac-68d9b45bc0f4
+status: test
+description: 'Dédale a retiré une consigne cachée d''un contenu avant que l''agent le lise. L''agent n''a rien suivi
+  : c''est une tentative.'
+references:
+- https://attack.mitre.org/techniques/T1566/001/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.initial-access
+- attack.t1566.001
+logsource:
+  product: dedale
+  category: injection
+detection:
+  selection:
+    event.module: dedale
+    event.action: desarmement
+    event.dataset: dedale.interne
+  condition: selection
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Contenu légitime qui ressemble à une consigne (modèle de mail, procédure)
+level: low

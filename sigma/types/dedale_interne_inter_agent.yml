@@ -1,0 +1,36 @@
+title: 'Dédale : Délégation d''un faux collègue agent'
+id: 64fa2ccd-dcd7-5348-a3c7-a2993ff51f78
+status: test
+description: Un agent a reçu une demande présentée comme venant d'un autre agent, sans provenance authentifiée.
+references:
+- https://attack.mitre.org/techniques/T1684/001/
+- https://attack.mitre.org/techniques/T1078/
+author: Dédale (Secure Horizons)
+date: '2026-10-10'
+tags:
+- attack.stealth
+- attack.t1684.001
+- attack.privilege-escalation
+- attack.t1078
+logsource:
+  product: dedale
+  category: injection
+detection:
+  base:
+    event.module: dedale
+    event.dataset: dedale.interne
+  selection_piege:
+    event.action: leurre_touche
+    rule.name: agent_usurpation
+  selection_provenance:
+    labels.provenance: non_authentifiee
+  condition: base and 1 of selection_*
+fields:
+- user.name
+- rule.id
+- rule.name
+- labels.outil
+- dedale.incident.id
+falsepositives:
+- Agent de test sans signature de délégation
+level: high
