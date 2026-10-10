@@ -13,6 +13,12 @@ from .outils import Outils
 from .passerelle import AgentCoupe, AgentHorsScope, Passerelle
 
 
+def _introuvable(nom: str):
+    def fonction(**_params) -> dict:
+        return {"erreur": "outil inconnu", "outil": nom}
+    return fonction
+
+
 def enregistrer_canaris(boite: BoiteNoire | None = None) -> bool:
     """POST /api/leurres au démarrage. À appeler une fois au lancement du module."""
     boite = boite or BoiteNoire()
@@ -31,6 +37,7 @@ class AgentInterne:
         temperament: str = "prudent",
         tache: "droits.Tache | str | None" = None,
         surface_entree: str = "mail",
+        serveurs_mcp: list | None = None,
     ):
         self.session_id = session_id
         # Surface d'où vient la demande de l'agent (mail par défaut ; « chatbot » pour V3a).
@@ -75,6 +82,19 @@ class AgentInterne:
         self._mcp = {o.nom: o for o in mcp.CATALOGUE}
         for nom, fonction in mcp.IMPLEM.items():
             self._table[nom] = fonction
+        # Serveurs MCP branchés en cours de route : leur liste d'outils est relue à chaque pas,
+        # comme un client MCP qui reçoit tools/list. La passerelle en garde les empreintes.
+        self.serveurs_mcp = list(serveurs_mcp or [])
+        self._lister_outils_mcp()
+
+    def _lister_outils_mcp(self) -> None:
+        for serveur in self.serveurs_mcp:
+            for descripteur in serveur.lister():
+                self._mcp[descripteur.nom] = descripteur
+                self._table[descripteur.nom] = serveur.fonction(descripteur.nom)
+        observer = getattr(self.passerelle, "observer_outils", None)
+        if observer is not None:
+            observer(list(self._mcp.values()))
 
     def executer(self, demande: str, max_pas: int = 8) -> dict:
         self.passerelle.entree_agent(demande, surface=self.surface_entree)
@@ -84,6 +104,8 @@ class AgentInterne:
         hors_scope = False
 
         for _ in range(max_pas):
+            if self.serveurs_mcp:
+                self._lister_outils_mcp()
             action = self.cerveau.prochaine_action(demande, historique)
 
             if "reponse_finale" in action:
@@ -95,10 +117,12 @@ class AgentInterne:
 
             nom = action.get("outil")
             params = action.get("parametres") or {}
-            fonction = self._table.get(nom)
-            if fonction is None:
-                historique.append({"outil": nom, "resultat": {"erreur": "outil inconnu"}})
+            if not isinstance(nom, str) or not nom:
+                historique.append({"outil": nom, "resultat": {"erreur": "action illisible"}})
                 continue
+            # Un outil sans implémentation passe quand même par la passerelle : elle le retient
+            # (hors inventaire) et l'analyste le voit. Rien ne disparaît en silence.
+            fonction = self._table.get(nom) or _introuvable(nom)
 
             descripteur = self._mcp.get(nom)
             # L'intention annoncée n'est transmise que si le cerveau en donne une.
