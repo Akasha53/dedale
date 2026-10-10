@@ -55,6 +55,8 @@ struct Avertissement {
     var titreAnnuler: String? = nil
     var titreContinuer: String? = nil
     var puce: String? = nil
+    /// Phrase sous les boutons, quand elle diffère de celle des gestes du poste.
+    var note: String? = nil
     /// Préfixe des PNG écrits avec DEDALE_CAPTURE, s'il faut le fixer.
     var prefixe: String? = nil
 

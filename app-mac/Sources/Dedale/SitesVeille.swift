@@ -37,6 +37,9 @@ final class SitesVeille {
     /// Chrome : adresse louche vue une fois, en attente du second relevé.
     private var enAttente: [String: String] = [:]
     private var raccourcisVus: Set<String> = []
+    /// Essai réel : chaque nouvel hôte lu va au journal (l'hôte seul).
+    private let journalEssai = ProcessInfo.processInfo.environment["DEDALE_SITES_ESSAI"] != nil
+    private var derniereLue = ""
     private var alertes = 0
     private var dernier: String?
 
@@ -143,7 +146,7 @@ final class SitesVeille {
                 return
             }
             let suivant = rang + 1
-            guard suivant < adresses.count, let url = LecteurNavigateurs.chaineAppleScript(adresses[suivant]) else {
+            guard suivant < adresses.count else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                     _ = self?.lecteur.script("tell application id \"com.apple.Safari\" to close window id \(id)")
                     journal("essai : terminé, fenêtre Safari \(id) refermée")
@@ -153,13 +156,8 @@ final class SitesVeille {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                 guard let self else { return }
                 journal("essai : \(adresses[suivant])")
-                _ = self.lecteur.script("""
-                    tell application id "com.apple.Safari"
-                        set index of window id \(id) to 1
-                        set URL of current tab of window id \(id) to \(url)
-                        activate
-                    end tell
-                    """)
+                self.lecteur.naviguerSafari(fenetre: id, onglet: nil, vers: adresses[suivant])
+                _ = self.lecteur.script("tell application id \"com.apple.Safari\" to activate")
                 self.etapeEssai(adresses, rang: suivant, fenetreSafari: id, depuis: Date(), vuePopup: false)
             }
         }
@@ -223,6 +221,10 @@ final class SitesVeille {
             return
         }
         guard let onglet = lecteur.lire(n) else { return }
+        if journalEssai, onglet.adresse != derniereLue {
+            derniereLue = onglet.adresse
+            journal("essai : \(n.nom) affiche \(MoteurSites.decomposer(onglet.adresse).hote)")
+        }
         examiner(onglet)
     }
 
@@ -291,7 +293,8 @@ final class SitesVeille {
         a.titreAnnuler = "Revenir en arrière"
         a.titreContinuer = "Continuer quand même"
         a.puce = r.marque != nil ? "Faux site" : "Site louche"
-        a.prefixe = "site-\(r.categorie ?? "louche")".replacingOccurrences(of: "_", with: "-")
+        a.note = "Si vous revenez en arrière, rien ne quitte ce Mac. Si vous continuez, la SOC reçoit le nom du site."
+        a.prefixe = "site-\(r.raison ?? "louche")".replacingOccurrences(of: "_", with: "-")
         journal("sites : \(o.navigateur.nom), \(r.domaine) louche (\(r.raison ?? "?"))")
 
         let f = FenetreAlerte(a)

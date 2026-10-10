@@ -133,12 +133,51 @@ final class LecteurNavigateurs {
                 }
             }
         case .safari:
-            if let page = pageSure, let echappee = Self.chaineAppleScript(page) {
-                _ = executer(source: safari(o, action: "set URL of t to \(echappee)"), o.navigateur)
-            } else {
-                _ = executer(source: safari(o, action: "close t"), o.navigateur)
+            if let page = pageSure, naviguerSafari(fenetre: o.fenetre, onglet: o.onglet, vers: page) {
+                return
             }
+            _ = executer(source: safari(o, action: "close t"), o.navigateur)
         }
+    }
+
+    /// Charge une adresse dans un onglet de Safari (l'onglet courant si `onglet` est nil).
+    /// Safari refuse parfois l'écriture de URL sur une référence d'onglet (-10006) : le script
+    /// essaie alors d'autres formes, de la plus précise à la plus large.
+    @discardableResult
+    func naviguerSafari(fenetre: Int, onglet: Int?, vers adresse: String) -> Bool {
+        guard let u = Self.chaineAppleScript(adresse) else { return false }
+        let t = onglet.map { "tab \($0) of window id \(fenetre)" } ?? "current tab of window id \(fenetre)"
+        let source = """
+            with timeout of 3 seconds
+                tell application id "com.apple.Safari"
+                    try
+                        set URL of \(t) to \(u)
+                        return "1"
+                    end try
+                    try
+                        tell \(t) to set URL to \(u)
+                        return "2"
+                    end try
+                    try
+                        set d to (first document whose name is (name of \(t)))
+                        set URL of d to \(u)
+                        return "3"
+                    end try
+                    \(onglet == nil ? """
+                    try
+                        set n to make new tab at end of tabs of window id \(fenetre) with properties {URL:\(u)}
+                        set current tab of window id \(fenetre) to n
+                        return "4"
+                    end try
+                    """ : "")
+                    return "0"
+                end tell
+            end timeout
+            """
+        let r = executer(source: source, .safari) ?? "0"
+        if r != "1" { journal("sites : Safari, changement d'adresse par la forme \(r)") }
+        if r == "0" { journal("sites : Safari refuse de changer d'adresse dans la fenêtre \(fenetre)") }
+        return r != "0"
     }
 
     // MARK: Scripts
@@ -180,6 +219,11 @@ final class LecteurNavigateurs {
         guard !texte.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { return nil }
         let echappe = texte.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         return "\"\(echappe)\""
+    }
+
+    /// Script libre sur Safari (essai réel seulement). Renvoie sa sortie texte, ou nil.
+    func script(_ source: String) -> String? {
+        executer(source: source, .safari)
     }
 
     private func executer(source: String, _ n: Navigateur) -> String? {
