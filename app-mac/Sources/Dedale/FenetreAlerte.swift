@@ -97,16 +97,15 @@ final class FenetreAlerte: NSObject {
             boutonVoir = BoutonDedale(titre: "Voir le mail", style: .lien, cible: self, action: #selector(voir))
         }
 
-        boutonContinuer = BoutonDedale(titre: a.titreContinuer ?? "Continuer", style: .risque, cible: self,
-                                       action: #selector(continuer))
-        boutonAnnuler = BoutonDedale(titre: a.titreAnnuler ?? "Annuler", style: .protege, cible: self, action: #selector(annuler))
+        boutonContinuer = BoutonDedale(titre: "Continuer", style: .risque, cible: self, action: #selector(continuer))
+        boutonAnnuler = BoutonDedale(titre: "Annuler", style: .protege, cible: self, action: #selector(annuler))
         let boutons = NSStackView(views: [boutonContinuer, boutonAnnuler])
         boutons.orientation = .horizontal
         boutons.distribution = .fillEqually
         boutons.spacing = 10
 
         let note = Gabarit.paragraphe(
-            a.quatreYeux ? "Geste sensible : un analyste de la SOC doit le valider avant."
+            a.quatreYeux ? "Geste sensible : Dédale le relit avant qu'il parte, et la SOC voit sa décision."
                          : "Si vous continuez, l'équipe sécurité est prévenue.",
             taille: 11, couleur: Teinte.discret, largeur: w)
 
@@ -207,14 +206,14 @@ final class FenetreAlerte: NSObject {
         planifierAuto()
     }
 
-    /// Quatre yeux : la demande part au SOC, la pop-up attend la décision.
+    /// Quatre yeux : la demande part au SOC, la pop-up attend le relecteur ou un analyste.
     func montrerAttente(restant: Int) {
         let texte = Gabarit.paragraphe(Self.texteRestant(restant), taille: 12, couleur: Teinte.discret,
                                        largeur: Self.interieur - 28)
         texteAttente = texte
         let ligne = NSStackView(views: [
             Gabarit.icone("hourglass", taille: 15, couleurs: [Teinte.cyanFonce]),
-            Gabarit.etiquette("Demande envoyée à la SOC…", taille: 14, graisse: .semibold, couleur: Teinte.encre),
+            Gabarit.etiquette(DemandeQuatreYeux.titreAttente, taille: 14, graisse: .semibold, couleur: Teinte.encre),
         ])
         ligne.orientation = .horizontal
         ligne.alignment = .centerY
@@ -229,23 +228,19 @@ final class FenetreAlerte: NSObject {
     }
 
     private static func texteRestant(_ s: Int) -> String {
-        "Un analyste valide ce geste. Sans réponse dans \(s) s, il est refusé."
+        DemandeQuatreYeux.texteAttente(restant: s)
     }
 
-    /// Issue des quatre yeux, puis fermeture.
+    /// Issue des quatre yeux (« Relu par Dédale en 1,8 s : refusé. » et le motif), puis fermeture.
     func montrerIssue(_ issue: DemandeQuatreYeux.Issue) {
         let accorde = issue == .accorde
-        let sousTitre: String
-        switch issue {
-        case .accorde: sousTitre = "La SOC a validé ce geste. Vous pouvez continuer."
-        case .refuse: sousTitre = "La SOC a refusé ce geste. Il n'aura pas lieu."
-        case .expire: sousTitre = "Pas de réponse de la SOC à temps. Le geste n'aura pas lieu."
-        case .injoignable: sousTitre = "La SOC est injoignable. Le geste n'aura pas lieu."
-        }
+        let relecture = DemandeQuatreYeux.relecture(pour: avertissement.id)
+        let sousTitre = DemandeQuatreYeux.texteIssue(issue, relecture: relecture)
         montrerFin(symbole: accorde ? "checkmark.circle.fill" : "xmark.circle.fill",
                    couleur: accorde ? Teinte.cyanFonce : Teinte.rouge,
                    titre: accorde ? "Accordé" : "Refusé", sousTitre: sousTitre,
-                   capture: accorde ? "accorde" : (issue == .expire ? "expire" : "refuse"), duree: 3.5)
+                   capture: accorde ? "accorde" : (issue == .expire ? "expire" : "refuse"),
+                   duree: relecture == nil ? 3.5 : 7)
     }
 
     /// Montre l'issue d'un « Continuer » ordinaire, puis ferme la pop-up.

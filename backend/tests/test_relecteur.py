@@ -417,3 +417,7 @@ def test_textes_desarmes():
     assert relecteur.motif_propre("Rappelez le 06 12 34 56 78 sur http://aide.example") == \
         "Rappelez le [numéro masqué] sur hxxp://aide[.]example"
     assert relecteur.valider_geste(ACCORDE) == ACCORDE
+    # Seul le domaine exact d'Orbis Pay reste lisible ; un sosie reste désarmé.
+    assert relecteur.motif_propre("Vers orbispay.example, sans alerte.") == "Vers orbispay.example, sans alerte."
+    assert relecteur.motif_propre("Vers evil-orbispay.example") == "Vers evil-orbispay[.]example"
+    assert relecteur.motif_propre("Vers orbispay.example.evil.com") == "Vers orbispay[.]example[.]evil[.]com"
