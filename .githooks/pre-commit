@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Bloque le commit si un secret apparaît dans les fichiers indexés.
+# Activation : git config core.hooksPath .githooks
+set -euo pipefail
+racine="$(git rev-parse --show-toplevel)"
+cd "$racine"
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --staged --redact --no-banner --config .gitleaks.toml || { echo "pre-commit : gitleaks a trouvé un secret probable." >&2; exit 1; }
+fi
+python3 scripts/scan_secrets.py --staged || { echo "pre-commit : scan_secrets.py a trouvé un secret probable." >&2; exit 1; }

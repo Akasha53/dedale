@@ -19,3 +19,20 @@ design-assets/
 
 # Mémoire locale de l'agent interne, recréée à l'usage
 interne/instance/
+
+# Bases SQLite temporaires, quel que soit le module
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+
+# Caches d'outils
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+
+# Construction de l'app Mac
+app-mac/.build/
+app-mac/Dedale.app/

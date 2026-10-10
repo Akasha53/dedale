@@ -1,0 +1,21 @@
+# Config gitleaks de Dédale : règles par défaut + valeurs fictives d'Orbis Pay.
+# Chaque entrée est une valeur exacte, jamais un dossier entier.
+title = "Dédale"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valeurs fictives Orbis Pay (leurres, canaris, fixtures de tests)"
+regexes = [
+  '''ORBISPAY-CANARY-2B91-a7f9c3e1d05b''',
+  '''orbis_sk_test_votreclef''',
+  '''sk-live-ABCDEF0123456789''',
+  '''sk-ant-api03-7h2Kd9fLmQ0zXc4Vb1Np''',
+  '''sk-ant-api03-secret-tres-long-xyz''',
+  '''AKIA1234567890ABCDEF''',
+]
+paths = [
+  '''__pycache__/''',
+  '''node_modules/''',
+]

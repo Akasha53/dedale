@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Recherche locale de secrets courants sans jamais afficher les valeurs détectées.
 
-Usage: python3 scripts/scan_secrets.py [--worktree] [--history] [--self-test]
+Usage: python3 scripts/scan_secrets.py [--worktree] [--history] [--staged] [--self-test]
 Sans option de portée, les fichiers présents et tous les blobs Git sont examinés.
 """
 
@@ -29,6 +29,14 @@ PATTERNS = {
     "private_key": re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----"),
     "jwt": re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
 }
+# Valeurs fictives d'Orbis Pay utilisées par les tests et les leurres. Liste exacte, jamais
+# par dossier : une vraie clé collée à côté de l'une d'elles reste détectée.
+VALEURS_FICTIVES = (
+    "sk-ant-api03-7h2Kd9fLmQ0zXc4Vb1Np",
+    "sk-ant-api03-secret-tres-long-xyz",
+    "AKIA1234567890ABCDEF",
+    "sk-live-ABCDEF0123456789",
+)
 ASSIGNMENT = re.compile(
     r"(?i)\b(?:api[_-]?key|secret|token|password|passwd|client[_-]?secret|access[_-]?key)"
     r"\s*[=:]\s*['\"]?([^\s'\"#,;]{12,})"
@@ -71,6 +79,8 @@ def _detections(donnees: bytes) -> list[tuple[int, str]]:
         return []
     resultats = []
     for numero, ligne in enumerate(donnees.decode("utf-8", errors="replace").splitlines(), 1):
+        for fictive in VALEURS_FICTIVES:
+            ligne = ligne.replace(fictive, "VALEUR_FICTIVE")
         for nom, motif in PATTERNS.items():
             if motif.search(ligne):
                 resultats.append((numero, nom))
@@ -107,6 +117,23 @@ def _worktree() -> tuple[list[tuple[str, str, int, str]], int, int]:
         examines += 1
         for ligne, categorie in _detections(donnees):
             resultats.append(("travail", relatif.as_posix(), ligne, categorie))
+    return resultats, examines, ignores
+
+
+def _staged() -> tuple[list[tuple[str, str, int, str]], int, int]:
+    """Contenu indexé (ce qui va être commité), pas le fichier du disque."""
+    noms = _run("diff", "--cached", "--name-only", "--diff-filter=ACM", "-z")
+    resultats = []
+    examines = ignores = 0
+    for nom in (n for n in noms.split(b"\0") if n):
+        relatif = nom.decode("utf-8", errors="surrogateescape")
+        donnees = _run("show", f":{relatif}")
+        if len(donnees) > MAX_BYTES or b"\0" in donnees[:4096]:
+            ignores += 1
+            continue
+        examines += 1
+        for ligne, categorie in _detections(donnees):
+            resultats.append(("indexé", relatif, ligne, categorie))
     return resultats, examines, ignores
 
 
@@ -166,12 +193,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--worktree", action="store_true", help="fichiers suivis et non ignorés présents")
     parser.add_argument("--history", action="store_true", help="blobs accessibles depuis toutes les refs Git")
+    parser.add_argument("--staged", action="store_true", help="fichiers indexés, pour le hook pre-commit")
     parser.add_argument("--self-test", action="store_true", help="vérifie le détecteur avec des chaînes synthétiques")
     args = parser.parse_args()
     if args.self_test:
         ok = _self_test()
         print("Auto-test : réussi" if ok else "Auto-test : échec")
         return 0 if ok else 2
+    if args.staged:
+        resultats, examines, _ = _staged()
+        for portee, chemin, ligne, categorie in resultats:
+            print(f"{portee} : {_emplacement_sans_valeur(chemin)}:{ligne} : {categorie}")
+        print(f"indexé : {examines} fichiers examinés, {len(resultats)} alertes")
+        return 1 if resultats else 0
     portees = []
     if args.worktree or not args.history:
         portees.append(_worktree)
