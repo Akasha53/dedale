@@ -64,7 +64,7 @@ def _slack(texte) -> str:
 
 def _heure(iso: str | None) -> str:
     try:
-        return datetime.fromisoformat(str(iso).replace("Z", "+00:00")).strftime("%d/%m %H:%M:%S")
+        return datetime.fromisoformat(str(iso).replace("Z", "+00:00")).astimezone().strftime("%d/%m %H:%M:%S")
     except ValueError:
         return str(iso or "")
 

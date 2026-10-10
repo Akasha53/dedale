@@ -19,29 +19,38 @@ from pathlib import Path
 from . import config, journal_scelle
 
 
-def _suite(nom: str, res: dict) -> str:
-    morceaux = [f"{res['verifies']} scellé(s)"]
+def _n(nombre: int, singulier: str, pluriel: str) -> str:
+    return f"{nombre} {singulier if nombre <= 1 else pluriel}"
+
+
+def _suite(nom: str, res: dict, genre: str) -> str:
+    morceaux = [_n(res["verifies"], f"scellé{genre}", f"scellé{genre}s")]
     if res["anterieurs"]:
-        morceaux.append(f"{res['anterieurs']} antérieur(s) au scellement")
+        morceaux.append(_n(res["anterieurs"], f"antérieur{genre} au scellement",
+                           f"antérieur{genre}s au scellement"))
     etat = "chaîne intacte" if res["intacte"] else f"ALTÉRÉE au rang {res['rang']} ({res['raison']})"
     return f"{nom} : {', '.join(morceaux)} : {etat}"
 
 
 def rendre(chemin: Path, res: dict) -> str:
-    lignes = [f"Journal Dédale : {chemin}", _suite("Événements", res["evenements"]),
-              _suite("Décisions", res["decisions"])]
+    lignes = [f"Journal Dédale : {chemin}", _suite("Événements", res["evenements"], ""),
+              _suite("Décisions", res["decisions"], "e")]
     incidents = [i for i in res["incidents"] if i]
     compte = {"intacte": 0, "alteree": 0, "anterieure_au_scellement": 0}
     for i in incidents:
         compte[i["statut"]] = compte.get(i["statut"], 0) + 1
     lignes.append(
-        f"Incidents : {compte['intacte']} intact(s), {compte['alteree']} altéré(s), "
-        f"{compte['anterieure_au_scellement']} antérieur(s) au scellement"
+        f"Incidents : {_n(compte['intacte'], 'intact', 'intacts')}, "
+        f"{_n(compte['alteree'], 'altéré', 'altérés')}, "
+        f"{_n(compte['anterieure_au_scellement'], 'antérieur', 'antérieurs')} au scellement"
     )
     for i in incidents:
-        detail = f"{i['maillons_verifies']} maillon(s), {i['decisions_verifiees']} décision(s)"
-        raison = f" : {i['raison']}" if i.get("raison") else ""
-        lignes.append(f"  {i['incident_id']} {i['verdict']} ({detail}){raison}")
+        if i["statut"] == "intacte":
+            detail = (f" ({_n(i['maillons_verifies'], 'maillon', 'maillons')}, "
+                      f"{_n(i['decisions_verifiees'], 'décision', 'décisions')})")
+        else:
+            detail = f" : {i['raison']}" if i.get("raison") else ""
+        lignes.append(f"  {i['incident_id']} {i['verdict']}{detail}")
     lignes.append(f"Verdict : {'intacte' if res['statut'] == 'intacte' else 'ALTÉRÉE'}")
     return "\n".join(lignes)
 

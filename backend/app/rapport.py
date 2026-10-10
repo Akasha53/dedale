@@ -86,7 +86,7 @@ def _court(texte, n: int) -> str:
 
 
 def _n(nombre: int, singulier: str, pluriel: str) -> str:
-    return f"{nombre} {singulier if nombre == 1 else pluriel}"
+    return f"{nombre} {singulier if nombre <= 1 else pluriel}"
 
 
 def _sceau_lisible(sceau: str | None) -> str:

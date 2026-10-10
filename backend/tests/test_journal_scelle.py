@@ -162,7 +162,8 @@ def test_commande_verifier_journal(client, capsys):
     _verifier(client, iid)
     assert verifier_journal.main(["--db", str(config.CHEMIN_DB)]) == 0
     sortie = capsys.readouterr().out
-    assert "Verdict : intacte" in sortie and f"{iid} intacte" in sortie
+    assert "Verdict : intacte" in sortie and f"{iid} intacte (3 maillons, 0 décision)" in sortie
+    assert "Événements : 3 scellés : chaîne intacte" in sortie
     with _base() as conn:
         conn.execute("UPDATE evenements SET outil = 'autre' WHERE id = 3")
     assert verifier_journal.main(["--db", str(config.CHEMIN_DB)]) == 1
