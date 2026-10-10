@@ -3,6 +3,9 @@
 // avant son accord. Les règles actives se retirent d'un clic confirmé.
 // « Retire les droits en trop aux agents » se lit à part : une ligne par agent
 // avec les droits qui partiront, et « Rendre les droits » pour annuler.
+// Chaque phrase lance une instance de l'agent des règles, qui prépare un
+// changement (créer, modifier, retirer une règle, retirer des droits) puis se
+// ferme. Le changement ne s'applique qu'au clic sur « Appliquer ».
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type CSSProperties } from "react";
 import { useDonnees } from "../api/store";
@@ -27,6 +30,21 @@ interface LigneRetrait {
   droits: (DroitVu | string)[];
   deja_retires?: string[];
 }
+interface Changement {
+  type: "creation" | "modification" | "retrait" | "retrait_droits" | (string & {});
+  id?: string;
+  numero?: number;
+  intention?: string;
+  rien_a_retirer?: boolean;
+}
+interface SessionAgent {
+  session: string;
+  numero: number;
+  appels: number;
+  refus?: number;
+  etat: string;
+  raison_fin?: string | null;
+}
 type Analyse = AnalysePolitique & {
   intention?: string;
   compris_par?: string | null;
@@ -35,6 +53,8 @@ type Analyse = AnalysePolitique & {
   plan?: LigneRetrait[];
   entete?: string;
   conclusion?: string;
+  changement?: Changement | null;
+  agent_regles?: SessionAgent | null;
 };
 type PolitiqueVue = Politique & { intention?: string; retraits?: LigneRetrait[] };
 
@@ -61,6 +81,24 @@ function lecture(a: Analyse): string | null {
     return `Compris par le modèle (${nomModele(a.lecteur?.modele)}${duree})`;
   }
   return a.repli ? `Compris par les motifs : ${a.repli.replace(/ : lecture par motifs$/, "")}` : "Compris par les motifs";
+}
+
+// « Agent des règles · session 12 · 3 appels · fermée »
+function ligneSession(a: Analyse): string | null {
+  const s = a.agent_regles;
+  if (!s) return null;
+  const refus = s.refus ? ` · ${s.refus} refusé${s.refus > 1 ? "s" : ""}` : "";
+  return `Agent des règles · session ${s.numero} · ${s.appels} appel${s.appels > 1 ? "s" : ""}${refus} · ${s.etat}`;
+}
+
+function nonCompris(a: Analyse): string | null {
+  if (a.comprise || !a.repli) return null;
+  return `Ni le modèle ni les motifs n'ont trouvé de règle : ${a.repli}.`;
+}
+
+function applicable(a: Analyse): boolean {
+  if (!a.comprise) return false;
+  return Boolean(a.regle) || (a.changement?.type === "retrait" && Boolean(a.changement.id));
 }
 
 function PucesDroits({ droits, neutre }: { droits: (DroitVu | string)[]; neutre?: boolean }) {
@@ -183,12 +221,23 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
   };
 
   const activer = async () => {
-    if (!analyse?.comprise || !analyse.regle || occupe) return;
+    if (!analyse || !applicable(analyse as Analyse) || occupe) return;
+    const ch = (analyse as Analyse).changement;
     setOccupe(true);
     setErreur(null);
     try {
+      if (ch?.type === "retrait" && ch.id) {
+        // Retirer une règle passe par la route existante, comme le bouton « Retirer ».
+        await retirerPolitique(ch.id, analyste || "analyste");
+        setFait(ch.intention === MOINDRE ? `Droits rendus : règle n°${ch.numero} retirée.` : `Règle n°${ch.numero} retirée.`);
+        setPhrase("");
+        setAnalyse(null);
+        return;
+      }
       const p = (await activerPolitique(analyse.phrase, analyse.regle, analyste || "analyste")) as PolitiqueVue;
-      if (p.intention === MOINDRE && p.retraits) {
+      if (ch?.type === "modification") {
+        setFait(`Règle n°${ch.numero} remplacée par la règle n°${p.numero}.`);
+      } else if (p.intention === MOINDRE && p.retraits) {
         const n = p.retraits.reduce((t, l) => t + l.droits.length, 0);
         const agents = p.retraits.length;
         setFait(
@@ -269,15 +318,26 @@ export const PanneauRegles = forwardRef<ReglesPoignee>(function PanneauRegles(_p
             ) : (
               <p>{decoder(analyse.texte)}</p>
             )}
-            {lecture(analyse as Analyse) && (
+            {(lecture(analyse as Analyse) ?? nonCompris(analyse as Analyse)) && (
               <span className="regle-meta" style={{ marginTop: 8 }}>
-                {lecture(analyse as Analyse)}
+                {lecture(analyse as Analyse) ?? nonCompris(analyse as Analyse)}
               </span>
             )}
-            {analyse.comprise && analyse.regle && (
+            {ligneSession(analyse as Analyse) && (
+              <span className="regle-meta" title={(analyse as Analyse).agent_regles?.raison_fin ?? undefined}>
+                {ligneSession(analyse as Analyse)}
+              </span>
+            )}
+            {applicable(analyse as Analyse) && (
               <div className="regle-choix">
                 <button type="button" className="regle-btn primaire" onClick={() => void activer()} disabled={occupe}>
-                  {occupe ? "Activation…" : "Activer"}
+                  {(analyse as Analyse).changement
+                    ? occupe
+                      ? "Application…"
+                      : "Appliquer"
+                    : occupe
+                      ? "Activation…"
+                      : "Activer"}
                 </button>
                 <button
                   type="button"
