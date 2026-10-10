@@ -1,9 +1,25 @@
-import type { Classement, Droit, Etat, TypeIncident } from "../types";
+import type {
+  Classement,
+  ChoixSalarie,
+  Droit,
+  Etat,
+  Pilier,
+  Source,
+  TypeIncident,
+} from "../types";
 
-// Libellé et icône clairs par type d'incident. Les types internes V2
-// (outil/MCP piégé, droits, appel, chatbot, inter-agent, mémoire) ont leur entrée ; un type inconnu
-// retombe sur un libellé générique (dégradé propre).
+// Libellé et icône clairs par type d'incident. Table centrale : tout nouveau
+// type passe ici. Les cinq types du pilier salariés (avenant « humain, le
+// maillon faible »), puis les types agents IA internes, puis l'externe. Un
+// type inconnu retombe sur un libellé générique (dégradé propre).
 const TYPE_INCIDENT: Record<string, { lib: string; pic: string }> = {
+  // Pilier salariés.
+  humain_secret: { lib: "Secret exposé", pic: "🔑" },
+  humain_mail_externe: { lib: "Envoi externe", pic: "✉" },
+  humain_upload_ia: { lib: "Upload vers une IA", pic: "☁" },
+  humain_phishing: { lib: "Phishing cliqué", pic: "🎣" },
+  humain_intrusion_physique: { lib: "Intrusion physique", pic: "🚪" },
+  // Pilier agents IA internes.
   interne_canari: { lib: "Canari déclenché", pic: "✉" },
   interne_outil_mcp: { lib: "Outil / MCP piégé", pic: "⚙" },
   interne_droits: { lib: "Droits trop larges", pic: "🔑" },
@@ -11,8 +27,68 @@ const TYPE_INCIDENT: Record<string, { lib: string; pic: string }> = {
   interne_chatbot: { lib: "Chatbot détourné", pic: "💬" },
   interne_inter_agent: { lib: "Usurpation d'agent", pic: "⇄" },
   interne_memoire: { lib: "Mémoire empoisonnée", pic: "❖" },
+  // Réserve externe.
   externe_agent_ia: { lib: "Agent externe", pic: "☍" },
 };
+
+// Les trois piliers, dans l'ordre d'affichage. Chaque pilier regroupe une ou
+// plusieurs sources d'événement. Le pilier salariés inclut `physique` (accès
+// locaux/serveurs) : même histoire « l'humain, le maillon faible ».
+export const PILIERS: { id: Pilier; lib: string; pic: string; sources: Source[] }[] = [
+  { id: "humain", lib: "Salariés", pic: "👤", sources: ["humain", "physique"] },
+  { id: "interne", lib: "Agents IA", pic: "⌁", sources: ["interne"] },
+  { id: "externe", lib: "Réserve — surface externe", pic: "☍", sources: ["externe"] },
+];
+
+export function pilierDeSource(source?: Source): Pilier {
+  if (source === "interne") return "interne";
+  if (source === "externe") return "externe";
+  return "humain"; // humain, physique, ou inconnu : rattachés aux salariés
+}
+
+export function appartientPilier(source: Source | undefined, pilier: Pilier): boolean {
+  return pilierDeSource(source) === pilier;
+}
+
+// Contrôle segmenté des piliers, partagé par le temps réel et les incidents.
+export function SegmentsPiliers({
+  pilier,
+  setPilier,
+  comptes,
+}: {
+  pilier: Pilier;
+  setPilier: (p: Pilier) => void;
+  comptes: Record<Pilier, number>;
+}) {
+  return (
+    <div className="segments" role="tablist">
+      {PILIERS.map((p) => (
+        <button
+          key={p.id}
+          role="tab"
+          aria-selected={pilier === p.id}
+          className={pilier === p.id ? "actif" : ""}
+          onClick={() => setPilier(p.id)}
+        >
+          <span className="pic">{p.pic}</span>
+          {p.lib} <span className="pastille-compte">{comptes[p.id] ?? 0}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Verdict d'un geste risqué : le salarié a annulé (protégé) ou est passé outre
+// (incident). Rien à afficher si le choix est inconnu (dégradé propre).
+export function BadgeChoixSalarie({ choix }: { choix?: ChoixSalarie }) {
+  if (!choix) return null;
+  const annule = choix === "annuler";
+  return (
+    <span className={`badge-choix ${annule ? "bien" : "outre"}`}>
+      {annule ? "✓ geste annulé — protégé" : "⚠ passé outre — incident"}
+    </span>
+  );
+}
 
 export function libelleType(type?: TypeIncident): string {
   if (!type) return "Incident";

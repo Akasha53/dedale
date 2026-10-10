@@ -7,16 +7,17 @@ export function LeurresView() {
   if (chargement) return <Spinner />;
 
   const externes = leurres.filter((l) => l.source === "externe");
-  const canaris = leurres.filter((l) => l.source === "interne");
+  // Canaris internes et physiques (tout ce qui n'est pas la réserve externe).
+  const canaris = leurres.filter((l) => l.source !== "externe");
   const totalTouches = leurres.reduce((n, l) => n + (l.touches || 0), 0);
 
   return (
     <>
       <div className="grille-compteurs">
         <div className="compteur">
-          <div className="lib">Canaris internes</div>
+          <div className="lib">Canaris internes & physiques</div>
           <div className="val">{canaris.length}</div>
-          <div className="sous">préfixe C- · agents internes</div>
+          <div className="sous">préfixe C- · agents internes, locaux</div>
         </div>
         <div className="compteur">
           <div className="lib">Leurres externes (réserve)</div>

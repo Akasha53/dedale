@@ -4,21 +4,53 @@ import { LiveView } from "./screens/LiveView";
 import { IncidentView } from "./screens/IncidentView";
 import { LeurresView } from "./screens/LeurresView";
 import { MesuresView } from "./screens/MesuresView";
+import { pilierDeSource } from "./ui/primitives";
+import type { Pilier } from "./types";
 
 type Ecran = "temps-reel" | "incident" | "leurres" | "mesures";
 
-const ENTETES: Record<Ecran, { titre: string; desc: string }> = {
-  "temps-reel": {
-    titre: "Agents internes — temps réel",
-    desc: "Les agents IA d'Orbis Pay surveillés en continu. La surface externe passe en réserve.",
+// En-tête des écrans multi-piliers (temps réel, incident), recentré sur « l'humain,
+// le maillon faible ». Les écrans d'agrégat (leurres, mesures) sont fixes.
+const ENTETE_PILIER: Record<
+  Pilier,
+  { reel: { titre: string; desc: string }; incident: { titre: string; desc: string } }
+> = {
+  humain: {
+    reel: {
+      titre: "Salariés — l'humain, le maillon faible",
+      desc: "Le garde du corps sur le poste repère le geste risqué avant qu'il n'aboutisse, prévient le salarié et le laisse choisir.",
+    },
+    incident: {
+      titre: "Geste du salarié — boîte noire",
+      desc: "Le geste risqué, l'avertissement affiché, le choix du salarié, et la décision du SOC.",
+    },
   },
-  incident: {
-    titre: "Incident — boîte noire",
-    desc: "Un agent interne détourné : chaîne reconstruite, décision de l'analyste, exports.",
+  interne: {
+    reel: {
+      titre: "Agents IA — temps réel",
+      desc: "Second pilier : les agents IA d'Orbis Pay, surveillés quand un mail, un document ou un outil piégé les détourne.",
+    },
+    incident: {
+      titre: "Agent IA détourné — boîte noire",
+      desc: "Chaîne reconstruite, droits de l'agent, décision de l'analyste, exports.",
+    },
   },
+  externe: {
+    reel: {
+      titre: "Réserve — surface externe",
+      desc: "Attaquants externes gardés en réserve : agents IA reconnus, perdus dans le labyrinthe.",
+    },
+    incident: {
+      titre: "Attaquant externe — boîte noire",
+      desc: "Réserve : chaîne reconstruite d'un agent IA sur la surface exposée.",
+    },
+  },
+};
+
+const ENTETE_FIXE: Record<"leurres" | "mesures", { titre: string; desc: string }> = {
   leurres: {
     titre: "Leurres & canaris",
-    desc: "Canaris internes et pièges de réserve, avec leur compteur de touches.",
+    desc: "Canaris internes/physiques et pièges de réserve, avec leur compteur de touches.",
   },
   mesures: {
     titre: "Mesures",
@@ -26,12 +58,22 @@ const ENTETES: Record<Ecran, { titre: string; desc: string }> = {
   },
 };
 
+function enteteDe(ecran: Ecran, pilier: Pilier): { titre: string; desc: string } {
+  if (ecran === "temps-reel") return ENTETE_PILIER[pilier].reel;
+  if (ecran === "incident") return ENTETE_PILIER[pilier].incident;
+  return ENTETE_FIXE[ecran];
+}
+
 export function App() {
   const { mode, flux, incidents } = useDonnees();
   const [ecran, setEcran] = useState<Ecran>("temps-reel");
+  // Pilier partagé entre temps réel et incidents. Par défaut : les salariés.
+  const [pilier, setPilier] = useState<Pilier>("humain");
   const [incidentSel, setIncidentSel] = useState<string | null>(null);
 
   const ouvrirIncident = (id: string) => {
+    const inc = incidents.find((i) => i.id === id);
+    if (inc) setPilier(pilierDeSource(inc.source));
     setIncidentSel(id);
     setEcran("incident");
   };
@@ -50,7 +92,7 @@ export function App() {
           <div className="pastille-logo">D</div>
           <div>
             <div className="marque">Dédale</div>
-            <div className="sous">Le garde du corps de vos agents internes</div>
+            <div className="sous">L'humain, le maillon faible</div>
           </div>
         </div>
         {nav.map((n) => (
@@ -70,8 +112,9 @@ export function App() {
             Orbis Pay (fictif)
           </div>
           <div className="note-laterale">
-            SOC qui protège les agents IA internes d'Orbis Pay — ceux qui lisent
-            les mails, les documents et appellent des outils.
+            Dédale protège d'abord le salarié : un garde du corps sur son poste
+            le prévient avant une bêtise de sécurité. Ses agents IA viennent en
+            second, l'attaquant externe en réserve.
           </div>
         </div>
       </aside>
@@ -79,8 +122,8 @@ export function App() {
       <main className="principal">
         <header className="entete">
           <div>
-            <h1>{ENTETES[ecran].titre}</h1>
-            <div className="desc">{ENTETES[ecran].desc}</div>
+            <h1>{enteteDe(ecran, pilier).titre}</h1>
+            <div className="desc">{enteteDe(ecran, pilier).desc}</div>
           </div>
           <IndicateurConnexion mode={mode} flux={flux} />
         </header>
@@ -94,21 +137,31 @@ export function App() {
             </div>
           )}
 
-          {ecran === "temps-reel" && <LiveView ouvrirIncident={ouvrirIncident} />}
+          {ecran === "temps-reel" && (
+            <LiveView
+              ouvrirIncident={ouvrirIncident}
+              pilier={pilier}
+              setPilier={setPilier}
+            />
+          )}
           {ecran === "incident" && (
             <IncidentView
               incidentSel={incidentSel}
               setIncidentSel={setIncidentSel}
+              pilier={pilier}
+              setPilier={setPilier}
             />
           )}
           {ecran === "leurres" && <LeurresView />}
           {ecran === "mesures" && <MesuresView />}
 
           <footer className="pied">
-            Dédale — le garde du corps des agents internes d'Orbis Pay (fintech
-            fictive). Détecte quand un mail, un document ou un outil piégé
-            détourne un agent IA de l'entreprise, et laisse un humain trancher la
-            riposte. Surface externe conservée en réserve. Données synthétiques.
+            Dédale — l'humain est le maillon faible. On protège d'abord le
+            salarié contre ses propres gestes risqués (secret collé, envoi
+            externe, upload vers une IA, phishing, intrusion), on protège
+            ensuite ses agents IA, et un humain / SOC voit toute la chaîne.
+            Surface externe conservée en réserve. Orbis Pay est une fintech
+            fictive, données synthétiques.
           </footer>
         </div>
       </main>

@@ -1,36 +1,108 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useDonnees } from "../api/store";
-import type { Session } from "../types";
+import type { Incident, Pilier, Session } from "../types";
 import {
+  appartientPilier,
   BadgeClassement,
   BadgeEtat,
   JaugeScore,
+  PILIERS,
+  SegmentsPiliers,
   Spinner,
   tempsRelatif,
 } from "../ui/primitives";
 
+// Choix du salarié résolu depuis l'incident (champ direct, sinon maillon
+// `avertissement` de la chaîne). Renvoie null si inconnu.
+function choixIncident(i: Incident): "continuer" | "annuler" | null {
+  if (i.choix) return i.choix;
+  const m = (i.chaine ?? []).find((x) => x.phase === "avertissement" && x.choix);
+  return m?.choix ?? null;
+}
+
+// Compteurs propres à chaque pilier. Pour les salariés, on met en tête le
+// nombre de salariés surveillés et les gestes risqués arrêtés (l'argument).
+function compteursPilier(
+  pilier: Pilier,
+  dansVue: Session[],
+  incidentsVue: Incident[]
+): { lib: string; val: number; sous: string; alerte?: boolean }[] {
+  const incidentsOuverts = incidentsVue.filter((i) => i.etat !== "coupee").length;
+  if (pilier === "humain") {
+    const arretes = incidentsVue.filter((i) => choixIncident(i) === "annuler").length;
+    const passesOutre = incidentsVue.filter((i) => choixIncident(i) === "continuer").length;
+    return [
+      { lib: "Salariés surveillés", val: dansVue.length, sous: "postes sous garde du corps" },
+      {
+        lib: "Gestes risqués arrêtés",
+        val: arretes,
+        sous: "le salarié a annulé à temps",
+      },
+      {
+        lib: "Gestes passés outre",
+        val: passesOutre,
+        sous: "incident malgré l'alerte",
+        alerte: passesOutre > 0,
+      },
+      {
+        lib: "À trancher par le SOC",
+        val: incidentsOuverts,
+        sous: "incidents ouverts",
+        alerte: incidentsOuverts > 0,
+      },
+    ];
+  }
+  const agents = dansVue.filter((s) => s.classement === "agent_ia").length;
+  const leurresTouches = dansVue.reduce((n, s) => n + (s.leurres_touches || 0), 0);
+  if (pilier === "interne") {
+    return [
+      { lib: "Agents internes surveillés", val: dansVue.length, sous: "agents IA d'Orbis Pay" },
+      { lib: "Agents internes détournés", val: agents, sous: "classés agent_ia", alerte: agents > 0 },
+      { lib: "Incidents internes ouverts", val: incidentsOuverts, sous: "riposte à trancher", alerte: incidentsOuverts > 0 },
+      { lib: "Canaris touchés", val: leurresTouches, sous: "cumul sessions", alerte: leurresTouches > 0 },
+    ];
+  }
+  return [
+    { lib: "Sessions externes", val: dansVue.length, sous: "surface exposée (réserve)" },
+    { lib: "Agents IA externes", val: agents, sous: "classés agent_ia", alerte: agents > 0 },
+    { lib: "Incidents externes ouverts", val: incidentsOuverts, sous: "riposte à trancher", alerte: incidentsOuverts > 0 },
+    { lib: "Leurres touchés", val: leurresTouches, sous: "cumul sessions" },
+  ];
+}
+
+const TITRE_FLUX: Record<Pilier, string> = {
+  humain: "Flux des postes salariés",
+  interne: "Flux des agents internes",
+  externe: "Flux de la surface externe (réserve)",
+};
+const VIDE_FLUX: Record<Pilier, string> = {
+  humain: "Aucun poste salarié surveillé pour l'instant.",
+  interne: "Aucun agent interne surveillé pour l'instant.",
+  externe: "Aucune session externe en réserve.",
+};
+
 export function LiveView({
   ouvrirIncident,
+  pilier,
+  setPilier,
 }: {
   ouvrirIncident: (id: string) => void;
+  pilier: Pilier;
+  setPilier: (p: Pilier) => void;
 }) {
   const { sessions, incidents, chargement } = useDonnees();
-  // Vue principale = agents internes ; l'externe passe en réserve.
-  const [vue, setVue] = useState<"interne" | "externe">("interne");
 
-  const interne = vue === "interne";
-  const dansVue = sessions.filter((s) => s.source === (interne ? "interne" : "externe"));
-  const incidentsVue = incidents.filter(
-    (i) => i.source === (interne ? "interne" : "externe")
-  );
+  const dansVue = sessions.filter((s) => appartientPilier(s.source, pilier));
+  const incidentsVue = incidents.filter((i) => appartientPilier(i.source, pilier));
 
-  const agents = dansVue.filter((s) => s.classement === "agent_ia").length;
-  const incidentsOuverts = incidentsVue.filter((i) => i.etat !== "coupee").length;
-  const leurresTouches = dansVue.reduce((n, s) => n + (s.leurres_touches || 0), 0);
+  const comptes = useMemo(() => {
+    const c = { humain: 0, interne: 0, externe: 0 } as Record<Pilier, number>;
+    for (const p of PILIERS)
+      c[p.id] = sessions.filter((s) => appartientPilier(s.source, p.id)).length;
+    return c;
+  }, [sessions]);
 
-  const nbInterne = sessions.filter((s) => s.source === "interne").length;
-  const nbExterne = sessions.filter((s) => s.source === "externe").length;
-
+  const compteurs = compteursPilier(pilier, dansVue, incidentsVue);
   const incidentParSession = new Map(incidents.map((i) => [i.session_id, i.id]));
 
   // Les plus suspects d'abord.
@@ -38,65 +110,23 @@ export function LiveView({
 
   return (
     <>
-      <div className="segments" role="tablist">
-        <button
-          role="tab"
-          aria-selected={interne}
-          className={interne ? "actif" : ""}
-          onClick={() => setVue("interne")}
-        >
-          Agents internes <span className="pastille-compte">{nbInterne}</span>
-        </button>
-        <button
-          role="tab"
-          aria-selected={!interne}
-          className={!interne ? "actif" : ""}
-          onClick={() => setVue("externe")}
-        >
-          Réserve — surface externe{" "}
-          <span className="pastille-compte">{nbExterne}</span>
-        </button>
-      </div>
+      <SegmentsPiliers pilier={pilier} setPilier={setPilier} comptes={comptes} />
 
       <div className="grille-compteurs">
-        <Compteur
-          lib={interne ? "Agents internes surveillés" : "Sessions externes"}
-          val={dansVue.length}
-          sous={interne ? "agents IA d'Orbis Pay" : "surface exposée (réserve)"}
-        />
-        <Compteur
-          lib={interne ? "Agents internes détournés" : "Agents IA externes"}
-          val={agents}
-          sous="classés agent_ia"
-          alerte={agents > 0}
-        />
-        <Compteur
-          lib={interne ? "Incidents internes ouverts" : "Incidents externes ouverts"}
-          val={incidentsOuverts}
-          sous="riposte à trancher"
-          alerte={incidentsOuverts > 0}
-        />
-        <Compteur
-          lib={interne ? "Canaris touchés" : "Leurres touchés"}
-          val={leurresTouches}
-          sous="cumul sessions"
-          alerte={interne && leurresTouches > 0}
-        />
+        {compteurs.map((c) => (
+          <Compteur key={c.lib} lib={c.lib} val={c.val} sous={c.sous} alerte={c.alerte} />
+        ))}
       </div>
 
       <div className="panneau">
         <div className="titre">
-          {interne ? "Flux des agents internes" : "Flux de la surface externe (réserve)"}
+          {TITRE_FLUX[pilier]}
           <span className="droite">score décroissant · survoler « signaux »</span>
         </div>
         {chargement ? (
           <Spinner texte="Connexion au flux…" />
         ) : triees.length === 0 ? (
-          <div className="vide">
-            {interne
-              ? "Aucun agent interne surveillé pour l'instant."
-              : "Aucune session externe en réserve."}
-          </div>
+          <div className="vide">{VIDE_FLUX[pilier]}</div>
         ) : (
           <div className="liste-sessions">
             {triees.map((s) => (

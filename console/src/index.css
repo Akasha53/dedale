@@ -951,6 +951,107 @@ table.grille .idc {
 .type-inc.generique {
   color: var(--texte-doux);
 }
+/* Pilier salariés : les cinq types du maillon faible humain. */
+.type-inc.humain_secret {
+  border-color: color-mix(in srgb, var(--script) 55%, var(--bord));
+  color: var(--script);
+}
+.type-inc.humain_mail_externe {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--bord));
+  color: var(--accent);
+}
+.type-inc.humain_upload_ia {
+  border-color: color-mix(in srgb, #a78bfa 55%, var(--bord));
+  color: #c4b5fd;
+}
+.type-inc.humain_phishing {
+  border-color: color-mix(in srgb, var(--agent) 55%, var(--bord));
+  color: var(--agent);
+}
+.type-inc.humain_intrusion_physique {
+  border-color: color-mix(in srgb, var(--orange) 55%, var(--bord));
+  color: var(--orange);
+}
+
+/* Verdict du geste : annulé (protégé) vs passé outre (incident). */
+.badge-choix {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--bord);
+  white-space: nowrap;
+}
+.badge-choix.bien {
+  color: var(--humain);
+  border-color: color-mix(in srgb, var(--humain) 50%, transparent);
+  background: color-mix(in srgb, var(--humain) 12%, transparent);
+}
+.badge-choix.outre {
+  color: var(--agent);
+  border-color: color-mix(in srgb, var(--agent) 55%, transparent);
+  background: color-mix(in srgb, var(--agent) 14%, transparent);
+}
+
+/* Panneau « garde du corps sur le poste » (incidents humains). */
+.geste-bloc {
+  margin-bottom: 14px;
+}
+.geste-bloc:last-of-type {
+  margin-bottom: 10px;
+}
+.geste-lib {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texte-faible);
+  margin-bottom: 5px;
+}
+.geste-val {
+  font-size: 14px;
+  color: var(--texte);
+  font-weight: 600;
+}
+.geste-popup {
+  background: var(--fond);
+  border: 1px solid var(--bord-fort);
+  border-left: 3px solid var(--script);
+  border-radius: var(--rayon-s);
+  padding: 11px 13px;
+  color: var(--texte-doux);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.geste-verdict {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: var(--rayon-s);
+}
+.geste-verdict.bien {
+  color: var(--humain);
+  background: color-mix(in srgb, var(--humain) 9%, var(--fond));
+  border: 1px solid color-mix(in srgb, var(--humain) 35%, var(--bord));
+}
+.geste-verdict.outre {
+  color: var(--agent);
+  background: color-mix(in srgb, var(--agent) 9%, var(--fond));
+  border: 1px solid color-mix(in srgb, var(--agent) 40%, var(--bord));
+}
+
+/* Maillon « avertissement » de la boîte noire : teinte avertissement. */
+.maillon.phase-avertissement .puce {
+  border-color: var(--script);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--script) 50%, transparent);
+}
+
+/* Icône des piliers dans le contrôle segmenté. */
+.segments button .pic {
+  font-size: 13px;
+  line-height: 1;
+}
 
 /* Vue « accès accordés vs nécessaires » */
 .droits-liste {

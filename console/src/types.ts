@@ -5,7 +5,18 @@
 
 export type Classement = "humain" | "script" | "agent_ia" | "inconnu";
 export type Etat = "active" | "suspendue" | "coupee";
-export type Source = "externe" | "interne";
+// Avenant « humain, le maillon faible » : la source `humain` (le poste du
+// salarié) et la source `physique` (accès aux locaux/serveurs) s'ajoutent aux
+// deux sources IA. La console tolère une source inconnue.
+export type Source = "externe" | "interne" | "humain" | "physique" | (string & {});
+
+// Pilier d'affichage. Le virage met les SALARIÉS en tête ; les agents IA
+// passent en second ; l'attaquant externe reste en réserve.
+export type Pilier = "humain" | "interne" | "externe";
+
+// Choix du salarié face à l'avertissement du garde du corps : il annule (bien,
+// le geste risqué est arrêté) ou passe outre (incident).
+export type ChoixSalarie = "continuer" | "annuler";
 
 export interface Signal {
   code: string; // ex. "consigne_cachee"
@@ -40,7 +51,15 @@ export interface Risque {
   nom: string;
 }
 
-export type Phase = "entree" | "consigne" | "outil" | "sortie" | "riposte";
+// Phase d'un maillon de la boîte noire. `avertissement` est le maillon propre
+// aux incidents humains : le garde du corps a prévenu le salarié avant le geste.
+export type Phase =
+  | "entree"
+  | "consigne"
+  | "outil"
+  | "sortie"
+  | "riposte"
+  | "avertissement";
 
 export interface MaillonChaine {
   ordre: number;
@@ -50,6 +69,8 @@ export interface MaillonChaine {
   detail: string;
   leurre_id?: string | null;
   canari_id?: string | null;
+  // Pour un maillon `avertissement` : le choix du salarié face à la pop-up.
+  choix?: ChoixSalarie;
   techniques?: Technique[];
   risques?: Risque[];
 }
@@ -59,6 +80,13 @@ export interface MaillonChaine {
 // une icône par valeur connue, et retombe sur un rendu générique pour toute
 // valeur inconnue (dégradé propre tant que le backend n'expose pas V2).
 export type TypeIncident =
+  // Pilier salariés (avenant « humain, le maillon faible »).
+  | "humain_secret"
+  | "humain_mail_externe"
+  | "humain_upload_ia"
+  | "humain_phishing"
+  | "humain_intrusion_physique"
+  // Pilier agents IA internes.
   | "interne_canari"
   | "interne_outil_mcp"
   | "interne_droits"
@@ -66,6 +94,7 @@ export type TypeIncident =
   | "interne_chatbot"
   | "interne_inter_agent"
   | "interne_memoire"
+  // Réserve externe.
   | "externe_agent_ia"
   | (string & {}); // tolère une valeur non prévue
 
@@ -110,6 +139,13 @@ export interface Incident {
   chaine: MaillonChaine[];
   decisions: Decision[];
   droits?: DroitsAgent; // présent surtout pour type "interne_droits"
+  // Incident humain : le geste risqué observé, le texte de l'avertissement
+  // affiché au salarié, et son choix. Tous optionnels (dégradé propre tant que
+  // le backend ne les renvoie pas) ; à défaut, lus dans le maillon
+  // `avertissement` de la chaîne.
+  geste?: string;
+  avertissement?: string;
+  choix?: ChoixSalarie;
 }
 
 export interface Leurre {

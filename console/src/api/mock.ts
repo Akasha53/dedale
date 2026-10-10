@@ -15,6 +15,91 @@ const maintenant = () => new Date();
 const ilYA = (s: number) => new Date(Date.now() - s * 1000).toISOString();
 
 let sessions: Session[] = [
+  // --- Pilier salariés (avenant « humain, le maillon faible »). ---
+  {
+    id: "poste-amelie-02",
+    classement: "humain",
+    score: 0.12,
+    etat: "active",
+    source: "humain",
+    leurres_touches: 0,
+    premiere_vue: ilYA(5400),
+    derniere_vue: ilYA(20),
+    ip: "10.0.4.22",
+    user_agent: "poste Amélie — compta (Windows)",
+    signaux: [
+      {
+        code: "geste_risque",
+        libelle:
+          "Garde du corps : a reconnu une clé API Orbis Pay dans le presse-papiers avant un collage vers un chat IA grand public.",
+        poids: 0,
+        valeur: "secret détecté",
+      },
+    ],
+  },
+  {
+    id: "poste-karim-05",
+    classement: "humain",
+    score: 0.18,
+    etat: "active",
+    source: "humain",
+    leurres_touches: 0,
+    premiere_vue: ilYA(7200),
+    derniere_vue: ilYA(45),
+    ip: "10.0.4.51",
+    user_agent: "poste Karim — support (macOS)",
+    signaux: [
+      {
+        code: "mail_externe",
+        libelle:
+          "A joint un export clients à un mail adressé à une boîte personnelle externe.",
+        poids: 0,
+        valeur: "destinataire externe",
+      },
+    ],
+  },
+  {
+    id: "poste-sophie-01",
+    classement: "humain",
+    score: 0.1,
+    etat: "active",
+    source: "humain",
+    leurres_touches: 0,
+    premiere_vue: ilYA(3600),
+    derniere_vue: ilYA(120),
+    ip: "10.0.4.9",
+    user_agent: "poste Sophie — RH (Windows)",
+    signaux: [
+      {
+        code: "upload_ia",
+        libelle:
+          "A tenté de déposer un fichier de paie sur un service d'IA non autorisé.",
+        poids: 0,
+        valeur: "cloud perso",
+      },
+    ],
+  },
+  {
+    id: "badge-salle-serveurs",
+    classement: "inconnu",
+    score: 0.5,
+    etat: "suspendue",
+    source: "physique",
+    leurres_touches: 1,
+    premiere_vue: ilYA(900),
+    derniere_vue: ilYA(60),
+    ip: null,
+    user_agent: "capteur salle serveurs (canari physique)",
+    signaux: [
+      {
+        code: "intrusion",
+        libelle:
+          "Branchement sur un port-leurre d'un serveur-leurre, hors heures ouvrées : canari physique C-P01.",
+        poids: 0.4,
+        valeur: "canari C-P01",
+      },
+    ],
+  },
   {
     id: "sess-ext-8842",
     classement: "agent_ia",
@@ -219,6 +304,248 @@ let sessions: Session[] = [
 ];
 
 const incidents: Incident[] = [
+  // --- Pilier salariés : les cinq gestes risqués. ---
+  {
+    id: "INC-2026-0001",
+    session_id: "poste-amelie-02",
+    source: "humain",
+    classement: "humain",
+    score: 0.12,
+    etat: "active",
+    type: "humain_secret",
+    titre: "Clé API Orbis Pay sur le point d'être collée dans un chat IA",
+    gravite: "haute",
+    ouvert_le: ilYA(40),
+    resume:
+      "Amélie (compta) allait coller une clé API de production dans un chat IA grand public. Le garde du corps l'a prévenue ; elle a annulé.",
+    geste:
+      "Collage d'une clé API Orbis Pay (production) dans un chat IA grand public pour « débuguer » un script.",
+    avertissement:
+      "Dédale a reconnu un secret (clé API de production) dans ce que vous allez coller sur un service externe. Collé là, il sort définitivement d'Orbis Pay et ne peut plus être protégé. Coller quand même ?",
+    choix: "annuler",
+    chaine: [
+      {
+        ordre: 1,
+        phase: "entree",
+        horodatage: ilYA(55),
+        titre: "Ouverture d'un chat IA grand public",
+        detail:
+          "Amélie ouvre un onglet vers un assistant IA externe et prépare un collage depuis le presse-papiers.",
+        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+      },
+      {
+        ordre: 2,
+        phase: "avertissement",
+        horodatage: ilYA(42),
+        titre: "Garde du corps : secret reconnu",
+        detail:
+          "Pop-up affichée : « Clé API de production détectée dans le presse-papiers. La coller sur un service externe l'expose définitivement. »",
+        choix: "annuler",
+        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+      },
+      {
+        ordre: 3,
+        phase: "riposte",
+        horodatage: ilYA(40),
+        titre: "Geste annulé par le salarié",
+        detail:
+          "Amélie a cliqué « Annuler ». Rien n'a quitté le poste. Événement conservé pour le SOC, sans le contenu du secret.",
+        risques: [],
+      },
+    ],
+    decisions: [],
+  },
+  {
+    id: "INC-2026-0002",
+    session_id: "poste-karim-05",
+    source: "humain",
+    classement: "humain",
+    score: 0.18,
+    etat: "suspendue",
+    type: "humain_mail_externe",
+    titre: "Export clients envoyé vers une adresse personnelle",
+    gravite: "critique",
+    ouvert_le: ilYA(30),
+    resume:
+      "Karim (support) a joint la base clients à un mail vers une adresse personnelle externe, malgré l'avertissement. Escaladé au SOC.",
+    geste:
+      "Pièce jointe « clients_orbis.csv » (1 240 lignes) sur un mail adressé à une boîte perso hors Orbis Pay.",
+    avertissement:
+      "Ce mail part vers une adresse externe à Orbis Pay et contient ce qui ressemble à une base clients. Envoyer des données sensibles en dehors de l'entreprise est à haut risque. Envoyer quand même ?",
+    choix: "continuer",
+    chaine: [
+      {
+        ordre: 1,
+        phase: "entree",
+        horodatage: ilYA(50),
+        titre: "Rédaction d'un mail sortant",
+        detail: "Karim compose un mail avec une pièce jointe depuis son poste.",
+        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+      },
+      {
+        ordre: 2,
+        phase: "avertissement",
+        horodatage: ilYA(35),
+        titre: "Garde du corps : destinataire externe + données sensibles",
+        detail:
+          "Pop-up affichée : « Destinataire hors Orbis Pay et pièce jointe de type base clients. »",
+        choix: "continuer",
+        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+      },
+      {
+        ordre: 3,
+        phase: "sortie",
+        horodatage: ilYA(31),
+        titre: "Envoi effectué malgré l'alerte",
+        detail:
+          "Le salarié est passé outre. Mail parti. Dédale escalade au SOC pour décision (rappel, rotation, blocage futur).",
+        techniques: [
+          { id: "T1567", nom: "Exfiltration via service web", cadre: "ATT&CK" },
+        ],
+        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+      },
+    ],
+    decisions: [],
+  },
+  {
+    id: "INC-2026-0003",
+    session_id: "poste-sophie-01",
+    source: "humain",
+    classement: "humain",
+    score: 0.1,
+    etat: "active",
+    type: "humain_upload_ia",
+    titre: "Fichier de paie déposé vers une IA non autorisée",
+    gravite: "moyenne",
+    ouvert_le: ilYA(110),
+    resume:
+      "Sophie (RH) allait déposer un fichier de paie sur un service d'IA grand public pour « faire un résumé ». Avertie, elle a renoncé.",
+    geste:
+      "Dépôt de « paie_octobre.xlsx » (données RH nominatives) vers un service d'IA non homologué.",
+    avertissement:
+      "Ce fichier contient des données RH nominatives et vous allez le déposer sur une IA externe non autorisée par Orbis Pay. Continuer ?",
+    choix: "annuler",
+    chaine: [
+      {
+        ordre: 1,
+        phase: "entree",
+        horodatage: ilYA(125),
+        titre: "Dépôt de fichier vers une IA externe",
+        detail:
+          "Sophie glisse un fichier RH dans l'interface d'un service d'IA grand public.",
+        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+      },
+      {
+        ordre: 2,
+        phase: "avertissement",
+        horodatage: ilYA(112),
+        titre: "Garde du corps : données RH vers IA non homologuée",
+        detail:
+          "Pop-up affichée : « Fichier RH nominatif vers une IA non autorisée par Orbis Pay. »",
+        choix: "annuler",
+        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+      },
+      {
+        ordre: 3,
+        phase: "riposte",
+        horodatage: ilYA(110),
+        titre: "Dépôt annulé",
+        detail: "Sophie a renoncé. Aucun fichier n'a quitté le poste.",
+        risques: [],
+      },
+    ],
+    decisions: [],
+  },
+  {
+    id: "INC-2026-0004",
+    session_id: "poste-amelie-02",
+    source: "humain",
+    classement: "humain",
+    score: 0.3,
+    etat: "suspendue",
+    type: "humain_phishing",
+    titre: "Clic sur un lien de phishing dans un faux mail « DSI »",
+    gravite: "haute",
+    ouvert_le: ilYA(15),
+    resume:
+      "Amélie a cliqué sur un lien d'un faux mail imitant la DSI puis saisi ses identifiants. Alertée au moment du clic, elle a poursuivi. SOC saisi.",
+    geste:
+      "Clic sur « réinitialiser votre mot de passe » dans un mail imitant la DSI, vers un domaine sosie orbispay-securite.example.",
+    avertissement:
+      "Ce lien pointe vers un domaine qui imite Orbis Pay mais n'en fait pas partie (orbispay-securite.example). Ne saisissez jamais votre mot de passe ici. Ouvrir quand même ?",
+    choix: "continuer",
+    chaine: [
+      {
+        ordre: 1,
+        phase: "entree",
+        horodatage: ilYA(25),
+        titre: "Mail de phishing ouvert",
+        detail: "Faux mail « DSI — action requise » reçu dans la boîte d'Amélie.",
+        techniques: [{ id: "T1566", nom: "Hameçonnage", cadre: "ATT&CK" }],
+        risques: [],
+      },
+      {
+        ordre: 2,
+        phase: "avertissement",
+        horodatage: ilYA(18),
+        titre: "Garde du corps : domaine sosie",
+        detail:
+          "Pop-up affichée : « Domaine qui imite Orbis Pay, jamais vu auparavant. Ne saisissez pas votre mot de passe. »",
+        choix: "continuer",
+      },
+      {
+        ordre: 3,
+        phase: "sortie",
+        horodatage: ilYA(15),
+        titre: "Identifiants saisis malgré l'alerte",
+        detail:
+          "Le salarié a poursuivi et saisi ses identifiants sur la page sosie. Dédale escalade : rotation du mot de passe à décider.",
+        techniques: [{ id: "T1078", nom: "Comptes valides", cadre: "ATT&CK" }],
+        risques: [],
+      },
+    ],
+    decisions: [],
+  },
+  {
+    id: "INC-2026-0005",
+    session_id: "badge-salle-serveurs",
+    source: "physique",
+    classement: "inconnu",
+    score: 0.5,
+    etat: "suspendue",
+    type: "humain_intrusion_physique",
+    titre: "Port-leurre d'un serveur-leurre touché en salle serveurs",
+    gravite: "haute",
+    ouvert_le: ilYA(60),
+    resume:
+      "Un canari physique s'est déclenché : branchement sur un port-leurre d'un serveur-leurre, hors heures ouvrées. Accès physique à vérifier.",
+    geste:
+      "Branchement d'un appareil sur le port-leurre d'un serveur-leurre (canari physique C-P01), hors heures ouvrées.",
+    avertissement:
+      "Canari physique C-P01 déclenché : un port-leurre ne devrait jamais être utilisé. Donnée inerte, aucun service réel derrière.",
+    chaine: [
+      {
+        ordre: 1,
+        phase: "entree",
+        horodatage: ilYA(75),
+        titre: "Accès physique à la salle serveurs",
+        detail:
+          "Mouvement détecté sur un actif-leurre en salle serveurs, hors heures ouvrées.",
+        risques: [],
+      },
+      {
+        ordre: 2,
+        phase: "avertissement",
+        horodatage: ilYA(62),
+        titre: "Canari physique déclenché",
+        detail:
+          "Branchement sur le port-leurre du serveur-leurre. Canari C-P01 touché ; aucun système réel derrière.",
+        canari_id: "C-P01",
+        risques: [],
+      },
+    ],
+    decisions: [],
+  },
   {
     id: "INC-2026-0007",
     session_id: "sess-ext-8842",
@@ -463,6 +790,20 @@ const incidents: Incident[] = [
 
 const leurres: Leurre[] = [
   {
+    id: "C-P01",
+    source: "physique",
+    surface: "physique",
+    nature: "canari_physique",
+    emplacement: "port-leurre d'un serveur-leurre, salle serveurs",
+    description:
+      "Port physique qui n'existe que pour trahir un accès non autorisé aux locaux.",
+    risques: ["OWASP ASI10"],
+    techniques: [],
+    humain_visible: false,
+    touches: 1,
+    derniere_touche: ilYA(62),
+  },
+  {
     id: "L-0007",
     source: "externe",
     surface: "site",
@@ -584,7 +925,15 @@ ${inc.resume}
 
 2. Qualification
 Incident de sécurité touchant un service numérique essentiel (paiement).
-Origine : ${inc.source === "externe" ? "agent IA externe sur la surface exposée" : "agent IA interne détourné par un contenu piégé"}.
+Origine : ${
+    inc.source === "externe"
+      ? "agent IA externe sur la surface exposée"
+      : inc.source === "interne"
+        ? "agent IA interne détourné par un contenu piégé"
+        : inc.source === "physique"
+          ? "accès physique à un actif-leurre (canari physique)"
+          : "geste à risque d'un salarié sur son poste, repéré par le garde du corps"
+  }.
 Gravité estimée : ${inc.gravite}.
 
 3. Impact transfrontalier présumé

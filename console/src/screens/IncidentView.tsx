@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDonnees } from "../api/store";
 import type {
+  ChoixSalarie,
   DecisionAction,
   DroitsAgent,
   Incident,
   MaillonChaine,
+  Pilier,
   Session,
 } from "../types";
 import {
+  appartientPilier,
+  BadgeChoixSalarie,
   BadgeEtat,
   BadgeTypeIncident,
   codeDroit,
   heure,
   libDroit,
   libelleType,
+  PILIERS,
+  SegmentsPiliers,
   Spinner,
 } from "../ui/primitives";
 
@@ -23,6 +29,7 @@ const PHASE_LIB: Record<MaillonChaine["phase"], string> = {
   outil: "Appels d'outils",
   sortie: "Sortie de données",
   riposte: "Riposte",
+  avertissement: "Avertissement au salarié",
 };
 
 const PHASE_PIC: Record<MaillonChaine["phase"], string> = {
@@ -31,6 +38,13 @@ const PHASE_PIC: Record<MaillonChaine["phase"], string> = {
   outil: "⚙",
   sortie: "⇲",
   riposte: "⛊",
+  avertissement: "⚠",
+};
+
+const VIDE_PILIER: Record<Pilier, string> = {
+  humain: "Aucun geste risqué de salarié en incident. Les postes sont calmes.",
+  interne: "Aucun incident interne ouvert. Les agents d'Orbis Pay sont calmes.",
+  externe: "Aucun incident externe en réserve.",
 };
 
 const ACTIONS: { action: DecisionAction; lib: string; cls: string }[] = [
@@ -43,28 +57,26 @@ const ACTIONS: { action: DecisionAction; lib: string; cls: string }[] = [
 export function IncidentView({
   incidentSel,
   setIncidentSel,
+  pilier,
+  setPilier,
 }: {
   incidentSel: string | null;
   setIncidentSel: (id: string) => void;
+  pilier: Pilier;
+  setPilier: (p: Pilier) => void;
 }) {
   const { incidents, sessions, getIncident, decider, chargement } = useDonnees();
-  // Vue principale = incidents internes ; l'externe passe en réserve.
-  const [vue, setVue] = useState<"interne" | "externe">("interne");
 
-  // Si l'analyste ouvre un incident depuis le flux, se caler sur sa source.
-  useEffect(() => {
-    const sel = incidents.find((i) => i.id === incidentSel);
-    if (sel) setVue(sel.source === "externe" ? "externe" : "interne");
-  }, [incidentSel, incidents]);
-
-  const interne = vue === "interne";
   const incidentsVue = useMemo(
-    () =>
-      incidents.filter((i) => i.source === (interne ? "interne" : "externe")),
-    [incidents, interne]
+    () => incidents.filter((i) => appartientPilier(i.source, pilier)),
+    [incidents, pilier]
   );
-  const nbInterne = incidents.filter((i) => i.source === "interne").length;
-  const nbExterne = incidents.filter((i) => i.source === "externe").length;
+  const comptes = useMemo(() => {
+    const c = { humain: 0, interne: 0, externe: 0 } as Record<Pilier, number>;
+    for (const p of PILIERS)
+      c[p.id] = incidents.filter((i) => appartientPilier(i.source, p.id)).length;
+    return c;
+  }, [incidents]);
 
   const idCourant = useMemo(() => {
     if (incidentSel && incidentsVue.some((i) => i.id === incidentSel))
@@ -108,36 +120,14 @@ export function IncidentView({
   if (chargement) return <Spinner />;
 
   const segments = (
-    <div className="segments" role="tablist">
-      <button
-        role="tab"
-        aria-selected={interne}
-        className={interne ? "actif" : ""}
-        onClick={() => setVue("interne")}
-      >
-        Incidents internes <span className="pastille-compte">{nbInterne}</span>
-      </button>
-      <button
-        role="tab"
-        aria-selected={!interne}
-        className={!interne ? "actif" : ""}
-        onClick={() => setVue("externe")}
-      >
-        Réserve — surface externe{" "}
-        <span className="pastille-compte">{nbExterne}</span>
-      </button>
-    </div>
+    <SegmentsPiliers pilier={pilier} setPilier={setPilier} comptes={comptes} />
   );
 
   if (incidentsVue.length === 0)
     return (
       <>
         {segments}
-        <div className="vide">
-          {interne
-            ? "Aucun incident interne ouvert. Les agents d'Orbis Pay sont calmes."
-            : "Aucun incident externe en réserve."}
-        </div>
+        <div className="vide">{VIDE_PILIER[pilier]}</div>
       </>
     );
 
@@ -181,6 +171,8 @@ export function IncidentView({
                 <p style={{ color: "var(--texte-doux)", marginBottom: 0 }}>{detail.resume}</p>
               </div>
             </div>
+
+            <GestePanneau incident={detail} />
 
             <div className="panneau">
               <div className="titre">
@@ -250,6 +242,7 @@ function Maillon({ m }: { m: MaillonChaine }) {
       </div>
       <div className="m-detail">{m.detail}</div>
       <div className="puces-tech">
+        {m.choix && <BadgeChoixSalarie choix={m.choix} />}
         {m.leurre_id && <span className="tag leurre">leurre {m.leurre_id}</span>}
         {m.canari_id && <span className="tag leurre">canari {m.canari_id}</span>}
         {(m.techniques ?? []).map((t) => (
@@ -349,6 +342,76 @@ function PanneauLateral({ incident }: { incident: Incident }) {
             {copie === "export" && <span className="copie-ok">copié ✓</span>}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Un incident relève du pilier salariés s'il vient d'un poste/physique ou si
+// son type commence par « humain_ ».
+function estIncidentHumain(inc: Incident): boolean {
+  return (
+    inc.source === "humain" ||
+    inc.source === "physique" ||
+    (inc.type ?? "").startsWith("humain_")
+  );
+}
+
+// Geste / avertissement / choix, lus sur l'incident d'abord, puis dans le
+// maillon `avertissement` de la chaîne. Renvoie null si rien n'est connu.
+function infosGeste(
+  inc: Incident
+): { geste?: string; avertissement?: string; choix?: ChoixSalarie } | null {
+  const m = (inc.chaine ?? []).find((x) => x.phase === "avertissement");
+  const geste = inc.geste;
+  const avertissement = inc.avertissement ?? m?.detail;
+  const choix = inc.choix ?? m?.choix;
+  if (!geste && !avertissement && !choix) return null;
+  return { geste, avertissement, choix };
+}
+
+// Vue propre au pilier salariés : le geste risqué, le texte de l'avertissement
+// affiché sur le poste, et le choix du salarié. Rendue seulement pour un
+// incident humain qui porte au moins une de ces infos (dégradé propre sinon :
+// la chaîne « boîte noire » suffit).
+function GestePanneau({ incident }: { incident: Incident }) {
+  if (!estIncidentHumain(incident)) return null;
+  const infos = infosGeste(incident);
+  if (!infos) return null;
+  const { geste, avertissement, choix } = infos;
+  const annule = choix === "annuler";
+
+  return (
+    <div className="panneau">
+      <div className="titre">
+        Le garde du corps sur le poste
+        <span className="droite">
+          <BadgeChoixSalarie choix={choix} />
+        </span>
+      </div>
+      <div className="corps">
+        {geste && (
+          <div className="geste-bloc">
+            <div className="geste-lib">Geste risqué repéré</div>
+            <div className="geste-val">{geste}</div>
+          </div>
+        )}
+        {avertissement && (
+          <div className="geste-bloc">
+            <div className="geste-lib">Avertissement affiché au salarié</div>
+            <div className="geste-popup">{avertissement}</div>
+          </div>
+        )}
+        {choix && (
+          <p
+            className={`geste-verdict ${annule ? "bien" : "outre"}`}
+            style={{ marginBottom: 0 }}
+          >
+            {annule
+              ? "Le salarié a annulé après l'alerte : le geste risqué a été arrêté à temps. C'est la protection qui marche."
+              : "Le salarié est passé outre l'alerte : le geste a eu lieu. Dédale l'a attrapé au moment du clic et l'escalade au SOC."}
+          </p>
+        )}
       </div>
     </div>
   );
