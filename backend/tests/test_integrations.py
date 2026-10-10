@@ -287,7 +287,8 @@ def test_regles_externe_droits_coffre_virement_politique_desarme(client):
     assert any(sigma_regles.correspond(sigma_regles.regle("externe_agent_ia"), d) for d in docs)
     # Variante serveur web : la route-leurre touchée, vue dans les journaux du site.
     sigma = list(yaml.safe_load_all(client.get(f"/api/incidents/{externe['id']}/export?format=sigma").text))
-    web = next(r for r in sigma if r["logsource"] == {"category": "webserver"})
+    assert any(r["id"] == sigma_regles.identifiant("externe_agent_ia/webserver") for r in sigma)
+    web = next(r for r in sigma if r["logsource"] == {"category": "webserver"} and "related" in r)
     assert web["detection"]["selection"]["url.path"] == ["/api/internal/export-clients"]
     assert web["related"][0]["type"] == "derived"
 
@@ -379,7 +380,8 @@ def test_export_sigma_specialise_sur_le_domaine_sosie(client):
                    cible="orbispay-verification.example")
     regles = list(yaml.safe_load_all(client.get(f"/api/incidents/{inc['id']}/export?format=sigma").text))
     assert regles[0]["id"] == sigma_regles.identifiant("humain_phishing")
-    proxy = next(r for r in regles if r["logsource"] == {"category": "proxy"})
+    assert any(r["id"] == sigma_regles.identifiant("humain_phishing/proxy") for r in regles)
+    proxy = next(r for r in regles if r["logsource"] == {"category": "proxy"} and "related" in r)
     assert proxy["detection"]["selection"] == {"url.domain": ["orbispay-verification.example"]}
     assert proxy["related"] == [{"id": sigma_regles.identifiant("humain_phishing/proxy"), "type": "derived"}]
     assert proxy["status"] == "experimental"
@@ -418,7 +420,7 @@ def test_cef_entete_extensions_et_echappement(client):
     lignes = client.get(f"/api/incidents/{inc['id']}/export?format=cef").text.strip().splitlines()
     assert len(lignes) == 3
     for ligne in lignes:
-        assert ligne.startswith("CEF:0|Dedale|Dedale|")
+        assert ligne.startswith("CEF:0|sAIfe|sAIfe|")
         lue = lire_cef(ligne)
         assert lue is not None and 0 <= lue["severite"] <= 10
         assert lue["extensions"]["cs1"] == inc["id"] and lue["extensions"]["cs5"] == "interne_canari"
@@ -434,9 +436,9 @@ def test_cef_entete_extensions_et_echappement(client):
 
 
 def test_trame_syslog_rfc5424():
-    trame = cef.trame_syslog("CEF:0|Dedale|Dedale|0.1.0|x:y|n|10|act=y", "critique", "ouverture",
+    trame = cef.trame_syslog("CEF:0|sAIfe|sAIfe|0.1.0|x:y|n|10|act=y", "critique", "ouverture",
                              hote="poste.local", maintenant=datetime(2026, 10, 10, 21, 4, 5, 123000, timezone.utc))
-    assert trame == "<162>1 2026-10-10T21:04:05.123Z poste dedale - ouverture - CEF:0|Dedale|Dedale|0.1.0|x:y|n|10|act=y"
+    assert trame == "<162>1 2026-10-10T21:04:05.123Z poste dedale - ouverture - CEF:0|sAIfe|sAIfe|0.1.0|x:y|n|10|act=y"
     lue = lire_trame(trame)
     assert lue["facilite"] == 20 and lue["severite_syslog"] == 2 and lue["cef"]["signature"] == "x:y"
 
@@ -624,7 +626,7 @@ def test_resume_hebdo_html_une_page_sans_jargon(client, regles):
     for interdit in ("camille", "atelier nord", "3 480", "fr76"):
         assert interdit not in bas, interdit
     assert not re.search(r"salarié \d{4}", bas)  # ni nom ni pseudonyme
-    for titre in ("Les menaces arrêtées", "Les gestes retenus et leur issue", "Les agents IA à surveiller",
+    for titre in ("Les menaces, arrêtées ou à suivre", "Les gestes retenus et leur issue", "Les agents IA à surveiller",
                   "Les règles qui ont joué"):
         assert titre in html
     assert "<script" not in bas and "http://127.0.0.1:5173/" in html
@@ -635,7 +637,7 @@ def test_resume_hebdo_route_reservee_et_jamais_envoyee(client):
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
     assert "default-src 'none'" in r.headers["content-security-policy"]
     assert "frame-ancestors 'self'" in r.headers["content-security-policy"]
-    assert "Votre semaine avec Dédale" in r.text
+    assert "Votre semaine avec sAIfe" in r.text
     j = client.get("/api/resume-hebdo?format=json").json()
     assert j["envoye"] is False and "ouverture" in j
     assert client.get("/api/resume-hebdo?format=pdf").status_code == 400

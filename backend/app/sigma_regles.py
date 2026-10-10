@@ -13,8 +13,9 @@ session) par un catalogue stable :
   routes-leurres. Elles n'ont pas de `product` : elles tournent sur les journaux du proxy ou du
   serveur web, au format ECS ;
 - pour un incident, `regles_incident` rend la règle de son type, les règles du catalogue qui
-  attrapent au moins un de ses événements, et la variante spécialisée sur ce qu'il a vu (le
-  domaine sosie ouvert, par exemple), reliée à la variante générique par `related: derived`.
+  attrapent au moins un de ses événements, la variante générique et la variante spécialisée sur
+  ce qu'il a vu (le domaine sosie ouvert, par exemple), reliée à la première par
+  `related: derived`.
 
 `correspond(regle, document)` évalue une règle sur un document ECS. Il couvre ce que ce
 catalogue utilise (égalité insensible à la casse, listes, `contains`, `startswith`,
@@ -38,7 +39,7 @@ from pathlib import Path
 
 import yaml
 
-AUTEUR = "Dédale (Secure Horizons)"
+AUTEUR = "sAIfe (Secure Horizons)"
 DATE = "2026-10-10"
 _ESPACE = uuid.NAMESPACE_URL
 
@@ -217,7 +218,7 @@ _ajouter(Fiche(
 ))
 _ajouter(Fiche(
     "interne_desarme", "Consigne cachée retirée avant lecture par l'agent", "injection",
-    "Dédale a retiré une consigne cachée d'un contenu avant que l'agent le lise. L'agent n'a rien suivi : "
+    "sAIfe a retiré une consigne cachée d'un contenu avant que l'agent le lise. L'agent n'a rien suivi : "
     "c'est une tentative.",
     {"selection": _base("dedale.interne", "desarmement"), "condition": "selection"},
     "low", ["T1566.001"], ["Contenu légitime qui ressemble à une consigne (modèle de mail, procédure)"],
@@ -360,7 +361,7 @@ _ajouter(Fiche(
 ))
 _ajouter(Fiche(
     "geste_critique_virement", "Virement soumis à double validation", "fraude",
-    "Un salarié a demandé un virement que Dédale a suspendu pour une double validation : relecture, "
+    "Un salarié a demandé un virement que sAIfe a suspendu pour une double validation : relecture, "
     "puis décision d'un responsable.",
     {"selection": {**_base("dedale.humain", "avertissement"), "labels.quatre_yeux": "demande",
                    "labels.geste": "virement"},
@@ -370,7 +371,7 @@ _ajouter(Fiche(
 ))
 _ajouter(Fiche(
     "geste_critique_export", "Export de données clients soumis à double validation", "exfiltration",
-    "Un salarié a demandé un export de données clients que Dédale a suspendu pour une double validation.",
+    "Un salarié a demandé un export de données clients que sAIfe a suspendu pour une double validation.",
     {"selection": {**_base("dedale.humain", "avertissement"), "labels.quatre_yeux": "demande",
                    "labels.geste": "export_clients"},
      "condition": "selection"},
@@ -412,7 +413,7 @@ def regle(cle: str) -> dict:
     f = CATALOGUE[cle]
     logsource = f.logsource or {"product": "dedale", "category": f.famille}
     return {
-        "title": f"Dédale : {f.titre}",
+        "title": f"sAIfe : {f.titre}",
         "id": identifiant(cle),
         "status": f.statut,
         "description": f.description,
@@ -591,11 +592,11 @@ def _ioc_variante(cle_variante: str, documents: list[dict]) -> dict | None:
     empreinte = hashlib.sha256(repr(detection).encode()).hexdigest()[:12]
     base = regle(cle_variante)
     return {
-        "title": f"{base['title']} ({quoi}, vu par Dédale)"[:110],
+        "title": f"{base['title']} ({quoi}, vu par sAIfe)"[:110],
         "id": identifiant(f"{cle_variante}/{empreinte}"),
         "related": [{"id": base["id"], "type": "derived"}],
         "status": "experimental",
-        "description": f"{f.description} Indicateur relevé par Dédale sur un incident réel.",
+        "description": f"{f.description} Indicateur relevé par sAIfe sur un incident réel.",
         "references": base["references"],
         "author": AUTEUR,
         "date": DATE,
@@ -624,7 +625,12 @@ def regles_incident(type_inc: str, documents: list[dict]) -> list[dict]:
     regles = [regle(c) for c in cles]
     variantes = list(dict.fromkeys(v for c in cles for v in CATALOGUE[c].variantes))
     for v in variantes:
-        regles.append(_ioc_variante(v, documents) or regle(v))
+        # La variante générique tourne telle quelle chez le client ; la spécialisée porte
+        # l'indicateur vu par Dédale (domaine, route), reliée à la première par `derived`.
+        regles.append(regle(v))
+        precise = _ioc_variante(v, documents)
+        if precise:
+            regles.append(precise)
     return regles
 
 
@@ -642,7 +648,7 @@ def ecrire(dossier: Path) -> list[Path]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Catalogue des règles Sigma de Dédale.")
+    p = argparse.ArgumentParser(description="Catalogue des règles Sigma de sAIfe.")
     p.add_argument("--ecrire", metavar="DOSSIER", help="écrit une règle par fichier dans ce dossier")
     args = p.parse_args(argv)
     if args.ecrire:

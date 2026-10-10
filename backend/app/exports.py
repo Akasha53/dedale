@@ -3,7 +3,7 @@
 - `vers_ecs` : un document ECS par événement de la session (`ecs.py`).
 - `vers_sigma` : les règles Sigma qui attrapent cet incident, au format YAML à plusieurs
   documents (`sigma_regles.py`) : la règle de son type, les règles de geste qui le concernent,
-  et la variante proxy ou serveur web spécialisée sur ce qu'il a vu.
+  et les variantes proxy ou serveur web : la générique, et celle spécialisée sur ce qu'il a vu.
 - `vers_cef` : une ligne CEF par événement (`cef.py`), prête pour un collecteur syslog.
 
 Tout texte d'origine piégée est déjà neutralisé en amont (store/securite) ; un salarié n'y

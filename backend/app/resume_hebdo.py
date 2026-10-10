@@ -4,7 +4,7 @@
 envoyé : la console l'affiche en aperçu (Mesures, « Résumé du lundi »). Quatre parties, une
 phrase par point, sans jargon :
 
-1. les menaces arrêtées ;
+1. les menaces, arrêtées ou à suivre ;
 2. les gestes retenus (virement, export) et leur issue ;
 3. les agents IA à surveiller ;
 4. les règles de l'équipe sécurité qui ont joué.
@@ -21,6 +21,7 @@ distante, aucun script. Couleurs et rayons repris de `design/jetons.css`.
 from __future__ import annotations
 
 import html
+import re
 from datetime import datetime, timedelta, timezone
 
 from . import inventaire, notifications
@@ -75,7 +76,8 @@ def _pluriel(n: int, un: str, plusieurs: str) -> str:
 # ---------------------------------------------------------------- Ce que la semaine contient
 def _phrase_dossier(detail: dict) -> str:
     """Une phrase : le jour, ce qui s'est passé, ce que Dédale ou un humain a fait."""
-    d = _dt(detail.get("cree_a"))
+    moments = [m for m in (_dt(x.get("horodatage")) for x in detail.get("chaine") or []) if m]
+    d = min(moments) if moments else _dt(detail.get("cree_a"))
     quand = jour(d) if d else "Cette semaine"
     quoi = notifications.quoi(detail)
     issue = notifications.issue(detail)
@@ -120,20 +122,29 @@ def _validations(store, debut: datetime, fin: datetime) -> tuple[list[dict], int
     return sortie, passes
 
 
+def _liste(elements: list[str]) -> str:
+    return elements[0] if len(elements) == 1 else ", ".join(elements[:-1]) + " et " + elements[-1]
+
+
 def _phrase_agent(fiche: dict, dossiers: int) -> str:
-    libelle = str(fiche.get("libelle") or fiche.get("nom") or "Un agent")
+    """Une phrase par agent : ses dossiers de la semaine, ses droits en trop, et quoi faire."""
+    libelle = str(fiche.get("libelle") or fiche.get("nom") or "un agent")
     sujet = libelle[0].upper() + libelle[1:]
+    raisons = (fiche.get("risque") or {}).get("raisons") or []
+    trop = next((r for r in raisons if r.get("code") == "droits_en_trop"), None)
     morceaux = []
-    for r in (fiche.get("risque") or {}).get("raisons") or []:
-        if r.get("code") == "droits_en_trop":
-            morceaux.append("a " + str(r.get("texte") or "").rstrip("."))
     if dossiers:
         morceaux.append(f"a ouvert {_pluriel(dossiers, 'dossier', 'dossiers')} cette semaine")
+    if trop:
+        texte = str(trop.get("texte") or "").rstrip(".")
+        nombre, _, detail = texte.partition(", dont ")
+        droits = [d.strip() for d in re.split(r",\s*|\s+et\s+", detail) if d.strip()]
+        reste = ", entre autres" if len(droits) > 3 else ""
+        precision = f" ({_liste(droits[:3])}{reste})" if droits else ""
+        morceaux.append(f"garde {nombre.replace(' en trop pour son travail', '')} dont il n'a pas besoin{precision}")
     if not morceaux:
-        morceaux.append("n'a jamais été testé face à un contenu piégé")
-    conseil = (" : retirez ces droits dans la console, page Agents"
-               if any(r.get("code") == "droits_en_trop" for r in (fiche.get("risque") or {}).get("raisons") or [])
-               else "")
+        return f"{sujet} n'a jamais été testé face à un contenu piégé : lancez un test depuis la console."
+    conseil = " : retirez-les dans la console, page Agents" if trop else ""
     return f"{sujet} {' et '.join(morceaux)}{conseil}."
 
 
@@ -253,10 +264,10 @@ def _chiffre(valeur: int, libelle: str, couleur: str) -> str:
 def phrase_ouverture(r: dict) -> str:
     c = r["chiffres"]
     if not (c["menaces"] or c["gestes_retenus"] or c["a_trancher"]):
-        return "Semaine calme : Dédale n'a rien arrêté et rien n'attend votre décision."
+        return "Semaine calme : sAIfe n'a rien arrêté et rien n'attend votre décision."
     morceaux = []
     if c["menaces"]:
-        morceaux.append(f"Dédale a arrêté {_pluriel(c['menaces'], 'menace', 'menaces')}")
+        morceaux.append(f"sAIfe a relevé {_pluriel(c['menaces'], 'menace', 'menaces')}")
     if c["gestes_retenus"]:
         morceaux.append(f"fait confirmer {_pluriel(c['gestes_retenus'], 'geste sensible', 'gestes sensibles')} "
                         "par un responsable")
@@ -277,10 +288,17 @@ def rendre(r: dict, lien_console: str) -> str:
                       " sans retenue.")
     agents = [a["phrase"] for a in r["agents"]]
     regles = [x["phrase"] for x in r["regles"]]
-    a_faire = (f"{_pluriel(len(r['a_trancher']), 'dossier attend', 'dossiers attendent')} une décision dans la console."
-               if r["a_trancher"] else "Rien n'attend votre décision.")
+    morceaux = []
+    if r["a_trancher"]:
+        morceaux.append(f"{_pluriel(len(r['a_trancher']), 'dossier attend', 'dossiers attendent')} "
+                        "une décision dans la console")
+    if r["attente_metier"]:
+        morceaux.append(f"{_pluriel(r['attente_metier'], 'geste attend', 'gestes attendent')} "
+                        "celle d'un responsable")
+    a_faire = (" et ".join(morceaux) + ".") if morceaux else "Rien n'attend votre décision."
+    a_faire = a_faire[0].upper() + a_faire[1:]
     sections = "".join([
-        _section("Les menaces arrêtées", menaces[:_MAX_LIGNES], "Aucune menace cette semaine.", C["danger"],
+        _section("Les menaces, arrêtées ou à suivre", menaces[:_MAX_LIGNES], "Aucune menace cette semaine.", C["danger"],
                  len(menaces) - _MAX_LIGNES),
         _section("Les gestes retenus et leur issue", gestes[:_MAX_LIGNES],
                  "Aucun virement ni export n'a demandé de double validation.", C["attente"], len(gestes) - _MAX_LIGNES),
@@ -300,7 +318,7 @@ def rendre(r: dict, lien_console: str) -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Dédale, votre semaine</title>
+<title>sAIfe, votre semaine</title>
 </head>
 <body style="margin:0;padding:0;background:{C['fond']};font-family:{C['police']};color:{C['texte']}">
 <div style="display:none;max-height:0;overflow:hidden">{_e(phrase_ouverture(r))}</div>
@@ -310,17 +328,17 @@ def rendre(r: dict, lien_console: str) -> str:
 <tr><td style="padding:0 4px 20px 4px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
 <td style="font-size:15px;font-weight:600;letter-spacing:-0.02em">
-<span style="display:inline-block;width:22px;height:22px;border-radius:6px;background:{C['texte']};vertical-align:middle;margin-right:8px"></span>Dédale</td>
+<span style="display:inline-block;width:22px;height:22px;border-radius:6px;background:{C['texte']};vertical-align:middle;margin-right:8px"></span>sAIfe</td>
 <td align="right" style="font-size:12px;color:{C['faible']}">Résumé du lundi</td>
 </tr></table></td></tr>
 <tr><td style="padding:0 4px 20px 4px">
-<h1 style="margin:0 0 6px 0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.02em">Votre semaine avec Dédale</h1>
+<h1 style="margin:0 0 6px 0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.02em">Votre semaine avec sAIfe</h1>
 <p style="margin:0 0 12px 0;font-size:13px;color:{C['secondaire']}">Orbis Pay · {_e(r['periode'])}</p>
 <p style="margin:0;font-size:15px;line-height:23px">{_e(phrase_ouverture(r))}</p>
 </td></tr>
 <tr><td style="padding:0 0 12px 0">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{C['carte']};border:1px solid {C['bord']};border-radius:20px"><tr>
-{_chiffre(c['menaces'], 'menaces arrêtées', C['danger'] if c['menaces'] else C['texte'])}
+{_chiffre(c['menaces'], 'menaces relevées', C['danger'] if c['menaces'] else C['texte'])}
 {_chiffre(c['gestes'], 'gestes sensibles relus', C['texte'])}
 {_chiffre(c['a_trancher'], 'dossiers à trancher', C['attente'] if c['a_trancher'] else C['regle'])}
 {_chiffre(c['agents'], 'agents à surveiller', C['attente'] if c['agents'] else C['texte'])}
@@ -330,7 +348,7 @@ def rendre(r: dict, lien_console: str) -> str:
 <p style="margin:0 0 16px 0;font-size:14px;line-height:21px">{_e(a_faire)}</p>
 <a href="{_e(lien_console)}" style="display:inline-block;background:{C['texte']};color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 20px;border-radius:9999px">Ouvrir la console</a>
 {signalements}
-<p style="margin:24px 0 0 0;font-size:12px;line-height:18px;color:{C['faible']}">Dédale · Orbis Pay, entreprise fictive · trafic de démonstration. Aperçu du mail du lundi : il n'est pas envoyé. Aucun salarié n'y est nommé et aucun montant n'y figure en chiffre exact.</p>
+<p style="margin:24px 0 0 0;font-size:12px;line-height:18px;color:{C['faible']}">sAIfe · Orbis Pay, entreprise fictive · trafic de démonstration. Aperçu du mail du lundi : il n'est pas envoyé. Aucun salarié n'y est nommé et aucun montant n'y figure en chiffre exact.</p>
 </td></tr>
 </table>
 </td></tr>

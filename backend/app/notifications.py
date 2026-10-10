@@ -126,7 +126,7 @@ def quoi(detail: dict) -> str:
         if detail.get("contexte_humain") == "mail reçu" or detail.get("type") == "humain_phishing":
             return f"Un mail frauduleux a poussé un salarié à demander {GESTES[geste]}."
         return f"Un salarié a demandé {GESTES[geste]} qui porte un signal de fraude."
-    return QUOI.get(detail.get("type") or "", "Dédale a ouvert un dossier de sécurité.")
+    return QUOI.get(detail.get("type") or "", "sAIfe a ouvert un dossier de sécurité.")
 
 
 def _decisions_humaines(detail: dict) -> list[dict]:
@@ -147,9 +147,9 @@ def issue(detail: dict) -> str:
                     else f"L'équipe sécurité a refusé {mot}, qui n'a pas eu lieu.")
         d = rel.get("decision")
         if d == "refuse":
-            return f"Le relecteur de Dédale l'a refusé et {mot} n'a pas eu lieu."
+            return f"Le relecteur de sAIfe l'a refusé et {mot} n'a pas eu lieu."
         if d == "accorde":
-            return "Le relecteur de Dédale l'a accordé."
+            return "Le relecteur de sAIfe l'a accordé."
         return f"{mot[0].upper()}{mot[1:]} est suspendu jusqu'à la décision de l'équipe sécurité."
     if detail.get("source") in ("humain", "physique"):
         if detail.get("statut") in ("clos", "ignore"):
@@ -257,6 +257,15 @@ def _relecteur_actif() -> bool:
         return False
 
 
+def titre_soc(detail: dict) -> str:
+    """Titre d'un dossier pour le SOC : celui de la règle Sigma du type, ou du geste en fraude."""
+    geste = geste_de(detail) if detail.get("quatre_yeux") else None
+    if geste:
+        return f"{GESTES[geste][3:].capitalize()} au signal de fraude"
+    fiche = sigma_regles.CATALOGUE.get(detail.get("type") or "")
+    return fiche.titre if fiche else f"Dossier {detail.get('id')}"
+
+
 def regle_pour(detail: dict) -> tuple[str, str]:
     """(règle, raison) qui s'applique à l'état actuel d'un incident (toujours côté SOC)."""
     gravite = detail.get("gravite") or "moyenne"
@@ -272,7 +281,9 @@ def regle_pour(detail: dict) -> tuple[str, str]:
             return "attente", "Le relecteur lit encore le geste : la règle se rejouera après sa décision."
     if _RANG.get(gravite, 2) < _RANG["moyenne"]:
         return "personne", "Gravité faible : le dossier reste dans la console et le résumé du lundi."
-    return "menace", f"Menace de gravité {gravite} : le SOC est prévenu."
+    if gravite == "critique" and _sms_soc_permis(detail):
+        return "menace", "Gravité critique : webhook, transfert syslog et SMS d'astreinte."
+    return "menace", f"Gravité {gravite} : webhook et transfert syslog, pas de SMS en dessous de critique."
 
 
 def _sms_soc_permis(detail: dict) -> bool:
@@ -290,14 +301,15 @@ def envois_pour(detail: dict) -> tuple[str, str, list[Envoi]]:
     envois: list[Envoi] = []
     if regle != "menace":
         return regle, raison, envois
-    fiche = sigma_regles.CATALOGUE.get(detail.get("type") or "")
-    titre = expurger_soc(f"Menace {gravite} : {fiche.titre}" if fiche else f"Menace {gravite} sur {iid}", detail)
+    titre = expurger_soc(f"Menace {gravite} : {titre_soc(detail)}", detail)
     lien = lien_incident(iid)
     texte = expurger_soc(f"{quoi(detail)} {issue(detail)} Dossier {iid}.", detail)
     envois.append(Envoi(f"{iid}:menace", "menace", "soc", ["webhook"], raison, titre, texte, "", lien, gravite,
                         [("Gravité", gravite), ("Dossier", iid), ("Type", detail.get("type") or "—")]))
     if gravite == "critique" and _sms_soc_permis(detail):
-        sms = expurger_soc(f"Dédale, menace critique : {quoi(detail)} {issue(detail)} {iid} {lien}", detail)
+        phrase = quoi(detail)
+        sms = expurger_soc(f"sAIfe, menace critique : {phrase[0].lower()}{phrase[1:]} {issue(detail)} {iid} {lien}",
+                           detail)
         envois.append(Envoi(f"{iid}:menace_critique", "menace_critique", "soc", ["sms"],
                             "Gravité critique : SMS d'astreinte au SOC.", titre, texte, sms, lien, gravite))
     return regle, raison, envois
@@ -327,9 +339,9 @@ def envoi_validation(enreg: dict) -> Envoi | None:
     nom_maj = nom[0].upper() + nom[1:]
     did = str(d.get("demande_id") or enreg.get("id"))
     titre = f"{nom_maj} attend votre validation"
-    texte = (f"{nom_maj}{precision} attend votre validation. {demandeur} Dédale l'a suspendu : rien ne part "
+    texte = (f"{nom_maj}{precision} attend votre validation. {demandeur} sAIfe l'a suspendu : rien ne part "
              f"tant que vous n'avez pas décidé.")
-    sms = f"Dédale : {nom}{precision} attend votre validation. {demandeur} Validez ou refusez ici : {url_validation()}"
+    sms = f"sAIfe : {nom}{precision} attend votre validation. {demandeur} Validez ou refusez ici : {url_validation()}"
     return Envoi(f"validation:{did}", "geste_retenu", "validation", ["webhook", "sms"],
                  "Le relecteur fait confirmer ce geste par le responsable du salarié ou la finance.",
                  titre, texte, sms, url_validation(), "haute",
@@ -354,7 +366,7 @@ def charge_utile(envoi: Envoi, fmt: str, ref: str) -> dict:
             {"type": "actions", "elements": [
                 {"type": "button", "text": {"type": "plain_text", "text": bouton}, "url": envoi.lien}]},
             {"type": "context", "elements": [
-                {"type": "mrkdwn", "text": "Dédale · Orbis Pay, entreprise fictive · trafic de démonstration"}]},
+                {"type": "mrkdwn", "text": "sAIfe · Orbis Pay, entreprise fictive · trafic de démonstration"}]},
         ]}
     if fmt == "teams":
         couleur = {"critique": "Attention", "haute": "Warning"}.get(envoi.gravite, "Default")
@@ -368,7 +380,7 @@ def charge_utile(envoi: Envoi, fmt: str, ref: str) -> dict:
                      "color": couleur, "wrap": True},
                     {"type": "TextBlock", "text": envoi.texte, "wrap": True},
                     {"type": "FactSet", "facts": [{"title": k, "value": v} for k, v in envoi.faits]},
-                    {"type": "TextBlock", "text": "Dédale · Orbis Pay, entreprise fictive · trafic de démonstration",
+                    {"type": "TextBlock", "text": "sAIfe · Orbis Pay, entreprise fictive · trafic de démonstration",
                      "size": "Small", "isSubtle": True, "wrap": True},
                 ],
                 "actions": [{"type": "Action.OpenUrl", "title": bouton, "url": envoi.lien}],
@@ -565,10 +577,9 @@ def _signature(detail: dict) -> tuple:
 
 
 def ligne_cef(detail: dict, motif: str = "incident") -> str:
-    fiche = sigma_regles.CATALOGUE.get(detail.get("type") or "")
-    titre = fiche.titre if fiche else f"Incident {detail.get('id')}"
     phrase = expurger_soc(f"{quoi(detail)} {issue(detail)}", detail)
-    return cef.ligne_incident(detail, titre, phrase, lien_incident(str(detail.get("id"))), motif)
+    geste = geste_de(detail) if detail.get("quatre_yeux") else None
+    return cef.ligne_incident(detail, titre_soc(detail), phrase, lien_incident(str(detail.get("id"))), motif, geste)
 
 
 def examiner(iid: str) -> list[dict]:
