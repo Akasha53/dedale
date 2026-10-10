@@ -7,6 +7,7 @@ import { pilierDeSource } from "./ui/primitives";
 import { compter } from "./ui/compteurs";
 import { SelecteurAnalyste } from "./ui/analyste";
 import { Icone } from "./agent/icones";
+import logoDedale from "./assets/dedale.svg";
 import type { Pilier } from "./types";
 
 // La page « Leurres » (screens/LeurresView.tsx) est sortie de la navigation :
@@ -112,7 +113,7 @@ export function App() {
     <div className="app">
       <aside className="barre-laterale">
         <div className="logo">
-          <div className="pastille-logo">D</div>
+          <img className="logo-dedale" src={logoDedale} width={28} height={28} alt="" />
           <div>
             <div className="marque">Dédale</div>
             <div className="sous">Console de sécurité</div>
