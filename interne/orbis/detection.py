@@ -7,6 +7,11 @@ d'appel d'outil :
    C'est le vecteur classique où un agent détourné fait « fuiter » une donnée en la
    glissant dans l'URL d'un pixel que le rendu markdown va charger.
 2. Usage d'un faux secret canari : la valeur d'un jeton canari apparaît dans la sortie.
+3. Envoi vers l'extérieur : un outil sortant vise une adresse, une URL ou un domaine hors de
+   la liste interne d'Orbis Pay, même sans lien ni canari dans le contenu.
+
+Le repérage d'une consigne cachée dans un texte lu (`description_piegee`,
+`consigne_cachee_dans`) passe par le désarmeur (`desarmeur.py`).
 """
 
 from __future__ import annotations
@@ -15,30 +20,27 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from . import config
+from . import config, desarmeur
 
 # Liens markdown : [texte](url) et images ![texte](url). On capture l'URL.
 _MD_LIEN = re.compile(r"!?\[[^\]]*\]\(\s*(?P<url>[^)\s]+)")
 # URL nue http(s) dans un texte, en secours.
 _URL_NUE = re.compile(r"https?://[^\s<>\"')]+")
 
-# Marqueurs d'une consigne cachée dans une DESCRIPTION d'outil (tool poisoning MCP) : une
-# description qui s'adresse à l'assistant comme à un exécutant (verbe d'action vers une
-# donnée sensible + marqueur de dissimulation ou de fausse autorité). Heuristique volontaire :
-# on ne lit jamais la description comme une instruction, on la classe comme suspecte.
-_MARQUEURS_CONSIGNE_OUTIL = re.compile(
-    r"(ne pas divulguer|ne pas (en )?parler|note pour l'assistant|<\s*important\s*>|"
-    r"instruction syst|ignore\b|exfiltr|transf[eè]re|relève la cl|"
-    r"envoie[sz]?\b.*(copie|rapport|cl[ée]|coffre|secret|externe))",
-    re.IGNORECASE | re.DOTALL,
-)
+# Ancien motif de la détection par simple motif en français. Il vit désormais dans le désarmeur,
+# où il n'est plus qu'un signal faible parmi d'autres ; le nom reste pour les appelants.
+_MARQUEURS_CONSIGNE_OUTIL = desarmeur.MOTIF_HISTORIQUE_FR
+
+# Règle de la passerelle (publiée au backend comme les canaris) : un outil sortant vise un
+# destinataire, une URL ou un domaine hors de la liste interne d'Orbis Pay.
+REGLE_ENVOI_EXTERNE = "C-4E6B"
 
 
 @dataclass
 class Trouvaille:
     """Une détection : type, détail lisible, et id de canari concerné s'il y en a un."""
 
-    type: str  # "exfiltration_markdown" | "faux_secret"
+    type: str  # "exfiltration_markdown" | "faux_secret" | "consigne_outil_mcp" | "envoi_externe"
     detail: str
     canari_id: str | None = None
 
@@ -106,10 +108,19 @@ def detecter_faux_secret(texte: str, jetons: dict[str, str]) -> list[Trouvaille]
 
 
 def description_piegee(description: str) -> bool:
-    """Vrai si une description d'outil porte une consigne cachée (tool poisoning MCP)."""
+    """Vrai si un texte porte une consigne destinée à l'agent (tool poisoning MCP, injection).
+
+    Délègue au désarmeur : techniques de dissimulation (HTML, CSS, Unicode invisible) et formules
+    d'injection en six langues. L'ancien motif en français n'y est plus qu'un signal faible : il
+    compte dans un passage caché ou à côté d'un signal fort, jamais seul."""
     if not description:
         return False
-    return bool(_MARQUEURS_CONSIGNE_OUTIL.search(description))
+    return desarmeur.consigne_detectee(description)
+
+
+def signaux_consigne(texte: str) -> list[str]:
+    """Techniques et formules relevées par le désarmeur, pour expliquer une détection."""
+    return desarmeur.nettoyer(texte or "").signaux
 
 
 def consigne_cachee_dans(texte: str) -> bool:
@@ -145,3 +156,59 @@ def detecter_consigne_outil(description: str, canari_id: str | None) -> list[Tro
 def inspecter(texte: str, jetons: dict[str, str]) -> list[Trouvaille]:
     """Toutes les détections de sortie sur un même texte (exfiltration + faux secret)."""
     return detecter_exfiltration(texte) + detecter_faux_secret(texte, jetons)
+
+
+# --- envoi vers l'extérieur ---------------------------------------------------------------
+# Paramètres d'un outil sortant qui désignent où part la donnée.
+_CLES_CIBLE = {"destinataire", "destinataires", "a", "to", "cc", "cci", "bcc", "copie", "url",
+               "lien", "webhook", "endpoint", "domaine", "hote", "adresse", "email", "mail",
+               "courriel", "site", "uri"}
+_MAIL = re.compile(r"[\w.+-]+@((?:[\w-]+\.)+[\w-]+)")
+_DOMAINE = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$", re.IGNORECASE)
+
+
+def _cibles(valeur, cle: str | None = None) -> list[str]:
+    """Chaînes rangées sous une clé de destination, à toute profondeur."""
+    if isinstance(valeur, dict):
+        return [c for k, v in valeur.items() for c in _cibles(v, str(k).lower())]
+    if isinstance(valeur, (list, tuple)):
+        return [c for v in valeur for c in _cibles(v, cle)]
+    if isinstance(valeur, str) and cle in _CLES_CIBLE:
+        return [valeur]
+    return []
+
+
+def cibles_externes(params: dict) -> list[tuple[str, str]]:
+    """(cible, hôte) pour chaque adresse, URL ou domaine hors de la liste interne. Un nom sans
+    adresse (« Jean Moreau ») n'est pas résolu : il reste dans l'annuaire interne."""
+    trouvees: list[tuple[str, str]] = []
+    for brut in _cibles(params or {}):
+        for morceau in re.split(r"[,;\s]+", brut.strip()):
+            if not morceau:
+                continue
+            if "://" in morceau:
+                hote = _hote(morceau)
+            elif "@" in morceau:
+                m = _MAIL.search(morceau)
+                hote = m.group(1).lower() if m else None
+            elif _DOMAINE.match(morceau):
+                hote = morceau.lower()
+            else:
+                hote = None
+            if hote and _est_externe(hote) and (morceau, hote) not in trouvees:
+                trouvees.append((morceau, hote))
+    return trouvees
+
+
+def detecter_envoi_externe(params: dict) -> list[Trouvaille]:
+    """Un outil sortant vise l'extérieur : une trouvaille, même sans lien ni canari dans le contenu."""
+    cibles = cibles_externes(params)
+    if not cibles:
+        return []
+    internes = ", ".join(sorted(h for h in config.HOTES_INTERNES if "." in h and not h[0].isdigit()))
+    noms = ", ".join(c for c, _ in cibles[:3]) + (" …" if len(cibles) > 3 else "")
+    return [Trouvaille(
+        type="envoi_externe",
+        detail=f"envoi vers {noms}, hors des domaines d’Orbis Pay ({internes})",
+        canari_id=REGLE_ENVOI_EXTERNE,
+    )]
