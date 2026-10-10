@@ -708,3 +708,79 @@ Une seule fois par mail : le service lit d'abord `GET /api/sessions/mail-<id>` e
 
 - App Mac (`app-mac/Sources/Dedale/Messagerie.swift`) : `GET /verdicts` toutes les 3 s, ou `WS /ws`. La pop-up s'ouvre sur `frauduleux: true` et affiche `titre_alerte`, `raisons`, `conseil`, `gravite`, `lien_reel` et `geste`. `GET /mails/{id}` sert l'aperçu désarmé (`texte`, `de`, `a`).
 - Console : `GET /verdicts` puis `GET /flux` ou `WS /ws` pour le direct. Les mails frauduleux sont aussi dans le backend, sous les sessions `mail-*`, sans appel au port 8715.
+
+## Avenant du 10 octobre 2026 : journal scellé, rapport d'incident, alertes, médiane
+
+Réponse aux limites relevées par Paul. Modules : `backend/app/journal_scelle.py`, `verifier_journal.py`, `rapport.py`, `alertes.py`, `recepteur_demo.py`, routes dans `api_preuves.py`.
+
+### Journal scellé
+
+Empreinte d'un élément : SHA-256 de `précédent`, `horodatage` et `contenu canonique`, joints par un saut de ligne. Le contenu canonique est un JSON aux clés triées, sans espace, accents gardés : la même forme en mémoire et après SQLite.
+
+- Événements : une chaîne pour toute la base, dans l'ordre des `id`, genèse à 64 zéros. Horodatage : `recu_a`. Contenu : les quinze colonnes écrites par le backend, de `id` à `details`. Nouvelles colonnes `sceau_precedent` et `sceau` (64 caractères hexadécimaux), présentes aussi sur les événements renvoyés par l'API. Le sceau se pose après toute réécriture de l'événement à l'ingestion (neutralisation, cadence, gouvernance) et avant la boîte noire, qui le cite.
+- Décisions : même principe, une chaîne dans l'ordre d'arrivée. Horodatage de la décision ; contenu `incident_id`, `action`, `analyste`, `horodatage`. Colonnes `sceau_precedent`, `sceau`.
+- Maillons de la boîte noire : chaque `chaine[]` porte `sceau: {rang, precedent, evenement, empreinte}`. `rang` part de 1 dans l'ordre de la frise. La chaîne part de `SHA-256("dedale:boite-noire:<id incident>")`, donc deux incidents ne peuvent pas échanger leurs maillons. `evenement` est le sceau de l'événement source (`null` s'il est antérieur au scellement). Horodatage : celui du maillon. La boîte noire se reconstruit à chaque événement de la session et se rescelle en entier.
+- Incident : colonne `incidents.sceau`, empreinte de l'en-tête (`id`, `session_id`, `type`, `cree_a`, `titre`, `statut`, `riposte_validee`, `analyste`, `decide_a`, `action`, `gravite`, `resume`), de la tête de la boîte noire et des sceaux de ses décisions. Il change à chaque événement ou décision de l'incident.
+
+Lignes anciennes : une ligne sans sceau placée avant le premier sceau de sa chaîne est « antérieure au scellement » et se compte à part. Une ligne sans sceau placée après le premier sceau compte comme une altération (sceau retiré). Après un redémarrage, les chaînes repartent du dernier sceau relu en base.
+
+Limite : la chaîne repère une donnée modifiée, supprimée, insérée ou déplacée après son écriture. Une base réécrite en entier, sceaux recalculés compris, ne se repère qu'en comparant le sceau de l'incident à une copie gardée ailleurs, par exemple celle du rapport imprimé.
+
+### `GET /api/incidents/{id}/verification`
+
+Laisse l'écrivain vider sa file (2 s au plus), puis relit la base SQLite en lecture seule : le verdict porte sur ce qui est écrit, jamais sur la mémoire. 404 si l'incident est inconnu.
+
+```json
+{"incident_id": "INC-0001", "statut": "intacte", "verdict": "intacte",
+ "etape_alteree": null, "element_altere": null, "raison": null,
+ "maillons_verifies": 11, "evenements_anterieurs": 0, "decisions_verifiees": 1,
+ "sceau": "06aab6df406d282b…", "sceau_recalcule": "06aab6df406d282b…",
+ "algorithme": "SHA-256", "verifie_a": "2026-10-10T19:03:12+00:00"}
+```
+
+- `statut` : `intacte`, `alteree`, `anterieure_au_scellement`, ou `non_persiste` quand l'incident n'est pas encore écrit.
+- `verdict`, texte prêt à afficher : `intacte`, `altérée à l'étape N` (N = `sceau.rang` du maillon), `altérée à la décision N` (N-ième décision de l'incident), `altérée : en-tête de l'incident`, `antérieure au scellement`, `pas encore écrit dans le journal`.
+- `element_altere` vaut `maillon`, `decision` ou `incident` ; `etape_alteree` porte N. `raison` dit ce qui a changé : contenu du maillon, chaîne rompue (maillon supprimé, inséré ou déplacé), événement source modifié ou supprimé, lien vers l'événement retiré, décision modifiée, en-tête modifié.
+- Pour chaque maillon, l'événement source est recalculé et son lien avec l'événement qui le précède dans le journal est contrôlé.
+
+Toute la base, en lecture seule : `cd backend && uv run python -m app.verifier_journal [--db CHEMIN] [--json]`. Chaîne des événements, chaîne des décisions, puis chaque incident. Code de sortie 0 si tout est intact (lignes antérieures signalées à part), 1 si une altération est trouvée, 2 si la base est absente ou illisible.
+
+### `GET /api/incidents/{id}/rapport`
+
+Page HTML d'une page A4 pour un RSSI : ce qui s'est passé (synthèse par règles de `/synthese`), décision humaine avec son auteur et l'heure, état actuel (statut, état de l'agent ou poste jamais bloqué, droits retirés), intégrité (verdict de `/verification` et sceau en quatre groupes de 16), chronologie de la boîte noire (douze lignes au plus : les cinq premières, une ligne de coupe, les six dernières), limites (« trafic de démonstration », synthèse sans modèle, portée du sceau), annexe technique (session, type, classement, leurres, techniques ATT&CK, risques OWASP, événements sources).
+
+- `format=html` seulement ; toute autre valeur répond 400. Aucune bibliothèque PDF n'est installée dans le backend : le bouton « Imprimer ou enregistrer en PDF » passe par l'impression du navigateur. Rendu vérifié sur une page A4 avec le scénario jury.
+- En-têtes : `Content-Security-Policy` (`default-src 'none'`, un seul script autorisé par son empreinte, celui du bouton), `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`. Tout texte est échappé ; le texte piégé arrive déjà neutralisé.
+- 404 si l'incident est inconnu.
+
+### Alerte « décision attendue » vers Slack ou Teams
+
+Quand un événement ouvre un incident (`incident_nouveau: true` dans le retour de `Store.ingerer`), le backend prépare une alerte et la poste en tâche de fond, après la réponse au module. Une seule alerte par incident ; un échec du webhook ne remonte jamais à l'appelant.
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `DEDALE_WEBHOOK_URL` | absente | URL `http(s)` qui reçoit le POST. Absente : rien ne sort de la machine. |
+| `DEDALE_CONSOLE_URL` | `http://127.0.0.1:5173` | Base du lien vers l'incident : `<base>/?incident=INC-0001`. |
+| `DEDALE_ALERTES_MAX_MINUTE` | `20` | Au-delà, l'alerte est notée `limitee` et ne part pas. |
+
+```json
+{"text": "Décision attendue sur INC-0001 (gravité haute) : Agent IA piégé en interne (canari C-3E58). L'agent est suspendu jusqu'à votre décision : reprendre, couper ou ignorer. http://127.0.0.1:5173/?incident=INC-0001",
+ "blocks": [
+  {"type": "header", "text": {"type": "plain_text", "text": "Décision attendue : INC-0001"}},
+  {"type": "section", "text": {"type": "mrkdwn", "text": "*Agent IA piégé en interne (canari C-3E58)*\nL’agent a lu un document venu de l’extérieur…"}},
+  {"type": "section", "fields": [{"type": "mrkdwn", "text": "*Gravité*\nhaute"}, {"type": "mrkdwn", "text": "*Session*\njury-1"},
+                                 {"type": "mrkdwn", "text": "*État*\nsuspendue"}, {"type": "mrkdwn", "text": "*Ouvert le*\n10/10 21:00:12"}]},
+  {"type": "section", "text": {"type": "mrkdwn", "text": "L'agent est suspendu jusqu'à votre décision : reprendre, couper ou ignorer."}},
+  {"type": "actions", "elements": [{"type": "button", "text": {"type": "plain_text", "text": "Ouvrir l'incident"}, "url": "http://127.0.0.1:5173/?incident=INC-0001"}]},
+  {"type": "context", "elements": [{"type": "mrkdwn", "text": "Dédale · Orbis Pay, entreprise fictive · trafic de démonstration"}]}]}
+```
+
+- Teams lit `text`, Slack lit `blocks` et garde `text` pour la notification. Les textes sont échappés pour Slack (`&`, `<`, `>`) : un titre ne peut pas former `<!channel>`.
+- `GET /api/alertes` : `{"webhook_configure": bool, "alertes": [{incident_id, horodatage, statut, lien, message, raison?, code_http?}]}`, cinquante au plus, la plus récente en tête, jamais l'URL du webhook. `statut` vaut `envoyee`, `refusee` (code HTTP hors 2xx), `echec` (réseau), `non_envoyee` (pas de webhook), `configuration_invalide` ou `limitee`.
+- Démo : `cd backend && uv run python -m app.recepteur_demo [--port N]` écoute sur 127.0.0.1 (port libre par défaut), répond `ok` comme Slack, affiche chaque message et imprime la ligne `export DEDALE_WEBHOOK_URL=…` à poser avant de lancer le backend. Aucune URL de webhook réelle dans le dépôt.
+
+### `/api/mesures` : médiane et moyenne
+
+Nouveaux objets `temps_detection` et `temps_confinement`, chacun `{"mediane_ms": int|null, "moyenne_ms": int|null, "echantillons": int}`. `temps_detection_s` et `temps_confinement_s` ne changent pas : ce sont des moyennes en secondes.
+
+À faire côté console : le libellé « méd. » lit aujourd'hui une moyenne ; afficher `temps_detection.mediane_ms` et `temps_confinement.mediane_ms`, ou écrire « moy. ». Ajouter un lien « Rapport » vers `/api/incidents/{id}/rapport`, une pastille d'intégrité tirée de `/verification`, et aligner le mock.

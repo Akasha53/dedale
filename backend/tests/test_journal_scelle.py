@@ -173,3 +173,17 @@ def test_commande_verifier_journal(client, capsys):
 
 def test_verification_incident_inconnu_404(client):
     assert client.get("/api/incidents/INC-9999/verification").status_code == 404
+
+
+def test_evenement_reecrit_par_la_gouvernance_reste_intact(client):
+    """La gouvernance réécrit details.politique et retire details.anomalie à l'ingestion : le
+    sceau se pose après ces réécritures, sinon la base différerait de ce qui a été scellé."""
+    client.post("/api/evenements", json=evenement(
+        session_id="S-gouv", source="interne", surface="outil", type="appel_outil", outil="exporter",
+        details={"politique": {"id": "R-9", "effet": "alerter", "texte": "x" * 500},
+                 "anomalie": {"faux": True}, "verdict": "autorise"},
+        horodatage=horo(BASE, 0)))
+    iid = next(i["id"] for i in client.get("/api/incidents").json()["incidents"] if i["session_id"] == "S-gouv")
+    assert _verifier(client, iid)["statut"] == "intacte"
+    with _base() as conn:
+        assert journal_scelle.verifier_base(conn)["evenements"]["intacte"]
