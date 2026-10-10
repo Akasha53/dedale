@@ -240,9 +240,17 @@ class Store:
                 if leurre.nature == "consigne_cachee":
                     sess.flag_consigne_cachee = True
                     sess.consigne_leurre_id = leurre.id
-                if leurre.nature in ("canari_document", "canari_mail"):
+                # Canari interne : un C-xxxx (ou tout leurre interne) touché est un canari,
+                # quelle que soit sa nature exacte (canari_mail, faux_secret, consigne_cachee…).
+                # On garde le PREMIER canari touché pour nommer l'incident de façon stable.
+                est_canari = (
+                    leurre.nature in ("canari_document", "canari_mail")
+                    or leurre.source == "interne"
+                    or str(leurre.id).startswith("C-")
+                )
+                if est_canari:
                     sess.flag_canari = True
-                    sess.canari_id = leurre.id
+                    sess.canari_id = sess.canari_id or leurre.id
 
             if details.get("consigne") or details.get("consigne_lue"):
                 sess.flag_consigne_cachee = True
@@ -347,6 +355,11 @@ class Store:
             # Un agent interne détourné est suspendu d'office, en attente de l'analyste.
             if sess.source == "interne" and sess.etat == "active":
                 sess.etat = "suspendue"
+        # Le titre d'un incident interne nomme le canari réellement touché. On le
+        # rafraîchit à chaque passage : l'incident peut avoir été ouvert (classement
+        # agent_ia) avant que le canari ne tombe, auquel cas canari_id valait None.
+        if inc.type == "interne_canari":
+            inc.titre = f"Agent IA piégé en interne (canari {sess.canari_id or '—'})"
         evs = [self.evenements[i] for i in sess.evenement_ids]
         inc.chaine = incidents.construire_chaine(evs, self.leurres)
         inc.gravite = incidents.gravite(inc.chaine, sess.source)

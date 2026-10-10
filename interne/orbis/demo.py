@@ -11,8 +11,11 @@ Options :
 from __future__ import annotations
 
 import argparse
+import json
 import threading
 import time
+import urllib.error
+import urllib.request
 
 from .agent import AgentInterne, enregistrer_canaris
 from .backend_simule import BackendSimule
@@ -22,6 +25,50 @@ from .outils import Outils
 from .passerelle import Passerelle
 
 DEMANDE = "Résume mes mails de la semaine et envoie-moi le rapport."
+
+
+def _incident_pour_session(base: str, session_id: str) -> str | None:
+    """Trouve l'id d'incident ouvert pour une session, via GET /api/incidents."""
+    try:
+        with urllib.request.urlopen(base + "/api/incidents", timeout=2.0) as rep:
+            donnees = json.loads(rep.read().decode("utf-8", "replace"))
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
+        return None
+    for inc in donnees.get("incidents", []):
+        if inc.get("session_id") == session_id:
+            return inc.get("id")
+    return None
+
+
+def _poster_decision(base: str, incident_id: str, action: str, analyste: str) -> None:
+    corps = json.dumps({"action": action, "analyste": analyste}).encode()
+    req = urllib.request.Request(
+        base + f"/api/incidents/{incident_id}/decision", data=corps, method="POST",
+        headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=2.0):
+        pass
+
+
+def _piloter_analyste(base: str, session_id: str, action: str,
+                      analyste: str = "analyste-demo") -> threading.Thread:
+    """Backend réel : joue l'analyste. Attend que l'incident s'ouvre (la passerelle a
+    retenu l'appel et la session est suspendue), puis POST la décision. En fil de fond,
+    pendant que la passerelle interroge GET /api/sessions/{id}."""
+    def tache() -> None:
+        for _ in range(60):  # ~12 s, sous le poll_max de la passerelle
+            iid = _incident_pour_session(base, session_id)
+            if iid:
+                time.sleep(0.3)  # laisse la session se poser en « suspendue »
+                try:
+                    _poster_decision(base, iid, action, analyste)
+                except (urllib.error.URLError, TimeoutError, OSError):
+                    pass
+                return
+            time.sleep(0.2)
+
+    fil = threading.Thread(target=tache, daemon=True)
+    fil.start()
+    return fil
 
 
 def _titre(t: str) -> None:
@@ -86,10 +133,14 @@ def main() -> None:
     # --- Scène 2 : session détournée, l'analyste COUPE ---------------------------
     _titre("SCÈNE 2 — session détournée, l'analyste COUPE")
     if decideur:
-        # Session non décidée au départ ; l'analyste tranche après un battement,
-        # pendant que la passerelle retient l'appel et attend.
+        # Backend simulé : session non décidée au départ, l'analyste tranche après un
+        # battement, pendant que la passerelle retient l'appel et attend.
         decideur.fixer_etat("sess-coupee", "suspendue")
         threading.Timer(1.0, decideur.fixer_etat, args=("sess-coupee", "coupee")).start()
+    else:
+        # Backend réel : le canari ouvre l'incident et suspend la session d'office ;
+        # l'analyste POST « couper » → le backend passe la session à « coupee ».
+        _piloter_analyste(base, "sess-coupee", "couper")
     res2 = _lancer("sess-coupee", "naif", args.cerveau, base)
     _resume_session(res2)
 
@@ -97,6 +148,10 @@ def main() -> None:
     _titre("SCÈNE 3 — session détournée, l'analyste VALIDE (reprise)")
     if decideur:
         decideur.fixer_etat("sess-reprise", "active")
+    else:
+        # Backend réel : la session est suspendue d'office ; l'analyste POST « reprendre »
+        # → le backend repasse la session à « active », la passerelle reprend l'appel.
+        _piloter_analyste(base, "sess-reprise", "reprendre")
     res3 = _lancer("sess-reprise", "naif", args.cerveau, base)
     _resume_session(res3)
 

@@ -207,3 +207,43 @@ Précisions utiles aux autres modules :
   donnée inerte, jamais une instruction réinjectable.
 - Export SIEM : `format=ecs` renvoie un JSON ECS (`documents[]`), `format=sigma`
   une règle Sigma (YAML). Règles Sigma génériques dans `sigma/` (validées sigma-cli).
+
+### Raccords réparés (10 octobre 2026, agents A/C/E)
+
+Trois raccords entre modules étaient cassés ; corrigés et prouvés sur exécution réelle.
+
+1. **Vérité terrain jusqu'au backend (mesures).** Emplacement convenu entre backend
+   et banc : le **préfixe du `session_id`** `banc-<verite>-NNNN` fait foi (canal
+   principal), `details.verite_terrain` en secours. Le backend lit déjà les deux.
+   En **mode surface**, `leurres/` clé ses sessions sur le cookie `dedale_sid`, pas
+   sur `X-Dedale-Session` : le banc envoie donc `Cookie: dedale_sid=<session_id>`
+   (en plus de l'en-tête), sinon chaque session est réétiquetée `sess-<hash ip|ua>`,
+   fusionnée par user-agent, et les mesures tombent à zéro. Fix dans
+   `attaque/banc/surface.py`. Aucun changement dans `leurres/`.
+2. **Canari interne nommé dans l'incident.** Les canaris `C-7A3F` (consigne_cachee)
+   et `C-2B91` (faux_secret) n'avaient pas une nature `canari_*`, donc le backend ne
+   posait jamais `canari_id` → titre « (canari None) ». Le backend traite désormais
+   tout leurre interne touché (`source: interne` ou id `C-…`) comme un canari (premier
+   touché conservé) et rafraîchit le titre de l'incident interne. Fix dans
+   `backend/app/store.py`.
+3. **Scénario interne sans HTTP.** `interne/` est une bibliothèque, pas de serveur
+   8702 : le banc déclenchait le mail piégé par HTTP → `Connection refused`. En mode
+   surface, `campagne.py` appelle maintenant la bibliothèque interne en direct
+   (`orbis.agent.AgentInterne`, cerveau scripté « naïf »), qui émet ses événements au
+   backend avec le `session_id` étiqueté. Une seule commande produit le trafic externe
+   et les cas internes. Fix dans `attaque/banc/trafic.py`.
+
+**Décision analyste de bout en bout (`interne/orbis/demo.py`).** En `--backend-reel`,
+la démo joue l'analyste contre le vrai backend : elle attend l'ouverture de l'incident
+puis POST `couper` (scène 2) ou `reprendre` (scène 3). Prouvé : couper → `coupee` +
+jeton révoqué + agent arrêté ; valider → `active` + l'agent reprend.
+
+**Limite connue, hors de ces trois raccords (intégration E↔B).** En mode surface, le
+trafic `agent_ia` du banc ne déclenche aucun leurre de la vraie surface `leurres/` :
+le parseur de directives et la table de routes du banc visent sa `SurfaceLocale`
+interne, pas les routes réelles de `leurres/` (`/api/internal/export-clients`, `/admin`,
+faux identifiants `/connexion`…), et ces routes sont de nature `fausse_route`/`faux_secret`
+qui ne portent pas de signal « IA » côté backend. Résultat : `taux_detection` tient aux
+positifs internes (6/6), les `agent_ia` externes restent des faux négatifs. À aligner
+entre agent E (banc) et agent B (surface) avant la fiche défense. Sans incidence sur
+les faux positifs (humain/script jamais classés `agent_ia`).

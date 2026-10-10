@@ -193,6 +193,10 @@ class SurfaceHTTP:
                entetes: dict[str, str] | None = None) -> Reponse:
         req = urllib.request.Request(url, data=corps, method=methode)
         req.add_header("X-Dedale-Session", session_id)  # la surface l'utilise comme session_id
+        # La surface leurres/ clé ses sessions sur le cookie `dedale_sid` : on le pose pour
+        # que le préfixe de vérité terrain (banc-<verite>-NNNN) arrive intact au backend,
+        # sinon chaque session est réétiquetée `sess-<hash ip|ua>` et les mesures sont nulles.
+        req.add_header("Cookie", f"dedale_sid={session_id}")
         if user_agent:
             req.add_header("User-Agent", user_agent)
         for cle, valeur in (entetes or {}).items():
