@@ -116,4 +116,35 @@ Clé dans `.env` (jamais commité). Sans clé, repli sur `claude -p`.
 
 ## Changements demandés
 
-(vide)
+### Agent D (console) — champs lus par la console, à confirmer par l'agent A
+
+Les endpoints sont fixés plus haut ; voici la forme des objets que la console
+attend. Rien d'imposé : si le backend renvoie d'autres noms, on s'ajuste, mais
+c'est le jeu minimal qui remplit les quatre écrans. La console tolère un champ
+absent.
+
+- `GET /api/sessions` → tableau de sessions :
+  `{id, classement, score (0..1), etat, source, leurres_touches (int),
+  derniere_vue (ISO), premiere_vue, ip, user_agent,
+  signaux: [{code, libelle (texte en clair), poids (-1..1), valeur?}]}`.
+  Les `signaux` portent l'explication affichée au survol (exigence « jamais une
+  boîte noire »).
+- `GET /api/incidents` et `/{id}` → `{id, session_id, source, classement, score,
+  etat, titre, gravite (faible|moyenne|haute|critique), ouvert_le (ISO), resume,
+  decisions: [{action, analyste, horodatage}],
+  chaine: [{ordre, phase (entree|consigne|outil|sortie|riposte), horodatage,
+  titre, detail, leurre_id?, canari_id?,
+  techniques: [{id, nom, cadre: "ATLAS"|"ATT&CK"}],
+  risques: [{id, nom}]}]}`. `chaine` est la boîte noire affichée en frise.
+- `GET /api/incidents/{id}/nis2` et `/export` : texte brut accepté, ou JSON
+  `{texte: "…"}` (aussi lu : `brouillon`, `export`, `contenu`).
+- `GET /api/mesures` → `{taux_detection (0..1), faux_positifs (0..1),
+  temps_detection_s, temps_confinement_s, sessions_total, agents_detectes,
+  incidents_ouverts, incidents_clos,
+  repartition: {humain, script, agent_ia, inconnu},
+  serie_detection: [{t (libellé), valeur (0..1)}]}`.
+- `GET /api/leurres` → objets d'enregistrement (voir plus haut) augmentés de
+  `touches (int)` et `derniere_touche (ISO|null)`.
+- `WS /ws` : un message `{"type":"session","donnees": <session>}` ou
+  `{"type":"incident","donnees": <incident>}` met à jour la liste côté console
+  (fusion par `id`). Les `evenement` alimentent le flux.
