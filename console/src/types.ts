@@ -62,6 +62,10 @@ export type TypeIncident =
   | "interne_canari"
   | "interne_outil_mcp"
   | "interne_droits"
+  | "interne_appel"
+  | "interne_chatbot"
+  | "interne_inter_agent"
+  | "interne_memoire"
   | "externe_agent_ia"
   | (string & {}); // tolère une valeur non prévue
 

@@ -931,6 +931,22 @@ table.grille .idc {
   border-color: color-mix(in srgb, var(--agent) 55%, var(--bord));
   color: var(--agent);
 }
+.type-inc.interne_appel {
+  border-color: color-mix(in srgb, var(--script) 55%, var(--bord));
+  color: var(--script);
+}
+.type-inc.interne_chatbot {
+  border-color: color-mix(in srgb, var(--accent-fonce) 55%, var(--bord));
+  color: var(--accent-fonce);
+}
+.type-inc.interne_inter_agent {
+  border-color: color-mix(in srgb, var(--alerte) 55%, var(--bord));
+  color: var(--alerte);
+}
+.type-inc.interne_memoire {
+  border-color: color-mix(in srgb, var(--inconnu) 70%, var(--bord));
+  color: var(--inconnu);
+}
 .type-inc.externe_agent_ia,
 .type-inc.generique {
   color: var(--texte-doux);

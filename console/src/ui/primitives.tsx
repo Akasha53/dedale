@@ -1,12 +1,16 @@
 import type { Classement, Droit, Etat, TypeIncident } from "../types";
 
 // Libellé et icône clairs par type d'incident. Les types internes V2
-// (outil/MCP piégé, droits trop larges) ont leur entrée ; un type inconnu
+// (outil/MCP piégé, droits, appel, chatbot, inter-agent, mémoire) ont leur entrée ; un type inconnu
 // retombe sur un libellé générique (dégradé propre).
 const TYPE_INCIDENT: Record<string, { lib: string; pic: string }> = {
   interne_canari: { lib: "Canari déclenché", pic: "✉" },
   interne_outil_mcp: { lib: "Outil / MCP piégé", pic: "⚙" },
   interne_droits: { lib: "Droits trop larges", pic: "🔑" },
+  interne_appel: { lib: "Appel piégé", pic: "☎" },
+  interne_chatbot: { lib: "Chatbot détourné", pic: "💬" },
+  interne_inter_agent: { lib: "Usurpation d'agent", pic: "⇄" },
+  interne_memoire: { lib: "Mémoire empoisonnée", pic: "❖" },
   externe_agent_ia: { lib: "Agent externe", pic: "☍" },
 };
 
