@@ -78,7 +78,8 @@ async def analyser_politique(corps: PhraseIn):
 @routeur.post("/api/politiques", status_code=201)
 async def activer_politique(corps: ActivationIn):
     """Active une règle relue par l'analyste : la règle proposée, ou la phrase réanalysée.
-    Une règle de moindre privilège retire les droits tout de suite."""
+    Une règle de moindre privilège retire les droits tout de suite. `regle.remplace` (posé par
+    l'agent des règles pour une modification) retire l'ancienne règle dans le même geste."""
     _aligner_droits()
     regle = corps.regle
     if regle is None:
@@ -86,8 +87,10 @@ async def activer_politique(corps: ActivationIn):
         if not analyse["comprise"] or analyse["regle"] is None:
             raise HTTPException(status_code=400, detail=analyse["texte"])
         regle = analyse["regle"]
+    remplace = regle.get("remplace") if isinstance(regle, dict) else None
     try:
-        entree = politiques.registre.activer(regle, corps.phrase, corps.analyste, _store())
+        entree = politiques.registre.activer(regle, corps.phrase, corps.analyste, _store(),
+                                             remplace=remplace if isinstance(remplace, str) else None)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _aligner_droits()

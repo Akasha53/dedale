@@ -34,6 +34,7 @@ LIBELLES = {
     "ticket:lire": "Lire les tickets du support",
     "client:lire": "Lire la fiche d'un client",
     "client:repondre": "Répondre à un client",
+    "politique:proposer": "Proposer des règles",
 }
 
 # Droits dont l'abus coûte cher, avec ce qu'ils ouvrent, en clair.
@@ -123,6 +124,29 @@ AGENTS: list[dict] = [
             "memoire:ecrire",
         ],
         "necessaires": ["ticket:lire", "client:lire", "client:repondre", "resume:local"],
+    },
+    {
+        # L'agent de Dédale qui lit la barre « Écrire une règle » (agent_regles.py). Une
+        # instance par phrase, fermée après ; il propose, l'analyste applique. Aucune règle du
+        # SOC ne peut le viser (`politiques.agents_cibles`).
+        "id": "dedale-regles",
+        "nom": "Agent des règles",
+        "libelle": "l'agent des règles",
+        "role": ("Lit une phrase de l'analyste et prépare un changement de règle, que l'analyste "
+                 "applique ou non. Une session par phrase, fermée aussitôt après."),
+        "service": "SOC",
+        "proprietaire": "SOC Dédale",
+        "dedale": True,
+        "outils": [
+            _outil("lire_regles", "politique:proposer", "Lire les règles actives"),
+            _outil("lire_inventaire", "politique:proposer", "Lire l'inventaire des agents"),
+            _outil("proposer_regle", "politique:proposer", "Proposer une règle"),
+            _outil("proposer_modification", "politique:proposer", "Proposer de modifier une règle"),
+            _outil("proposer_retrait", "politique:proposer", "Proposer de retirer une règle"),
+            _outil("proposer_retrait_droits", "politique:proposer", "Proposer de retirer des droits en trop"),
+        ],
+        "accordes": ["politique:proposer"],
+        "necessaires": ["politique:proposer"],
     },
 ]
 

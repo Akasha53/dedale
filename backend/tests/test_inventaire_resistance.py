@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from tests.conftest import BASE, evenement, horo
 
-IDS = ["orbis-assistant", "orbis-rapprochement", "orbis-support"]
+IDS = ["orbis-assistant", "orbis-rapprochement", "orbis-support", "dedale-regles"]
 
 
 def _campagne(agent="orbis-assistant", issues=("bloque", "bloque", "ignore", "suivi"), cid="r1"):
