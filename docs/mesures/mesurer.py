@@ -65,7 +65,7 @@ def appel(base: str, chemin: str, corps: dict | None = None, delai: float = 5.0)
 
 
 class BackendIsole:
-    """Backend Dédale sur un port libre, base SQLite dans un dossier temporaire."""
+    """Backend sAIfe sur un port libre, base SQLite dans un dossier temporaire."""
 
     def __init__(self, dossier: Path, nom: str, env: dict | None = None):
         self.env_en_plus = env or {}

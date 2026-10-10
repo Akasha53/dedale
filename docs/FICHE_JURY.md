@@ -1,4 +1,4 @@
-# Dédale | fiche de défense pour le jury
+# sAIfe | fiche de défense pour le jury
 
 Secure Horizons, Track 2 · 10–11 octobre 2026 · Orbis Pay est une entreprise fictive. [Version PDF, une page](FICHE_JURY.pdf), source LaTeX dans [FICHE_JURY.tex](FICHE_JURY.tex).
 
@@ -6,9 +6,9 @@ Vidéo de démo : lien à ajouter après le tournage.
 
 ## La menace défendue
 
-Un contenu piégé vise deux lecteurs. Le salarié clique un lien trompeur, ouvre un site sosie ou valide un virement réclamé par un faux dirigeant. L’agent IA interne lit un mail qui cache une consigne, la prend pour une tâche et tente d’envoyer des données dehors avec ses propres droits. Dédale suit les deux chemins jusqu’au même dossier SOC, où un humain décide.
+Un contenu piégé vise deux lecteurs. Le salarié clique un lien trompeur, ouvre un site sosie ou valide un virement réclamé par un faux dirigeant. L’agent IA interne lit un mail qui cache une consigne, la prend pour une tâche et tente d’envoyer des données dehors avec ses propres droits. sAIfe suit les deux chemins jusqu’au même dossier SOC, où un humain décide.
 
-Preuves hors Dédale : 33,1 % des salariés non formés échouent aux tests de phishing simulés, 4,1 % après un an ([KnowBe4 2025](https://www.knowbe4.com/resources/reports/2025-phishing-by-industry-benchmarking-report)) ; EchoLeak, CVE-2025-32711, fuite de données par Microsoft 365 Copilot sans action humaine ([The Hacker News](https://thehackernews.com/2025/06/zero-click-ai-vulnerability-exposes.html)) ; injection de prompt via le serveur MCP de GitHub, mai 2025 ([Invariant Labs](https://invariantlabs.ai/blog/mcp-github-vulnerability)).
+Preuves hors sAIfe : 33,1 % des salariés non formés échouent aux tests de phishing simulés, 4,1 % après un an ([KnowBe4 2025](https://www.knowbe4.com/resources/reports/2025-phishing-by-industry-benchmarking-report)) ; EchoLeak, CVE-2025-32711, fuite de données par Microsoft 365 Copilot sans action humaine ([The Hacker News](https://thehackernews.com/2025/06/zero-click-ai-vulnerability-exposes.html)) ; injection de prompt via le serveur MCP de GitHub, mai 2025 ([Invariant Labs](https://invariantlabs.ai/blog/mcp-github-vulnerability)).
 
 ## Les contrôles
 
@@ -26,14 +26,14 @@ Ce qu’on ne fait pas : tout bloquer, remplacer votre SIEM, classer vos documen
 - Geste critique : le relecteur IA (Haiku) accorde ou refuse en quelques secondes, à partir de faits structurés. Les règles refusent d’office un virement au-dessus de 10 000 €, un export de clients vers l’extérieur ou un geste dont le texte contient une consigne pour une IA ; en cas de panne ou de délai de plus de 8 s, ce sont les règles qui tranchent. L’analyste garde « Accorder » et « Refuser », avec motif.
 - Agent : « Laisser passer » se confirme toujours ; sur un incident critique, « Couper » aussi, avec un motif obligatoire et cinq secondes pour annuler. Motif et auteur sont scellés. Sans décision, l’appel retenu est refusé.
 - Le salarié apparaît sous pseudonyme ; lever son identité demande un motif, et l’acte est scellé.
-- Les règles du SOC s’écrivent en français ; Dédale montre ce qu’il a compris et n’active rien sans confirmation.
+- Les règles du SOC s’écrivent en français ; sAIfe montre ce qu’il a compris et n’active rien sans confirmation.
 - Seuils : session classée agent IA au-dessus de 0,40 ; canari touché ou envoi externe, l’agent est suspendu ; comportement inhabituel (pic d’appels, outil jamais vu, volume lu ×10), simple alerte ; pré-tri du relecteur sous 0,7 de confiance, file « à regarder ».
 
 Le détail, fichier par fichier, est dans la section « Comment l’humain garde la main » du README.
 
 ## Correspondances (repères, pas une certification)
 
-| Référence | Ce que Dédale couvre |
+| Référence | Ce que sAIfe couvre |
 | --- | --- |
 | OWASP Agentic ASI01, détournement d’objectif | consigne cachée d’un mail : retirée par le désarmeur, ou suivie puis arrêtée par le canari |
 | ASI02, usage abusif des outils | appel d’outil retenu par la passerelle avant exécution |
@@ -41,7 +41,7 @@ Le détail, fichier par fichier, est dans la section « Comment l’humain garde
 | MITRE ATLAS | AML.T0051.001 injection indirecte par un document lu ; AML.T0053 invocation d’outil par l’agent ; AML.T0057 fuite de données |
 | MITRE ATT&CK | T1566 phishing (garde-mail, extension, pop-up). T1552, T1048, T1567 et T1200 sont typés pour les gestes du poste, sans mesure |
 | NIST CSF 2.0 | Détecter : DE.CM-09, DE.AE-02, DE.AE-08. Répondre : RS.MA-02, RS.AN-03, RS.MI-01 |
-| NIS2, article 23 | alerte précoce sous 24 h : Dédale prépare le brouillon, l’humain qualifie l’incident et notifie |
+| NIS2, article 23 | alerte précoce sous 24 h : sAIfe prépare le brouillon, l’humain qualifie l’incident et notifie |
 
 ## Ce qu’on a mesuré
 
@@ -67,7 +67,7 @@ Trafic et mails écrits pour la démo, entreprise fictive : ces chiffres montren
 - Cible : entreprises régulées (finance avec DORA, applicable depuis janvier 2025 ; santé), 500 à 5 000 salariés, une équipe sécurité ou SOC, au moins un agent IA en production ou en pilote avancé, Microsoft 365 ou Google Workspace, un SIEM. Hors cible : moins de 250 salariés, sans équipe sécurité ni agents.
 - Personnes : le RSSI achète, l’analyste SOC utilise, le responsable IA ou data copilote, le DPO et la conformité valident, le CSE est consulté pour le volet poste.
 - Modèle : licence annuelle par agent supervisé, poste salarié en option, pilote de 3 mois, pas de prix affiché. Deux hypothèses à tester en dix entretiens avec des RSSI : un RSSI finance la supervision d’agents sur un budget sécurité existant ; la licence par agent reste lisible quand le nombre d’agents monte.
-- NIS2 est une directive européenne : la loi française de transposition est encore attendue, Dédale ne la présente pas comme déjà applicable en France.
+- NIS2 est une directive européenne : la loi française de transposition est encore attendue, sAIfe ne la présente pas comme déjà applicable en France.
 - Équipe : Guilhem (agents IA et technique), Paul (mails et business).
 
 Parcours de démo : [DEMO_JURY.md](DEMO_JURY.md). Rejouer les mesures : `python3 docs/mesures/mesurer.py`.

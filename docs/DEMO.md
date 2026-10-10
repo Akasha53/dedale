@@ -1,4 +1,4 @@
-# Démonstration de Dédale
+# Démonstration de sAIfe
 
 Ce parcours relie le garde du poste, l'agent interne, le backend et la console SOC. Orbis Pay, les mails, les secrets, les rapports et les paiements sont fictifs. L'agent utilise un cerveau scripté : la scène reste reproductible sans appeler un modèle.
 

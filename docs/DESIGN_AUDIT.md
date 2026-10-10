@@ -1,4 +1,4 @@
-# Relecture design de Dédale
+# Relecture design de sAIfe
 
 10 octobre 2026, 23 h. Relecture de la landing, de la console, de la pop-up de démo (`poste/demo/popup.html`) et de l'app Mac (captures de `captures/app-theme/apres/` et `Theme.swift`).
 
@@ -70,7 +70,7 @@ Capture : `avant/console-incidents-salaries-1440.png`, `avant/details/incident-s
 
 | | Défaut | Qui |
 |---|---|---|
-| P1 | « Le message affiché par Dédale » : filet orange de 3 px à gauche d'une carte arrondie ; le filet suit l'arrondi et se tord aux coins. | moi |
+| P1 | « Le message affiché par sAIfe » : filet orange de 3 px à gauche d'une carte arrondie ; le filet suit l'arrondi et se tord aux coins. | moi |
 | P1 | Même titre de décision orange que pour un agent. | moi |
 | P1 | Deux panneaux de décision, deux langages : pilules à pastille d'icône pour l'agent, pilules nues pour le salarié. | à harmoniser plus tard, pas ce soir |
 

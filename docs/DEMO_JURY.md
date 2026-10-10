@@ -25,7 +25,7 @@ La pop-up Mac passe avant la commande : « Annuler » n'ouvre aucun incident, et
 | 0:55 | clic sur le lien de l'incident agent imprimé par le script | |
 | 1:00 | lire « Ce qui s'est passé » | « Chaque phrase renvoie à sa preuve dans la boîte noire. » |
 | 1:10 | « Voir le mail en entier », puis Échap | « La consigne surlignée, les liens désarmés. » |
-| 1:25 | montrer « Décision conseillée » | « Dédale conseille de couper. Il n'applique rien seul. » |
+| 1:25 | montrer « Décision conseillée » | « sAIfe conseille de couper. Il n'applique rien seul. » |
 | 1:35 | « Couper l'agent », puis montrer le terminal | « L'agent perd ses accès, aucun rapport n'est parti. » |
 | 1:45 | second onglet : compléter le numéro, Entrée | « Une page pour le RSSI, avec le sceau du journal. » |
 | 2:00 | rendre la main | |
@@ -34,11 +34,11 @@ En finale : sauter « Voir le mail en entier » et le rapport.
 
 ## Gestes critiques : deux virements (30 s, après le déroulé)
 
-Dédale ne se montre que s'il y a un signal de risque. Un virement normal part sans rien afficher. Seul un signal ouvre la pop-up, sans que l'équipe sécurité voie le virement.
+sAIfe ne se montre que s'il y a un signal de risque. Un virement normal part sans rien afficher. Seul un signal ouvre la pop-up, sans que l'équipe sécurité voie le virement.
 
 | Action | Ce qu'on voit, ce qu'on dit |
 |---|---|
-| `curl -X POST 127.0.0.1:8712/avertir -d '{"categorie":"mail_externe","geste":"virement","gravite":"critique","message":"Virement de 320 € à Imprimerie du Lys."}'` | rien ne s'affiche : « Fournisseur habituel, montant habituel : le virement part, Dédale reste invisible. » |
+| `curl -X POST 127.0.0.1:8712/avertir -d '{"categorie":"mail_externe","geste":"virement","gravite":"critique","message":"Virement de 320 € à Imprimerie du Lys."}'` | rien ne s'affiche : « Fournisseur habituel, montant habituel : le virement part, sAIfe reste invisible. » |
 | même commande avec `"message":"Virement de 3 480 € à Atelier Nord, nouveau RIB FR76 1111 2222 3333 4444 5555 0042."` | pop-up « Retenu » : « Ce RIB n'a jamais servi pour Atelier Nord. » « On demande au salarié de faire confirmer par son responsable, pas par la sécurité. » |
 
 Les numéros d'incident changent avec l'ordre des scènes : le lien imprimé par le script fait foi. La durée du redémarrage du backend (lignes « Préparation ») reste à mesurer en répétition ; parler pendant.
