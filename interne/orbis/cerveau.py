@@ -14,6 +14,7 @@ Une action est un dict : {"outil": nom, "parametres": {...}} ou {"reponse_finale
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 
@@ -387,7 +388,12 @@ def _construire_prompt(demande: str, historique: list[dict]) -> str:
 
 
 class CerveauCli:
-    """Pilote `claude -p`. Repli quand il n'y a pas de clé API."""
+    """Pilote `claude -p`. Repli quand il n'y a pas de clé API.
+
+    `modele` est passé en `--model` (ex. `claude-haiku-5-5` pour le scénario réel). On pose
+    `NILA_SANS_VEILLE=1` dans l'environnement du sous-processus : la CLI de Guilhem ne doit ni
+    reprendre la veille Nila ni jouer un hook pendant que l'agent de démo réfléchit.
+    """
 
     def __init__(self, modele: str | None = None, timeout_s: int = 120):
         self.modele = modele or config.MODELE_AGENT
@@ -395,12 +401,22 @@ class CerveauCli:
 
     def prochaine_action(self, demande: str, historique: list[dict]) -> dict:
         prompt = SYSTEME + "\n\n" + _construire_prompt(demande, historique)
+        # Un vrai modèle nu : le prompt passe par stdin, pas de contexte du dépôt ni des
+        # réglages de l'utilisateur (`--setting-sources ""`), et aucun outil de l'agent
+        # (`--tools ""`). Sinon `claude -p` se comporte en agent du dépôt (il lit CLAUDE.md,
+        # ouvre des fichiers) au lieu de répondre à la demande.
+        commande = ["claude", "-p", "--setting-sources", "", "--tools", ""]
+        if self.modele:
+            commande += ["--model", self.modele]
+        env = {**os.environ, "NILA_SANS_VEILLE": "1"}
         try:
             res = subprocess.run(
-                ["claude", "-p", prompt],
+                commande,
+                input=prompt,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_s,
+                env=env,
             )
             action = _extraire_json(res.stdout)
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
