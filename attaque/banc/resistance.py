@@ -182,8 +182,11 @@ def jouer(agents: list[str] | None = None) -> list[dict]:
 def poster(base: str, campagne: dict, timeout: float = 3.0) -> bool:
     """Poste le bilan sur POST /api/resistance/campagnes. False si le backend est muet."""
     donnees = json.dumps(campagne).encode("utf-8")
+    from .backend import entete_jeton
+
     req = urllib.request.Request(base.rstrip("/") + "/api/resistance/campagnes", data=donnees,
-                                 headers={"Content-Type": "application/json"}, method="POST")
+                                 headers={"Content-Type": "application/json",
+                                          **entete_jeton("passerelle")}, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as rep:
             return 200 <= rep.status < 300

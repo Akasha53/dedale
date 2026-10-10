@@ -9,10 +9,27 @@ banc, « continue sans consigne » (contrat).
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
+
+# Le banc écrit comme la passerelle ; il lit mesures et sessions comme la console.
+ECRITURES = {"/api/evenements", "/api/leurres", "/api/resistance/campagnes"}
+
+
+def entete_jeton(role: str) -> dict[str, str]:
+    """En-tête `Authorization` du rôle, lu hors du dépôt dans `~/.config/dedale/jeton-<rôle>`
+    (ou le dossier `DEDALE_JETONS`). Jeton absent : aucun en-tête, et le backend répond 401."""
+    brut = os.environ.get("DEDALE_JETONS", "").strip()
+    dossier = Path(brut).expanduser() if brut else Path.home() / ".config" / "dedale"
+    try:
+        jeton = (dossier / f"jeton-{role}").read_text(encoding="ascii").strip()
+    except (OSError, UnicodeDecodeError):
+        return {}
+    return {"Authorization": f"Bearer {jeton}"} if jeton else {}
 
 
 class Backend:
@@ -27,7 +44,9 @@ class Backend:
     def _appel(self, chemin: str, methode: str = "GET",
                corps: Any = None) -> dict | list | None:
         donnees = json.dumps(corps).encode() if corps is not None else None
-        req = urllib.request.Request(self.base + chemin, data=donnees, method=methode)
+        role = "passerelle" if methode == "POST" and chemin in ECRITURES else "analyste"
+        req = urllib.request.Request(self.base + chemin, data=donnees, method=methode,
+                                     headers=entete_jeton(role))
         if donnees is not None:
             req.add_header("Content-Type", "application/json")
         debut = time.perf_counter()

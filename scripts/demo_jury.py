@@ -37,7 +37,7 @@ import demo_commune as commune  # noqa: E402  (ajoute aussi poste/ et interne/ a
 from garde.garde_du_corps import GardeDuCorps  # noqa: E402
 from garde.popup import rendu_terminal  # noqa: E402
 from garde.simulateur import journee  # noqa: E402
-from orbis import detection  # noqa: E402
+from orbis import detection, jetons  # noqa: E402
 from orbis.agent import AgentInterne  # noqa: E402
 from orbis.canaris import inventaire_backend  # noqa: E402
 from orbis.cerveau import CerveauScripte  # noqa: E402
@@ -123,7 +123,10 @@ class FluxConsole:
         prise.sendall((
             f"GET /ws HTTP/1.1\r\nHost: {self.hote}:{self.port}\r\n"
             "Upgrade: websocket\r\nConnection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {cle}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+            f"Sec-WebSocket-Key: {cle}\r\nSec-WebSocket-Version: 13\r\n"
+            # Le flux est réservé à l'analyste : le script le lit avec son jeton.
+            + "".join(f"{k}: {v}\r\n" for k, v in jetons.entete("analyste").items())
+            + "\r\n"
         ).encode())
         tampon = b""
         while b"\r\n\r\n" not in tampon:
@@ -237,9 +240,10 @@ class FluxConsole:
 
 
 # --------------------------------------------------------------------- services locaux
-def lire_json(url: str, delai: float = 1.0) -> dict | None:
+def lire_json(url: str, delai: float = 1.0, entetes: dict | None = None) -> dict | None:
     try:
-        with urllib.request.urlopen(url, timeout=delai) as reponse:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=entetes or {}),
+                                    timeout=delai) as reponse:
             donnees = json.load(reponse)
     except (urllib.error.URLError, OSError, ValueError):
         return None
@@ -702,7 +706,8 @@ def scene_agent(api: commune.Api, flux: FluxConsole, session_id: str, options, l
 
 def verifier_console(api: commune.Api, console: str, lignes: list[dict]) -> None:
     """Les incidents doivent être lisibles par l'API que lit la console, pas seulement par le backend."""
-    donnees = lire_json(locale(console).rstrip("/") + "/api/incidents", delai=2.0)
+    donnees = lire_json(locale(console).rstrip("/") + "/api/incidents", delai=2.0,
+                        entetes=jetons.entete("analyste"))
     vus = {i.get("id") for i in (donnees or {}).get("incidents", []) if isinstance(i, dict)}
     manquants = [l["incident"]["id"] for l in lignes if l["incident"]["id"] not in vus]
     if manquants:

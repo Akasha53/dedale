@@ -7,6 +7,8 @@ Toute erreur reseau est avalee et rend une consigne « aucune ».
 from __future__ import annotations
 
 import datetime
+import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -17,6 +19,18 @@ CONSIGNE_PAR_DEFAUT: dict[str, Any] = {
     "session": {"id": None, "classement": "inconnu", "score": 0.0, "etat": "active"},
     "consigne": "aucune",
 }
+
+
+def entete_jeton(role: str) -> dict[str, str]:
+    """En-tête `Authorization` du rôle, lu hors du dépôt dans `~/.config/dedale/jeton-<rôle>`
+    (ou le dossier `DEDALE_JETONS`). Jeton absent : aucun en-tête, et le backend répond 401."""
+    brut = os.environ.get("DEDALE_JETONS", "").strip()
+    dossier = Path(brut).expanduser() if brut else Path.home() / ".config" / "dedale"
+    try:
+        jeton = (dossier / f"jeton-{role}").read_text(encoding="ascii").strip()
+    except (OSError, UnicodeDecodeError):
+        return {}
+    return {"Authorization": f"Bearer {jeton}"} if jeton else {}
 
 
 def _horodatage() -> str:
@@ -48,7 +62,8 @@ async def envoyer_evenement(**champs: Any) -> dict[str, Any]:
     corps = _evenement(**champs)
     try:
         async with httpx.AsyncClient(timeout=config.TIMEOUT_BACKEND) as client:
-            reponse = await client.post(f"{config.BACKEND}/api/evenements", json=corps)
+            reponse = await client.post(f"{config.BACKEND}/api/evenements", json=corps,
+                                        headers=entete_jeton("passerelle"))
             if reponse.status_code == 200:
                 data = reponse.json()
                 # On tolere un backend qui ne renvoie pas tout.
@@ -65,7 +80,8 @@ async def enregistrer_leurres(leurres: list[dict[str, Any]]) -> bool:
     """Enregistre l'inventaire des leurres. Renvoie True si le backend a accepte."""
     try:
         async with httpx.AsyncClient(timeout=max(config.TIMEOUT_BACKEND, 2.0)) as client:
-            reponse = await client.post(f"{config.BACKEND}/api/leurres", json=leurres)
+            reponse = await client.post(f"{config.BACKEND}/api/leurres", json=leurres,
+                                        headers=entete_jeton("passerelle"))
             return reponse.status_code in (200, 201)
     except Exception:
         return False

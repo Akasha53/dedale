@@ -8,9 +8,11 @@ continue sans tomber (contrat Dédale, § « Si le backend ne répond pas »).
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 
 from . import config
 
@@ -19,11 +21,23 @@ def _horodatage() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="milliseconds")
 
 
+def entete_jeton(role: str) -> dict[str, str]:
+    """En-tête `Authorization` du rôle, lu hors du dépôt dans `~/.config/dedale/jeton-<rôle>`
+    (ou le dossier `DEDALE_JETONS`). Jeton absent : aucun en-tête, et le backend répond 401."""
+    brut = os.environ.get("DEDALE_JETONS", "").strip()
+    dossier = Path(brut).expanduser() if brut else Path.home() / ".config" / "dedale"
+    try:
+        jeton = (dossier / f"jeton-{role}").read_text(encoding="ascii").strip()
+    except (OSError, UnicodeDecodeError):
+        return {}
+    return {"Authorization": f"Bearer {jeton}"} if jeton else {}
+
+
 def _poster(base: str, chemin: str, corps: dict | list, timeout: float = 1.0) -> dict | None:
     donnees = json.dumps(corps).encode("utf-8")
     req = urllib.request.Request(
         base + chemin, data=donnees,
-        headers={"Content-Type": "application/json"}, method="POST",
+        headers={"Content-Type": "application/json", **entete_jeton("poste")}, method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as rep:

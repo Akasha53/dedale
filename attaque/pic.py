@@ -25,8 +25,11 @@ from datetime import datetime, timedelta, timezone
 
 def _poster(base: str, chemin: str, corps, timeout: float = 3.0):
     donnees = json.dumps(corps).encode("utf-8")
-    req = urllib.request.Request(base.rstrip("/") + chemin, data=donnees,
-                                 headers={"Content-Type": "application/json"}, method="POST")
+    from banc.backend import entete_jeton
+
+    req = urllib.request.Request(base.rstrip("/") + chemin, data=donnees, method="POST",
+                                 headers={"Content-Type": "application/json",
+                                          **entete_jeton("passerelle")})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as rep:
             return json.loads(rep.read().decode("utf-8") or "{}")
@@ -37,8 +40,11 @@ def _poster(base: str, chemin: str, corps, timeout: float = 3.0):
 
 
 def _lire(base: str, chemin: str, timeout: float = 3.0):
+    from banc.backend import entete_jeton
+
+    req = urllib.request.Request(base.rstrip("/") + chemin, headers=entete_jeton("analyste"))
     try:
-        with urllib.request.urlopen(base.rstrip("/") + chemin, timeout=timeout) as rep:
+        with urllib.request.urlopen(req, timeout=timeout) as rep:
             return json.loads(rep.read().decode("utf-8") or "{}")
     except (urllib.error.URLError, TimeoutError, OSError):
         return None

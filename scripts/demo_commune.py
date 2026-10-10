@@ -21,6 +21,7 @@ from garde.backend import Backend
 from garde.garde_du_corps import GardeDuCorps
 from garde.popup import rendu_terminal
 from garde.simulateur import journee
+from orbis import jetons
 from orbis.agent import AgentInterne
 from orbis.boite_noire import BoiteNoire
 from orbis.canaris import inventaire_backend, jetons_secrets
@@ -63,8 +64,10 @@ class Api:
         self.base = base
 
     def lire(self, chemin: str) -> dict:
+        # Lecture de contrôle, comme la console : jeton analyste, aucune décision envoyée.
+        requete = urllib.request.Request(self.base + chemin, headers=jetons.entete("analyste"))
         try:
-            with urllib.request.urlopen(self.base + chemin, timeout=2.0) as reponse:
+            with urllib.request.urlopen(requete, timeout=2.0) as reponse:
                 donnees = json.load(reponse)
         except (urllib.error.URLError, OSError, ValueError) as exc:
             raise ErreurDemo(f"Lecture impossible : {chemin} ({exc}).") from exc

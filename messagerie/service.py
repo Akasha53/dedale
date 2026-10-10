@@ -24,6 +24,7 @@ import urllib.request
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +40,18 @@ INTERVALLE = float(os.environ.get("MESSAGERIE_INTERVALLE", "1.0"))
 SIGNALER = os.environ.get("MESSAGERIE_SIGNALER", "1") != "0"
 MAX_MAILS = 500
 ATTENTE_BACKEND_S = 10.0
+
+
+def entete_jeton(role: str) -> dict[str, str]:
+    """En-tête `Authorization` du rôle, lu hors du dépôt dans `~/.config/dedale/jeton-<rôle>`
+    (ou le dossier `DEDALE_JETONS`). Jeton absent : aucun en-tête, et le backend répond 401."""
+    brut = os.environ.get("DEDALE_JETONS", "").strip()
+    dossier = Path(brut).expanduser() if brut else Path.home() / ".config" / "dedale"
+    try:
+        jeton = (dossier / f"jeton-{role}").read_text(encoding="ascii").strip()
+    except (OSError, UnicodeDecodeError):
+        return {}
+    return {"Authorization": f"Bearer {jeton}"} if jeton else {}
 
 
 def _maintenant() -> str:
@@ -70,8 +83,9 @@ class Backend:
 
     def session_existe(self, session_id: str) -> bool | None:
         chemin = "/api/sessions/" + urllib.parse.quote(session_id, safe="")
+        req = urllib.request.Request(self.base + chemin, headers=entete_jeton("passerelle"))
         try:
-            with urllib.request.urlopen(self.base + chemin, timeout=self.timeout):
+            with urllib.request.urlopen(req, timeout=self.timeout):
                 return True
         except urllib.error.HTTPError as e:
             return False if e.code == 404 else None
@@ -81,7 +95,7 @@ class Backend:
     def poster(self, corps: dict) -> dict | None:
         req = urllib.request.Request(
             self.base + "/api/evenements", data=json.dumps(corps).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST")
+            headers={"Content-Type": "application/json", **entete_jeton("passerelle")}, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as rep:
                 brut = rep.read().decode("utf-8")
