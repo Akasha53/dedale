@@ -59,7 +59,7 @@ input:hover, textarea:hover { border-color: var(--bord); }
 
 .resultat { min-height: 1.5em; }
 .resultat .verdict { font-weight: 600; }
-.resultat.sosie .verdict { color: var(--rouge); }
+.resultat.louche .verdict { color: var(--rouge); }
 .resultat.confiance .verdict { color: var(--vert); }
 .resultat .explication { display: block; color: var(--texte-doux); font-size: 14px; }
 

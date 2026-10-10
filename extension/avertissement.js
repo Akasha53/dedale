@@ -1,4 +1,4 @@
-// Page d'avertissement : affichée à la place d'un site sosie.
+// Page d'avertissement : affichée à la place d'un site louche.
 // Les textes viennent du service worker et passent par textContent, jamais par innerHTML.
 
 const id = decodeURIComponent(location.hash.slice(1));
@@ -39,13 +39,15 @@ async function remplir() {
   const a = id ? await envoyer({ type: "avertissement", id }) : null;
   if (!a?.trouve) return afficherExpire();
 
-  $("titre-imite").textContent = `Ce site imite ${a.nom}.`;
+  $("titre-imite").textContent = a.titre;
+  $("titre-suite").textContent = a.suite;
   $("domaine").textContent = a.affiche;
   if (a.affiche !== a.domaine) {
     $("reel").textContent = `Adresse réelle : ${a.domaine}`;
     $("reel").hidden = false;
   }
-  $("vrai").textContent = a.imite;
+  if (a.imite) $("vrai").textContent = a.imite;
+  else $("ligne-vrai").hidden = true;
   $("raison").textContent = a.explication;
   $("note").textContent =
     `Si vous continuez, l'équipe sécurité ${de(a.nom)} reçoit le nom de ce site. Rien d'autre ne sort de votre navigateur.`;

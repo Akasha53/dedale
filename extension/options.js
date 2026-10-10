@@ -1,11 +1,12 @@
 // Page d'options : nom affiché, domaines de confiance, adresse du backend.
 
-import { analyserDomaine } from "./comparateur.js";
+import { analyser, titres } from "./comparateur.js";
 import {
   adresseBackend, backendLocal, ecrireReglages, lireListeDomaines, lireReglages, motifOrigine,
 } from "./reglages.js";
 
 const $ = (sel) => document.getElementById(sel);
+let regles = null;
 
 function statut(texte, erreur = false) {
   $("statut").textContent = texte;
@@ -13,6 +14,7 @@ function statut(texte, erreur = false) {
 }
 
 async function charger() {
+  regles = await fetch(chrome.runtime.getURL("regles-sites.json")).then((r) => r.json()).catch(() => null);
   const r = await lireReglages();
   $("nom").value = r.nom;
   $("domaines").value = r.domaines.join("\n");
@@ -55,22 +57,28 @@ function tester() {
   const zone = $("resultat");
   const saisie = $("essai").value.trim();
   zone.className = "resultat";
-  if (!saisie) { zone.replaceChildren(); return; }
+  if (!saisie || !regles) { zone.replaceChildren(); return; }
 
   const { domaines } = lireListeDomaines($("domaines").value);
-  const r = analyserDomaine(saisie, domaines);
+  const r = analyser(saisie, regles, { nom: $("nom").value.trim() || "Orbis Pay", domaines });
   const verdict = document.createElement("span");
   verdict.className = "verdict";
   const lignes = [verdict];
 
-  if (r.verdict === "sosie") {
-    verdict.textContent = `Sosie de ${r.imite}.`;
+  if (r.verdict === "louche") {
+    verdict.textContent = titres(r, regles).titre;
+    const pourquoi = document.createElement("span");
+    pourquoi.className = "explication";
+    pourquoi.textContent = r.explication;
+    lignes.push(pourquoi);
+  } else if (r.verdict === "raccourci") {
+    verdict.textContent = "Lien raccourci.";
     const pourquoi = document.createElement("span");
     pourquoi.className = "explication";
     pourquoi.textContent = r.explication;
     lignes.push(pourquoi);
   } else if (r.verdict === "confiance") {
-    verdict.textContent = "Domaine de confiance.";
+    verdict.textContent = r.marque ? `Site officiel : ${r.marque}.` : "Domaine de confiance.";
   } else {
     verdict.textContent = r.domaine ? "Rien à signaler pour ce domaine." : "Adresse illisible.";
   }
@@ -81,7 +89,7 @@ function tester() {
 async function compteur() {
   const e = await chrome.runtime.sendMessage({ type: "etat" }).catch(() => null);
   if (!e) return;
-  const evites = e.evites > 1 ? `${e.evites} sites sosies évités` : `${e.evites} site sosie évité`;
+  const evites = e.evites > 1 ? `${e.evites} sites louches évités` : `${e.evites} site louche évité`;
   const passes = e.passes > 1 ? `${e.passes} avertissements ignorés` : `${e.passes} avertissement ignoré`;
   $("compteur").textContent = `${evites}, ${passes}.`;
 }

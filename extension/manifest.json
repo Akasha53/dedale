@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Dédale, sites sosies",
+  "name": "Dédale, sites louches",
   "short_name": "Dédale",
-  "version": "0.1.0",
-  "description": "Prévient avant d'ouvrir un site qui imite Orbis Pay. Ne lit que l'adresse de la page.",
+  "version": "0.2.0",
+  "description": "Prévient avant d'ouvrir un site louche : sosie d'une marque, adresse qui cache son propriétaire. Ne lit que l'adresse de la page.",
   "minimum_chrome_version": "116",
   "permissions": ["webNavigation", "declarativeNetRequest", "storage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
@@ -13,7 +13,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Dédale : sites sosies évités",
+    "default_title": "Dédale : sites louches évités",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icones/icone-16.png",

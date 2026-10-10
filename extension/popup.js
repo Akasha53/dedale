@@ -1,4 +1,5 @@
-// Fenêtre de l'icône : compteur des sites sosies évités et dernier envoi au backend.
+// Fenêtre de l'icône : compteur des sites louches évités, dernier envoi au backend et
+// dernier lien raccourci ouvert.
 
 const $ = (sel) => document.getElementById(sel);
 
@@ -18,7 +19,7 @@ async function afficher() {
   if (!e) return;
 
   $("evites").textContent = String(e.evites);
-  $("libelle").textContent = e.evites > 1 ? "sites sosies évités" : "site sosie évité";
+  $("libelle").textContent = e.evites > 1 ? "sites louches évités" : "site louche évité";
   $("passes").textContent = e.passes === 0
     ? "Aucun avertissement ignoré."
     : e.passes === 1 ? "1 avertissement ignoré." : `${e.passes} avertissements ignorés.`;
@@ -34,6 +35,15 @@ async function afficher() {
     );
     zone.hidden = false;
   }
+  afficherRaccourci(e.dernierRaccourci);
+}
+
+function afficherRaccourci(r) {
+  if (!r) return;
+  const zone = $("raccourci");
+  zone.textContent = `Lien raccourci (${r.domaine}, ${heure(r.heure)}) : sa destination n'apparaît `
+    + "qu'après la redirection, et Dédale l'examine à ce moment-là.";
+  zone.hidden = false;
 }
 
 $("reglages").addEventListener("click", () => chrome.runtime.openOptionsPage());

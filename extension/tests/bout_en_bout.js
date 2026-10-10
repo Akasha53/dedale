@@ -372,6 +372,31 @@ async function principal() {
   await reglages.eval(`(() => { const e = document.getElementById("essai"); e.value = "orbis-pay.example"; e.dispatchEvent(new Event("input")); })()`);
   await reglages.capture("reglages.png");
 
+  // 11. Règles communes : une marque connue détournée, puis un site louche sans marque.
+  await onglet.aller(`http://paypal.com.verif-compte.example${port}/connexion`);
+  await attendre(surAvertissement, "avertissement marque connue");
+  await attendre(async () => (await texte("#domaine")) === "paypal.com.verif-compte.example", "domaine affiché (PayPal)");
+  const titrePaypal = await onglet.eval(`document.querySelector("h1").innerText.replace(/\\s+/g, " ").trim()`);
+  verifier(titrePaypal === "Ce site imite PayPal. Ce n'est pas le vrai site.", "marque connue : titre", titrePaypal);
+  verifier((await texte("#vrai")) === "paypal.com", "marque connue : vrai site rappelé");
+  verifier((await texte("#raison")).includes("verif-compte.example"), "marque connue : raison en une phrase", await texte("#raison"));
+  await onglet.capture("avertissement-paypal.png");
+  await onglet.eval(`document.getElementById("revenir").click()`);
+  await attendre(async () => !(await surAvertissement()), "retour arrière (PayPal)");
+
+  await onglet.aller("http://198.51.100.7/connexion");
+  await attendre(surAvertissement, "avertissement adresse IP");
+  await attendre(async () => (await texte("#domaine")) === "198.51.100.7", "domaine affiché (IP)");
+  const titreIP = await onglet.eval(`document.querySelector("h1").innerText.replace(/\\s+/g, " ").trim()`);
+  verifier(titreIP === "Ce site n'a pas l'air sûr. N'y saisissez rien.", "adresse IP brute : titre sans marque", titreIP);
+  verifier(await onglet.eval(`document.getElementById("ligne-vrai").hidden`), "adresse IP brute : pas de « vrai site »");
+  await onglet.capture("avertissement-ip.png");
+  await onglet.eval(`document.getElementById("revenir").click()`);
+  await attendre(async () => !(await surAvertissement()), "retour arrière (IP)");
+  const finRegles = await etat();
+  verifier(finRegles.affiches === 7 && finRegles.passes === 2, "règles communes : deux avertissements de plus, rien envoyé",
+    JSON.stringify(finRegles));
+
   console.log(`requêtes reçues par le faux site : ${visites.join(", ")}`);
   [onglet, reglages, popup].forEach((o) => o.fermer());
 }

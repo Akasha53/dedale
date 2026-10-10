@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "a_propos": "Règles communes de Dédale contre les sites louches. L'extension Chrome en lit une copie (extension/regles-sites.json), l'app Mac lit ce fichier. Après une modification, lancer partage/synchroniser.sh puis partage/verifier.sh.",
+
+  "organisation": {
+    "nom": "Orbis Pay",
+    "domaines": ["orbispay.example"]
+  },
+
+  "marques": [
+    { "nom": "PayPal", "mots": ["paypal"], "domaines": ["paypal.com", "paypal.fr", "paypal.me", "paypalobjects.com", "paypal-community.com"] },
+    { "nom": "Amazon", "mots": ["amazon"], "domaines": ["amazon.com", "amazon.fr", "amazon.de", "amazon.co.uk", "amazon.it", "amazon.es", "amazon.ca", "amazon.nl", "amazon.co.jp", "amazon.jobs", "amazonaws.com", "amazon-adsystem.com", "media-amazon.com", "ssl-images-amazon.com", "primevideo.com"] },
+    { "nom": "Apple", "mots": ["apple", "icloud", "appleid"], "domaines": ["apple.com", "apple.fr", "icloud.com", "me.com", "mac.com", "cdn-apple.com", "mzstatic.com"] },
+    { "nom": "Microsoft", "mots": ["microsoft", "office365", "onedrive", "sharepoint", "outlook"], "domaines": ["microsoft.com", "microsoftonline.com", "microsoft365.com", "live.com", "outlook.com", "office.com", "office.net", "office365.com", "onedrive.com", "sharepoint.com", "msn.com", "bing.com", "azure.com", "windows.com", "windows.net", "xbox.com", "skype.com", "msauth.net", "msftauth.net"] },
+    { "nom": "Google", "mots": ["google", "gmail"], "domaines": ["google", "google.com", "google.fr", "google.de", "google.co.uk", "google.be", "google.ch", "google.ca", "google.es", "google.it", "gmail.com", "googlemail.com", "youtube.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "googlevideo.com", "googleblog.com", "googlesource.com", "google-analytics.com", "googletagmanager.com", "googlesyndication.com", "googleadservices.com", "doubleclick.net", "withgoogle.com"] },
+    { "nom": "Netflix", "mots": ["netflix"], "domaines": ["netflix.com", "netflix.net", "nflxext.com", "nflximg.net", "nflxvideo.net", "nflxso.net"] },
+    { "nom": "Doctolib", "mots": ["doctolib"], "domaines": ["doctolib.fr", "doctolib.de", "doctolib.it"] },
+    { "nom": "impots.gouv.fr", "mots": ["impots", "dgfip"], "domaines": ["impots.gouv.fr"] },
+    { "nom": "ameli.fr", "mots": ["ameli"], "domaines": ["ameli.fr"] },
+    { "nom": "ants.gouv.fr", "mots": ["ants"], "domaines": ["ants.gouv.fr"] },
+    { "nom": "antai.gouv.fr", "mots": ["antai"], "domaines": ["antai.gouv.fr"] },
+    { "nom": "caf.fr", "mots": ["caf"], "domaines": ["caf.fr"] },
+    { "nom": "France Travail", "mots": ["francetravail", "pole-emploi"], "domaines": ["francetravail.fr", "pole-emploi.fr"] },
+    { "nom": "FranceConnect", "mots": ["franceconnect"], "domaines": ["franceconnect.gouv.fr"] },
+    { "nom": "service-public.fr", "mots": ["service-public"], "domaines": ["service-public.fr", "service-public.gouv.fr"] },
+    { "nom": "La Poste", "mots": ["laposte"], "domaines": ["laposte.fr", "laposte.net"] },
+    { "nom": "Colissimo", "mots": ["colissimo"], "domaines": ["colissimo.fr"] },
+    { "nom": "Chronopost", "mots": ["chronopost"], "domaines": ["chronopost.fr"] },
+    { "nom": "DHL", "mots": ["dhl"], "domaines": ["dhl.com", "dhl.fr", "dhl.de"] },
+    { "nom": "BNP Paribas", "mots": ["bnpparibas", "bnp"], "domaines": ["bnpparibas", "bnpparibas.com", "bnpparibas.fr", "bnpparibas.net"] },
+    { "nom": "Société Générale", "mots": ["societegenerale"], "domaines": ["societegenerale.fr", "societegenerale.com", "sg.fr"] },
+    { "nom": "Crédit Agricole", "mots": ["credit-agricole"], "domaines": ["credit-agricole.fr", "credit-agricole.com"] },
+    { "nom": "LCL", "mots": ["lcl"], "domaines": ["lcl.fr"] },
+    { "nom": "Caisse d'Épargne", "mots": ["caisse-epargne"], "domaines": ["caisse-epargne.fr"] },
+    { "nom": "Banque Populaire", "mots": ["banquepopulaire"], "domaines": ["banquepopulaire.fr"] },
+    { "nom": "Crédit Mutuel", "mots": ["creditmutuel"], "domaines": ["creditmutuel.fr"] },
+    { "nom": "CIC", "mots": ["cic"], "domaines": ["cic.fr"] },
+    { "nom": "La Banque Postale", "mots": ["labanquepostale"], "domaines": ["labanquepostale.fr"] },
+    { "nom": "BoursoBank", "mots": ["boursorama", "boursobank"], "domaines": ["boursorama.com", "boursobank.com", "boursorama-banque.com"] },
+    { "nom": "Hello bank!", "mots": ["hellobank"], "domaines": ["hellobank.fr"] },
+    { "nom": "Fortuneo", "mots": ["fortuneo"], "domaines": ["fortuneo.fr"], "ecart": 0 },
+    { "nom": "Leboncoin", "mots": ["leboncoin"], "domaines": ["leboncoin.fr"] },
+    { "nom": "Vinted", "mots": ["vinted"], "domaines": ["vinted.fr", "vinted.com"] }
+  ],
+
+  "domaines_surs": ["paypay.ne.jp"],
+
+  "appats": [
+    "verification", "verif", "verifier", "verify", "valider", "validation", "confirm", "confirmation",
+    "securite", "secure", "security", "securise", "login", "logon", "signin", "connexion", "auth",
+    "authentification", "identifiant", "identification", "password", "motdepasse", "mdp",
+    "compte", "account", "client", "acces", "access", "update", "maj", "support", "assistance", "aide",
+    "remboursement", "rembourse", "paiement", "payment", "facture", "facturation", "billing", "invoice",
+    "impaye", "regularisation", "colis", "livraison", "suivi", "tracking", "delivery", "parcel",
+    "alerte", "alert", "urgent", "bloque", "blocage", "suspendu", "suspension", "debloquer", "deblocage",
+    "reactivation", "recuperation", "recover", "unlock", "renouvellement", "abonnement", "subscription",
+    "wallet", "portefeuille", "carte", "card", "vitale", "amende", "amendes", "permis", "rdv",
+    "cadeau", "gagnant", "gouv", "webmail"
+  ],
+
+  "extensions_risque": [
+    "zip", "mov", "xyz", "top", "tk", "ml", "ga", "cf", "gq", "work", "click", "link", "country", "kim",
+    "men", "loan", "date", "faith", "racing", "review", "stream", "download", "win", "bid", "party",
+    "science", "cricket", "accountant", "gdn", "icu", "cyou", "buzz", "rest", "monster", "quest", "sbs",
+    "cfd", "lol", "info", "online", "site", "website", "live", "support", "help"
+  ],
+
+  "raccourcisseurs": [
+    "bit.ly", "bitly.com", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd", "v.gd", "buff.ly", "cutt.ly",
+    "rebrand.ly", "shorturl.at", "rb.gy", "t.ly", "tiny.cc", "lnkd.in", "s.id", "qrco.de"
+  ],
+
+  "suffixes_doubles": [
+    "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk",
+    "com.au", "net.au", "org.au",
+    "co.nz", "co.jp", "ne.jp", "or.jp", "ac.jp", "go.jp", "co.kr", "co.in", "co.za", "co.il",
+    "com.br", "com.cn", "com.mx", "com.tr", "com.sg", "com.hk",
+    "gouv.fr", "asso.fr"
+  ],
+
+  "confusables": {
+    "а": "a", "в": "b", "е": "e", "ё": "e", "к": "k", "м": "m", "н": "h",
+    "о": "o", "р": "p", "с": "c", "т": "t", "у": "y", "х": "x", "ѕ": "s",
+    "і": "i", "ї": "i", "ј": "j", "ԁ": "d", "һ": "h", "ӏ": "l", "ԛ": "q",
+    "ԝ": "w", "ɡ": "g", "ո": "n", "ս": "u",
+    "α": "a", "β": "b", "ε": "e", "ι": "i", "κ": "k", "ν": "v", "ο": "o",
+    "ρ": "p", "τ": "t", "υ": "u", "χ": "x", "ω": "w",
+    "ı": "i", "ł": "l", "ø": "o", "đ": "d", "ħ": "h"
+  },
+  "sequences": [["rn", "m"], ["vv", "w"], ["cl", "d"]],
+  "chiffres": { "0": "o", "1": "l", "i": "l", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b" },
+
+  "seuils": {
+    "ecart_organisation": { "une_lettre_des": 5, "deux_lettres_des": 10 },
+    "ecart_marques": { "une_lettre_des": 6, "deux_lettres_des": 10 },
+    "nom_court": 5,
+    "sous_chaine_des": 6,
+    "sous_domaines_seuls": 4,
+    "sous_domaines_avec_signal": 3,
+    "appats_multiples": 2,
+    "tirets_appats_multiples": 2
+  },
+
+  "textes": {
+    "titre_marque": "Ce site imite {marque}.",
+    "suite_marque": "Ce n'est pas le vrai site.",
+    "titre_sans_marque": "Ce site n'a pas l'air sûr.",
+    "suite_sans_marque": "N'y saisissez rien.",
+    "ecart_un": "d'une seule lettre",
+    "ecart_plusieurs": "de {n} lettres",
+    "raisons": {
+      "autre_extension": "Le nom « {nom} » est celui {de_marque}, mais l'extension change : .{suffixe} au lieu de .{vrai_suffixe}.",
+      "punycode_etranger": "Le nom ressemble à « {mot} », mais certaines lettres ({intrus}) viennent d'un autre alphabet.",
+      "punycode_accents": "Le nom ressemble à « {mot} », mais avec des accents ({intrus}).",
+      "tiret_ajoute": "« {nom} » ajoute un tiret à « {mot} ».",
+      "tiret_retire": "« {nom} » retire le tiret de « {mot} ».",
+      "confusables": "« {nom} » remplace des lettres de « {mot} » par des caractères qui leur ressemblent.",
+      "distance": "« {nom} » diffère de « {mot} » {ecart}.",
+      "nom_proche": "« {proche} » ressemble à « {mot} », mais le site appartient à {proprietaire}.",
+      "marque_sous_domaine": "L'adresse reprend « {leurre} », mais le site appartient à {proprietaire}.",
+      "nom_noye": "« {mot} » apparaît dans l'adresse, mais le site appartient à {proprietaire}.",
+      "marque_appat": "« {mot} » est accompagné du mot « {appat} », mais le site appartient à {proprietaire}.",
+      "marque_extension": "« {mot} » apparaît sur une adresse en .{suffixe}, une extension {que_marque} n'utilise pas.",
+      "arobase": "Tout ce qui précède « @ » est ignoré : l'adresse affiche « {leurre} », mais elle mène à {hote}.",
+      "ip_brute": "L'adresse est une suite de chiffres ({hote}) au lieu d'un nom de site : impossible de savoir qui est derrière.",
+      "alphabets_melanges": "Le nom « {nom} » mélange plusieurs alphabets ({alphabets}) pour imiter un autre nom.",
+      "sous_domaines": "L'adresse empile {n} sous-domaines devant {proprietaire} pour cacher son vrai propriétaire.",
+      "appat_extension": "L'adresse mêle des mots d'appât ({appats}) à une extension .{suffixe}, fréquente chez les faux sites.",
+      "appats_multiples": "Le nom « {nom} » enchaîne des mots d'appât ({appats}), comme les faux sites de connexion.",
+      "raccourci": "{hote} raccourcit les liens : la vraie destination n'apparaît qu'après la redirection."
+    },
+    "conseils": {
+      "sosie": "Lisez le nom du site lettre par lettre : une lettre changée suffit à faire un faux.",
+      "marque_detournee": "Le vrai propriétaire d'un site est le nom placé juste avant l'extension, à la fin de l'adresse.",
+      "arobase": "Une adresse qui contient « @ » ment sur sa destination. Tapez vous-même l'adresse du site.",
+      "ip_brute": "Un vrai service a un nom. Une adresse faite de chiffres ne mérite pas votre confiance.",
+      "alphabets_melanges": "Passez par vos favoris ou tapez l'adresse : des lettres étrangères peuvent imiter les nôtres.",
+      "adresse_louche": "Passez par vos favoris ou tapez l'adresse officielle plutôt que de suivre un lien."
+    },
+    "alphabets": { "latin": "latin", "grec": "grec", "cyrillique": "cyrillique", "armenien": "arménien" }
+  }
+}

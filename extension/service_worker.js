@@ -1,21 +1,26 @@
 // Service worker de l'extension Dédale.
 //
-// Il ne lit que l'adresse des pages, jamais leur contenu. Deux mécanismes :
+// Il ne lit que l'adresse des pages, jamais leur contenu. Les règles viennent de
+// regles-sites.json, copie de partage/regles-sites.json que l'app Mac lit aussi :
+// sosies de marques connues, marque détournée, astuce « @ », adresse IP brute,
+// alphabets mêlés. Deux mécanismes :
 //
-// 1. Des règles declarativeNetRequest, tirées de la liste de confiance, bloquent
-//    dans Chrome lui-même, avant toute requête, les adresses qui contiennent le
-//    nom de confiance, même déguisé (orbispay-verification.example,
+// 1. Des règles declarativeNetRequest, tirées de la liste de confiance de
+//    l'organisation, bloquent dans Chrome lui-même, avant toute requête, les
+//    adresses qui contiennent son nom, même déguisé (orbispay-verification.example,
 //    0rbispay.example). L'extension affiche alors l'avertissement à la place.
-// 2. Pour les autres sosies (une lettre d'écart, autre alphabet), l'adresse est
-//    lue au début de la navigation et l'onglet part vers l'avertissement. Sur un
-//    site très rapide, la page peut avoir commencé à se charger : l'avertissement
-//    la remplace aussitôt.
+// 2. Pour tous les autres sites louches, l'adresse est lue au début de la
+//    navigation et l'onglet part vers l'avertissement. Sur un site très rapide, la
+//    page peut avoir commencé à se charger : l'avertissement la remplace aussitôt.
+//
+// Un raccourcisseur de liens (bit.ly…) n'ouvre pas d'avertissement : la fenêtre de
+// l'icône le signale, et l'adresse d'arrivée est examinée après la redirection.
 //
 // Sur « Continuer quand même », le seul nom de domaine part vers le backend
 // Dédale. S'il ne répond pas, la page s'ouvre quand même et l'échec est noté pour
 // la fenêtre de l'icône.
 
-import { analyserDomaine, motifBlocage } from "./comparateur.js";
+import { analyser, motifBlocage, titres } from "./comparateur.js";
 import { lireReglages } from "./reglages.js";
 
 const VERSION = chrome.runtime.getManifest().version;
@@ -52,6 +57,13 @@ function reglages() {
   return cache;
 }
 
+// Règles communes, lues une fois dans le paquet de l'extension.
+let regles = null;
+function lireRegles() {
+  regles ??= fetch(chrome.runtime.getURL("regles-sites.json")).then((r) => r.json());
+  return regles;
+}
+
 chrome.storage.onChanged.addListener((changements, zone) => {
   if (zone === "local" && changements.reglages) {
     cache = null;
@@ -63,6 +75,7 @@ chrome.storage.onChanged.addListener((changements, zone) => {
 
 async function majReglesBlocage() {
   const { domaines } = await reglages();
+  const R = await lireRegles();
   const regles = [];
   for (const domaine of domaines) {
     regles.push({
@@ -71,7 +84,7 @@ async function majReglesBlocage() {
       action: { type: "allow" },
       condition: { requestDomains: [domaine], resourceTypes: ["main_frame"] },
     });
-    const motif = motifBlocage(domaine);
+    const motif = motifBlocage(domaine, R);
     if (!motif) continue;
     const { isSupported } = await chrome.declarativeNetRequest.isRegexSupported({ regex: motif });
     if (!isSupported) continue;
@@ -165,17 +178,24 @@ async function examiner(tabId, adresse, etape) {
   const url = adresseWeb(adresse);
   if (!url || tabId < 0) return;
   const { domaines, nom } = await reglages();
-  const r = analyserDomaine(url.hostname, domaines);
+  // L'adresse entière sert à repérer l'astuce « marque@vrai-hôte » ; le moteur n'en
+  // garde que l'hôte et ce qui précède « @ ».
+  const R = await lireRegles();
+  const r = analyser(adresse, R, { nom, domaines });
 
   const retour = retours.get(tabId);
   const recule = retour && retour.domaine === r.domaine && retour.echeance > Date.now();
   if (etape === "valide" && !recule) retours.delete(tabId); // arrivée ailleurs que sur ce sosie
 
-  if (r.verdict !== "sosie") return;
+  if (r.verdict === "raccourci" && etape === "debut") {
+    await chrome.storage.local.set({ dernierRaccourci: { heure: Date.now(), domaine: r.domaine } });
+    return;
+  }
+  if (r.verdict !== "louche") return;
   if ((await domainesAutorises()).includes(r.domaine)) return;
 
   // Retour arrière depuis l'avertissement vers une entrée d'historique de ce même
-  // sosie : on recule d'un cran de plus au lieu d'avertir une seconde fois.
+  // site : on recule d'un cran de plus au lieu d'avertir une seconde fois.
   if (recule) {
     if (etape !== "debut") await reculer(tabId);
     return;
@@ -186,13 +206,14 @@ async function examiner(tabId, adresse, etape) {
   enCours.set(tabId, { domaine: r.domaine, t: Date.now() });
 
   const id = crypto.randomUUID();
+  const { titre, suite } = titres(r, R);
   // L'adresse complète reste dans la session du navigateur : elle sert seulement
   // à rouvrir la page si la personne choisit de continuer.
   await chrome.storage.session.set({
     ["avert:" + id]: {
-      id, tabId, url: adresse, nom,
-      domaine: r.domaine, affiche: r.affiche, imite: r.imite,
-      raison: r.raison, explication: r.explication,
+      id, tabId, url: adresse, nom, titre, suite,
+      domaine: r.domaine, affiche: r.affiche, imite: r.imite, marque: r.marque,
+      categorie: r.categorie, raison: r.raison, explication: r.explication,
     },
   });
   await chrome.tabs.update(tabId, { url: chrome.runtime.getURL(`avertissement.html#${id}`) });
@@ -236,7 +257,7 @@ async function idSession() {
 }
 
 /**
- * Prévient le backend qu'un salarié a continué vers un sosie. Le corps suit le
+ * Prévient le backend qu'un salarié a continué vers un site louche. Le corps suit le
  * schéma « avertissement » du pilier humain (CONTRATS.md) et ne porte que le nom
  * de domaine. Ne lève jamais d'erreur.
  */
@@ -287,8 +308,8 @@ async function traiter(msg, expediteur) {
       enCours.delete(tabId); // affiché : une nouvelle visite du sosie sera avertie
       const a = await lireAvertissement(msg.id);
       if (!a) return { trouve: false };
-      const { nom, domaine, affiche, imite, explication } = a;
-      return { trouve: true, nom, domaine, affiche, imite, explication };
+      const { nom, titre, suite, domaine, affiche, imite, explication } = a;
+      return { trouve: true, nom, titre, suite, domaine, affiche, imite, explication };
     }
 
     case "continuer": {
@@ -316,8 +337,9 @@ async function traiter(msg, expediteur) {
 
     case "etat": {
       const c = await lireCompteurs();
-      const { dernierSignalement = null } = await chrome.storage.local.get("dernierSignalement");
-      return { evites: evites(c), passes: c.passes, affiches: c.affiches, dernierSignalement };
+      const { dernierSignalement = null, dernierRaccourci = null } =
+        await chrome.storage.local.get(["dernierSignalement", "dernierRaccourci"]);
+      return { evites: evites(c), passes: c.passes, affiches: c.affiches, dernierSignalement, dernierRaccourci };
     }
 
     case "remise_a_zero":
