@@ -36,8 +36,9 @@ def test_export_ecs(client):
     assert doc["dedale"]["session_id"] == "S-exp"
     assert doc["dedale"]["contexte"] == "agent_ia"
     assert "threat" not in doc
-    assert any(d.get("threat", {}).get("tactic", {}).get("name") == "LLM prompt injection"
-               for d in r["documents"])
+    # La consigne cachée lue par l'agent : technique ATLAS AML.T0051 (ECS 8.x, threat.technique.id).
+    assert any(d.get("threat", {}).get("framework") == "MITRE ATLAS"
+               and "AML.T0051" in d["threat"]["technique"]["id"] for d in r["documents"])
 
 
 def test_brouillon_agent_suit_la_decision_reelle(client):
@@ -69,7 +70,9 @@ def test_brouillon_et_ecs_humains_ne_parlent_pas_d_injection(client):
 
     ecs = client.get(f"/api/incidents/{iid}/export?format=ecs").json()
     assert ecs["documents"][0]["dedale"]["contexte"] == "geste_humain"
-    assert "threat" not in ecs["documents"][0]
+    # Un geste humain porte sa technique ATT&CK (phishing), jamais une injection de consigne.
+    menace = ecs["documents"][0].get("threat") or {}
+    assert menace.get("framework") == "MITRE ATT&CK" and "AML.T0051" not in menace["technique"]["id"]
 
     client.post(f"/api/incidents/{iid}/decision", json={"action": "clore", "analyste": "alice"})
     clos = client.get(f"/api/incidents/{iid}/nis2").json()["texte"]
@@ -80,9 +83,10 @@ def test_export_sigma_yaml_valide(client):
     iid = _incident_externe(client)
     r = client.get(f"/api/incidents/{iid}/export", params={"format": "sigma"})
     assert r.status_code == 200
-    regle = yaml.safe_load(r.text)
+    # Plusieurs règles possibles dans le même fichier : la première est celle du type d'incident.
+    regle = next(yaml.safe_load_all(r.text))
     assert regle["title"]
-    assert regle["detection"]["condition"] == "selection"
+    assert regle["detection"]["condition"]
     assert regle["logsource"]["product"] == "dedale"
 
 

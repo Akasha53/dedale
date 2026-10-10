@@ -1,148 +1,37 @@
-"""Export d'un incident vers un SIEM : ECS JSON (Elastic) et correspondance Sigma.
+"""Export d'un incident vers un SIEM : ECS 8.x (Elastic), règles Sigma, CEF (ArcSight, syslog).
 
-ECS (Elastic Common Schema) est le format de champs normalisé d'Elastic ; chaque événement
-devient un document ECS. La correspondance Sigma est une règle prête à convertir (sigma-cli)
-vers Elastic/Wazuh, calquée sur l'incident réel.
+- `vers_ecs` : un document ECS par événement de la session (`ecs.py`).
+- `vers_sigma` : les règles Sigma qui attrapent cet incident, au format YAML à plusieurs
+  documents (`sigma_regles.py`) : la règle de son type, les règles de geste qui le concernent,
+  et la variante proxy ou serveur web spécialisée sur ce qu'il a vu.
+- `vers_cef` : une ligne CEF par événement (`cef.py`), prête pour un collecteur syslog.
 
-Tout texte d'origine piégée est déjà neutralisé en amont (store/securite).
+Tout texte d'origine piégée est déjà neutralisé en amont (store/securite) ; un salarié n'y
+apparaît que sous son pseudonyme.
 """
 
 from __future__ import annotations
 
-import uuid
-
-import yaml
-
-# event.type/category ECS selon le type d'événement Dédale.
-_ECS_TYPE = {
-    "requete": ("web", ["access"]),
-    "appel_outil": ("process", ["start"]),
-    "entree_agent": ("web", ["access"]),
-    "sortie_agent": ("network", ["connection"]),
-    "leurre_touche": ("intrusion_detection", ["info"]),
-    "riposte": ("process", ["change"]),
-    # Pilier humain : avertissement du garde du corps du poste (geste risqué du salarié).
-    "avertissement": ("intrusion_detection", ["info"]),
-}
-
-# Étiquettes Sigma (MITRE ATT&CK) par type d'incident. Pour le pilier humain, techniques de la
-# couche humaine (plausibles, à confirmer) ; sinon, le profil agent IA historique.
-_SIGMA_TAGS = {
-    "humain_phishing": ["attack.initial-access", "attack.t1566"],
-    "humain_secret": ["attack.credential-access", "attack.t1552"],
-    "humain_mail_externe": ["attack.exfiltration", "attack.t1048"],
-    "humain_upload_ia": ["attack.exfiltration", "attack.t1567"],
-    "humain_intrusion_physique": ["attack.initial-access", "attack.t1200"],
-}
-
-# Gravité Dédale → niveau Sigma.
-_NIVEAU_SIGMA = {"faible": "low", "moyenne": "medium", "haute": "high", "critique": "critical"}
+from . import cef, ecs, sigma_regles
 
 
-def _ecs_un(ev: dict) -> dict:
-    cat, types = _ECS_TYPE.get(ev.get("type"), ("web", ["info"]))
-    doc = {
-        "@timestamp": ev.get("horodatage"),
-        "event": {
-            "id": str(ev.get("id")),
-            "kind": "event",
-            "category": [cat],
-            "type": types,
-            "action": ev.get("type"),
-            "module": "dedale",
-            "dataset": f"dedale.{ev.get('source')}",
-        },
-        "dedale": {
-            "session_id": ev.get("session_id"),
-            "surface": ev.get("surface"),
-            "leurre_id": ev.get("leurre_id"),
-            "leurre_nature": ev.get("leurre_nature"),
-            "outil": ev.get("outil"),
-            "details": ev.get("details"),
-        },
-    }
-    if ev.get("ip"):
-        doc["source"] = {"ip": ev["ip"]}
-    if ev.get("user_agent"):
-        doc["user_agent"] = {"original": ev["user_agent"]}
-    if ev.get("methode") or ev.get("chemin"):
-        doc["url"] = {"path": ev.get("chemin")}
-        doc["http"] = {"request": {"method": ev.get("methode")}}
-    return doc
+def _evenements(incident: dict, evenements: list[dict] | None) -> list[dict]:
+    if evenements is not None:
+        return evenements
+    from .store import store  # import local : le store importe ce module indirectement
+    return (store.session_detail(incident.get("session_id") or "") or {}).get("evenements", [])
 
 
 def vers_ecs(incident: dict, evenements: list[dict]) -> dict:
-    sess = incident.get("session") or {}
-    docs = [_ecs_un(e) for e in evenements]
-    type_inc = incident.get("type") or ""
-    est_humain = type_inc.startswith("humain_")
-    injection_ids = {
-        e.get("evenement_id") for e in incident.get("chaine", [])
-        if e.get("etape") == "consigne_lue"
-    }
-    for ev, d in zip(evenements, docs):
-        d["dedale"]["incident_type"] = type_inc
-        d["dedale"]["contexte"] = "geste_humain" if est_humain else "agent_ia"
-        # Un avertissement sur le poste n'est pas une injection de prompt.
-        if ev.get("id") in injection_ids and not est_humain:
-            d["threat"] = {
-                "framework": "MITRE ATLAS / OWASP Agentic",
-                "tactic": {"name": "LLM prompt injection"},
-            }
-    return {
-        "incident": {
-            "id": incident.get("id"),
-            "type": incident.get("type"),
-            "classement": sess.get("classement"),
-            "statut": incident.get("statut"),
-        },
-        "ecs_version": "8.11",
-        "documents": docs,
-        "n_documents": len(docs),
-    }
+    return ecs.vers_ecs(incident, evenements)
 
 
-def vers_sigma(incident: dict) -> str:
-    """Règle Sigma calquée sur l'incident : session + leurres touchés + étapes."""
-    sess = incident.get("session") or {}
-    type_inc = incident.get("type") or ""
-    est_humain = type_inc.startswith("humain_")
-    leurres = incident.get("leurres_touches", [])
-    etapes = [e.get("etape") for e in incident.get("chaine", [])]
-    sel: dict = {"dedale.session_id": sess.get("id")}
-    if leurres:
-        sel["dedale.leurre_id"] = leurres
-    if est_humain:
-        description = (
-            "Incident Dédale — pilier humain : geste à risque d'un salarié capté par le garde du "
-            f"corps du poste (type {type_inc}). Chaîne observée : {' -> '.join(etapes) if etapes else 'n/d'}."
-        )
-        references = ["https://attack.mitre.org/", "https://genai.owasp.org/"]
-        falsepositives = ["Geste légitime validé par le métier (destinataire/IA approuvés)"]
-    else:
-        description = (
-            "Incident Dédale reconstruit : agent IA détourné/attaquant. "
-            f"Chaîne observée : {' -> '.join(etapes) if etapes else 'n/d'}."
-        )
-        references = [
-            "https://atlas.mitre.org/",
-            "https://genai.owasp.org/ (OWASP Agentic Security ASI01-ASI10)",
-        ]
-        falsepositives = ["Session de test du banc d'attaque avec verite_terrain != agent_ia"]
-    regle = {
-        "title": f"Dédale — incident {incident.get('id')} ({type_inc})",
-        "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"dedale/{incident.get('id')}")),
-        "status": "experimental",
-        "description": description,
-        "references": references,
-        "logsource": {"product": "dedale", "service": type_inc},
-        "detection": {
-            "selection": sel,
-            "condition": "selection",
-        },
-        "fields": ["dedale.session_id", "dedale.leurre_id", "dedale.surface", "event.action"],
-        "falsepositives": falsepositives,
-        "level": _NIVEAU_SIGMA.get(incident.get("gravite"), "high"),
-        "tags": _SIGMA_TAGS.get(type_inc, ["attack.initial-access", "attack.t1566", "owasp.asi01"]),
-    }
-    return yaml.safe_dump(regle, allow_unicode=True, sort_keys=False)
+def vers_sigma(incident: dict, evenements: list[dict] | None = None) -> str:
+    """Règles Sigma de l'incident, séparées par `---` (sigma-cli lit ce fichier tel quel)."""
+    docs = ecs.vers_ecs(incident, _evenements(incident, evenements))["documents"]
+    return sigma_regles.vers_yaml(sigma_regles.regles_incident(incident.get("type") or "", docs))
+
+
+def vers_cef(incident: dict, evenements: list[dict] | None = None) -> str:
+    from .notifications import lien_incident
+    return cef.vers_cef(incident, _evenements(incident, evenements), lien_incident(str(incident.get("id"))))

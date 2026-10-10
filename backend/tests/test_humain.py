@@ -177,6 +177,6 @@ def test_export_siem_incident_humain(client):
     assert "avertissement" in actions
     # Sigma : règle taguée côté ATT&CK humain (phishing T1566).
     r = client.get(f"/api/incidents/{iid}/export", params={"format": "sigma"})
-    regle = yaml.safe_load(r.text)
-    assert "attack.t1566" in regle["tags"]
+    regle = next(yaml.safe_load_all(r.text))
+    assert any(t.startswith("attack.t1566") for t in regle["tags"])
     assert regle["logsource"]["product"] == "dedale"
