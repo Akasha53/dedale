@@ -1,4 +1,6 @@
-# Dédale
+# sAIfe
+
+sAIfe se prononce « safe ». Le code garde le nom de travail `dedale` : nom du dépôt et des dossiers, modules Python, variables `DEDALE_*`, `~/.config/dedale/`, `Dedale.app`, identifiants de bundle et d'extension. Les renommer casserait des chemins et ferait redemander à macOS les autorisations déjà accordées.
 
 [![Scan de secrets : 0 alerte](https://img.shields.io/badge/scan%20de%20secrets-0%20alerte-brightgreen)](docs/SCAN_SECRETS.md)
 
@@ -10,7 +12,7 @@ Vidéo de démo (2 à 3 min) : lien à ajouter après le tournage.
 
 Un même contenu piégé vise deux lecteurs. Le salarié peut suivre un lien trompeur, ouvrir un sosie du site de son entreprise ou valider un virement réclamé par un faux dirigeant. Son assistant IA peut obéir à une consigne cachée dans un mail et envoyer des données dehors, comme avec la faille EchoLeak de Microsoft 365 Copilot (CVE-2025-32711). Les outils de sécurité traitent ces deux lecteurs séparément, avec deux journaux et deux consoles.
 
-Dédale les met dans une même console SOC. Sur le poste, il prévient le salarié avant le geste et le laisse choisir. Côté agent, chaque appel d'outil passe par une passerelle qui retire les consignes cachées avant lecture et retient l'appel suspect avant qu'il parte. Une boîte noire scellée garde les événements et les décisions, et c'est un humain qui tranche.
+sAIfe les met dans une même console SOC. Sur le poste, il prévient le salarié avant le geste et le laisse choisir. Côté agent, chaque appel d'outil passe par une passerelle qui retire les consignes cachées avant lecture et retient l'appel suspect avant qu'il parte. Une boîte noire scellée garde les événements et les décisions, et c'est un humain qui tranche.
 
 ## Architecture
 
@@ -20,7 +22,7 @@ Dédale les met dans une même console SOC. Sur le poste, il prévient le salari
 | `console/` | Console du SOC (Vite, React, TypeScript) : temps réel, incidents des agents IA et des salariés, règles du SOC, mesures | 5173 |
 | `interne/` | Agent IA interne d'Orbis Pay et sa passerelle : jeton limité à la tâche, canaris, désarmeur des consignes cachées, retenue de tout envoi hors d'Orbis Pay | aucun |
 | `messagerie/` | Garde-mail : boîte de démo (Mailpit) et analyseur qui juge chaque mail sûr, suspect ou frauduleux, avec ses raisons | 8715, 8716, 8717 |
-| `app-mac/` | App de barre de menus (Swift) : pop-up avant le geste (mail frauduleux, site louche dans Safari ou Chrome, fichier à risque dans Téléchargements), inventaire des agents IA du poste, coach après « Annuler », signalement d'un mail, quatre yeux sur un geste critique, panneau « Ce que Dédale regarde sur ce poste » | 8712 |
+| `app-mac/` | App de barre de menus (Swift) : pop-up avant le geste (mail frauduleux, site louche dans Safari ou Chrome, fichier à risque dans Téléchargements), inventaire des agents IA du poste, coach après « Annuler », signalement d'un mail, quatre yeux sur un geste critique, panneau « Ce que sAIfe regarde sur ce poste » | 8712 |
 | `extension/` | Extension Chrome : page d'avertissement avant un site sosie ou louche | aucun |
 | `poste/` | Simulateur de gestes du salarié (secret collé, mail externe, dépôt vers une IA, phishing) | aucun |
 | `attaque/` | Banc de mesure : trafic étiqueté humain, script, agent IA ou agent interne, envoyé à un backend | aucun |
@@ -75,13 +77,13 @@ L'app Mac ouvre une pop-up avant le geste, avec une ou deux raisons en clair : u
 
 Seule exception, le geste critique : un virement ou un export de fichiers clients attend un second regard avant de partir. La pop-up le dit avant le choix.
 
-Ce que le poste regarde tient en quatre modules, chacun avec son interrupteur dans le panneau « Ce que Dédale regarde sur ce poste » (`app-mac/Sources/Dedale/ModulesPoste.swift`) : les mails reçus, l'adresse de l'onglet actif, les nouveaux téléchargements, les agents IA installés. L'analyse se fait sur le poste. Part à la SOC : la catégorie, le domaine et le choix du salarié, l'empreinte d'un fichier, l'inventaire des agents sans secret. La copie désarmée d'un mail jugé frauduleux part du serveur de messagerie (`messagerie/`), pas du poste. Ne sont jamais lus le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique. Prévu avant un déploiement, et pas encore fait : une durée de conservation (90 jours par défaut), l'information des salariés et la consultation du CSE.
+Ce que le poste regarde tient en quatre modules, chacun avec son interrupteur dans le panneau « Ce que sAIfe regarde sur ce poste » (`app-mac/Sources/Dedale/ModulesPoste.swift`) : les mails reçus, l'adresse de l'onglet actif, les nouveaux téléchargements, les agents IA installés. L'analyse se fait sur le poste. Part à la SOC : la catégorie, le domaine et le choix du salarié, l'empreinte d'un fichier, l'inventaire des agents sans secret. La copie désarmée d'un mail jugé frauduleux part du serveur de messagerie (`messagerie/`), pas du poste. Ne sont jamais lus le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique. Prévu avant un déploiement, et pas encore fait : une durée de conservation (90 jours par défaut), l'information des salariés et la consultation du CSE.
 
 ### Le geste critique est relu en quelques secondes, l'analyste garde un recours
 
 Un geste critique va au relecteur IA (`backend/app/relecteur.py`). Haiku le relit par l'API ou par `claude -p` et accorde ou refuse avec un motif d'une phrase. Il ne reçoit que des faits structurés (type de geste, montant, destination interne ou non, salarié sous pseudonyme) ; le texte de la pop-up passe désarmé dans un champ marqué comme donnée. Les règles gardent le dernier mot : elles refusent d'office un virement au-dessus de 10 000 €, un export de clients vers l'extérieur ou un texte qui contient une consigne adressée à une IA, et le modèle ne peut pas accorder ce qu'elles refusent. Une panne, une limite d'usage, plus de 8 s d'attente ou une réponse hors format font retomber sur les règles, qui refusent quand elles ne savent pas trancher. Chaque verdict dit qui a tranché, Haiku ou les règles.
 
-Le verdict s'ajoute aux décisions de l'incident, là où l'app Mac le lit. L'analyste garde « Accorder » et « Refuser » dans la console ; accorder un geste, ou revenir sur le verdict du relecteur, demande un motif, scellé avec la décision. Sans relecteur (`DEDALE_RELECTEUR=off`), l'app attend l'analyste 90 s puis refuse ; un backend injoignable vaut aussi un refus. Le recours de l'analyste corrige le dossier : il ne rattrape pas un geste déjà accordé sur le poste. La pop-up affiche le verdict avec son motif, par exemple « Relu par Dédale en 3,6 s : accordé. », et la console le montre sur le dossier, avec Accorder et Refuser en recours.
+Le verdict s'ajoute aux décisions de l'incident, là où l'app Mac le lit. L'analyste garde « Accorder » et « Refuser » dans la console ; accorder un geste, ou revenir sur le verdict du relecteur, demande un motif, scellé avec la décision. Sans relecteur (`DEDALE_RELECTEUR=off`), l'app attend l'analyste 90 s puis refuse ; un backend injoignable vaut aussi un refus. Le recours de l'analyste corrige le dossier : il ne rattrape pas un geste déjà accordé sur le poste. La pop-up affiche le verdict avec son motif, par exemple « Relu par sAIfe en 3,6 s : accordé. », et la console le montre sur le dossier, avec Accorder et Refuser en recours.
 
 ### Couper un agent : confirmation, motif, annulation
 
@@ -111,11 +113,11 @@ La console montre un pseudonyme stable (« Salarié 4821 · Finance »), jamais 
 
 ### Des règles écrites en français, confirmées avant activation
 
-L'analyste écrit une phrase, par exemple « L'agent de tri ne doit jamais envoyer de mail hors d'Orbis Pay ». Dédale répond « Voilà ce que j'ai compris : … Activer ? » et n'active rien sans ce feu vert (`POST /api/politiques/analyser`, puis `POST /api/politiques` ; panneau des règles dans l'écran « Temps réel » de la console). Une phrase incomprise est refusée avec ce qui manque. L'analyse se fait par motifs, sans modèle, sauf si `DEDALE_POLITIQUES_MODELE=on`.
+L'analyste écrit une phrase, par exemple « L'agent de tri ne doit jamais envoyer de mail hors d'Orbis Pay ». sAIfe répond « Voilà ce que j'ai compris : … Activer ? » et n'active rien sans ce feu vert (`POST /api/politiques/analyser`, puis `POST /api/politiques` ; panneau des règles dans l'écran « Temps réel » de la console). Une phrase incomprise est refusée avec ce qui manque. L'analyse se fait par motifs, sans modèle, sauf si `DEDALE_POLITIQUES_MODELE=on`.
 
 ### Seuils d'escalade
 
-| Ce qui arrive | Ce que fait Dédale | Qui tranche |
+| Ce qui arrive | Ce que fait sAIfe | Qui tranche |
 |---|---|---|
 | Le salarié annule | rien ne remonte comme incident ; le geste est compté | personne |
 | Le salarié continue un geste sérieux | incident `humain_*`, gravité haute (moyenne pour un dépôt vers une IA) ; poste jamais bloqué | l'analyste clôt ou classe |

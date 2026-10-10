@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Le projet
 
-Dédale, hackathon Secure Horizons (ESSEC, 10-11 octobre 2026). Le produit pose des pièges que seul un agent IA suit, attrape les gestes risqués des salariés sur leur poste, reconstruit la chaîne dans une boîte noire pour le SOC et laisse un humain valider chaque riposte forte. L'entreprise protégée, Orbis Pay (`orbispay.example`), est fictive. Le dépôt ne contient aucune donnée réelle, aucun secret réel, et rien ne doit viser un système réel.
+sAIfe, hackathon Secure Horizons (ESSEC, 10-11 octobre 2026). Le code garde le nom de travail `dedale` (dépôt, dossiers, modules, variables `DEDALE_*`, `Dedale.app`) : ne pas le renommer. Le produit pose des pièges que seul un agent IA suit, attrape les gestes risqués des salariés sur leur poste, reconstruit la chaîne dans une boîte noire pour le SOC et laisse un humain valider chaque riposte forte. L'entreprise protégée, Orbis Pay (`orbispay.example`), est fictive. Le dépôt ne contient aucune donnée réelle, aucun secret réel, et rien ne doit viser un système réel.
 
 Tout est en français : identifiants, commentaires, docstrings, messages de commit, documentation. Garder cette langue, accents compris, dans le code ajouté.
 
