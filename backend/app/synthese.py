@@ -441,8 +441,19 @@ class _Redaction:
 
     def rediger_interne(self, f: dict) -> None:
         self._phrase_origine(f)
+        self._phrase_desarme()
         self._phrase_tentatives(f)
         self._phrase_issue(f)
+
+    def _phrase_desarme(self) -> None:
+        """Le désarmeur a retiré l'instruction avant que l'agent la lise : le dire tout de suite
+        après la lecture, sinon la phrase d'origine laisse croire que l'agent l'a lue."""
+        d = next(iter(self.etapes("desarme")), None)
+        if d is None:
+            return
+        self.ecrire([("Dédale a retiré cette instruction avant que l’agent lise le contenu",
+                      [self.p(d, "etape", "desarme"), self.p(d, "detail", "retiré")]),
+                     ", puis ", ("l’agent a reçu la version propre", [self.p(d, "etape", "desarme")]), "."])
 
     # --- surface externe ------------------------------------------------------------------
     def rediger_externe(self, f: dict) -> None:
@@ -627,7 +638,14 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
     if humain is not None:
         possibles = ACTIONS_HUMAIN
         intrusion = d.get("type") == "humain_intrusion_physique"
-        if humain.get("signalement"):
+        quatre_yeux = any((e.get("details") or {}).get("quatre_yeux") == "demande" for e in r.evs.values())
+        if quatre_yeux:
+            # Geste critique suspendu : on conseille de le refuser, l'analyste peut l'accorder.
+            possibles = ["accorder", "refuser", "clore", "ignorer"]
+            action = "refuser"
+            justification = ("Le salarié veut continuer un geste critique. Refusez-le, sauf si une raison métier "
+                             "vérifiée justifie de l’accorder. Son poste reste utilisable.")
+        elif humain.get("signalement"):
             action = "clore"
             justification = ("Relisez le mail signalé. S’il est frauduleux, bloquez son domaine pour tous les "
                              "salariés, puis classez le dossier. Le poste n’est jamais bloqué.")
@@ -662,6 +680,11 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
             justification = ("Dédale a déjà refusé cette action, sans attendre personne : rien n’est parti. "
                              "Il reste à clore le dossier. Retirer à l’agent l’accès qu’il n’aurait pas dû "
                              "avoir évite qu’il recommence.")
+        elif r.etapes("desarme") and not graves:
+            # Prévenu avant lecture : rien n'a été suivi, l'agent attend seulement d'être relancé.
+            action = "reprendre"
+            justification = ("L’instruction cachée a été retirée avant que l’agent lise le contenu : il n’a rien "
+                             "suivi. Le remettre en service le laisse finir son travail, toujours surveillé.")
         elif d.get("source") == "externe" and d.get("classement") == "agent_ia" and score >= 0.5:
             action = "couper"
             justification = ("Ce visiteur a suivi une instruction cachée : c’est un robot d’IA, pas une "
@@ -703,7 +726,7 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
                 }
                 break
     derniere = (d.get("decisions") or [None])[-1]
-    equivalents = {"valider_riposte": "couper", "accorder": "clore", "refuser": "clore"}
+    equivalents = {"valider_riposte": "couper"}
     deja = bool(derniere) and equivalents.get(derniere.get("action"), derniere.get("action")) == action
     # Dossier fermé (clos, classé, agent coupé) : la console montre la décision prise, pas un
     # conseil qui contredirait l'état.

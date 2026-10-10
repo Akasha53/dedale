@@ -61,7 +61,7 @@ function desarmerUrl(url: string): string {
 export function desarmer(brut: unknown): string {
   if (brut == null) return "";
   let t = typeof brut === "string" ? brut : JSON.stringify(brut);
-  t = sansPrefixe(decoderEntites(t)).texte;
+  t = sansPrefixe(decoderEntites(t)).texte.replace(/\[(leurre|preuve), neutralisée?\]\s*/gi, "");
   return masquerPersonnes(desarmerLiens(t));
 }
 

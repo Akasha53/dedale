@@ -379,7 +379,11 @@ function choixDe(inc: Incident): ChoixSalarie | undefined {
   const chaine = inc.chaine ?? [];
   const averti = [...chaine].reverse().find((x) => x.phase === "avertissement");
   const choixMaillon = [...chaine].reverse().find((x) => x.phase === "choix");
-  const evenement = [...(inc.evenements ?? [])].reverse().find((e) => e.type === "avertissement");
+  // Le dossier s'ouvre sur un geste continué : ce choix-là compte, même si le
+  // salarié a annulé un autre geste ensuite.
+  const avertissements = (inc.evenements ?? []).filter((e) => e.type === "avertissement");
+  const evenement =
+    avertissements.find((e) => e.details?.choix === "continuer") ?? [...avertissements].reverse()[0];
   const brut = evenement?.details?.choix;
   return (
     inc.choix ??
@@ -415,6 +419,42 @@ const REMEDIATIONS: { action: ActionRemediation; lib: string; aide: string }[] =
   { action: "bloquer_domaine", lib: "Bloquer ce domaine pour tous", aide: "Plus aucun salarié ne pourra l'ouvrir." },
 ];
 
+// Relecture du geste critique par le relecteur IA (événement `relecture`, scellé).
+interface Relecture {
+  decision?: string;
+  motif?: string;
+  tranche_par?: string;
+  duree_ms?: number;
+  modele?: string;
+}
+
+function relectureDe(inc: Incident): Relecture | null {
+  const ev = [...(inc.evenements ?? [])]
+    .reverse()
+    .find((e) => e.type === "relecture" && (e.details as Record<string, unknown>)?.acte === "quatre_yeux");
+  if (!ev) return null;
+  const d = ev.details as Record<string, unknown>;
+  return {
+    decision: typeof d.decision === "string" ? d.decision : undefined,
+    motif: typeof d.motif === "string" ? desarmer(d.motif) : undefined,
+    tranche_par: typeof d.tranche_par === "string" ? d.tranche_par : undefined,
+    duree_ms: typeof d.duree_ms === "number" ? d.duree_ms : undefined,
+    modele: typeof d.modele === "string" ? d.modele : undefined,
+  };
+}
+
+function dureeCourte(ms?: number): string {
+  if (ms == null) return "";
+  if (ms < 1000) return ` en ${Math.max(1, Math.round(ms))} ms`;
+  return ` en ${(ms / 1000).toFixed(1).replace(".", ",")} s`;
+}
+
+function phraseRelecture(r: Relecture): string {
+  const qui = r.tranche_par && r.tranche_par !== "règles" ? `le relecteur IA (${r.tranche_par})` : "les règles du relecteur";
+  const issue = r.decision === "accorde" ? "accordé" : "refusé";
+  return `Relu par ${qui}${dureeCourte(r.duree_ms)} : ${issue}.`;
+}
+
 function useDelaiRestant(debut?: string, delaiS?: number, actif = true): number | null {
   const [maintenant, setMaintenant] = useState(() => Date.now());
   useEffect(() => {
@@ -444,7 +484,11 @@ function IncidentSalarie({
   const etat = etatIncident(incident);
   const ferme = incident.statut === "clos" || incident.statut === "ignore";
   const q = incident.quatre_yeux;
-  const quatreYeux = Boolean(q && !q.issue && !ferme);
+  const relecture = relectureDe(incident);
+  // Geste en attente : personne n'a encore tranché, ni le relecteur ni le poste.
+  const quatreYeux = Boolean(q && !q.issue && !relecture && !ferme);
+  // Recours : le relecteur (ou le délai) a tranché, l'analyste peut revenir dessus.
+  const recours = Boolean(q && !ferme && (relecture || q.issue));
   const restant = useDelaiRestant(q?.horodatage, q?.delai_s, quatreYeux);
   const [confirmation, setConfirmation] = useState<DecisionAction | null>(null);
   useEffect(() => setConfirmation(null), [incident.id]);
@@ -478,7 +522,11 @@ function IncidentSalarie({
         : "Dossier clos"
     : quatreYeux
       ? "Un geste attend votre accord"
-      : "Le dossier attend votre décision";
+      : recours && relecture
+        ? `Geste ${relecture.decision === "accorde" ? "accordé" : "refusé"} par le relecteur IA`
+        : recours && q?.issue === "expire"
+          ? "Délai dépassé, le poste a refusé le geste"
+          : "Le dossier attend votre décision";
 
   return (
     <div className="ag-dossier">
@@ -517,7 +565,7 @@ function IncidentSalarie({
         />
 
         <section
-          className={`ag-coque ag-zone-decision issue-salarie ${ferme ? "issue-salarie-clos" : "issue-salarie-attente"}`}
+          className={`ag-coque ag-zone-decision issue-salarie ${ferme || (recours && !quatreYeux) ? "issue-salarie-clos" : "issue-salarie-attente"}`}
           aria-labelledby="sal-decision-titre"
         >
           <div className="ag-noyau">
@@ -537,11 +585,21 @@ function IncidentSalarie({
                 )}
               </div>
             </header>
-            <p className="ag-enjeu">
-              {quatreYeux
-                ? "Le salarié a demandé à continuer un geste critique. Son poste attend votre accord : sans réponse, le geste est refusé."
-                : "Dédale ne bloque jamais le poste : il prévient le salarié, puis vous décidez de la suite."}
-            </p>
+            {relecture ? (
+              <div className="relecture">
+                <p className="relecture-titre">
+                  {phraseRelecture(relecture)}
+                </p>
+                {relecture.motif && <p className="relecture-motif">Motif : {relecture.motif}</p>}
+                {!ferme && <p className="relecture-recours">Vous pouvez revenir sur cette décision, avec un motif.</p>}
+              </div>
+            ) : (
+              <p className="ag-enjeu">
+                {quatreYeux
+                  ? "Le salarié a demandé à continuer un geste critique. Son poste attend votre accord : sans réponse, le geste est refusé."
+                  : "Dédale ne bloque jamais le poste : il prévient le salarié, puis vous décidez de la suite."}
+              </p>
+            )}
 
             {confirmation ? (
               <BlocConfirmation
@@ -553,7 +611,7 @@ function IncidentSalarie({
                 }
                 libelle={confirmation === "accorder" ? "Accorder" : "Refuser"}
                 danger={confirmation === "accorder"}
-                motifObligatoire={confirmation === "accorder"}
+                motifObligatoire={confirmation === "accorder" || recours}
                 confirmer={(motif) => {
                   const a = confirmation;
                   setConfirmation(null);
@@ -561,13 +619,13 @@ function IncidentSalarie({
                 }}
                 annuler={() => setConfirmation(null)}
               />
-            ) : quatreYeux ? (
+            ) : quatreYeux || recours ? (
               <div className="ag-actions" aria-busy={decisionEnCours !== null}>
                 <div className="ag-action">
                   <button
                     type="button"
                     className="ag-pilule ag-pilule-clore"
-                    disabled={decisionEnCours !== null || restant === 0}
+                    disabled={decisionEnCours !== null || (quatreYeux && restant === 0)}
                     onClick={() => setConfirmation("refuser")}
                   >
                     <span>{decisionEnCours === "refuser" ? "Envoi…" : "Refuser"}</span>
@@ -578,7 +636,7 @@ function IncidentSalarie({
                   <button
                     type="button"
                     className="ag-pilule ag-pilule-reprendre"
-                    disabled={decisionEnCours !== null || restant === 0}
+                    disabled={decisionEnCours !== null || (quatreYeux && restant === 0)}
                     onClick={() => setConfirmation("accorder")}
                   >
                     <span>{decisionEnCours === "accorder" ? "Envoi…" : "Accorder"}</span>
@@ -730,6 +788,8 @@ function Remediations({ incident }: { incident: Incident }) {
     (incident.journal_console ?? []).filter((j) => j.acte === "remediation").map((j) => [j.action, j])
   );
   if (incident.type === "humain_intrusion_physique") return null;
+  // Un mail signalé : le compte du salarié n'est pas en cause, seul le domaine l'est.
+  const possibles = incident.type === "humain_signalement" ? REMEDIATIONS.filter((r) => r.action === "bloquer_domaine") : REMEDIATIONS;
 
   const lancer = async (action: ActionRemediation) => {
     setEnCours(action);
@@ -748,7 +808,7 @@ function Remediations({ incident }: { incident: Incident }) {
     <div className="remediations" aria-label="Agir sur le compte">
       <p className="remediations-titre">Agir sur le compte</p>
       <div className="remediations-boutons">
-        {REMEDIATIONS.map((r) => {
+        {possibles.map((r) => {
           const fait = faites.get(r.action);
           return (
             <button

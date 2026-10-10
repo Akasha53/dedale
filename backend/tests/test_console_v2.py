@@ -147,3 +147,9 @@ def test_virement_lisible_et_iban_masque(client):
 def test_inventaire_porte_un_proprietaire(client):
     inv = client.get("/api/agents").json()["inventaire"]
     assert {a["id"]: a["proprietaire"] for a in inv}["orbis-rapprochement"] == "Direction financière"
+
+
+def test_quatre_yeux_conseille_de_refuser(client):
+    inc = _poste_phishing(client, quatre_yeux=True)
+    dec = client.get(f"/api/incidents/{inc['id']}/synthese").json()["decision_recommandee"]
+    assert dec["action"] == "refuser" and "accorder" in dec["actions_possibles"]

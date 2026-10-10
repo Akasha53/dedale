@@ -58,7 +58,7 @@ interface Vue {
 function etatAgent(sessions: Session[], incidents: Incident[], attente?: Incident): { lib: string; cls: string } {
   if (attente) return { lib: "Attend votre décision", cls: "attente" };
   const derniere = [...sessions].sort((a, b) => (b.derniere_vue ?? "").localeCompare(a.derniere_vue ?? ""))[0];
-  if (!derniere) return { lib: "Pas encore vu", cls: "neutre" };
+  if (!derniere) return { lib: "Aucune activité", cls: "neutre" };
   if (derniere.etat === "coupee") return { lib: "Coupé par le SOC", cls: "neutre" };
   if (derniere.etat === "suspendue") return { lib: "Action refusée par Dédale", cls: "ok" };
   const inc = incidents.find((i) => i.session_id === derniere.id);
@@ -163,11 +163,19 @@ function CarteAgent({
               <span className="inv-doux">aucun</span>
             ) : (
               <span className="inv-puces">
-                {a.droits.surplus.map((c) => (
+                {a.droits.surplus.slice(0, 3).map((c) => (
                   <span key={c} className="inv-puce" title={c}>
                     {libelleDroit(c)}
                   </span>
                 ))}
+                {a.droits.surplus.length > 3 && (
+                  <span
+                    className="inv-puce inv-puce-plus"
+                    title={a.droits.surplus.slice(3).map((c) => libelleDroit(c)).join(", ")}
+                  >
+                    +{a.droits.surplus.length - 3}
+                  </span>
+                )}
               </span>
             )}
           </dd>

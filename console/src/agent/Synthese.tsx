@@ -75,10 +75,14 @@ export function SyntheseBloc({
   synthese,
   prete,
   repli,
+  libelles,
 }: {
   synthese: Synthese | null;
   prete: boolean;
   repli: string[];
+  // Libellés propres à ce dossier (« Remettre l'agent en service » plutôt que
+  // « Laisser passer l'action » quand rien n'attend).
+  libelles?: Record<string, string>;
 }) {
   const phrases = synthese?.phrases?.map((p) => p.texte) ?? (prete ? repli : []);
   const conf = synthese?.confiance;
@@ -87,7 +91,7 @@ export function SyntheseBloc({
   const conseil = brut && brut.dossier_ferme && !brut.deja_appliquee ? null : brut;
   const correctif = synthese?.correctif_suggere;
   const raisons = [...(conf?.raisons ?? []), ...(conf?.manquants ?? [])].filter((r) => raisonClaire(r));
-  const action = conseil ? ACTION_CONSEILLEE[conseil.action] ?? conseil.action : null;
+  const action = conseil ? libelles?.[conseil.action] ?? ACTION_CONSEILLEE[conseil.action] ?? conseil.action : null;
 
   return (
     <section className="syn" aria-labelledby="syn-titre">

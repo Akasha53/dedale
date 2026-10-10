@@ -170,7 +170,12 @@ export function IncidentAgent({
             {majEnCours ? <span className="ag-meta"> · mise à jour…</span> : null}
           </p>
           <h2 id="ag-titre" className="ag-titre">{titreIncident(incident)}</h2>
-          <SyntheseBloc synthese={synthese} prete={prete} repli={repliAgent(lecture, incident.type)} />
+          <SyntheseBloc
+            synthese={synthese}
+            prete={prete}
+            repli={repliAgent(lecture, incident.type)}
+            libelles={lecture.prevenu && !lecture.appel ? { reprendre: "Remettre l'agent en service" } : undefined}
+          />
           <Chrono incident={incident} lecture={lecture} vue={vue} maintenant={maintenant} />
         </div>
       </section>
@@ -312,14 +317,17 @@ export function FriseEtapes({
           {droite}
         </header>
         {avant}
-        <ol className="ag-fil" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
-          {maillons.map((m) => (
-            <li key={m.id} className={`ton-${m.ton}`}>
-              <span className="ag-fil-point" />
-              <span className="ag-fil-lib">{m.lib}</span>
-            </li>
-          ))}
-        </ol>
+        {/* Au-delà de huit étapes, la ligne de points ne se lit plus : la liste suffit. */}
+        {n <= 8 && (
+          <ol className="ag-fil" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
+            {maillons.map((m) => (
+              <li key={m.id} className={`ton-${m.ton}`}>
+                <span className="ag-fil-point" />
+                <span className="ag-fil-lib">{m.lib}</span>
+              </li>
+            ))}
+          </ol>
+        )}
         <ol className="ag-maillons">
           {maillons.map((m, i) => (
             <Maillon
@@ -467,12 +475,14 @@ function PanneauDecision({
   const garde = critique || estPetitEcran();
   const peutCouper = !occupe && lecture.issue !== "coupee" && !ferme;
   const peutReprendre = !occupe && lecture.appelLiberable;
+  // Désarmé avant lecture : rien à laisser passer, l'agent attend d'être relancé.
+  const relancer = lecture.prevenu && !lecture.appel && incident.etat === "suspendue" && !ferme;
   // Clore : après un refus d'office, ou pour une alerte qui n'a pas arrêté l'agent.
   const alerteALire = !ferme && incident.etat === "active" && (!incident.statut || incident.statut === "ouvert");
   const proposerClore = Boolean(lecture.refus) || alerteALire;
   const peutClore = !occupe && (vue === "refusee" || alerteALire);
   // « Couper » n'est l'action principale, rouge plein, que si un appel attend.
-  const couperPrincipal = vue === "attente";
+  const couperPrincipal = vue === "attente" && !(lecture.prevenu && !lecture.appel);
   const dejaPasse = (incident.decisions ?? []).some((d) => d.action === "reprendre");
 
   // Droit à retirer : celui que conseille le copilote, sinon celui que l'action
@@ -496,7 +506,7 @@ function PanneauDecision({
         ? "Le dossier est fermé."
         : vue === "refusee"
           ? "Pour arrêter aussi sa session : toute action suivante sera refusée."
-          : vue === "attente"
+          : vue === "attente" && lecture.appel
             ? "L'action retenue n'a pas lieu et l'agent perd ses accès."
             : "L'agent perd ses accès : toute action suivante sera refusée.";
   const aideReprendre = lecture.appelLiberable
@@ -548,7 +558,12 @@ function PanneauDecision({
     }
   };
 
-  const etatLong = vue === "coupee" && dejaPasse ? "Agent arrêté, une action était passée avant" : ETAT_LONG[vue];
+  const etatLong =
+    vue === "coupee" && dejaPasse
+      ? "Agent arrêté, une action était passée avant"
+      : relancer
+        ? "L'agent est en pause, il attend votre décision"
+        : ETAT_LONG[vue];
   // Sous le titre : le compteur s'il y a une attente, la durée du refus sinon.
   const sousTitre =
     vue === "attente" && lecture.detection
@@ -613,7 +628,27 @@ function PanneauDecision({
     </div>
   );
 
-  const boutonReprendre = (
+  const boutonRelancer = relancer ? (
+    <div className="ag-action" key="relancer">
+      <button
+        type="button"
+        className="ag-pilule ag-pilule-clore"
+        disabled={occupe}
+        onClick={() => (analyste ? trancher("reprendre") : setConfirmation("reprendre"))}
+      >
+        <span>
+          {decisionEnCours === "reprendre" ? "Envoi…" : "Remettre l'agent en service"}
+          {conseilReprendre && <span className="ag-conseil">conseillé</span>}
+        </span>
+        <span className="ag-rond">
+          <Icone nom="reprendre" taille={14} />
+        </span>
+      </button>
+      <p className="ag-aide">Il n'a rien suivi : il reprend son travail, toujours surveillé.</p>
+    </div>
+  ) : null;
+
+  const boutonReprendre = relancer ? null : (
     <div className="ag-action" key="reprendre">
       <button
         type="button"
@@ -652,7 +687,9 @@ function PanneauDecision({
     confirmation === "couper"
       ? `Couper ${agent} ?`
       : confirmation === "reprendre"
-        ? `Laisser passer l'action de ${agent} ?`
+        ? relancer
+          ? `Remettre ${agent} en service ?`
+          : `Laisser passer l'action de ${agent} ?`
         : confirmation === "clore"
           ? "Clore l'incident ?"
           : "";
@@ -660,7 +697,9 @@ function PanneauDecision({
     confirmation === "couper"
       ? "Il perd ses accès tout de suite. Vous aurez cinq secondes pour annuler."
       : confirmation === "reprendre"
-        ? `${lecture.enJeu.replace(/^L'agent veut /, "Elle va ")} Rien d'autre ne passe.`
+        ? relancer
+          ? "Il reprend son travail, toujours surveillé."
+          : `${lecture.enJeu.replace(/^L'agent veut /, "Elle va ")} Rien d'autre ne passe.`
         : undefined;
 
   return (
@@ -689,14 +728,23 @@ function PanneauDecision({
           <BlocConfirmation
             titre={titreConfirmation}
             aide={aideConfirmation}
-            libelle={confirmation === "couper" ? "Couper l'agent" : confirmation === "reprendre" ? "Laisser passer" : "Clore"}
+            libelle={
+              confirmation === "couper"
+                ? "Couper l'agent"
+                : confirmation === "reprendre"
+                  ? relancer
+                    ? "Remettre en service"
+                    : "Laisser passer"
+                  : "Clore"
+            }
             danger={confirmation === "couper"}
-            motifObligatoire={(confirmation === "couper" || confirmation === "reprendre") && garde}
+            motifObligatoire={(confirmation === "couper" || (confirmation === "reprendre" && !relancer)) && garde}
             confirmer={confirmer}
             annuler={() => setConfirmation(null)}
           />
         ) : (
           <div className="ag-actions" aria-busy={occupe}>
+            {boutonRelancer}
             {boutonClore}
             {boutonCouper}
             {boutonReprendre}

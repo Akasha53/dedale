@@ -214,9 +214,15 @@ export function etatIncident(inc: Incident): { lib: string; cls: string; aTraite
   const humain = inc.source === "humain" || (inc.type ?? "").startsWith("humain_");
   if (inc.statut === "ignore") return { lib: "Classé sans suite", cls: "neutre", aTraiter: false };
   if (humain) {
-    const derniere = inc.decisions?.[inc.decisions.length - 1]?.action;
-    if (derniere === "accorder") return { lib: "Geste accordé", cls: "neutre", aTraiter: false };
-    if (derniere === "refuser") return { lib: "Geste refusé", cls: "ok", aTraiter: false };
+    const d = inc.decisions?.[inc.decisions.length - 1];
+    const derniere = d?.action;
+    // Le relecteur IA tranche le geste critique en quelques secondes ; l'analyste
+    // garde un recours, mais n'a rien à faire.
+    const parRelecteur = /^relecteur/i.test(d?.analyste ?? "");
+    if (derniere === "accorder")
+      return { lib: parRelecteur ? "Accordé par le relecteur" : "Geste accordé", cls: "neutre", aTraiter: false };
+    if (derniere === "refuser")
+      return { lib: parRelecteur ? "Refusé par le relecteur" : "Geste refusé", cls: "ok", aTraiter: false };
     if (inc.statut === "clos") return { lib: "Clos", cls: "neutre", aTraiter: false };
     if (inc.quatre_yeux && !inc.quatre_yeux.issue) return { lib: "Geste en attente", cls: "attente", aTraiter: true };
     return { lib: "À traiter", cls: "attente", aTraiter: true };

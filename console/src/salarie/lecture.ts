@@ -57,7 +57,7 @@ const CONTEXTE: Record<Genre, string> = {
 
 // Le geste risqué, en titre court.
 const GESTE: Record<Genre, string> = {
-  mail_recu: "Il a ouvert un faux mail d'Orbis Pay",
+  mail_recu: "Il a ouvert un mail frauduleux",
   lien: "Il a cliqué sur un faux site d'Orbis Pay",
   piece: "Il a voulu ouvrir une pièce jointe piégée",
   coller: "Il a voulu coller une clé secrète",
@@ -68,7 +68,7 @@ const GESTE: Record<Genre, string> = {
 };
 
 const POURQUOI: Record<Genre, string> = {
-  mail_recu: "Le mail imite Orbis Pay mais ne vient pas d'Orbis Pay.",
+  mail_recu: "Le mail a les marques d'une fraude : son expéditeur, ses liens ou sa demande ne collent pas.",
   lien: "Le lien mène à un site qui imite Orbis Pay sans en faire partie.",
   piece: "Le fichier a les marques d'une pièce jointe piégée.",
   coller: "Dédale a reconnu une clé secrète dans ce que le salarié allait coller.",
@@ -113,7 +113,7 @@ function phraseGeste(g: Genre, d: Details): string {
     case "mail_recu":
       return affiche && de
         ? `Le salarié a ouvert un mail signé « ${affiche} », envoyé en réalité par ${de}. Son lien mène à un faux site.`
-        : "Le salarié a ouvert un faux mail d'Orbis Pay. Son lien mène à un faux site.";
+        : "Le salarié a ouvert un mail frauduleux malgré l'alerte de Dédale.";
     case "lien":
       return "Le salarié a cliqué sur un lien qui mène à un faux site d'Orbis Pay.";
     case "piece":
@@ -242,9 +242,9 @@ function refsDe(m: MaillonChaine) {
 }
 
 export function lireGesteSalarie(inc: Incident): LectureSalarie {
-  const chaine = [...(inc.chaine ?? [])].sort(
-    (a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? "") || a.ordre - b.ordre
-  );
+  // Heures comparées en temps réel : les modules n'écrivent pas tous le même fuseau.
+  const t = (iso?: string) => (iso ? Date.parse(iso) || 0 : 0);
+  const chaine = [...(inc.chaine ?? [])].sort((a, b) => t(a.horodatage) - t(b.horodatage) || a.ordre - b.ordre);
   const evs = new Map<number, Evenement>((inc.evenements ?? []).map((e) => [e.id, e]));
   const avertissements = (inc.evenements ?? []).filter((e) => e.type === "avertissement");
   // L'avertissement qui a fait remonter le dossier : le dernier passé outre,
@@ -380,7 +380,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
   });
 
   // La décision de l'analyste : orange tant que le dossier attend, gris ensuite.
-  const decisions: Decision[] = [...(inc.decisions ?? [])].sort((a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? ""));
+  const decisions: Decision[] = [...(inc.decisions ?? [])].sort((a, b) => t(a.horodatage) - t(b.horodatage));
   const journal = inc.journal_console ?? [];
   decisions.forEach((dec, i) => {
     const motif = journal.find(
@@ -390,7 +390,9 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
       cle: "decision",
       id: `sal-decision-${i}`,
       lib: "Décision",
-      titre: DECISION[dec.action] ?? `Décision : ${dec.action}`,
+      titre: /^relecteur/i.test(dec.analyste)
+        ? (DECISION[dec.action] ?? `Décision : ${dec.action}`).replace("L'analyste", "Le relecteur IA")
+        : DECISION[dec.action] ?? `Décision : ${dec.action}`,
       texte: motif ? `Décision prise par ${dec.analyste}. Motif : « ${motif} ».` : `Décision prise par ${dec.analyste}.`,
       horodatage: dec.horodatage,
       ton: dec.action === "refuser" ? "protege" : "neutre",

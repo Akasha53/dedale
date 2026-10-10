@@ -95,6 +95,9 @@ export interface LectureAgent {
   derniereDecision?: Decision;
   refus?: RefusDedale;
   enJeu: string; // ce que l'action retenue ferait, en une phrase
+  // L'instruction cachée a été retirée avant lecture et aucun piège n'a été
+  // touché : l'agent n'a rien suivi.
+  prevenu: boolean;
 }
 
 export const LIB: Record<CleMaillon, string> = {
@@ -193,6 +196,11 @@ function temps(iso?: string | null): number {
   return new Date(iso).getTime();
 }
 
+function temps0(iso?: string | null): number {
+  const t = temps(iso);
+  return Number.isNaN(t) ? 0 : t;
+}
+
 function details(ev?: Evenement): Record<string, unknown> {
   return (ev?.details ?? {}) as Record<string, unknown>;
 }
@@ -223,7 +231,7 @@ function issueDe(inc: Incident, derniere?: Decision, bloqueeParPasserelle = fals
 // Range les étapes par heure. Une étape sans heure garde la place qui suit
 // l'étape précédente. La chaîne du backend arrive déjà triée : c'est une
 // sécurité.
-const AVANT_ACTION: Partial<Record<CleMaillon, number>> = { source: 0, desarme: 1, consigne: 2, intention: 3 };
+const AVANT_ACTION: Partial<Record<CleMaillon, number>> = { source: 0, consigne: 1, desarme: 2, intention: 3 };
 
 function trierParHeure(maillons: MaillonAgent[]): MaillonAgent[] {
   // Lecture, désarmement, instruction et intention précèdent toujours la
@@ -493,10 +501,9 @@ function motifsDe(inc: Incident): Map<string, string> {
 }
 
 export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
-  const evs = [...(inc.evenements ?? [])].sort(
-    (a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? "") || a.id - b.id
-  );
-  const decisions = [...(inc.decisions ?? [])].sort((a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? ""));
+  // Heures comparées en temps réel : les modules n'écrivent pas tous le même fuseau.
+  const evs = [...(inc.evenements ?? [])].sort((a, b) => temps0(a.horodatage) - temps0(b.horodatage) || a.id - b.id);
+  const decisions = [...(inc.decisions ?? [])].sort((a, b) => temps0(a.horodatage) - temps0(b.horodatage));
   const derniereDecision = decisions.length ? decisions[decisions.length - 1] : undefined;
   if (evs.length === 0) return depuisChaine(inc, decisions);
 
@@ -522,6 +529,9 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     touches.find((e) => String(details(e).type ?? "").startsWith("consigne_"));
   const docSource = documentDe(inc);
   const piege = Boolean(evSource || evConsigne || toucheSource || mcpEv || usurpationEv || docSource?.instruction_cachee);
+  const prevenu =
+    touches.length === 0 &&
+    evs.some((e) => e.type === "desarmement" && (details(e).desarmement as Record<string, unknown> | undefined)?.consigne === true);
 
   const ripBlocage = ripostes.find((e) => /^bloquer_/.test(String(details(e).action ?? "")));
   const ripResultat = [...ripostes].reverse().find((e) => details(e).maillon === "resultat" || details(e).action === "couper");
@@ -553,9 +563,11 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     const tDet = temps(touches[0]?.horodatage);
     const outilTouche = touches.find((e) => e.outil)?.outil;
     const avant = (e: Evenement) => Number.isNaN(tDet) || temps(e.horodatage) <= tDet;
+    // Sans piège touché ni instruction suivie, aucun appel n'est « l'action en cause ».
+    const suivi = touches.length > 0 || Boolean(evConsigne);
     const ev =
       (outilTouche ? [...appels].reverse().find((e) => e.outil === outilTouche && avant(e)) : undefined) ??
-      (piege ? [...appels].reverse().find(avant) : undefined);
+      (piege && suivi ? [...appels].reverse().find(avant) : undefined);
     if (ev) cibles = [{ ...lireAppel(ev), porteCanari: Boolean(outilTouche) }];
   }
   const appel = cibles.length ? cibles[cibles.length - 1] : null;
@@ -674,18 +686,22 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       cle: "consigne",
       id: "consigne",
       lib: LIB.consigne,
-      titre: mcpEv
+      titre: prevenu
+        ? "Une instruction cachée, retirée avant lecture"
+        : mcpEv
         ? "La description de l'outil cachait une instruction"
         : usurpationEv
           ? "Un faux collègue lui a donné un ordre"
           : "Une instruction cachée, invisible pour un humain",
-      texte: demande
-        ? `Elle lui demande de ${court(sansCodes(demande))}.`
-        : descr
-          ? court(sansCodes(descr))
-          : "Le contenu s'adressait à l'agent, pas à la personne qui l'a reçu.",
+      texte: prevenu
+        ? "Dédale l'a retirée : l'agent a reçu le contenu sans elle."
+        : demande
+          ? `Elle lui demande de ${court(sansCodes(demande))}.`
+          : descr
+            ? court(sansCodes(descr))
+            : "Le contenu s'adressait à l'agent, pas à la personne qui l'a reçu.",
       horodatage: evConsigne?.horodatage ?? toucheSource?.horodatage ?? mcpEv?.horodatage,
-      ton: "alerte",
+      ton: prevenu ? "protege" : "alerte",
       detail: {
         brut: bruts(
           brut("Texte caché", textePiege ? preuveInerte(textePiege, 900) : "", { piege: true }),
@@ -866,7 +882,11 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       id: "decision-attente",
       lib: LIB.decision,
       titre: attend ? "En attente de votre décision" : statutFerme ? "Dossier fermé sans décision notée" : "Aucune décision notée",
-      texte: attend ? "L'action est retenue. Rien ne part avant votre choix." : undefined,
+      texte: attend
+        ? appel
+          ? "L'action est retenue. Rien ne part avant votre choix."
+          : "L'agent est en pause jusqu'à votre choix."
+        : undefined,
       // Après la dernière action retenue : c'est elle qui attend.
       horodatage: appel?.horodatage ?? detection,
       ton: attend ? "attente" : "neutre",
@@ -882,6 +902,32 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
 
   // 6. Correctifs, puis résultat.
   maillons.push(...correctifsDe(inc, evs));
+  if (prevenu && !appel && issue === "attente") {
+    maillons.push({
+      cle: "resultat",
+      id: "resultat",
+      lib: LIB.resultat,
+      titre: "L'agent n'a rien suivi",
+      texte: "Il a lu la version propre. Il attend d'être remis en service.",
+      ton: "protege",
+      detail: {
+        brut: [],
+        pourquoi: "La passerelle met l'agent en pause après un désarmement, le temps qu'un analyste regarde.",
+        refs: [],
+      },
+    });
+    return {
+      maillons: trierParHeure(maillons),
+      appel,
+      appelLiberable,
+      issue,
+      detection,
+      derniereDecision,
+      refus,
+      enJeu: "L'agent est en pause. Rien n'attend d'être laissé passer.",
+      prevenu,
+    };
+  }
   const dejaPasse = decisions.some((d) => d.action === "reprendre") && issue === "coupee";
   const dRes = details(ripResultat);
   maillons.push(
@@ -904,6 +950,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     derniereDecision,
     refus,
     enJeu: enJeuDe(appel, horsEntreprise(adresseVisee(details(appel?.ev).parametres))),
+    prevenu,
   };
 }
 
@@ -988,5 +1035,6 @@ function depuisChaine(inc: Incident, decisions: Decision[]): LectureAgent {
     detection: chaine.find((m) => m.phase === "consigne")?.horodatage ?? outil?.horodatage,
     derniereDecision: derniere,
     enJeu: outil ? `L'agent veut ${sansCodes(preuveInerte(outil.titre, 120)).toLowerCase()}.` : enJeuDe(null),
+    prevenu: false,
   };
 }
