@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 _TMPDB = os.path.join(tempfile.gettempdir(), "dedale_test.db")
 os.environ["DEDALE_DB"] = _TMPDB
 os.environ["DEDALE_LLM"] = "off"  # pas d'appel modèle en test : repli gabarit déterministe
+os.environ["DEDALE_RELECTEUR"] = "off"  # relecteur IA coupé, sauf dans test_relecteur.py
 os.environ.pop("DEDALE_WEBHOOK_URL", None)  # aucune alerte ne sort pendant les tests
 
 import pytest

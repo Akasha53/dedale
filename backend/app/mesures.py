@@ -46,6 +46,11 @@ def duree_ms(secondes: list[float]) -> dict:
     }
 
 
+def _relecteur(evenements: list[dict]) -> dict:
+    from . import relecteur  # import local : relecteur dépend du store
+    return relecteur.mesures(evenements)
+
+
 def calculer(store) -> dict:
     with store.lock:
         sessions = list(store.sessions.values())
@@ -134,6 +139,8 @@ def calculer(store) -> dict:
         # Détail utile à l'analyste (toléré par la console).
         "matrice": {"vrais_positifs": vp, "faux_positifs": fp, "vrais_negatifs": vn, "faux_negatifs": fn},
         "sessions_sans_verite_terrain": sans_verite,
+        # Relecteur IA : décisions par acte et par moteur, durée médiane (relecteur.py).
+        "relecteur": _relecteur(evenements),
         # Pilier humain : efficacité du garde du corps du poste.
         "gestes_humains": {
             "arretes": gestes_arretes,

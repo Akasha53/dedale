@@ -365,6 +365,9 @@ app.include_router(api_preuves.routeur)
 app.include_router(agents_poste.routeur)
 # Gouvernance des agents : règles du SOC, inventaire, résistance (routes_gouvernance.py).
 app.include_router(routes_gouvernance.routeur)
+# Relecteur IA : gestes à quatre yeux tranchés en quelques secondes, pré-tri des incidents.
+from . import routes_relecteur  # noqa: E402
+routes_relecteur.brancher(app, _enfiler)
 
 
 # ---------------------------------------------------------------- Console web
