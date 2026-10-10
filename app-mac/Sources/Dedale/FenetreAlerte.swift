@@ -97,8 +97,9 @@ final class FenetreAlerte: NSObject {
             boutonVoir = BoutonDedale(titre: "Voir le mail", style: .lien, cible: self, action: #selector(voir))
         }
 
-        boutonContinuer = BoutonDedale(titre: "Continuer", style: .risque, cible: self, action: #selector(continuer))
-        boutonAnnuler = BoutonDedale(titre: "Annuler", style: .protege, cible: self, action: #selector(annuler))
+        boutonContinuer = BoutonDedale(titre: a.titreContinuer ?? "Continuer", style: .risque, cible: self,
+                                       action: #selector(continuer))
+        boutonAnnuler = BoutonDedale(titre: a.titreAnnuler ?? "Annuler", style: .protege, cible: self, action: #selector(annuler))
         let boutons = NSStackView(views: [boutonContinuer, boutonAnnuler])
         boutons.orientation = .horizontal
         boutons.distribution = .fillEqually
