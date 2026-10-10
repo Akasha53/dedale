@@ -89,7 +89,80 @@ final class SitesVeille {
         observateur = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.premierPlanChange() }
+        NotificationCenter.default.addObserver(forName: ReglagesModules.changement, object: ModulePoste.sites,
+                                               queue: .main) { [weak self] _ in
+            let allume = ReglagesModules.partage.actif(.sites)
+            self?.majLigne(allume ? nil : "Sites : coupé", couleur: allume ? Teinte.cyan : Teinte.gris)
+            self?.premierPlanChange()
+        }
+        if !ReglagesModules.partage.actif(.sites) { majLigne("Sites : coupé", couleur: Teinte.gris) }
         premierPlanChange()
+        if let liste = ProcessInfo.processInfo.environment["DEDALE_SITES_ESSAI"], !liste.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                self?.essaiReel(liste.split(separator: " ").map(String.init))
+            }
+        }
+    }
+
+    // MARK: Essai réel (test)
+
+    /// DEDALE_SITES_ESSAI : adresses séparées par des espaces. L'app ouvre une NOUVELLE fenêtre
+    /// Safari, y charge chaque adresse à son tour (la suivante quand la pop-up s'est refermée,
+    /// ou après 6 s sans alerte), puis referme cette fenêtre. Les choix se font avec
+    /// DEDALE_CLIC_AUTO, par les vrais boutons. Les autres fenêtres de Safari ne sont pas touchées.
+    private func essaiReel(_ adresses: [String]) {
+        lecteur.verifierPermission(.safari) { [weak self] p in
+            guard let self else { return }
+            guard p == .accordee else {
+                journal("essai : Safari refuse le contrôle par Dédale (\(p.rawValue)), essai abandonné")
+                return
+            }
+            guard let premiere = adresses.first, let url = LecteurNavigateurs.chaineAppleScript(premiere),
+                  let id = self.lecteur.script("""
+                      tell application id "com.apple.Safari"
+                          make new document with properties {URL:\(url)}
+                          activate
+                          return id of front window
+                      end tell
+                      """).flatMap(Int.init) else {
+                journal("essai : impossible d'ouvrir une fenêtre Safari")
+                return
+            }
+            journal("essai : fenêtre Safari \(id) ouverte sur \(premiere)")
+            self.etapeEssai(adresses, rang: 0, fenetreSafari: id, depuis: Date(), vuePopup: false)
+        }
+    }
+
+    private func etapeEssai(_ adresses: [String], rang: Int, fenetreSafari id: Int, depuis: Date, vuePopup: Bool) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            let ouverte = self.fenetre != nil
+            let fini = (vuePopup && !ouverte) || (!vuePopup && Date().timeIntervalSince(depuis) > 6)
+            guard fini else {
+                self.etapeEssai(adresses, rang: rang, fenetreSafari: id, depuis: depuis, vuePopup: vuePopup || ouverte)
+                return
+            }
+            let suivant = rang + 1
+            guard suivant < adresses.count, let url = LecteurNavigateurs.chaineAppleScript(adresses[suivant]) else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                    _ = self?.lecteur.script("tell application id \"com.apple.Safari\" to close window id \(id)")
+                    journal("essai : terminé, fenêtre Safari \(id) refermée")
+                }
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self else { return }
+                journal("essai : \(adresses[suivant])")
+                _ = self.lecteur.script("""
+                    tell application id "com.apple.Safari"
+                        set index of window id \(id) to 1
+                        set URL of current tab of window id \(id) to \(url)
+                        activate
+                    end tell
+                    """)
+                self.etapeEssai(adresses, rang: suivant, fenetreSafari: id, depuis: Date(), vuePopup: false)
+            }
+        }
     }
 
     func etat() -> [String: Any] {
@@ -113,7 +186,8 @@ final class SitesVeille {
 
     /// La lecture ne tourne que pendant qu'un navigateur surveillé est au premier plan.
     private func premierPlanChange() {
-        if navigateurDevant != nil {
+        // Module Sites coupé dans le panneau « Ce que Dédale regarde » : plus aucune lecture.
+        if navigateurDevant != nil, ReglagesModules.partage.actif(.sites) {
             guard minuteur == nil else { return }
             let m = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tic() }
             RunLoop.main.add(m, forMode: .common)
