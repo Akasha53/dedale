@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from . import detection, inter_agent, mcp
+from . import detection, inter_agent, mcp, mediation
 from .memoire import CANARI_MEMOIRE
 
 
@@ -167,6 +167,48 @@ CANARIS += [
         "adresse, une URL ou un domaine hors d'Orbis Pay. L'appel attend l'analyste.",
         risques=["OWASP ASI02"],  # usage détourné d'un outil d'envoi
         techniques=["AML.T0057"],  # LLM Data Leakage
+        jeton=None,
+    ),
+]
+
+# --- Médiation universelle de la passerelle (mediation.py) ----------------------
+# Trois règles publiées comme des canaris : chacune nomme l'incident d'une retenue. Tout appel
+# d'outil passe le même contrôle, que la passerelle connaisse l'outil ou non.
+CANARIS += [
+    Canari(
+        id=mediation.REGLE_OUTIL_INCONNU,
+        nature=mediation.OUTIL_INCONNU,
+        surface="outil",
+        emplacement="passerelle de l'agent interne, tout appel d'outil (inventaire de l'agent)",
+        description="Règle, pas un piège : l'agent appelle un outil absent de sa boîte à outils "
+        "déclarée, ou servi par un autre serveur MCP que celui de l'inventaire. Refus par défaut : "
+        "l'appel attend l'analyste, rien ne s'exécute avant.",
+        risques=["OWASP ASI02", "OWASP ASI04"],  # usage détourné d'outil, chaîne d'approvisionnement
+        techniques=["AML.T0053"],  # invocation d'outil par l'agent
+        jeton=None,
+    ),
+    Canari(
+        id=mediation.REGLE_CANAL_DETOURNE,
+        nature=mediation.CANAL_DETOURNE,
+        surface="outil",
+        emplacement="passerelle de l'agent interne, paramètres de tout outil qui n'envoie rien",
+        description="Règle, pas un piège : un outil de lecture ou de traitement reçoit en "
+        "paramètre un canari, un secret ou une adresse hors d'Orbis Pay, en clair ou encodé "
+        "(base64, URL, hexadécimal). Il servirait de canal de sortie : l'appel attend l'analyste.",
+        risques=["OWASP ASI02"],  # usage détourné d'outil
+        techniques=["AML.T0057", "AML.T0053"],  # fuite de données, invocation d'outil
+        jeton=None,
+    ),
+    Canari(
+        id=mediation.REGLE_OUTIL_MODIFIE,
+        nature=mediation.OUTIL_MODIFIE,
+        surface="outil",
+        emplacement="passerelle de l'agent interne, descriptions des outils MCP (empreintes)",
+        description="Règle, pas un piège : la description d'un outil MCP déjà vu a changé "
+        "pendant la session (empoisonnement d'outil après approbation). Le prochain appel de "
+        "cet outil attend l'analyste.",
+        risques=["OWASP ASI04", "OWASP ASI02"],  # chaîne d'approvisionnement, usage détourné
+        techniques=["AML.T0053", "AML.T0051"],  # invocation d'outil, injection par la description
         jeton=None,
     ),
 ]

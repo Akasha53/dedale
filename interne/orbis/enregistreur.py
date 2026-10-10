@@ -26,6 +26,7 @@ REFERENTIEL: dict[str, dict] = {
     "OWASP ASI01": {"cadre": "OWASP agentique", "nom": "Agent Goal Hijack (détournement d'objectif)"},
     "OWASP ASI02": {"cadre": "OWASP agentique", "nom": "Tool Misuse and Exploitation (usage détourné d'outil)"},
     "OWASP ASI03": {"cadre": "OWASP agentique", "nom": "Identity and Privilege Abuse (abus de droits)"},
+    "OWASP ASI04": {"cadre": "OWASP agentique", "nom": "Agentic Supply Chain Vulnerabilities (outils et serveurs MCP non maîtrisés)"},
     "AML.T0051": {"cadre": "MITRE ATLAS", "nom": "LLM Prompt Injection (indirecte, par un document lu)"},
     "AML.T0053": {"cadre": "MITRE ATLAS", "nom": "AI Agent Tool Invocation (ex-LLM Plugin Compromise)"},
     "AML.T0057": {"cadre": "MITRE ATLAS", "nom": "LLM Data Leakage"},

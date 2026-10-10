@@ -19,7 +19,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from . import canaris, detection, droits, inter_agent, politiques, source
+from . import canaris, detection, droits, inter_agent, mediation, politiques, source
 from . import desarmeur as desarm
 from .boite_noire import BoiteNoire
 from .enregistreur import (Enregistreur, Instant, chrono_dict, empreinte, inerte, masquer,
@@ -93,9 +93,14 @@ class Passerelle:
         enregistreur: Enregistreur | None = None,
         agent: str = AGENT_DEFAUT,
         desarmeur: bool | str = False,
+        inventaire=None,
     ):
         self.session_id = session_id
         self.agent = agent
+        # Médiation universelle (mediation.py) : boîte à outils déclarée de l'agent (son profil
+        # par défaut, vide pour un agent sans profil) et empreintes des descriptions MCP vues.
+        self.inventaire = frozenset(inventaire) if inventaire is not None else None
+        self.empreintes_outils = mediation.Empreintes()
         # Droits retirés à l'agent par l'analyste (correctif en un clic). Appris dans les
         # réponses du backend ; un outil qui exige l'un d'eux est refusé sans être exécuté.
         self.droits_retires: set[str] = set()
@@ -154,7 +159,7 @@ class Passerelle:
         """Tout ce qui part au backend passe ici : les faux secrets canaris et les paramètres
         d'URL sont masqués. La détection, elle, travaille sur les valeurs brutes, en local."""
         if options.get("details") is not None:
-            options["details"] = masquer(options["details"], self.jetons)
+            options["details"] = mediation.masquer(options["details"], self.jetons)
         rep = self.boite.evenement(type, surface, session_id, **options)
         self._noter_retraits(rep)
         return rep
@@ -232,6 +237,8 @@ class Passerelle:
     def sortie_agent(self, texte: str) -> str:
         """Inspecte la sortie finale. Peut retenir et faire décider l'analyste."""
         trouvailles = self._attribuer(detection.inspecter(texte, self.jetons))
+        # Un canari encodé (base64, URL, hexadécimal) dans la réponse finale compte aussi.
+        trouvailles = mediation.ordonner(mediation.canaris_encodes(texte, self.jetons), trouvailles)
         if trouvailles:
             decision = self._gerer_touche(trouvailles, surface="outil", outil=None)
             if decision.verdict == "couper":
@@ -294,9 +301,16 @@ class Passerelle:
             charge = json.dumps(params, ensure_ascii=False, default=str)
             trouvailles = self._attribuer(detection.inspecter(charge, self.jetons))
             trouvailles = trouvailles or self._envoi_externe(params)
+        # Médiation universelle : inventaire, description MCP changée, paramètres (lecture comprise).
+        med, insp = self._examiner(nom, params, descripteur, sortant)
+        trouvailles = mediation.ordonner(med, trouvailles)
         if trouvailles:
             det["verdict"] = RETENU
             det["raison"] = self._raison_canaris(trouvailles)
+            if mediation.motif(trouvailles):
+                det.update({"retenu": True, "motif": mediation.motif(trouvailles)})
+                det.update(mediation.details(nom, descripteur, trouvailles, insp, agent=self.agent,
+                                             empreintes=self.empreintes_outils))
         else:
             det["verdict"] = AUTORISE
             det["raison"] = self._raison_autorise(scope, det.get("outil_mcp_suspect", False))
@@ -347,6 +361,9 @@ class Passerelle:
 
     @staticmethod
     def _raison_canaris(trouvailles: list) -> str:
+        retenue = mediation.raison(trouvailles)
+        if retenue:
+            return retenue
         externe = next((t.detail for t in trouvailles if t.type == "envoi_externe"), None)
         if externe:
             return externe + ", appel retenu pour l’analyste"
@@ -607,6 +624,9 @@ class Passerelle:
         enr = self.enregistreur
         demande = enr.instant()
         scope = droits.scope_outil(nom)
+        sortant = nom in OUTILS_SORTANTS or (descripteur is not None and getattr(descripteur, "sortant", False))
+        # Médiation universelle, faite pour tout appel : inventaire, description MCP, paramètres.
+        med, insp = self._examiner(nom, params, descripteur, sortant)
 
         # Moindre privilège : hors du jeton -> retenu pour l'analyste (ou refusé d'office si le
         # mode « retenir » n'est pas demandé, comportement historique).
@@ -614,19 +634,29 @@ class Passerelle:
             if not self.retenir_hors_scope:
                 self._refuser_hors_scope(nom, scope)
             return self._retenir(nom, params, fonction, intention, demande, motif="droits",
-                                 scope=scope)
+                                 scope=scope, trouvailles=med)
 
         # Détection sortante, en local, sur les valeurs brutes.
-        sortant = nom in OUTILS_SORTANTS or (descripteur is not None and getattr(descripteur, "sortant", False))
         trouvailles: list = []
         if sortant:
             charge = json.dumps(params, ensure_ascii=False, default=str)
             trouvailles = self._attribuer(detection.inspecter(charge, self.jetons))
             trouvailles = trouvailles or self._envoi_externe(params)
+        trouvailles = mediation.ordonner(med, trouvailles)
         if trouvailles:
-            return self._retenir(nom, params, fonction, intention, demande,
-                                 motif=self._motif_retenue(trouvailles),
-                                 scope=scope, trouvailles=trouvailles)
+            motif = self._motif_retenue(trouvailles)
+            if motif not in mediation.MOTIFS:
+                return self._retenir(nom, params, fonction, intention, demande, motif=motif,
+                                     scope=scope, trouvailles=trouvailles)
+            liberes = len(self.appels_liberes)
+            resultat = self._retenir(
+                nom, params, fonction, intention, demande, motif=motif, scope=scope,
+                trouvailles=trouvailles,
+                extra=mediation.details(nom, descripteur, trouvailles, insp, agent=self.agent,
+                                        empreintes=self.empreintes_outils))
+            if len(self.appels_liberes) > liberes:  # libéré par l'analyste : lu comme les autres
+                resultat = self._desarmer_resultat(nom, resultat, descripteur)
+            return resultat
 
         det: dict = {"parametres": params}
         if scope:
@@ -737,7 +767,8 @@ class Passerelle:
             return
 
     def _retenir(self, nom, params, fonction, intention, demande: Instant, *, motif: str,
-                 scope: str | None = None, trouvailles: list | None = None):
+                 scope: str | None = None, trouvailles: list | None = None,
+                 extra: dict | None = None):
         """Retient l'appel AVANT exécution, ouvre l'incident, attend l'analyste, applique."""
         enr = self.enregistreur
         detection_t = enr.instant()
@@ -754,6 +785,10 @@ class Passerelle:
                 releves.append(self._consigne_doc[0])
             if cible:
                 releves.append(cible)
+            # Ce que la médiation a vu dans les paramètres est montré dans la même retenue.
+            for t in trouvailles or []:
+                if t.canari_id and t.canari_id not in releves:
+                    releves.append(t.canari_id)
             refs_appel = self._refs_canari(cible) or references("OWASP ASI03")
         else:
             for t in trouvailles or []:
@@ -776,13 +811,15 @@ class Passerelle:
                                    "statut": "annoncée, pas exécutée"})
 
         # Maillon appel d'outil retenu.
-        params_masques = masquer(params, self.jetons)
+        params_masques = mediation.masquer(params, self.jetons)
         if motif == "droits":
             jeton = self.jeton_tache
             detail = (f"{nom} exige le droit {scope} ({droits.libelle(scope)}), absent du jeton "
                       f"{jeton.id} de la tâche « {jeton.tache} ». Appel retenu avant exécution.")
         elif motif == "envoi_externe":
             detail = self._detail_envoi_externe(nom, trouvailles or [])
+        elif motif in mediation.MOTIFS:
+            detail = mediation.detail_retenue(nom, trouvailles or [])
         else:
             types = sorted({t.type for t in trouvailles or []})
             detail = (f"{nom} : les paramètres portent {', '.join(releves)} ({', '.join(types)}). "
@@ -798,7 +835,7 @@ class Passerelle:
                          "parametres": params, "verdict": RETENU,
                          "raison": (f"droit {scope} absent du jeton" if motif == "droits"
                                     else self._raison_canaris(trouvailles or [])
-                                    if motif == "envoi_externe"
+                                    if motif == "envoi_externe" or motif in mediation.MOTIFS
                                     else "paramètres porteurs du canari " + ", ".join(releves))}
         if motif == "droits":
             details["violation_droits"] = {"outil": nom, "scope_requis": scope,
@@ -809,6 +846,7 @@ class Passerelle:
             details["exfiltration"] = {"statut": "retenue avant exécution", "canaris": releves}
             details["extrait"] = self._pour_backend(detail)
             leurre_appel = releves[-1] if releves else None
+        details.update(extra or {})
         points["envoi_console"] = enr.instant()
         details["chrono"] = chrono_dict(points)
         self._tracer("appel_outil", {"outil": nom, "retenu": True, "motif": motif})
@@ -823,6 +861,8 @@ class Passerelle:
                      if c is not None and c.nature == "consigne_cachee"
                      else f"l'appel retenu {nom} vise un destinataire hors d'Orbis Pay (règle {cid})"
                      if c is not None and c.nature == "envoi_externe"
+                     else f"l'appel retenu {nom} : {mediation.LIBELLES[c.nature]} (règle {cid})"
+                     if c is not None and c.nature in mediation.LIBELLES
                      else f"l'appel retenu {nom} touche le canari {cid}")
             det_t = {"type": c.nature if c else "canari", "detail": texte,
                      "extrait": self._pour_backend(texte),
@@ -955,6 +995,7 @@ class Passerelle:
         """Les outils MCP tels que l'agent doit les lire. Avec le désarmeur, une description qui
         porte une consigne est nettoyée et signalée. La passerelle garde l'original pour son
         inspection (`appel_outil(..., descripteur=…)`)."""
+        self.observer_outils(catalogue)
         if not getattr(self, "desarmeur_mode", None):
             return list(catalogue)
         from dataclasses import replace as remplacer
@@ -1053,6 +1094,8 @@ class Passerelle:
 
     @staticmethod
     def _motif_retenue(trouvailles: list) -> str:
+        if mediation.motif(trouvailles):
+            return mediation.motif(trouvailles)
         return "envoi_externe" if any(t.type == "envoi_externe" for t in trouvailles) else "canari"
 
     @staticmethod
@@ -1060,3 +1103,30 @@ class Passerelle:
         cause = next((t.detail for t in trouvailles if t.type == "envoi_externe"),
                      "envoi vers l'extérieur")
         return f"{nom} : {cause}. Appel retenu avant exécution."
+
+    # =============================================================================
+    # Médiation universelle : tout appel, connu ou non, passe le même contrôle.
+    # =============================================================================
+    def inventaire_effectif(self) -> frozenset:
+        """Boîte à outils déclarée : celle passée à la passerelle, sinon le profil de l'agent.
+        Un agent sans profil a un inventaire vide : refus par défaut."""
+        if getattr(self, "inventaire", None) is not None:
+            return self.inventaire
+        return mediation.inventaire_agent(self.agent)
+
+    def observer_outils(self, catalogue) -> list[dict]:
+        """Garde l'empreinte de chaque description d'outil MCP présentée à l'agent. À rappeler à
+        chaque liste d'outils (tools/list) : un changement retient le prochain appel de l'outil."""
+        empreintes = getattr(self, "empreintes_outils", None)
+        if empreintes is None:
+            self.empreintes_outils = empreintes = mediation.Empreintes()
+        for descripteur in catalogue or []:
+            empreintes.observer(descripteur)
+        return list(empreintes.changees.values())
+
+    def _examiner(self, nom: str, params, descripteur, sortant: bool):
+        if descripteur is not None:
+            self.observer_outils([descripteur])
+        return mediation.examiner(nom, params, descripteur, inventaire=self.inventaire_effectif(),
+                                  empreintes=self.empreintes_outils, jetons=self.jetons,
+                                  sortant=sortant)
