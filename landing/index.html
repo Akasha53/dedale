@@ -9,21 +9,24 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>Dédale : salariés prévenus, agents IA retenus</title>
   <script>document.documentElement.classList.add("js")</script>
+  <link rel="stylesheet" href="../design/jetons.css">
   <style>
     /* Clair et épuré, comme la console et l'extension : police du système,
        arrondis larges, gris neutres, un seul accent. */
+    /* Les valeurs viennent de ../design/jetons.css, commun avec la console.
+       La seconde valeur sert de repli si la page est ouverte hors du dépôt. */
     :root{
-      --fond:#ffffff;--fond-2:#f9f9f9;--surface:#f4f4f4;--surface-2:#ececec;
-      --bord:#e5e5e5;--ligne:rgba(13,13,13,.08);
-      --texte:#0d0d0d;--doux:#5d5d5d;--faible:#6b6b6b;
-      --accent:#0e7490;--accent-fond:#ecf8fb;
-      --rouge:#b42318;--vert:#15803d;
+      --fond:var(--gris-0,#ffffff);--fond-2:var(--gris-50,#f9f9f9);--surface:var(--gris-100,#f4f4f4);--surface-2:var(--gris-150,#ececec);
+      --bord:var(--gris-200,#e5e5e5);--ligne:var(--voile-bord,rgba(0,0,0,.08));
+      --texte:var(--gris-950,#0d0d0d);--doux:var(--gris-700,#5d5d5d);--faible:var(--gris-600,#6b6b6b);
+      --accent:var(--gris-950,#0d0d0d);--accent-fond:var(--gris-100,#f4f4f4);
+      --rouge:var(--danger,#c4262e);--vert:var(--regle,#0f7b55);--vert-fond:var(--regle-fond,#f1f8f5);
       --ombre:0 1px 2px rgba(13,13,13,.04),0 18px 40px -24px rgba(13,13,13,.18);
       --ombre-haute:0 2px 6px rgba(13,13,13,.05),0 30px 60px -28px rgba(13,13,13,.32);
       --courbe:cubic-bezier(.32,.72,0,1);
-      --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
-      --titre:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
-      --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+      --sans:var(--police,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif);
+      --titre:var(--police,-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif);
+      --mono:var(--police-code,ui-monospace,"SF Mono",Menlo,Consolas,monospace);
     }
     *{box-sizing:border-box}
     html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
@@ -42,8 +45,8 @@
 
     /* Typographie */
     .pastille{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--surface);font-size:12.5px;font-weight:500;color:var(--doux)}
-    .pastille:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
-    .surtitre{font-size:13px;font-weight:600;color:var(--accent);margin-bottom:14px}
+    .pastille:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--faible)}
+    .surtitre{font-size:14px;font-weight:500;color:var(--faible);margin-bottom:14px}
     h2{font:650 clamp(30px,3.6vw,46px)/1.08 var(--titre);letter-spacing:-.03em}
     .chapeau{font-size:18px;line-height:1.55;color:var(--doux);max-width:62ch;margin-top:18px}
     .section{padding-block:clamp(80px,9vw,136px)}
@@ -62,7 +65,8 @@
     .btn-clair{background:var(--fond);color:var(--texte);box-shadow:inset 0 0 0 1px var(--bord)}
     .btn-clair .btn-ico{background:var(--surface)}
     .btn-clair:hover{background:var(--fond-2)}
-    .lien{font-weight:600;color:var(--accent);text-underline-offset:4px}
+    .lien{font-weight:600;color:var(--texte);text-decoration-color:var(--bord);text-underline-offset:4px;transition:text-decoration-color .2s}
+    .lien:hover{text-decoration-color:currentColor}
 
     /* Navigation flottante */
     .tete-site{position:sticky;top:0;z-index:30;padding-top:12px}
@@ -79,7 +83,7 @@
     /* Bandeau d'ouverture */
     .ouverture{padding-block:clamp(56px,8vw,112px) clamp(48px,6vw,88px);text-align:center}
     .ouverture .pastille{margin-bottom:28px}
-    .ouverture h1{font:650 clamp(48px,7.4vw,96px)/1 var(--titre);letter-spacing:-.045em}
+    .ouverture h1{font:650 clamp(48px,7.4vw,96px)/1 var(--titre);letter-spacing:-.035em}
     .ouverture h1 span{color:var(--faible)}
     .ouverture .chapeau{margin:26px auto 0;max-width:46ch;font-size:clamp(17px,1.5vw,20px)}
     .actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:34px}
@@ -124,7 +128,7 @@
     .liste-exports{display:grid;margin-top:28px}
     .liste-exports li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:16px 0;border-top:1px solid var(--bord)}
     .liste-exports li:last-child{border-bottom:1px solid var(--bord)}
-    .liste-exports .ic{margin-top:3px;color:var(--accent)}
+    .liste-exports .ic{margin-top:3px;color:var(--faible)}
     .liste-exports b{display:block;font-weight:600}
     .liste-exports span{display:block;color:var(--doux);font-size:15px}
     .limite{font-size:14px;color:var(--faible);margin-top:18px}
@@ -154,7 +158,7 @@
     .bloc-tete{display:flex;align-items:center;gap:10px;margin-bottom:12px}
     .etat{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:600}
     .etat:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
-    .etat.fait{background:#effaf3;color:var(--vert)}
+    .etat.fait{background:var(--vert-fond);color:var(--vert)}
     .etat.prevu{background:var(--surface);color:var(--doux)}
     .bloc h3{font:650 19px/1.3 var(--titre);letter-spacing:-.015em}
     .bloc ul{display:grid}
@@ -174,7 +178,7 @@
     .refs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-top:14px;padding:24px 28px;border-radius:28px;background:var(--surface)}
     .refs li{display:grid;gap:3px;min-width:0}
     .refs strong{font-size:14.5px;font-weight:600}
-    .refs span{font:400 12.5px/1.45 var(--mono);color:var(--doux);overflow-wrap:anywhere}
+    .refs span{font:400 13px/1.45 var(--sans);font-variant-numeric:tabular-nums;color:var(--doux);overflow-wrap:anywhere}
 
     footer{border-top:1px solid var(--bord)}
     .pied{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;padding-block:28px;font-size:13.5px;color:var(--faible)}
@@ -370,13 +374,13 @@
             <p class="citation">« L'agent de tri ne doit jamais envoyer de mail hors d'Orbis Pay. »</p>
             <p>L'analyste écrit sa règle en une phrase. Dédale la reformule, montre ce qu'il a compris et attend un feu vert avant de l'activer.</p>
           </article>
-          <article class="case apparait">
+          <article class="case l7 apparait">
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-liste"/></svg></span>
             <p class="case-lieu">Console SOC</p>
             <h3>L'inventaire des agents et leur résistance</h3>
             <p>Chaque agent a sa fiche : son rôle, les droits accordés, ceux qu'il utilise, ceux qu'il a en trop. Le banc lui envoie des contenus piégés et compte ceux qui ont abouti, avec le nombre d'essais.</p>
           </article>
-          <article class="case apparait" style="--d:1">
+          <article class="case l5 apparait" style="--d:1">
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-yeux"/></svg></span>
             <p class="case-lieu">Geste critique</p>
             <h3>Un relecteur IA, puis l'analyste</h3>

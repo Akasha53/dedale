@@ -80,12 +80,11 @@ def rendu_terminal(verdict: Verdict, largeur: int = 68) -> str:
 
 # Même palette que l'extension et la console. Pas une f-string : les accolades du CSS restent telles quelles.
 _CSS = """  /* Même palette que l'extension et la console : clair, police du système,
-     arrondis larges, peu de couleurs. Le rouge signale le risque, le cyan le bon réflexe. */
+     arrondis larges, peu de couleurs. Le rouge signale le risque ; le bon réflexe est la pilule noire, comme dans l'app Mac. */
   :root {
     --fond:#ffffff; --surface:#f4f4f4; --surface-forte:#ececec; --bord:#e5e5e5;
     --texte:#0d0d0d; --doux:#5d5d5d; --faible:#6b6b6b;
     --rouge:#b42318; --rouge-fond:#fef3f2; --rouge-bord:#fecdca;
-    --cyan:#22d3ee; --cyan-txt:#0e7490; --cyan-fond:#ecfbfe;
     --vert:#15803d;
     --courbe:cubic-bezier(.32,.72,0,1);
     --sans:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
@@ -99,7 +98,7 @@ _CSS = """  /* Même palette que l'extension et la console : clair, police du sy
   .enveloppe { width:min(100% - 32px, 1040px); margin:0 auto; padding:72px 0 96px; }
 
   .pastille { justify-self:start; display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; background:var(--surface); font-size:12px; font-weight:500; color:var(--doux); }
-  .pastille::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--cyan-txt); }
+  .pastille::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--faible); }
 
   header.tete { margin-bottom:72px; display:grid; gap:20px; }
   header.tete h1 { font-size:clamp(32px,5vw,48px); line-height:1.06; letter-spacing:-.03em; font-weight:650; max-width:18ch; }
@@ -139,18 +138,18 @@ _CSS = """  /* Même palette que l'extension et la console : clair, police du sy
   .alerte { width:min(400px,100%); display:grid; gap:10px; padding:20px; border-radius:22px; background:#f7f7f8; box-shadow:0 0 0 1px var(--bord), 0 24px 48px -20px rgba(13,13,13,.28); animation:surgir .6s var(--courbe) both; }
   @keyframes surgir { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:none; } }
   .alerte-tete { display:flex; align-items:center; gap:10px; }
-  .alerte-ico { width:34px; height:34px; flex:none; border-radius:10px; display:grid; place-items:center; color:var(--cyan-txt); background:#d5f3f9; }
+  .alerte-ico { width:34px; height:34px; flex:none; border-radius:10px; display:grid; place-items:center; color:#fff; background:var(--texte); }
   .alerte-ico svg { width:18px; height:18px; }
   .alerte-nom { font-weight:600; font-size:14px; }
   .alerte-cat { margin-left:auto; padding:3px 10px; border-radius:8px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); font-size:12px; font-weight:500; color:var(--doux); }
   .alerte-titre { font-size:19px; font-weight:650; letter-spacing:-.015em; line-height:1.25; margin-top:4px; }
   .alerte-meta { font-size:13px; color:var(--doux); overflow-wrap:anywhere; }
   .alerte-raison { font-size:14px; }
-  .alerte-lien { justify-self:start; font-size:13px; font-weight:600; color:var(--cyan-txt); text-underline-offset:3px; }
+  .alerte-lien { justify-self:start; font-size:13px; font-weight:600; color:var(--texte); text-decoration-color:var(--bord); text-underline-offset:3px; }
   .alerte-boutons { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px; }
-  .alerte-boutons button { min-height:42px; padding:10px; border-radius:12px; font:600 14px/1.2 var(--sans); cursor:default; }
-  .b-continuer { background:var(--fond); color:var(--rouge); border:1px solid var(--rouge-bord); }
-  .b-annuler { background:var(--cyan); color:var(--texte); border:1px solid transparent; }
+  .alerte-boutons button { min-height:44px; padding:10px 16px; border-radius:999px; font:600 14px/1.2 var(--sans); cursor:default; }
+  .b-continuer { background:var(--fond); color:var(--rouge); border:1px solid var(--bord); }
+  .b-annuler { background:var(--texte); color:#fff; border:1px solid transparent; }
   .alerte-note { font-size:12.5px; line-height:1.5; color:var(--faible); }
 
   /* Page d'avertissement de l'extension Chrome, à la place du site sosie */
@@ -185,7 +184,7 @@ _CSS = """  /* Même palette que l'extension et la console : clair, police du sy
   .grille { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
   .grille.trois { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .carte { display:grid; gap:8px; align-content:start; padding:20px; border-radius:22px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); }
-  .carte-ctx { font-size:12px; font-weight:600; color:var(--cyan-txt); }
+  .carte-ctx { font-size:12px; font-weight:600; color:var(--faible); }
   .carte-geste { color:var(--doux); font-size:14px; }
   .carte-titre { font-weight:600; font-size:15.5px; letter-spacing:-.01em; }
   .carte-part { margin-top:6px; padding-top:12px; border-top:1px solid var(--bord); font-size:13.5px; color:var(--doux); }
