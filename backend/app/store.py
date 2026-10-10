@@ -12,7 +12,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from . import activite, classement, config, incidents, securite
+from . import activite, classement, config, incidents, journal_scelle, securite
 
 
 def maintenant() -> datetime:
@@ -203,6 +203,8 @@ class Incident:
     chaine: list = field(default_factory=list)
     gravite: str = "moyenne"
     resume: str = ""
+    # Sceau de l'incident (journal_scelle.py) : None pour un incident antérieur au scellement.
+    sceau: str | None = None
 
 
 class Store:
@@ -223,6 +225,9 @@ class Store:
         # Droits retirés par agent fictif (clé : `cle_agent`). Reconstruit au démarrage à
         # partir des sessions, qui portent chacune les retraits qui les concernent.
         self.retraits: dict[str, list[dict]] = {}
+        # Têtes des chaînes de hachage du journal (événements, décisions).
+        self.tete_evenements = journal_scelle.GENESE
+        self.tete_decisions = journal_scelle.GENESE
 
     @staticmethod
     def cle_agent(sess: Session) -> str:
@@ -360,6 +365,8 @@ class Store:
                     raise ValueError(f"Décision sans incident : {ligne['incident_id']}")
                 nouveau.decisions.append({k: v for k, v in ligne.items() if k != "id"})
             nouveau._compteur = max(nouveau.evenements, default=0)
+            nouveau.tete_evenements = journal_scelle.tete_journal(nouveau.evenements.values())
+            nouveau.tete_decisions = journal_scelle.tete_journal(nouveau.decisions)
             nouveau._incident_seq = max(
                 (int(i.removeprefix("INC-")) for i in nouveau.incidents), default=0)
         except Exception as exc:
@@ -620,6 +627,8 @@ class Store:
             if _enregistre is not None:
                 # Le journal est déjà neutralisé ; conserver aussi ses ID et dates de réception.
                 enreg = deepcopy(_enregistre)
+            else:
+                self.tete_evenements = journal_scelle.sceller_evenement(enreg, self.tete_evenements)
             self.evenements[eid] = enreg
             sess.evenement_ids.append(eid)
 
@@ -629,6 +638,7 @@ class Store:
                 sess.detecte_a = horo
 
             # Incident ?
+            n_incidents = len(self.incidents)
             incident = self._maj_incident(sess)
 
             # Consigne à renvoyer à la surface.
@@ -663,6 +673,8 @@ class Store:
                 "evenement": enreg,
                 "session": sess,
                 "incident": incident,
+                # Vrai quand cet événement vient d'ouvrir l'incident (alerte de décision attendue).
+                "incident_nouveau": len(self.incidents) > n_incidents,
                 "diffusions": diffusions,
             }
 
@@ -766,6 +778,7 @@ class Store:
                 else:
                     inc.gravite = incidents.gravite(inc.chaine, sess.source)
                     inc.resume = incidents.resume(inc.chaine, sess.classement, sess.source)
+        journal_scelle.sceller_incident(inc, self.decisions, self.evenements)
         return inc
 
     def _incident_dict(self, inc: Incident) -> dict:
@@ -931,8 +944,8 @@ class Store:
             est_humain = inc.type.startswith("humain_")
             if est_humain and action not in ("clore", "ignorer"):
                 raise ValueError("Une décision sur un salarié ne peut pas couper son poste")
-            if not est_humain and action == "clore":
-                raise ValueError("L'action clore est réservée aux incidents humains")
+            # Sur un agent, « clore » ferme le dossier sans toucher à la session : c'est la
+            # suite d'une action déjà refusée d'office. Un appel encore retenu le reste.
             moment = maintenant()
             if action == "valider_riposte":
                 if sess:
@@ -964,7 +977,9 @@ class Store:
                 "analyste": analyste,
                 "horodatage": moment.isoformat(),
             }
+            self.tete_decisions = journal_scelle.sceller_decision(journal, self.tete_decisions)
             self.decisions.append(journal)
+            journal_scelle.sceller_incident(inc, self.decisions, self.evenements)
             diffusions = [("incident", self._incident_dict(inc))]
             if sess:
                 diffusions.append(("session", sess.abrege()))
@@ -1049,11 +1064,14 @@ class Store:
                     "accordes_avant": [Session._code(s) for s in avant["accordes"]],
                 },
             }
+            # La vue « après » ne dépend que des retraits : elle complète l'événement avant son
+            # scellement, puis le maillon correctif cite ce sceau.
+            apres = sess.droits_console()
+            enreg["details"]["accordes_apres"] = [Session._code(s) for s in apres["accordes"]]
+            self.tete_evenements = journal_scelle.sceller_evenement(enreg, self.tete_evenements)
             self.evenements[eid] = enreg
             sess.evenement_ids.append(eid)
             self._maj_incident(sess)
-            apres = sess.droits_console()
-            enreg["details"]["accordes_apres"] = [Session._code(s) for s in apres["accordes"]]
             maillon = next((e for e in inc.chaine if e.get("evenement_id") == eid), None)
 
             incidents_maj = [inc]

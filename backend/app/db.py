@@ -51,8 +51,10 @@ def ouvrir() -> sqlite3.Connection:
     # Ajouts compatibles avec les bases créées avant le rechargement au démarrage.
     for table, colonnes in {
         "sessions": {"etat_json": "TEXT"},
-        "evenements": {"leurre_nature": "TEXT"},
-        "incidents": {"gravite": "TEXT", "resume": "TEXT"},
+        "evenements": {"leurre_nature": "TEXT", "sceau_precedent": "TEXT", "sceau": "TEXT"},
+        "incidents": {"gravite": "TEXT", "resume": "TEXT", "sceau": "TEXT"},
+        # Journal scellé (journal_scelle.py) : NULL pour les lignes antérieures au scellement.
+        "decisions": {"sceau_precedent": "TEXT", "sceau": "TEXT"},
     }.items():
         presentes = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
         for nom, type_ in colonnes.items():
@@ -107,12 +109,13 @@ def lire(conn: sqlite3.Connection) -> dict[str, list[dict]]:
 def ecrire_evenement(conn: sqlite3.Connection, ev: dict) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO evenements
-        (id,horodatage,recu_a,source,surface,type,session_id,leurre_id,ip,user_agent,methode,chemin,outil,details,leurre_nature)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (id,horodatage,recu_a,source,surface,type,session_id,leurre_id,ip,user_agent,methode,chemin,outil,details,leurre_nature,sceau_precedent,sceau)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             ev["id"], ev["horodatage"], ev["recu_a"], ev["source"], ev["surface"], ev["type"],
             ev["session_id"], ev["leurre_id"], ev["ip"], ev["user_agent"], ev["methode"],
             ev["chemin"], ev["outil"], _j(ev["details"]), ev.get("leurre_nature"),
+            ev.get("sceau_precedent"), ev.get("sceau"),
         ),
     )
 
@@ -147,18 +150,19 @@ def ecrire_leurre(conn: sqlite3.Connection, l) -> None:
 def ecrire_incident(conn: sqlite3.Connection, i) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO incidents
-        (id,session_id,type,cree_a,titre,statut,riposte_validee,analyste,decide_a,action,chaine,gravite,resume)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (id,session_id,type,cree_a,titre,statut,riposte_validee,analyste,decide_a,action,chaine,gravite,resume,sceau)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             i.id, i.session_id, i.type, i.cree_a.isoformat(), i.titre, i.statut,
             int(i.riposte_validee), i.analyste, i.decide_a.isoformat() if i.decide_a else None,
-            i.action, _j(i.chaine), i.gravite, i.resume,
+            i.action, _j(i.chaine), i.gravite, i.resume, getattr(i, "sceau", None),
         ),
     )
 
 
 def ecrire_decision(conn: sqlite3.Connection, d: dict) -> None:
     conn.execute(
-        "INSERT INTO decisions (incident_id,action,analyste,horodatage) VALUES (?,?,?,?)",
-        (d["incident_id"], d["action"], d["analyste"], d["horodatage"]),
+        "INSERT INTO decisions (incident_id,action,analyste,horodatage,sceau_precedent,sceau) VALUES (?,?,?,?,?,?)",
+        (d["incident_id"], d["action"], d["analyste"], d["horodatage"],
+         d.get("sceau_precedent"), d.get("sceau")),
     )

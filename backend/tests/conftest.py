@@ -10,12 +10,13 @@ from datetime import datetime, timedelta, timezone
 _TMPDB = os.path.join(tempfile.gettempdir(), "dedale_test.db")
 os.environ["DEDALE_DB"] = _TMPDB
 os.environ["DEDALE_LLM"] = "off"  # pas d'appel modèle en test : repli gabarit déterministe
+os.environ.pop("DEDALE_WEBHOOK_URL", None)  # aucune alerte ne sort pendant les tests
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import config
+from app import config, journal_scelle
 from app.store import store
 
 
@@ -33,6 +34,8 @@ def _reset_store(tmp_path, monkeypatch):
     store.retraits.clear()
     store._compteur = 0
     store._incident_seq = 0
+    store.tete_evenements = journal_scelle.GENESE
+    store.tete_decisions = journal_scelle.GENESE
     yield
 
 

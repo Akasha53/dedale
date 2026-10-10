@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, config, db, exports, nis2, synthese
+from . import __version__, api_preuves, config, db, exports, nis2, synthese
 from .models import DecisionIn, EvenementIn, LeurreIn, RetraitDroitIn
 from .store import store
 from .ws import diffuseur
@@ -91,6 +91,17 @@ async def cycle_de_vie(app: FastAPI):
 
 
 app = FastAPI(title="Dédale — Console API", version=__version__, lifespan=cycle_de_vie)
+
+
+async def _vider_file(delai: float = 2.0) -> None:
+    """Attend que l'écrivain ait persisté ce qui est en file (vérification du journal)."""
+    file = _etat.get("file")
+    if file is not None:
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(file.join(), delai)
+
+
+app.state.vider_file = _vider_file
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -306,6 +317,10 @@ async def flux(ws: WebSocket):
 @app.exception_handler(Exception)
 async def erreur_generale(request: Request, exc: Exception):  # pragma: no cover
     return JSONResponse(status_code=500, content={"erreur": "erreur interne", "detail": str(exc)})
+
+
+# Vérification du journal scellé (api_preuves.py).
+app.include_router(api_preuves.routeur)
 
 
 # ---------------------------------------------------------------- Console web
