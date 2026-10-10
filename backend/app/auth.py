@@ -1,4 +1,4 @@
-"""Authentification des appels au backend : trois identités, trois jetons.
+"""Authentification des appels au backend : quatre identités, quatre jetons.
 
 - `analyste` : la console du SOC. Lit tout et décide (accorder, refuser, couper, reprendre,
   ignorer, clore, révéler une identité, retirer un droit, activer ou retirer une règle). La
@@ -7,6 +7,10 @@
   Elle écrit des événements et lit l'état d'une session ; elle ne décide jamais.
 - `poste` : l'app du poste du salarié. Elle déclare des gestes et un inventaire, et attend
   le verdict des quatre yeux ; elle ne décide jamais.
+- `validateur` : le responsable du salarié ou la finance, dans l'espace `/validation`. Il
+  confirme les gestes métier retenus (virement, export). Il ne voit pas la console du SOC, et
+  l'analyste ne décide pas d'un geste métier : les routes de cet espace, sous
+  `/api/validation/`, déclarent `dependencies=[auth.VALIDATEUR]` et n'admettent que lui.
 
 Les jetons vivent hors du dépôt, dans `~/.config/dedale/` (dossier en 700, fichiers en 600),
 ou dans le dossier que nomme `DEDALE_JETONS`. Le backend les tire au premier démarrage ; chaque
@@ -43,7 +47,7 @@ from typing import Any, Callable
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from starlette.requests import HTTPConnection
 
-ROLES = ("analyste", "passerelle", "poste")
+ROLES = ("analyste", "passerelle", "poste", "validateur")
 # Seules routes de l'API servies sans jeton : (méthode, gabarit de chemin).
 OUVERTES = {("GET", "/api/sante"), ("HEAD", "/api/sante"), ("GET", "/")}
 _TAILLE_MAX_JETON = 512
@@ -100,8 +104,8 @@ def _lire_jeton(chemin: Path) -> bytes:
 
 
 def preparer() -> None:
-    """Crée le dossier (700) et les trois jetons (600) s'ils manquent, puis les charge.
-    Trois jetons identiques ne distingueraient plus personne : le backend refuse de démarrer."""
+    """Crée le dossier (700) et les jetons (600) qui manquent, puis les charge. Deux jetons
+    identiques ne distingueraient plus deux identités : le backend refuse de démarrer."""
     d = dossier()
     d.mkdir(parents=True, exist_ok=True, mode=0o700)
     if stat.S_IMODE(os.stat(d).st_mode) & 0o077:
@@ -119,8 +123,8 @@ def preparer() -> None:
 
 # ------------------------------------------------------------------ identification
 def identifier(autorisation: str | None) -> str | None:
-    """Rôle du jeton présenté dans `Authorization: Bearer …`, ou None. Le jeton est comparé aux
-    trois en temps constant, sans sortie anticipée : la durée ne dit pas lequel a failli."""
+    """Rôle du jeton présenté dans `Authorization: Bearer …`, ou None. Le jeton est comparé à
+    chacun en temps constant, sans sortie anticipée : la durée ne dit pas lequel a failli."""
     if not autorisation:
         return None
     schema, _, valeur = autorisation.partition(" ")
@@ -206,6 +210,10 @@ def exiger(*roles: str) -> Callable[[Request], Identite]:
     return verifier_jeton
 
 
+# Nom demandé par l'espace de validation : même dépendance.
+exige_role = exiger
+
+
 ANALYSTE = Depends(exiger("analyste"))
 PASSERELLE = Depends(exiger("passerelle"))
 POSTE = Depends(exiger("poste"))
@@ -215,6 +223,8 @@ ECRIVAINS = Depends(exiger("passerelle", "poste"))
 LECTURE_SESSION = Depends(exiger("analyste", "passerelle"))
 # Le verdict des quatre yeux : la console, et le poste qui l'attend.
 VERDICT_POSTE = Depends(exiger("analyste", "poste"))
+# Espace /validation : le responsable ou la finance confirme un geste métier retenu. Seul.
+VALIDATEUR = Depends(exiger("validateur"))
 
 
 # ------------------------------------------------------------------ garde par défaut

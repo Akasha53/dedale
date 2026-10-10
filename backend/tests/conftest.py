@@ -70,10 +70,13 @@ ROUTES_DES_MACHINES = {
 
 def _jeton_de_la_route(requete: httpx.Request) -> None:
     """Le client de test se présente comme l'appelant légitime de chaque route : la passerelle
-    pour un événement, le poste pour son inventaire, l'analyste pour le reste. Un test qui pose
+    pour un événement, le poste pour son inventaire, le validateur sous /api/validation/,
+    l'analyste pour le reste. Un test qui pose
     son propre en-tête Authorization le garde ; tests/test_auth.py vérifie les refus."""
     if "authorization" not in requete.headers:
-        role = ROUTES_DES_MACHINES.get((requete.method, requete.url.path), "analyste")
+        chemin = requete.url.path
+        role = ("validateur" if chemin.startswith("/api/validation/")
+                else ROUTES_DES_MACHINES.get((requete.method, chemin), "analyste"))
         requete.headers.update(jeton(role))
 
 

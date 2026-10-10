@@ -155,7 +155,9 @@ def test_chaque_identite_n_ouvre_que_ses_routes():
         for methode, gabarit in _routes_api():
             if (methode, gabarit) in auth.OUVERTES:
                 continue
-            attendus = MACHINES.get((methode, gabarit), {"analyste"})
+            attendus = MACHINES.get((methode, gabarit),
+                                    {"validateur"} if gabarit.startswith("/api/validation/")
+                                    else {"analyste"})
             if (methode, gabarit) in DECISIONS:
                 assert attendus == {"analyste"}
             for role in auth.ROLES:
@@ -175,6 +177,37 @@ def test_le_poste_ne_lit_pas_les_incidents_des_autres():
         assert len(incidents) == 1 and incidents[0]["session_id"] == SID
         assert set(incidents[0]) == {"id", "session_id", "statut", "decisions"}
         assert c.get("/api/poste/decisions/autre", headers=jeton("poste")).json() == {"incidents": []}
+
+
+# ------------------------------------------------------------------ espace de validation
+def test_validateur_seul_sur_un_geste_metier_et_jamais_dans_la_console():
+    """Une route de l'espace /validation déclare auth.VALIDATEUR : l'analyste y reçoit 403, et
+    le validateur reçoit 403 partout dans la console du SOC."""
+    from fastapi import FastAPI
+
+    espace = FastAPI()
+
+    @espace.post("/api/validation/gestes/{gid}", dependencies=[auth.VALIDATEUR])
+    async def confirmer(gid: str):
+        return {"geste": gid, "confirme": True}
+
+    c = TestClient(espace)
+    c.event_hooks = {"request": [], "response": []}
+    assert c.post("/api/validation/gestes/g1").status_code == 401
+    for role in ("analyste", "passerelle", "poste"):
+        assert c.post("/api/validation/gestes/g1", headers=jeton(role)).status_code == 403, role
+    assert c.post("/api/validation/gestes/g1", headers=jeton("validateur")).json()["confirme"]
+    with _client_nu() as console:
+        iid = _virement_retenu(console)
+        for methode, chemin in (("GET", "/api/incidents"), ("GET", f"/api/incidents/{iid}"),
+                                ("POST", f"/api/incidents/{iid}/decision")):
+            r = console.request(methode, chemin, headers=jeton("validateur"),
+                                json={"action": "accorder", "analyste": "Marc"})
+            assert r.status_code == 403, chemin
+        assert _decisions(console, iid) == []
+        with pytest.raises(WebSocketDisconnect):
+            with console.websocket_connect("/ws", headers=jeton("validateur")):
+                pass
 
 
 # ------------------------------------------------------------------ flux temps réel
@@ -215,7 +248,7 @@ def test_jetons_hors_depot_en_600_dans_un_dossier_en_700():
         chemin = auth.chemin_jeton(role)
         assert stat.S_IMODE(os.stat(chemin).st_mode) == 0o600
         valeurs.add(chemin.read_text().strip())
-    assert len(valeurs) == 3 and all(len(v) >= 32 for v in valeurs)
+    assert len(valeurs) == len(auth.ROLES) == 4 and all(len(v) >= 32 for v in valeurs)
     assert "dedale-jetons-" in str(dossier)  # les tests n'écrivent jamais dans ~/.config
 
 
