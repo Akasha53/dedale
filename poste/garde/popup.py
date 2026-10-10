@@ -1,9 +1,16 @@
 """La pop-up d'avertissement : rendu terminal et page HTML de démonstration.
 
 Le texte affiché est une donnée inerte : il est échappé (HTML) et jamais
-réexécuté. La page HTML montre la fenêtre du garde du corps par-dessus deux
-scènes du poste de Camille — un mail frauduleux ouvert, un lien piégé cliqué
-en naviguant — pour une démo filmable sans dépendance.
+réexécuté. La page HTML (`poste/demo/popup.html`) montre le poste de Camille :
+le mail frauduleux ouvert avec l'alerte de l'app Mac, la page d'avertissement de
+l'extension Chrome devant un site sosie, les autres modules, puis ce qui part à
+l'équipe sécurité, module par module. Elle suit le gabarit de `app-mac/` et de
+l'extension, en thème clair, sans dépendance externe.
+
+Les données du mail (objet, expéditeur), le titre de l'alerte et le domaine du
+site sosie viennent des gestes simulés. Les phrases d'explication, les autres
+modules et le tableau « ce qui part » sont fixes : ils décrivent ce que font
+l'app Mac et l'extension, et la landing dit la même chose.
 """
 
 from __future__ import annotations
@@ -16,21 +23,17 @@ from .detection import Verdict
 
 _esc = html.escape
 
-# Pastille de gravité (un point coloré) ; l'accent du système reste le cyan.
-_GRAVITE_COULEUR = {
-    "faible": "#34D399",
-    "moyenne": "#FBBF24",
-    "haute": "#FB923C",
-    "critique": "#F87171",
-}
-
 _ICONE_BOUCLIER = (
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" '
-    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-    '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/>'
-    '<path d="M9.5 12l1.8 1.8L15 10.3"/></svg>'
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5 4.5 5.4v5.9c0 4.6 '
+    '3.1 8.6 7.5 10.2 4.4-1.6 7.5-5.6 7.5-10.2V5.4L12 2.5Zm0 2.2v14.5c-3.2-1.4-5.3-4.5-5.3-7.9V6.9L12 '
+    '4.7Z"/></svg>'
 )
 
+_ICONE_ALERTE = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+    'stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 '
+    '1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+)
 
 # --- rendu terminal ------------------------------------------------------------
 
@@ -72,351 +75,371 @@ def rendu_terminal(verdict: Verdict, largeur: int = 68) -> str:
     return "\n".join(corps)
 
 
+
 # --- fragments HTML ------------------------------------------------------------
+
+# Même palette que l'extension et la console. Pas une f-string : les accolades du CSS restent telles quelles.
+_CSS = """  /* Même palette que l'extension et la console : clair, police du système,
+     arrondis larges, peu de couleurs. Le rouge signale le risque, le cyan le bon réflexe. */
+  :root {
+    --fond:#ffffff; --surface:#f4f4f4; --surface-forte:#ececec; --bord:#e5e5e5;
+    --texte:#0d0d0d; --doux:#5d5d5d; --faible:#6b6b6b;
+    --rouge:#b42318; --rouge-fond:#fef3f2; --rouge-bord:#fecdca;
+    --cyan:#22d3ee; --cyan-txt:#0e7490; --cyan-fond:#ecfbfe;
+    --vert:#15803d;
+    --courbe:cubic-bezier(.32,.72,0,1);
+    --sans:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--fond); color:var(--texte); font:400 15px/1.55 var(--sans); -webkit-font-smoothing:antialiased; overflow-x:clip; }
+  h1, h2, h3, p { margin:0; }
+  a { color:inherit; }
+  .enveloppe { width:min(100% - 32px, 1040px); margin:0 auto; padding:72px 0 96px; }
+
+  .pastille { justify-self:start; display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; background:var(--surface); font-size:12px; font-weight:500; color:var(--doux); }
+  .pastille::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--cyan-txt); }
+
+  header.tete { margin-bottom:72px; display:grid; gap:20px; }
+  header.tete h1 { font-size:clamp(32px,5vw,48px); line-height:1.06; letter-spacing:-.03em; font-weight:650; max-width:18ch; }
+  header.tete > p { color:var(--doux); font-size:17px; max-width:60ch; }
+  .perimetre { display:grid; gap:6px; max-width:720px; padding:18px 22px; border-radius:20px; background:var(--surface); }
+  .perimetre strong { font-size:13px; font-weight:600; }
+  .perimetre p { color:var(--doux); font-size:15px; }
+
+  .scene { margin-bottom:80px; }
+  .scene-tete { display:grid; gap:12px; margin-bottom:24px; }
+  .scene-tete h2 { font-size:clamp(22px,3vw,28px); line-height:1.2; letter-spacing:-.02em; font-weight:650; }
+  .scene-sous { color:var(--doux); max-width:62ch; }
+
+  /* Le poste : cadre, application, voile, alerte */
+  .poste { position:relative; padding:8px; border-radius:28px; background:var(--surface); }
+  .app { position:relative; border-radius:20px; overflow:hidden; background:var(--fond); box-shadow:0 0 0 1px var(--bord); }
+  .chrome { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--bord); }
+  .feu { width:11px; height:11px; border-radius:50%; background:#d9d9d9; }
+  .chrome-titre { color:var(--doux); font-size:13px; margin-left:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .barre-url { display:flex; align-items:center; gap:10px; min-width:0; flex:1; margin-left:10px; padding:6px 14px; border-radius:999px; background:var(--surface); font:400 13px/1.3 var(--mono); color:var(--doux); }
+  .barre-url span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .mail-corps { display:grid; grid-template-columns:168px minmax(0,1fr); min-height:400px; }
+  .mail-rail { border-right:1px solid var(--bord); padding:14px 10px; display:flex; flex-direction:column; gap:4px; }
+  .rail-item { color:var(--doux); font-size:13px; padding:8px 12px; border-radius:10px; display:flex; justify-content:space-between; }
+  .rail-item.actif { background:var(--surface); color:var(--texte); font-weight:500; }
+  .mail-lecture { padding:24px 28px; }
+  .mail-objet { font-weight:600; font-size:18px; letter-spacing:-.01em; margin-bottom:10px; }
+  .mail-de { font-size:13.5px; margin-bottom:18px; }
+  .mail-adr { color:var(--rouge); overflow-wrap:anywhere; }
+  .mail-texte { color:var(--doux); font-size:14.5px; margin-bottom:18px; max-width:46ch; }
+  .mail-lien { display:inline-block; border-radius:12px; padding:10px 16px; background:var(--texte); color:#fff; font-size:13px; font-weight:600; }
+
+  .voile { position:absolute; inset:8px; border-radius:20px; display:flex; align-items:flex-end; justify-content:flex-end; padding:22px; background:linear-gradient(115deg, rgba(255,255,255,0), rgba(13,13,13,.06)); }
+
+  /* Alerte de l'app Mac (même gabarit que app-mac/captures/mail.png) */
+  .alerte { width:min(400px,100%); display:grid; gap:10px; padding:20px; border-radius:22px; background:#f7f7f8; box-shadow:0 0 0 1px var(--bord), 0 24px 48px -20px rgba(13,13,13,.28); animation:surgir .6s var(--courbe) both; }
+  @keyframes surgir { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:none; } }
+  .alerte-tete { display:flex; align-items:center; gap:10px; }
+  .alerte-ico { width:34px; height:34px; flex:none; border-radius:10px; display:grid; place-items:center; color:var(--cyan-txt); background:#d5f3f9; }
+  .alerte-ico svg { width:18px; height:18px; }
+  .alerte-nom { font-weight:600; font-size:14px; }
+  .alerte-cat { margin-left:auto; padding:3px 10px; border-radius:8px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); font-size:12px; font-weight:500; color:var(--doux); }
+  .alerte-titre { font-size:19px; font-weight:650; letter-spacing:-.015em; line-height:1.25; margin-top:4px; }
+  .alerte-meta { font-size:13px; color:var(--doux); overflow-wrap:anywhere; }
+  .alerte-raison { font-size:14px; }
+  .alerte-lien { justify-self:start; font-size:13px; font-weight:600; color:var(--cyan-txt); text-underline-offset:3px; }
+  .alerte-boutons { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px; }
+  .alerte-boutons button { min-height:42px; padding:10px; border-radius:12px; font:600 14px/1.2 var(--sans); cursor:default; }
+  .b-continuer { background:var(--fond); color:var(--rouge); border:1px solid var(--rouge-bord); }
+  .b-annuler { background:var(--cyan); color:var(--texte); border:1px solid transparent; }
+  .alerte-note { font-size:12.5px; line-height:1.5; color:var(--faible); }
+
+  /* Page d'avertissement de l'extension Chrome, à la place du site sosie */
+  .page-ext { min-height:440px; display:grid; place-items:center; padding:40px 24px; }
+  .ext { width:100%; max-width:500px; display:grid; gap:20px; animation:surgir .6s var(--courbe) both; }
+  .ext-ico { width:52px; height:52px; border-radius:50%; display:grid; place-items:center; color:var(--rouge); background:var(--rouge-fond); box-shadow:inset 0 0 0 1px var(--rouge-bord); }
+  .ext-ico svg { width:26px; height:26px; }
+  .ext h3 { font-size:26px; line-height:1.2; letter-spacing:-.015em; font-weight:650; display:grid; gap:2px; }
+  .ext h3 span { color:var(--rouge); }
+  .ext dl { margin:0; padding:4px 20px; border-radius:20px; background:var(--surface); }
+  .ext dl div { padding:12px 0; display:grid; gap:2px; }
+  .ext dl div + div { border-top:1px solid var(--bord); }
+  .ext dt { font-size:13px; color:var(--doux); }
+  .ext dd { margin:0; font:600 15px/1.4 var(--mono); overflow-wrap:anywhere; }
+  .ext dd.sosie { color:var(--rouge); }
+  .ext-raison { color:var(--doux); }
+  .ext-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .ext-actions span { display:inline-flex; align-items:center; min-height:44px; padding:0 22px; border-radius:999px; font-weight:600; font-size:14.5px; }
+  .ext-actions .principal { background:var(--texte); color:#fff; }
+  .ext-actions .discret { color:var(--doux); box-shadow:inset 0 0 0 1px var(--bord); }
+  .ext-note { font-size:13px; color:var(--faible); }
+
+  /* Les deux issues */
+  .issues { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+  .issue { display:grid; gap:6px; padding:16px 18px; border-radius:18px; background:var(--surface); }
+  .issue-tag { font-size:13px; font-weight:600; }
+  .issue.ok .issue-tag { color:var(--vert); }
+  .issue.ko .issue-tag { color:var(--rouge); }
+  .issue p { font-size:14px; color:var(--doux); }
+
+  /* Autres gestes */
+  .grille { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .grille.trois { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .carte { display:grid; gap:8px; align-content:start; padding:20px; border-radius:22px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); }
+  .carte-ctx { font-size:12px; font-weight:600; color:var(--cyan-txt); }
+  .carte-geste { color:var(--doux); font-size:14px; }
+  .carte-titre { font-weight:600; font-size:15.5px; letter-spacing:-.01em; }
+  .carte-part { margin-top:6px; padding-top:12px; border-top:1px solid var(--bord); font-size:13.5px; color:var(--doux); }
+  .carte-part b { color:var(--texte); font-weight:600; }
+
+  /* Ce qui part */
+  .part { scroll-margin-top:24px; }
+  .tableau { width:100%; border-collapse:separate; border-spacing:0; border-radius:22px; overflow:hidden; box-shadow:0 0 0 1px var(--bord); font-size:14px; }
+  .tableau th, .tableau td { text-align:left; vertical-align:top; padding:14px 18px; }
+  .tableau thead th { background:var(--surface); font-size:13px; font-weight:600; color:var(--doux); }
+  .tableau tbody th { font-weight:600; width:24%; }
+  .tableau tbody tr + tr th, .tableau tbody tr + tr td { border-top:1px solid var(--bord); }
+  .tableau td { color:var(--doux); }
+  .part-note { margin-top:16px; color:var(--doux); font-size:14px; max-width:70ch; }
+
+  footer { margin-top:56px; padding-top:22px; border-top:1px solid var(--bord); color:var(--faible); font-size:13px; }
+
+  @media (min-width:761px) {
+    .mail-lecture { padding-right:440px; }
+  }
+  @media (max-width:760px) {
+    .enveloppe { padding:48px 0 64px; }
+    header.tete { margin-bottom:56px; }
+    .mail-corps { grid-template-columns:1fr; min-height:0; }
+    .mail-rail { display:none; }
+    .voile { position:static; padding:0 8px 12px; background:none; justify-content:center; }
+    .alerte { margin-top:-4px; }
+    .issues, .grille, .grille.trois { grid-template-columns:1fr; }
+    .page-ext { padding:28px 18px; min-height:0; }
+    .ext h3 { font-size:22px; }
+    .ext-actions { flex-direction:column; align-items:stretch; }
+    .ext-actions span { justify-content:center; }
+    .tableau thead { display:none; }
+    .tableau, .tableau tbody, .tableau tr, .tableau th, .tableau td { display:block; width:auto; }
+    .tableau tbody tr + tr { border-top:1px solid var(--bord); }
+    .tableau tbody tr + tr th, .tableau tbody tr + tr td { border-top:0; }
+    .tableau tbody th { width:auto; padding-bottom:4px; }
+    .tableau td { padding-top:4px; }
+    .tableau td::before { content:attr(data-col) " : "; color:var(--texte); font-weight:500; }
+  }
+  @media (prefers-reduced-motion:reduce) { .alerte, .ext { animation:none; } }
+"""
+
 
 def _hote(url: str) -> str:
     parts = urlsplit(url if "://" in (url or "") else "http://" + (url or ""))
     return (parts.hostname or url or "").lower()
 
 
-def _popup_html(verdict: Verdict) -> str:
-    """La fenêtre du garde du corps, en verre. Tout est échappé."""
-    coul = _GRAVITE_COULEUR.get(verdict.gravite, "#FBBF24")
-    return f"""<div class="garde" style="--grav:{coul}">
-          <div class="garde-tete">
-            <span class="garde-ico">{_ICONE_BOUCLIER}</span>
-            <div class="garde-id">
-              <span class="garde-nom">Dédale · garde du corps</span>
-              <span class="garde-meta"><span class="dot"></span>gravité {_esc(verdict.gravite)} · {_esc(verdict.regle)}</span>
-            </div>
-          </div>
-          <p class="garde-titre">{_esc(verdict.titre)}</p>
-          <p class="garde-expli">{_esc(verdict.explication)}</p>
-          <p class="garde-preuve">{_esc(verdict.preuve)}</p>
-          <div class="garde-boutons">
-            <button class="b-annuler">Annuler</button>
-            <button class="b-continuer">Continuer quand même</button>
-          </div>
-        </div>"""
+def _desarmer_adresse(adresse: str) -> str:
+    """alerte@orbispay-verification.net → alerte@orbispay-verification[.]net (ne se clique pas)."""
+    if "@" not in adresse:
+        return adresse.replace(".", "[.]")
+    local, _, domaine = adresse.rpartition("@")
+    return f"{local}@{domaine.replace('.', '[.]')}"
 
 
-def _issues_html(choix: str | None) -> str:
-    """Les deux issues du geste, celle qui s'est produite étant marquée."""
-    fait_annuler = " est-arrive" if choix == "annuler" else ""
-    fait_continuer = " est-arrive" if choix == "continuer" else ""
-    return f"""<div class="issues">
-          <div class="issue ok{fait_annuler}">
-            <span class="issue-tag">Annuler</span>
-            <p>Camille revient en arrière. Rien ne part, le geste est protégé.</p>
-          </div>
-          <div class="issue ko{fait_continuer}">
-            <span class="issue-tag">Continuer</span>
-            <p>Le geste passe. Un incident remonte au SOC avec son contexte.</p>
-          </div>
-        </div>"""
-
-
-def _scene_mail(geste: actions.Geste, verdict: Verdict, choix: str | None) -> str:
+def _scene_mail(geste: actions.Geste, verdict: Verdict) -> str:
+    objet = geste.objet or "(sans objet)"
+    objet_court = objet.split(" :")[0].strip() or objet
     de_nom = _esc(geste.expediteur_affiche or geste.expediteur or "Expéditeur inconnu")
-    de_adr = _esc(geste.expediteur or "")
-    objet = _esc(geste.objet or "(sans objet)")
-    lien = verdict.details.get("lien") or geste.lien or ""
-    hote = _esc(_hote(lien)) if lien else "lien externe"
-    return f"""<section class="scene">
+    de_adr = geste.expediteur or ""
+    return f"""
+    <section class="scene" aria-labelledby="scene-mail">
       <div class="scene-tete">
-        <span class="pastille">01 · mail reçu</span>
-        <h2>Au moment où elle ouvre le mail</h2>
-        <p class="scene-sous">Le garde du corps lit l'expéditeur et le lien avant qu'un seul clic ne parte.</p>
+        <span class="pastille">01 · mail reçu, app Mac</span>
+        <h2 id="scene-mail">Au moment où elle ouvre le mail</h2>
+        <p class="scene-sous">L'analyseur lit l'expéditeur, les liens et le texte du mail. Il le juge frauduleux, et l'app affiche l'alerte avant le moindre clic.</p>
       </div>
       <div class="poste">
-        <div class="app mail">
-          <div class="chrome"><span class="feu r"></span><span class="feu o"></span><span class="feu v"></span>
-            <span class="chrome-titre">Courrier — Boîte de réception</span></div>
+        <div class="app">
+          <div class="chrome"><span class="feu"></span><span class="feu"></span><span class="feu"></span>
+            <span class="chrome-titre">Courrier · Boîte de réception</span></div>
           <div class="mail-corps">
-            <aside class="mail-rail">
+            <aside class="mail-rail" aria-hidden="true">
               <span class="rail-item actif">Réception <b>1</b></span>
               <span class="rail-item">Envoyés</span>
               <span class="rail-item">Brouillons</span>
               <span class="rail-item">Archives</span>
             </aside>
             <div class="mail-lecture">
-              <p class="mail-objet">{objet}</p>
-              <p class="mail-de"><b>{de_nom}</b> <span class="mail-adr">&lt;{de_adr}&gt;</span></p>
-              <p class="mail-texte">Bonjour Camille, votre accès sera suspendu sous 24 h.
-                 Pour le garder, confirmez vos identifiants.</p>
-              <span class="mail-lien">Réactiver mon accès — {hote}</span>
+              <p class="mail-objet">{_esc(objet)}</p>
+              <p class="mail-de"><b>{de_nom}</b> <span class="mail-adr">&lt;{_esc(de_adr)}&gt;</span></p>
+              <p class="mail-texte">Bonjour Camille, votre accès sera suspendu sous 24 h. Pour le garder, confirmez vos identifiants.</p>
+              <span class="mail-lien">Réactiver mon accès</span>
             </div>
           </div>
         </div>
         <div class="voile">
-          {_popup_html(verdict)}
-        </div>
-      </div>
-      {_issues_html(choix)}
-    </section>"""
-
-
-def _scene_web(geste: actions.Geste, verdict: Verdict, choix: str | None) -> str:
-    hote = _esc(verdict.details.get("hote") or _hote(geste.url))
-    return f"""<section class="scene">
-      <div class="scene-tete">
-        <span class="pastille">02 · navigation web</span>
-        <h2>Au moment où elle clique le lien</h2>
-        <p class="scene-sous">Un résultat sponsorisé qui imite la page de connexion. Le garde du corps le voit avant la saisie.</p>
-      </div>
-      <div class="poste">
-        <div class="app nav">
-          <div class="chrome"><span class="feu r"></span><span class="feu o"></span><span class="feu v"></span>
-            <span class="onglet">Connexion Orbis Pay</span></div>
-          <div class="barre-url"><span class="cadenas">non sécurisé</span>
-            <span class="url">http://{hote}/connexion</span></div>
-          <div class="page-faux">
-            <div class="faux-logo">Orbis Pay</div>
-            <p class="faux-titre">Connexion à votre espace</p>
-            <span class="faux-champ">Identifiant</span>
-            <span class="faux-champ">Mot de passe</span>
-            <span class="faux-cta">Se connecter</span>
+          <div class="alerte" role="group" aria-label="Alerte de Dédale sur le mail">
+            <div class="alerte-tete">
+              <span class="alerte-ico">{_ICONE_BOUCLIER}</span>
+              <span class="alerte-nom">Dédale</span>
+              <span class="alerte-cat">Hameçonnage</span>
+            </div>
+            <p class="alerte-titre">{_esc(verdict.titre)}</p>
+            <p class="alerte-meta">« {_esc(objet_court)} » · {_esc(_desarmer_adresse(de_adr))}</p>
+            <p class="alerte-raison">Il se présente comme Orbis Pay, mais il vient d'un domaine déjà connu comme piège. Ne clique sur rien et ne réponds pas.</p>
+            <a class="alerte-lien" href="#ce-qui-part">Ce que Dédale envoie</a>
+            <div class="alerte-boutons">
+              <button type="button" class="b-continuer" tabindex="-1">Continuer</button>
+              <button type="button" class="b-annuler" tabindex="-1">Annuler</button>
+            </div>
+            <p class="alerte-note">Annuler ou continuer, l'équipe sécurité reçoit le type d'alerte, l'expéditeur et ton choix, avec une copie désarmée de ce mail. Rien d'autre de ta boîte.</p>
           </div>
         </div>
-        <div class="voile">
-          {_popup_html(verdict)}
+      </div>
+      <div class="issues">
+        <div class="issue ok">
+          <span class="issue-tag">Annuler</span>
+          <p>Camille revient en arrière. L'équipe sécurité compte un piège évité, sans ouvrir de dossier. Trois lignes expliquent ensuite le piège.</p>
+        </div>
+        <div class="issue ko">
+          <span class="issue-tag">Continuer</span>
+          <p>Camille poursuit. Un dossier s'ouvre au SOC avec le type d'alerte, l'expéditeur, le lien et la copie désarmée du mail.</p>
         </div>
       </div>
-      {_issues_html(choix)}
-    </section>"""
+    </section>
+"""
 
 
-def _carte_secondaire(geste: actions.Geste, verdict: Verdict, choix: str | None) -> str:
-    coul = _GRAVITE_COULEUR.get(verdict.gravite, "#FBBF24")
-    contexte = _esc(verdict.details.get("contexte") or "geste risqué")
-    issue = ("Annulé, geste protégé" if choix == "annuler"
-             else "Passé outre, incident au SOC")
-    issue_cl = "ok" if choix == "annuler" else "ko"
-    return f"""<article class="carte" style="--grav:{coul}">
-        <div class="carte-tete">
-          <span class="carte-ctx">{contexte}</span>
-          <span class="carte-grav"><span class="dot"></span>{_esc(verdict.gravite)}</span>
+def _scene_web(geste: actions.Geste, verdict: Verdict) -> str:
+    hote = _esc(verdict.details.get("hote") or _hote(geste.url))
+    return f"""
+    <section class="scene" aria-labelledby="scene-web">
+      <div class="scene-tete">
+        <span class="pastille">02 · navigation, extension Chrome</span>
+        <h2 id="scene-web">Au moment où elle ouvre le lien</h2>
+        <p class="scene-sous">L'adresse imite celle d'Orbis Pay. L'extension affiche son avertissement à la place de la page, avant toute saisie. Elle ne lit que l'adresse.</p>
+      </div>
+      <div class="poste">
+        <div class="app">
+          <div class="chrome"><span class="feu"></span><span class="feu"></span><span class="feu"></span>
+            <span class="barre-url"><span>{hote}/connexion</span></span></div>
+          <div class="page-ext">
+            <div class="ext" role="group" aria-label="Avertissement de l'extension Dédale">
+              <span class="ext-ico">{_ICONE_ALERTE}</span>
+              <h3>Ce site imite Orbis Pay.<span>Ce n'est pas le vrai site.</span></h3>
+              <dl>
+                <div><dt>Tu allais sur</dt><dd class="sosie">{hote}</dd></div>
+                <div><dt>Le vrai site</dt><dd>orbispay.example</dd></div>
+              </dl>
+              <p class="ext-raison">Le nom « orbispay » est glissé dans un autre domaine.</p>
+              <div class="ext-actions"><span class="principal">Revenir en arrière</span><span class="discret">Continuer quand même</span></div>
+              <p class="ext-note">Si tu reviens en arrière, rien ne part. Si tu continues, l'équipe sécurité reçoit le type d'alerte, le nom du site et ton choix, jamais le contenu de la page ni ce que tu tapes.</p>
+            </div>
+          </div>
         </div>
-        <p class="carte-geste">{_esc(geste.description)}</p>
-        <p class="carte-titre">{_esc(verdict.titre)}</p>
-        <p class="carte-issue {issue_cl}">{issue}</p>
-      </article>"""
+      </div>
+      <div class="issues">
+        <div class="issue ok">
+          <span class="issue-tag">Revenir en arrière</span>
+          <p>Camille retrouve la page d'avant. Rien ne part : ce choix reste dans le navigateur.</p>
+        </div>
+        <div class="issue ko">
+          <span class="issue-tag">Continuer quand même</span>
+          <p>La page s'ouvre. L'équipe sécurité reçoit le nom du site et le choix, et un dossier s'ouvre.</p>
+        </div>
+      </div>
+    </section>
+"""
+
+
+_AUTRES_MODULES = """
+    <section class="scene" aria-labelledby="autres">
+      <div class="scene-tete">
+        <span class="pastille">au second plan</span>
+        <h2 id="autres">Les autres modules</h2>
+        <p class="scene-sous">Chacun regarde une seule chose et se coupe séparément.</p>
+      </div>
+      <div class="grille trois">
+        <article class="carte">
+          <span class="carte-ctx">Téléchargements</span>
+          <p class="carte-geste">Camille télécharge « facture.pdf.exe » depuis un site inconnu.</p>
+          <p class="carte-titre">Ce fichier n'est pas ce qu'il prétend être.</p>
+          <p class="carte-part"><b>Part au SOC :</b> le type de fichier, le site d'origine, l'empreinte du fichier et le choix. Jamais le fichier lui-même.</p>
+        </article>
+        <article class="carte">
+          <span class="carte-ctx">Agents IA du poste</span>
+          <p class="carte-geste">Un assistant IA vient d'être installé sur le poste de Camille.</p>
+          <p class="carte-titre">Dédale l'ajoute à l'inventaire.</p>
+          <p class="carte-part"><b>Part au SOC :</b> son nom et les types d'outils qu'il peut utiliser. Jamais un secret ni une clé.</p>
+        </article>
+        <article class="carte">
+          <span class="carte-ctx">Geste critique</span>
+          <p class="carte-geste">Un mail demande à Camille un virement urgent.</p>
+          <p class="carte-titre">Ce virement attend un second avis.</p>
+          <p class="carte-part">Un relecteur IA l'accorde ou le refuse en quelques secondes, et l'analyste peut revenir sur cette décision. <b>Part au SOC :</b> la catégorie, le geste et la décision.</p>
+        </article>
+      </div>
+    </section>
+"""
+
+_CE_QUI_PART = """
+    <section class="scene part" id="ce-qui-part" aria-labelledby="part-titre">
+      <div class="scene-tete">
+        <span class="pastille">pour le salarié</span>
+        <h2 id="part-titre">Ce qui part à l'équipe sécurité</h2>
+      </div>
+      <table class="tableau">
+        <thead><tr><th scope="col">Module</th><th scope="col">Ce que l'app regarde</th><th scope="col">Ce qui part au SOC</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Mails reçus</th><td data-col="Regarde">L'expéditeur, les liens, le texte et le nom des pièces jointes, sans les ouvrir.</td><td data-col="Part au SOC">La catégorie, l'expéditeur et ton choix, que tu annules ou que tu continues. Pour un mail jugé frauduleux, une copie désarmée de ce mail : liens cassés, rien d'exécutable.</td></tr>
+          <tr><th scope="row">Onglet actif</th><td data-col="Regarde">L'adresse de la page, vérifiée sur le poste.</td><td data-col="Part au SOC">La catégorie, le domaine et ton choix. Avec l'extension Chrome, rien ne part si tu reviens en arrière.</td></tr>
+          <tr><th scope="row">Téléchargements</th><td data-col="Regarde">Le type du fichier et le site d'origine.</td><td data-col="Part au SOC">La catégorie, le domaine, l'empreinte du fichier et ton choix.</td></tr>
+          <tr><th scope="row">Agents IA du poste</th><td data-col="Regarde">Les agents installés : leur nom et leurs types d'outils.</td><td data-col="Part au SOC">Cet inventaire, sans secret ni clé.</td></tr>
+        </tbody>
+      </table>
+      <p class="part-note">Jamais lus : le presse-papiers, les frappes, l'écran, le contenu des pages, l'historique. Jamais envoyés : le contenu d'un fichier, la valeur d'un secret, tes autres mails. Un mail que tu signales toi-même part aussi, désarmé.</p>
+      <p class="part-note">Dédale ne bloque jamais ton poste : il prévient, tu décides. Seul un geste critique, comme un virement, attend un second avis.</p>
+    </section>
+"""
 
 
 # --- page complète -------------------------------------------------------------
 
-def page_html(cartes, titre: str = "Dédale — poste du salarié") -> str:
-    """Page autonome : les deux scènes vedettes, puis les gestes de second plan.
+def page_html(cartes, titre: str = "Dédale : poste du salarié") -> str:
+    """Page autonome : la scène du mail, celle du site sosie, les autres modules, ce qui part.
 
-    `cartes` : liste de (geste, verdict, choix) pour chaque geste averti.
+    `cartes` : liste de (geste, verdict, choix) pour chaque geste averti. Seuls le mail reçu et
+    la navigation web nourrissent la page ; une scène sans geste correspondant est omise.
     """
     mail = next((c for c in cartes if c[1].details.get("contexte") == "mail reçu"), None)
     web = next((c for c in cartes if c[1].details.get("contexte") == "navigation web"), None)
-    vus = {id(c) for c in (mail, web) if c is not None}
-    reste = [c for c in cartes if id(c) not in vus]
-
     scenes = ""
     if mail is not None:
-        scenes += _scene_mail(*mail)
+        scenes += _scene_mail(mail[0], mail[1])
     if web is not None:
-        scenes += _scene_web(*web)
-
-    secondaires = ""
-    if reste:
-        cartes_html = "\n".join(_carte_secondaire(*c) for c in reste)
-        secondaires = f"""<section class="second">
-      <div class="scene-tete">
-        <span class="pastille">au second plan</span>
-        <h2>Les autres gestes qu'il surveille</h2>
-        <p class="scene-sous">Secret collé, données clients vers l'extérieur, dépôt sur une IA non validée, pièce jointe piégée.</p>
-      </div>
-      <div class="grille">
-{cartes_html}
-      </div>
-    </section>"""
+        scenes += _scene_web(web[0], web[1])
 
     return f"""<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>{_esc(titre)}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {{
-    color-scheme: dark;
-    --bg0:#070B14; --bg1:#0A0E1A;
-    --cyan:#22D3EE; --cyan-doux:rgba(34,211,238,.14);
-    --ink:#E8EEF7; --muted:#8597AC;
-    --surface:rgba(255,255,255,.035); --hair:rgba(255,255,255,.09);
-    --ok:#34D399; --ko:#F87171;
-    --dsp:"Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-    --txt:"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  }}
-  * {{ box-sizing: border-box; }}
-  body {{
-    margin:0; font-family:var(--txt); color:var(--ink);
-    background:
-      radial-gradient(900px 520px at 14% -8%, rgba(34,211,238,.10), transparent 60%),
-      radial-gradient(760px 480px at 92% 6%, rgba(56,97,230,.12), transparent 62%),
-      linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 100%);
-    background-attachment:fixed;
-    -webkit-font-smoothing:antialiased; line-height:1.5;
-  }}
-  .enveloppe {{ max-width:1040px; margin:0 auto; padding:72px 24px 96px; }}
-
-  header.hero {{ margin-bottom:64px; }}
-  .pastille {{
-    display:inline-flex; align-items:center; gap:8px;
-    font-size:11px; letter-spacing:.22em; text-transform:uppercase;
-    color:var(--cyan); background:var(--cyan-doux);
-    border:1px solid rgba(34,211,238,.25); border-radius:999px; padding:6px 14px;
-    font-weight:600;
-  }}
-  header.hero h1 {{
-    font-family:var(--dsp); font-weight:700; font-size:clamp(32px,5vw,52px);
-    letter-spacing:-.02em; line-height:1.04; margin:22px 0 14px; max-width:16ch;
-  }}
-  header.hero p {{ color:var(--muted); font-size:17px; max-width:56ch; margin:0; }}
-
-  .scene {{ margin-bottom:72px; }}
-  .scene-tete {{ margin-bottom:26px; }}
-  .scene-tete h2 {{
-    font-family:var(--dsp); font-weight:600; font-size:clamp(22px,3vw,30px);
-    letter-spacing:-.01em; margin:16px 0 8px;
-  }}
-  .scene-sous {{ color:var(--muted); font-size:15px; margin:0; max-width:60ch; }}
-
-  /* --- poste : coque double-bezel + scène + voile + pop-up --- */
-  .poste {{
-    position:relative; border-radius:30px; padding:10px;
-    background:var(--surface); border:1px solid var(--hair);
-    box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 40px 80px -40px rgba(0,0,0,.8);
-  }}
-  .app {{
-    position:relative; border-radius:22px; overflow:hidden;
-    background:#0C1220; border:1px solid rgba(255,255,255,.06);
-    box-shadow:inset 0 1px 1px rgba(255,255,255,.06);
-  }}
-  .chrome {{
-    display:flex; align-items:center; gap:8px; padding:12px 16px;
-    background:rgba(255,255,255,.03); border-bottom:1px solid var(--hair);
-  }}
-  .feu {{ width:11px; height:11px; border-radius:50%; background:#2A3447; }}
-  .feu.r {{ background:#E6544A; }} .feu.o {{ background:#E6A23C; }} .feu.v {{ background:#3BB273; }}
-  .chrome-titre, .onglet {{ color:var(--muted); font-size:13px; margin-left:8px; }}
-  .onglet {{
-    margin-left:14px; background:rgba(255,255,255,.05); color:var(--ink);
-    padding:5px 14px; border-radius:9px 9px 0 0; font-size:12.5px;
-  }}
-
-  /* mail */
-  .mail-corps {{ display:grid; grid-template-columns:168px 1fr; min-height:340px; }}
-  .mail-rail {{ border-right:1px solid var(--hair); padding:14px 10px; display:flex; flex-direction:column; gap:4px; }}
-  .rail-item {{ color:var(--muted); font-size:13px; padding:9px 12px; border-radius:9px; display:flex; justify-content:space-between; }}
-  .rail-item.actif {{ background:rgba(34,211,238,.10); color:var(--ink); }}
-  .rail-item b {{ color:var(--cyan); }}
-  .mail-lecture {{ padding:22px 26px; }}
-  .mail-objet {{ font-family:var(--dsp); font-weight:600; font-size:18px; margin:0 0 12px; }}
-  .mail-de {{ font-size:13.5px; margin:0 0 20px; color:var(--ink); }}
-  .mail-adr {{ color:var(--ko); }}
-  .mail-texte {{ color:#C2CDDC; font-size:14.5px; margin:0 0 20px; max-width:46ch; }}
-  .mail-lien {{
-    display:inline-block; background:rgba(248,113,113,.12); color:#FCA5A5;
-    border:1px solid rgba(248,113,113,.3); border-radius:10px; padding:10px 16px;
-    font-size:13px; font-weight:500;
-  }}
-
-  /* navigateur */
-  .barre-url {{ display:flex; align-items:center; gap:12px; padding:11px 16px; background:rgba(255,255,255,.02); border-bottom:1px solid var(--hair); }}
-  .cadenas {{ font-size:11px; color:var(--ko); border:1px solid rgba(248,113,113,.35); border-radius:999px; padding:3px 10px; letter-spacing:.04em; }}
-  .url {{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:13px; color:#C2CDDC; }}
-  .page-faux {{ min-height:316px; padding:40px 34px; display:flex; flex-direction:column; align-items:center; gap:14px; }}
-  .faux-logo {{ font-family:var(--dsp); font-weight:700; font-size:22px; letter-spacing:-.01em; color:var(--ink); }}
-  .faux-titre {{ color:var(--muted); font-size:14px; margin:0 0 6px; }}
-  .faux-champ {{ width:min(320px,80%); color:var(--muted); font-size:13px; background:rgba(255,255,255,.04); border:1px solid var(--hair); border-radius:10px; padding:12px 14px; }}
-  .faux-cta {{ width:min(320px,80%); text-align:center; background:rgba(34,211,238,.16); color:var(--cyan); border:1px solid rgba(34,211,238,.3); border-radius:10px; padding:12px; font-weight:600; font-size:14px; }}
-
-  /* voile + pop-up du garde */
-  .voile {{
-    position:absolute; inset:10px; border-radius:22px;
-    display:flex; align-items:flex-end; justify-content:flex-end; padding:22px;
-    background:linear-gradient(115deg, rgba(6,10,20,.08), rgba(6,10,20,.46));
-    backdrop-filter:blur(1.5px); -webkit-backdrop-filter:blur(1.5px);
-  }}
-  .garde {{
-    width:min(384px,86%);
-    background:linear-gradient(180deg, rgba(16,23,38,.92), rgba(10,15,26,.92));
-    border:1px solid rgba(255,255,255,.14); border-radius:20px; overflow:hidden;
-    box-shadow:0 30px 70px -20px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.08);
-    border-top:2px solid var(--cyan);
-    animation:surgir .5s cubic-bezier(.32,.72,0,1) both;
-  }}
-  @keyframes surgir {{ from {{ opacity:0; transform:translateY(14px) scale(.97); }} to {{ opacity:1; transform:none; }} }}
-  .garde-tete {{ display:flex; gap:13px; align-items:center; padding:18px 20px 10px; }}
-  .garde-ico {{ width:38px; height:38px; flex:none; color:var(--cyan); background:var(--cyan-doux); border:1px solid rgba(34,211,238,.28); border-radius:12px; display:flex; align-items:center; justify-content:center; }}
-  .garde-ico svg {{ width:21px; height:21px; }}
-  .garde-id {{ display:flex; flex-direction:column; gap:3px; }}
-  .garde-nom {{ font-family:var(--dsp); font-weight:600; font-size:13.5px; letter-spacing:.01em; }}
-  .garde-meta {{ color:var(--muted); font-size:11.5px; display:flex; align-items:center; gap:7px; }}
-  .dot {{ width:7px; height:7px; border-radius:50%; background:var(--grav); box-shadow:0 0 8px var(--grav); }}
-  .garde-titre {{ font-family:var(--dsp); font-weight:600; font-size:18px; letter-spacing:-.01em; padding:4px 20px 0; margin:6px 0 8px; }}
-  .garde-expli {{ padding:0 20px; color:#C2CDDC; font-size:14px; margin:0 0 14px; }}
-  .garde-preuve {{ margin:0 20px 16px; background:rgba(255,255,255,.04); border:1px solid var(--hair); border-radius:10px; padding:10px 13px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12px; color:var(--muted); word-break:break-word; }}
-  .garde-boutons {{ display:flex; gap:10px; padding:0 20px 20px; }}
-  .garde-boutons button {{ flex:1; padding:11px; border-radius:11px; border:1px solid var(--hair); font-family:var(--txt); font-size:13.5px; font-weight:600; cursor:default; }}
-  .b-annuler {{ background:var(--cyan); color:#04121A; border-color:transparent; }}
-  .b-continuer {{ background:transparent; color:var(--muted); }}
-
-  /* issues : les deux fins possibles */
-  .issues {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }}
-  .issue {{ border-radius:16px; padding:16px 18px; background:var(--surface); border:1px solid var(--hair); opacity:.62; transition:opacity .4s ease; }}
-  .issue p {{ margin:8px 0 0; font-size:13.5px; color:#C2CDDC; }}
-  .issue-tag {{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:600; }}
-  .issue.ok .issue-tag {{ color:var(--ok); }}
-  .issue.ko .issue-tag {{ color:var(--ko); }}
-  .issue.est-arrive {{ opacity:1; }}
-  .issue.ok.est-arrive {{ border-color:rgba(52,211,153,.4); box-shadow:0 0 0 1px rgba(52,211,153,.2); }}
-  .issue.ko.est-arrive {{ border-color:rgba(248,113,113,.4); box-shadow:0 0 0 1px rgba(248,113,113,.2); }}
-  .issue.est-arrive .issue-tag::after {{ content:" · ce qui s'est passé"; color:var(--muted); font-weight:400; letter-spacing:0; text-transform:none; }}
-
-  /* second plan */
-  .second {{ margin-top:16px; }}
-  .grille {{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:26px; }}
-  .carte {{ border-radius:18px; padding:20px; background:var(--surface); border:1px solid var(--hair); border-left:2px solid var(--grav); }}
-  .carte-tete {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }}
-  .carte-ctx {{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--cyan); font-weight:600; }}
-  .carte-grav {{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); }}
-  .carte-geste {{ color:var(--muted); font-size:13px; margin:0 0 8px; }}
-  .carte-titre {{ font-family:var(--dsp); font-weight:600; font-size:15.5px; margin:0 0 14px; }}
-  .carte-issue {{ font-size:12.5px; font-weight:600; margin:0; }}
-  .carte-issue.ok {{ color:var(--ok); }}
-  .carte-issue.ko {{ color:var(--ko); }}
-
-  footer {{ color:var(--muted); font-size:12.5px; border-top:1px solid var(--hair); margin-top:40px; padding-top:22px; }}
-
-  @media (max-width:760px) {{
-    .enveloppe {{ padding:48px 16px 64px; }}
-    .mail-corps {{ grid-template-columns:1fr; }}
-    .mail-rail {{ display:none; }}
-    .issues, .grille {{ grid-template-columns:1fr; }}
-    .voile {{ padding:12px; align-items:center; justify-content:center; }}
-    .garde {{ width:min(380px,96%); }}
-  }}
-</style>
+{_CSS}</style>
 </head>
 <body>
   <div class="enveloppe">
-    <header class="hero">
-      <span class="pastille">Dédale · garde du corps du poste</span>
+    <header class="tete">
+      <span class="pastille">Dédale · poste du salarié</span>
       <h1>Camille est prévenue avant le clic de trop.</h1>
-      <p>Une appli discrète tourne sur son poste. Elle lit le mail qui arrive et le lien qu'elle s'apprête à ouvrir, puis prévient au bon moment. Tout est fictif, local et inerte.</p>
+      <p>Dédale est une app visible : son icône reste dans la barre de menus du Mac. Elle prévient le salarié avant un geste risqué et lui laisse le choix. Elle ne bloque jamais le poste.</p>
+      <div class="perimetre">
+        <strong>Ce que Dédale regarde</strong>
+        <p>Quatre choses, chacune dans un module qu'on peut couper : les mails qui arrivent, l'adresse de l'onglet actif, les nouveaux téléchargements et les agents IA installés sur le poste. Dédale ne lit jamais le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique. Orbis Pay et Camille sont fictifs, tout tourne en local.</p>
+      </div>
     </header>
-{scenes}
-{secondaires}
-    <footer>Dédale · pilier humain, le maillon faible · {_esc(titre)}. Rien ne quitte le poste : chaque avertissement et chaque choix part à la console, preuve neutralisée.</footer>
+{scenes}{_AUTRES_MODULES}{_CE_QUI_PART}
+    <footer>Dédale · démo du poste du salarié. Orbis Pay, Camille et tous les mails sont fictifs ; tout tourne en local.</footer>
   </div>
 </body>
-</html>"""
+</html>
+"""
