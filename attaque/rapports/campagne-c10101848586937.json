@@ -1,0 +1,597 @@
+{
+  "campagne": "c10101848586937",
+  "debut": "2026-10-10T18:48:58+02:00",
+  "duree_s": 32.8,
+  "commit": "fa7b38c",
+  "base_backend": "http://127.0.0.1:8794",
+  "mode": "surface",
+  "realiste": false,
+  "client_ia": "simulateur",
+  "graine": 1337,
+  "n_par_type": 25,
+  "types": [
+    "agent_interne"
+  ],
+  "stats": {
+    "par_verite": {
+      "humain": {
+        "sessions": 0,
+        "evenements": 0,
+        "leurres_touches": 0,
+        "leurres_distincts": [],
+        "sessions_avec_leurre": 0
+      },
+      "script": {
+        "sessions": 0,
+        "evenements": 0,
+        "leurres_touches": 0,
+        "leurres_distincts": [],
+        "sessions_avec_leurre": 0
+      },
+      "agent_ia": {
+        "sessions": 0,
+        "evenements": 0,
+        "leurres_touches": 0,
+        "leurres_distincts": [],
+        "sessions_avec_leurre": 0
+      },
+      "agent_interne": {
+        "sessions": 25,
+        "evenements": 75,
+        "leurres_touches": 50,
+        "leurres_distincts": [
+          "C-2B91",
+          "C-7A3F"
+        ],
+        "sessions_avec_leurre": 25
+      }
+    },
+    "anomalies": []
+  },
+  "bilan": {
+    "campagne": "c10101848586937",
+    "mode": "surface",
+    "mesure": true,
+    "sessions_emises": 25,
+    "sessions_observees": 25,
+    "par_type": {
+      "humain": {
+        "attendu": "humain",
+        "emises": 0,
+        "observees": 0,
+        "absentes": 0,
+        "classements": {
+          "humain": 0,
+          "script": 0,
+          "agent_ia": 0,
+          "inconnu": 0
+        },
+        "bien_classees": 0,
+        "avec_incident": 0,
+        "suspendues_ou_coupees": 0
+      },
+      "script": {
+        "attendu": "script",
+        "emises": 0,
+        "observees": 0,
+        "absentes": 0,
+        "classements": {
+          "humain": 0,
+          "script": 0,
+          "agent_ia": 0,
+          "inconnu": 0
+        },
+        "bien_classees": 0,
+        "avec_incident": 0,
+        "suspendues_ou_coupees": 0
+      },
+      "agent_ia": {
+        "attendu": "agent_ia",
+        "emises": 0,
+        "observees": 0,
+        "absentes": 0,
+        "classements": {
+          "humain": 0,
+          "script": 0,
+          "agent_ia": 0,
+          "inconnu": 0
+        },
+        "bien_classees": 0,
+        "avec_incident": 0,
+        "suspendues_ou_coupees": 0
+      },
+      "agent_interne": {
+        "attendu": "agent_ia",
+        "emises": 25,
+        "observees": 25,
+        "absentes": 0,
+        "classements": {
+          "humain": 0,
+          "script": 0,
+          "agent_ia": 25,
+          "inconnu": 0
+        },
+        "bien_classees": 25,
+        "avec_incident": 25,
+        "suspendues_ou_coupees": 25
+      }
+    },
+    "detection": {
+      "positives_emises": 25,
+      "detectees": 25,
+      "taux": 1.0,
+      "faux_negatifs": 0,
+      "dont_absentes": 0,
+      "dont_non_classees": 0
+    },
+    "faux_positifs": {
+      "negatives_emises": 0,
+      "classees_agent_ia": 0,
+      "taux": null,
+      "dont_absentes": 0,
+      "dont_non_classees": 0
+    },
+    "non_classees": {
+      "sessions": 0,
+      "sur": 25
+    },
+    "absentes": {
+      "sessions": 0,
+      "sur": 25
+    },
+    "bien_classees": {
+      "sessions": 25,
+      "sur": 25
+    },
+    "temps": {
+      "detection_s": {
+        "n": 25,
+        "min": 0.002,
+        "mediane": 0.006,
+        "p95": 0.008,
+        "max": 0.025
+      },
+      "evenements_avant_detection": {
+        "n": 25,
+        "min": 4,
+        "mediane": 5,
+        "p95": 5,
+        "max": 5
+      },
+      "latence_post_evenement_ms": {
+        "n": 0,
+        "min": null,
+        "mediane": null,
+        "p95": null,
+        "max": null
+      },
+      "remontee_incident_ms": {
+        "n": 25,
+        "min": 0.35,
+        "mediane": 1.24,
+        "p95": 1.57,
+        "max": 1.63
+      },
+      "confinement_s": null
+    },
+    "sessions": [
+      {
+        "id": "banc-interne-c10101848586937-0001",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0001",
+        "delai_detection_s": 0.003,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 0.35
+      },
+      {
+        "id": "banc-interne-c10101848586937-0002",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0002",
+        "delai_detection_s": 0.002,
+        "evenements_avant_detection": 4,
+        "remontee_incident_ms": 1.17
+      },
+      {
+        "id": "banc-interne-c10101848586937-0003",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0003",
+        "delai_detection_s": 0.005,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 0.94
+      },
+      {
+        "id": "banc-interne-c10101848586937-0004",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0004",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 0.84
+      },
+      {
+        "id": "banc-interne-c10101848586937-0005",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0005",
+        "delai_detection_s": 0.025,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.27
+      },
+      {
+        "id": "banc-interne-c10101848586937-0006",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0006",
+        "delai_detection_s": 0.006,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.57
+      },
+      {
+        "id": "banc-interne-c10101848586937-0007",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0007",
+        "delai_detection_s": 0.006,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.41
+      },
+      {
+        "id": "banc-interne-c10101848586937-0008",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0008",
+        "delai_detection_s": 0.002,
+        "evenements_avant_detection": 4,
+        "remontee_incident_ms": 1.14
+      },
+      {
+        "id": "banc-interne-c10101848586937-0009",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0009",
+        "delai_detection_s": 0.006,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.34
+      },
+      {
+        "id": "banc-interne-c10101848586937-0010",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0010",
+        "delai_detection_s": 0.006,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.0
+      },
+      {
+        "id": "banc-interne-c10101848586937-0011",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0011",
+        "delai_detection_s": 0.006,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.24
+      },
+      {
+        "id": "banc-interne-c10101848586937-0012",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0012",
+        "delai_detection_s": 0.002,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 0.64
+      },
+      {
+        "id": "banc-interne-c10101848586937-0013",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0013",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.32
+      },
+      {
+        "id": "banc-interne-c10101848586937-0014",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0014",
+        "delai_detection_s": 0.005,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.52
+      },
+      {
+        "id": "banc-interne-c10101848586937-0015",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0015",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.15
+      },
+      {
+        "id": "banc-interne-c10101848586937-0016",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0016",
+        "delai_detection_s": 0.002,
+        "evenements_avant_detection": 4,
+        "remontee_incident_ms": 0.9
+      },
+      {
+        "id": "banc-interne-c10101848586937-0017",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0017",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.15
+      },
+      {
+        "id": "banc-interne-c10101848586937-0018",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0018",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 0.92
+      },
+      {
+        "id": "banc-interne-c10101848586937-0019",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0019",
+        "delai_detection_s": 0.004,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.29
+      },
+      {
+        "id": "banc-interne-c10101848586937-0020",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0020",
+        "delai_detection_s": 0.008,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.41
+      },
+      {
+        "id": "banc-interne-c10101848586937-0021",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0021",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.5
+      },
+      {
+        "id": "banc-interne-c10101848586937-0022",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0022",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.27
+      },
+      {
+        "id": "banc-interne-c10101848586937-0023",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0023",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.63
+      },
+      {
+        "id": "banc-interne-c10101848586937-0024",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0024",
+        "delai_detection_s": 0.005,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 1.42
+      },
+      {
+        "id": "banc-interne-c10101848586937-0025",
+        "verite": "agent_interne",
+        "attendu": "agent_ia",
+        "obtenu": "agent_ia",
+        "etat": "suspendue",
+        "incident": "INC-0025",
+        "delai_detection_s": 0.007,
+        "evenements_avant_detection": 5,
+        "remontee_incident_ms": 0.86
+      }
+    ],
+    "passerelle_interne": {
+      "sessions": 25,
+      "sessions_avec_rapport_envoye": 0,
+      "rapports_envoyes": 0,
+      "etats_finaux": {
+        "suspendue": 25
+      }
+    }
+  },
+  "mesures": {
+    "taux_detection": 1.0,
+    "faux_positifs": null,
+    "temps_detection_s": 0.01,
+    "temps_confinement_s": null,
+    "sessions_total": 25,
+    "agents_detectes": 25,
+    "incidents_ouverts": 25,
+    "incidents_clos": 0,
+    "repartition": {
+      "humain": 0,
+      "script": 0,
+      "agent_ia": 25,
+      "inconnu": 0
+    },
+    "serie_detection": [
+      {
+        "t": "#1",
+        "valeur": 1.0
+      },
+      {
+        "t": "#2",
+        "valeur": 1.0
+      },
+      {
+        "t": "#3",
+        "valeur": 1.0
+      },
+      {
+        "t": "#4",
+        "valeur": 1.0
+      },
+      {
+        "t": "#5",
+        "valeur": 1.0
+      },
+      {
+        "t": "#6",
+        "valeur": 1.0
+      },
+      {
+        "t": "#7",
+        "valeur": 1.0
+      },
+      {
+        "t": "#8",
+        "valeur": 1.0
+      },
+      {
+        "t": "#9",
+        "valeur": 1.0
+      },
+      {
+        "t": "#10",
+        "valeur": 1.0
+      },
+      {
+        "t": "#11",
+        "valeur": 1.0
+      },
+      {
+        "t": "#12",
+        "valeur": 1.0
+      },
+      {
+        "t": "#13",
+        "valeur": 1.0
+      },
+      {
+        "t": "#14",
+        "valeur": 1.0
+      },
+      {
+        "t": "#15",
+        "valeur": 1.0
+      },
+      {
+        "t": "#16",
+        "valeur": 1.0
+      },
+      {
+        "t": "#17",
+        "valeur": 1.0
+      },
+      {
+        "t": "#18",
+        "valeur": 1.0
+      },
+      {
+        "t": "#19",
+        "valeur": 1.0
+      },
+      {
+        "t": "#20",
+        "valeur": 1.0
+      },
+      {
+        "t": "#21",
+        "valeur": 1.0
+      },
+      {
+        "t": "#22",
+        "valeur": 1.0
+      },
+      {
+        "t": "#23",
+        "valeur": 1.0
+      },
+      {
+        "t": "#24",
+        "valeur": 1.0
+      },
+      {
+        "t": "#25",
+        "valeur": 1.0
+      }
+    ],
+    "matrice": {
+      "vrais_positifs": 25,
+      "faux_positifs": 0,
+      "vrais_negatifs": 0,
+      "faux_negatifs": 0
+    },
+    "sessions_sans_verite_terrain": 0,
+    "gestes_humains": {
+      "arretes": 0,
+      "passes_outre": 0,
+      "total": 0,
+      "passes_outre_par_type": {},
+      "incidents_humains": 0
+    }
+  },
+  "backend_ok": true,
+  "ecarts_classement": []
+}

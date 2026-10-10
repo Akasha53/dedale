@@ -9,6 +9,7 @@ banc, « continue sans consigne » (contrat).
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -19,6 +20,9 @@ class Backend:
         self.base = base.rstrip("/")
         self.delai = delai
         self.disponible: bool | None = None
+        # Latence de l'aller-retour du dernier appel réussi, en millisecondes (horloge
+        # réelle du banc). None si le dernier appel a échoué.
+        self.derniere_latence_ms: float | None = None
 
     def _appel(self, chemin: str, methode: str = "GET",
                corps: Any = None) -> dict | list | None:
@@ -26,13 +30,21 @@ class Backend:
         req = urllib.request.Request(self.base + chemin, data=donnees, method=methode)
         if donnees is not None:
             req.add_header("Content-Type", "application/json")
+        debut = time.perf_counter()
         try:
             with urllib.request.urlopen(req, timeout=self.delai) as rep:
-                self.disponible = True
                 brut = rep.read().decode("utf-8", "replace")
+                self.disponible = True
+                self.derniere_latence_ms = (time.perf_counter() - debut) * 1000
                 return json.loads(brut) if brut else {}
+        except urllib.error.HTTPError:
+            # Le backend répond (404 sur une session inconnue, par exemple).
+            self.disponible = True
+            self.derniere_latence_ms = None
+            return None
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
             self.disponible = False
+            self.derniere_latence_ms = None
             return None
 
     def enregistrer_leurres(self, leurres: list[dict]) -> bool:
@@ -55,5 +67,20 @@ class Backend:
         return rep if isinstance(rep, dict) else None
 
     def sessions(self) -> list | None:
+        """Sessions du backend. L'API renvoie ``{"sessions": [...]}`` ; l'ancien
+        format liste reste accepté. None si le backend ne répond pas."""
         rep = self._appel("/api/sessions")
-        return rep if isinstance(rep, list) else None
+        return _liste(rep, "sessions")
+
+    def incidents(self) -> list | None:
+        """Incidents du backend (``{"incidents": [...]}`` ou liste). None si absent."""
+        rep = self._appel("/api/incidents")
+        return _liste(rep, "incidents")
+
+
+def _liste(rep: Any, cle: str) -> list | None:
+    if isinstance(rep, list):
+        return rep
+    if isinstance(rep, dict) and isinstance(rep.get(cle), list):
+        return rep[cle]
+    return None

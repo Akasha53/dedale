@@ -48,13 +48,20 @@ class Horloge:
 
 class Monde:
     def __init__(self, mode: str, surface: SurfaceLocale | SurfaceHTTP,
-                 backend: Backend):
+                 backend: Backend, campagne: str | None = None):
         if mode not in ("autonome", "surface"):
             raise ValueError(f"mode inconnu : {mode!r}")
         self.mode = mode
         self.surface = surface
         self.backend = backend
+        # Identifiant de campagne, porté par chaque session_id (None : ancien format).
+        self.campagne = campagne
         self.manifeste: dict[str, list[dict]] = {}
+        # Réponses du backend, par session et dans l'ordre d'émission (mode autonome) :
+        # consigne, classement renvoyé et latence de l'aller-retour HTTP.
+        self.reponses: dict[str, list[dict]] = {}
+        # Mode surface : résultat de la bibliothèque interne par session (passerelle réelle).
+        self.resultats_internes: dict[str, dict] = {}
         self.horloge: Horloge | None = None
 
     def _moment(self) -> datetime | None:
@@ -73,6 +80,11 @@ class Monde:
         self._noter(evenement)
         if self.mode == "autonome":
             rep = self.backend.emettre(evenement)
+            self.reponses.setdefault(evenement["session_id"], []).append({
+                "consigne": rep.get("consigne", "aucune"),
+                "classement": (rep.get("session") or {}).get("classement", "inconnu"),
+                "latence_ms": self.backend.derniere_latence_ms,
+            })
             return rep.get("consigne", "aucune")
         return "aucune"
 

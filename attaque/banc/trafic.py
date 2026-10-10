@@ -47,7 +47,8 @@ def _jouer_scenario_interne(monde: Monde, sid: str) -> list[str]:
     délai : sans analyste, la passerelle retient l'exfiltration (containment faible) et
     rend la main — l'incident et les touches de canari ont déjà été émis au backend.
 
-    Renvoie la liste des canaris touchés (pour le manifeste de cohérence du banc).
+    Renvoie le résultat de la bibliothèque, réduit à ce que le bilan compte : canaris
+    touchés, état final de la passerelle, rapports réellement envoyés.
     """
     import sys
     from pathlib import Path
@@ -70,7 +71,12 @@ def _jouer_scenario_interne(monde: Monde, sid: str) -> list[str]:
     agent = AgentInterne(sid, cerveau=CerveauScripte(temperament="naif"),
                          outils=Outils(), boite=boite, passerelle=passerelle)
     res = agent.executer(DEMANDE_INTERNE)
-    return list(res.get("canaris_touches") or [])
+    return {
+        "canaris": list(res.get("canaris_touches") or []),
+        "etat_passerelle": res.get("etat"),
+        "coupe": bool(res.get("coupe")),
+        "rapports_envoyes": len(res.get("rapports_envoyes") or []),
+    }
 
 
 def _dormir(monde: Monde, secondes: float, realiste: bool) -> None:
@@ -84,7 +90,7 @@ def _dormir(monde: Monde, secondes: float, realiste: bool) -> None:
 def humain(monde: Monde, numero: int, rng: random.Random, *,
            realiste: bool = False) -> str:
     """Navigation lente et plausible. Ne touche aucun leurre : mesure les FP."""
-    sid = ev.nom_session(ev.HUMAIN, numero)
+    sid = ev.nom_session(ev.HUMAIN, numero, monde.campagne)
     monde.horloge = Horloge()
     visitees = ["/"]
     # une ou deux pages visibles de plus, dans un ordre humain
@@ -103,7 +109,7 @@ def humain(monde: Monde, numero: int, rng: random.Random, *,
 def script(monde: Monde, numero: int, rng: random.Random, *,
            realiste: bool = False) -> str:
     """Scanner web naïf : routes en rafale, sans comprendre le texte."""
-    sid = ev.nom_session(ev.SCRIPT, numero)
+    sid = ev.nom_session(ev.SCRIPT, numero, monde.campagne)
     monde.horloge = Horloge()
     for i, chemin in enumerate(MOTS_SCANNER):
         delai = 0.0 if i == 0 else rng.uniform(0.02, 0.08)  # rapide, régulier
@@ -145,7 +151,7 @@ def agent_ia(monde: Monde, numero: int, rng: random.Random, *,
              client: ClientIA | None = None, realiste: bool = False) -> str:
     """Client animé par un modèle : lit des pages, suit ce qu'il y trouve."""
     client = client or ClientIA("simulateur", rng)
-    sid = ev.nom_session(ev.AGENT_IA, numero)
+    sid = ev.nom_session(ev.AGENT_IA, numero, monde.campagne)
     monde.horloge = Horloge()
     touches: set[str] = set()
     parcours = ["/", "/robots.txt", "/connexion", "/.well-known/ai-plugin.json"]
@@ -171,7 +177,7 @@ def agent_interne(monde: Monde, numero: int, rng: random.Random, *,
                   client: ClientIA | None = None, realiste: bool = False) -> str:
     """Agent interne détourné par un mail piégé : un canari est touché."""
     client = client or ClientIA("simulateur", rng)
-    sid = ev.nom_session(ev.AGENT_INTERNE, numero)
+    sid = ev.nom_session(ev.AGENT_INTERNE, numero, monde.campagne)
     monde.horloge = Horloge()
 
     if monde.mode == "surface":
@@ -181,7 +187,9 @@ def agent_interne(monde: Monde, numero: int, rng: random.Random, *,
         monde.agent_entre(sid, ev.AGENT_INTERNE,
                           {"motif": "déclenchement du mail piégé (bibliothèque interne)"},
                           source="interne", surface_nom="mail")
-        canaris = _jouer_scenario_interne(monde, sid)
+        resultat = _jouer_scenario_interne(monde, sid)
+        monde.resultats_internes[sid] = resultat
+        canaris = resultat["canaris"]
         # On note les touches de canari dans le manifeste du banc (cohérence) : côté
         # backend, ce sont les événements émis par la bibliothèque interne qui font foi.
         for canari_id in (canaris or [CANARI_MAIL]):

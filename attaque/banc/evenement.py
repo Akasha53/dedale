@@ -3,7 +3,8 @@
 Un événement suit exactement le corps JSON de `POST /api/evenements` décrit dans
 CONTRATS.md. La vérité terrain voyage par deux canaux redondants :
 
-- le préfixe du `session_id` : ``banc-<verite>-NNNN`` ;
+- le préfixe du `session_id` : ``banc-<verite>-<campagne>-NNNN`` (ou l'ancien
+  ``banc-<verite>-NNNN``, toujours lu) ;
 - ``details.verite_terrain`` : l'une des valeurs de ``VERITES``.
 
 Le backend groupe ses mesures sur cette vérité (voir la note au bas de
@@ -13,6 +14,8 @@ CONTRATS.md). Les deux canaux disent la même chose ; le préfixe suffit même s
 
 from __future__ import annotations
 
+import re
+import secrets
 from datetime import datetime
 from typing import Any
 
@@ -41,11 +44,37 @@ _PREFIXE = {
 }
 
 
-def nom_session(verite: str, numero: int) -> str:
-    """Identifiant de session stable et étiqueté, ex. ``banc-humain-0001``."""
+# Identifiant de campagne : minuscules et chiffres, sans tiret, pour que le
+# backend lise toujours la vérité au deuxième morceau du session_id.
+_MOTIF_CAMPAGNE = re.compile(r"^[a-z0-9]{1,32}$")
+
+
+def nouvelle_campagne(moment: datetime | None = None) -> str:
+    """Identifiant neuf, ex. ``c1010153012a3f9`` (date, heure, 4 hexa au hasard)."""
+    instant = moment or datetime.now()
+    return "c" + instant.strftime("%m%d%H%M%S") + secrets.token_hex(2)
+
+
+def valider_campagne(campagne: str) -> str:
+    if not _MOTIF_CAMPAGNE.match(campagne or ""):
+        raise ValueError(
+            f"identifiant de campagne invalide : {campagne!r} "
+            "(attendu : 1 à 32 caractères a-z ou 0-9, sans tiret)")
+    return campagne
+
+
+def nom_session(verite: str, numero: int, campagne: str | None = None) -> str:
+    """Identifiant de session étiqueté.
+
+    Avec une campagne : ``banc-humain-c1010153012a3f9-0001``. Sans campagne,
+    l'ancien format ``banc-humain-0001`` reste produit pour les tests unitaires
+    des générateurs ; une vraie campagne passe toujours son identifiant.
+    """
     if verite not in VERITES:
         raise ValueError(f"vérité terrain inconnue : {verite!r}")
-    return f"{_PREFIXE[verite]}-{numero:04d}"
+    if campagne is None:
+        return f"{_PREFIXE[verite]}-{numero:04d}"
+    return f"{_PREFIXE[verite]}-{valider_campagne(campagne)}-{numero:04d}"
 
 
 def verite_depuis_session(session_id: str) -> str | None:
@@ -54,6 +83,14 @@ def verite_depuis_session(session_id: str) -> str | None:
         if session_id.startswith(prefixe + "-"):
             return verite
     return None
+
+
+def campagne_depuis_session(session_id: str) -> str | None:
+    """Identifiant de campagne porté par le session_id, ou None (ancien format)."""
+    if verite_depuis_session(session_id) is None:
+        return None
+    morceaux = session_id.split("-")
+    return morceaux[2] if len(morceaux) == 4 else None
 
 
 def horodatage(moment: datetime | None = None) -> str:

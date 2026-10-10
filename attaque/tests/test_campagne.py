@@ -22,20 +22,23 @@ def test_campagne_autonome_coherente_sans_backend():
     assert par[ev.AGENT_INTERNE]["sessions_avec_leurre"] == 3
 
 
-def _signature(manifeste: dict) -> list:
-    """Structure du manifeste sans l'horodatage (base = heure courante)."""
+def _signature(manifeste: dict, campagne_id: str) -> list:
+    """Structure du manifeste sans l'horodatage ni l'identifiant de campagne."""
     out = []
     for sid in sorted(manifeste):
         for e in manifeste[sid]:
-            out.append((sid, e["type"], e["chemin"], e["outil"], e["leurre_id"],
-                        e["details"].get("delai_avant_s")))
+            out.append((sid.replace(campagne_id, "X"), e["type"], e["chemin"], e["outil"],
+                        e["leurre_id"], e["details"].get("delai_avant_s")))
     return out
 
 
 def test_reproductible_a_graine_fixe():
     a = campagne.lancer(n=4, mode="autonome", graine=1337, base_backend="http://127.0.0.1:9")
     b = campagne.lancer(n=4, mode="autonome", graine=1337, base_backend="http://127.0.0.1:9")
-    assert _signature(a["manifeste"]) == _signature(b["manifeste"])
+    # même trafic, mais deux campagnes distinctes : aucun session_id partagé
+    assert a["campagne"] != b["campagne"]
+    assert not set(a["manifeste"]) & set(b["manifeste"])
+    assert _signature(a["manifeste"], a["campagne"]) == _signature(b["manifeste"], b["campagne"])
 
 
 class _Collecteur(BaseHTTPRequestHandler):
