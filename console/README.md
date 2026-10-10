@@ -1,7 +1,13 @@
 # Console SOC — Dédale
 
 Écran de l'analyste. Lit l'API du backend (`127.0.0.1:8700`) et son WebSocket
-`/ws`. Stack : Vite + React + TypeScript, thème clair.
+`/ws`. Stack : Vite + React + TypeScript.
+
+Style minimaliste, dans l'esprit de chatgpt.com : police système, fond blanc,
+barre latérale #F9F9F9, texte #0D0D0D et gris, boutons en pilule, cartes à
+20 px de rayon. Trois couleurs seulement, quand elles portent un sens : rouge
+pour le danger et « Couper », orange pour « à décider », vert pour « réglé ».
+Ce style est le dernier bloc de `src/index.css` et passe après le reste.
 
 Deux piliers, partagés entre le temps réel et les incidents, ouverts par défaut
 sur les **agents IA** (le produit principal) : **Agents IA** (source `interne`)

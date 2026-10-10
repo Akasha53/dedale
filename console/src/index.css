@@ -3833,3 +3833,970 @@ mark.piege-ligne {
     transition: none;
   }
 }
+
+/* =====================================================================
+   Direction minimaliste (Guilhem, 10 octobre, 20:35), dans l'esprit de
+   chatgpt.com : police système, presque tout en niveaux de gris, arrondis
+   généreux (pilules pour les boutons, 16 à 24 px pour les cartes, 10 px
+   dans la barre latérale), ombres à peine visibles. Une couleur seulement
+   quand elle porte un sens : rouge pour le danger, orange pour « à
+   décider », vert pour « réglé ». Ce bloc passe après tout le reste.
+   ===================================================================== */
+:root {
+  --fond: #ffffff;
+  --fond-2: #f9f9f9;
+  --fond-3: #ffffff;
+  --puits: #f9f9f9;
+  --panneau: #ffffff;
+  --panneau-2: #f9f9f9;
+  --bord: rgba(0, 0, 0, 0.08);
+  --bord-fort: rgba(0, 0, 0, 0.14);
+  --survol: rgba(0, 0, 0, 0.04);
+  --actif: rgba(0, 0, 0, 0.06);
+
+  --texte: #0d0d0d;
+  --texte-doux: #5d5d5d;
+  --texte-faible: #737373;
+
+  --accent: #0d0d0d;
+  --accent-fonce: #0d0d0d;
+  --accent-clair: #d4d4d4;
+  --accent-survol: #2f2f2f;
+  --encre: #0d0d0d;
+
+  --ok: #0f7b55;
+  --humain: #0f7b55;
+  --script: #c2410c;
+  --orange: #c2410c;
+  --agent: #c4262e;
+  --alerte: #c4262e;
+  --alerte-fonce: #a11f26;
+  --inconnu: #8f8f8f;
+  --violet: #5d5d5d;
+  --p-humain: #0d0d0d;
+  --p-interne: #5d5d5d;
+  --p-interne-vif: #8f8f8f;
+
+  --rayon: 20px;
+  --rayon-btn: 16px;
+  --rayon-s: 12px;
+  --pilule: 9999px;
+
+  --liseré: none;
+  --ombre: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --ombre-haute: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04), 0 12px 48px rgba(0, 0, 0, 0.08);
+  --rond-fond: rgba(0, 0, 0, 0.05);
+  --surface-bouton: #ffffff;
+
+  --titre: ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+body {
+  background: #ffffff;
+  font-size: 15px;
+  line-height: 1.55;
+}
+body::before {
+  display: none;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--sans);
+}
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #0d0d0d;
+  outline-offset: 2px;
+}
+
+/* ---- Barre latérale ---- */
+.barre-laterale {
+  background: #f9f9f9;
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 18px 10px 16px;
+  gap: 2px;
+}
+.logo {
+  padding: 4px 10px 22px;
+}
+.logo .marque {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.logo .sous {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--texte-faible);
+  margin-top: 0;
+}
+.pastille-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #0d0d0d;
+  border: 0;
+  box-shadow: none;
+  color: #ffffff;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+}
+.pastille-logo::after {
+  display: none;
+}
+.nav-item {
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14.5px;
+  color: var(--texte);
+  border: 0;
+}
+.nav-item:hover {
+  background: var(--actif);
+}
+.nav-item.actif {
+  background: rgba(0, 0, 0, 0.07);
+  font-weight: 500;
+}
+.nav-item .pic,
+.nav-item.actif .pic {
+  color: var(--texte-doux);
+}
+.nav-item .compte,
+.nav-item.actif .compte {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+  background: var(--script);
+  border-radius: var(--pilule);
+  padding: 0 7px;
+  min-width: 20px;
+  text-align: center;
+}
+.bas-laterale {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 12px;
+  padding: 4px 0 8px;
+}
+.bas-laterale .nav-item .pic {
+  color: var(--texte-doux);
+}
+.note-laterale {
+  font-size: 12.5px;
+  color: var(--texte-faible);
+}
+
+/* ---- En-tête et contenu ---- */
+.entete {
+  background: rgba(255, 255, 255, 0.86);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 18px 32px 16px;
+}
+.entete h1 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.entete .desc {
+  font-size: 14px;
+  color: var(--texte-doux);
+}
+.contenu {
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto;
+  gap: 18px;
+}
+
+/* ---- Petits libellés : casse normale, gris, sans monospace ---- */
+.compteur .lib,
+.ag-sourcil,
+.syn-titre,
+.syn-conseil-lib,
+.dp-bloc h5,
+.ag-lib,
+.ag-chrono-lib,
+.geste-lib,
+.maillon .m-phase,
+.piege-lib,
+.sig-pop h4,
+.panneau > .titre .droite,
+.ag-carte-note,
+.ag-appel-lib {
+  font-family: var(--sans);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--texte-faible);
+}
+.ag-entete-haut .ag-sourcil {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--texte-faible);
+}
+.ag-lib,
+.ton-alerte .ag-lib,
+.ton-attente .ag-lib,
+.ton-protege .ag-lib,
+.ton-libere .ag-lib,
+.ton-neutre .ag-lib {
+  color: var(--texte-faible);
+}
+.maillon .m-phase {
+  color: var(--texte-faible);
+}
+
+/* ---- Cartes : une seule enveloppe, rayon 20 px, ombre à peine visible ---- */
+.panneau,
+.compteur {
+  border-radius: var(--rayon);
+  border: 1px solid var(--bord);
+  box-shadow: none;
+}
+.panneau > .titre {
+  border-bottom: 0;
+  padding: 18px 22px 8px;
+  font-family: var(--sans);
+  font-size: 15.5px;
+  font-weight: 600;
+}
+.panneau > .corps {
+  padding: 12px 22px 20px;
+}
+.compteur {
+  padding: 18px 22px;
+}
+.compteur .val {
+  font-family: var(--sans);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.compteur .sous {
+  font-size: 13.5px;
+  color: var(--texte-doux);
+}
+.compteur.alerte {
+  border-color: var(--bord);
+}
+.compteur.alerte .val {
+  color: var(--script);
+}
+.ag-coque {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: var(--rayon);
+}
+.ag-noyau,
+.ag-entete .ag-noyau {
+  border-radius: var(--rayon);
+  border: 1px solid var(--bord);
+  background: #ffffff;
+  box-shadow: none;
+  padding: 24px 26px;
+}
+.ag-carte-tete h3 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 2px;
+}
+.ag-titre {
+  font-size: clamp(21px, 2vw, 26px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* ---- Segments ---- */
+.segments {
+  background: #f4f4f4;
+  border: 0;
+  border-radius: var(--pilule);
+  padding: 4px;
+  box-shadow: none;
+}
+.segments button {
+  border-radius: var(--pilule);
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--texte-doux);
+  border: 0;
+}
+.segments button.actif,
+.segments button.actif[data-pilier="humain"],
+.segments button.actif[data-pilier="interne"] {
+  background: #ffffff;
+  color: var(--texte);
+  border: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.segments .pastille-compte,
+.segments button.actif .pastille-compte {
+  font-family: var(--sans);
+  color: var(--texte-faible);
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: var(--pilule);
+}
+
+/* ---- Pastilles d'état : une couleur seulement si elle porte un sens ---- */
+.gravite {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 3px 11px;
+  border-radius: var(--pilule);
+  background: #f4f4f4;
+  color: var(--texte-doux);
+  box-shadow: none;
+}
+.gravite.critique,
+.gravite.haute {
+  background: color-mix(in srgb, var(--alerte) 9%, #ffffff);
+  color: var(--alerte);
+  box-shadow: none;
+}
+.ag-etat,
+.inc-etat,
+.statut-pill,
+.badge-choix,
+.badge {
+  border-radius: var(--pilule);
+  border: 0;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 3px 11px;
+}
+.ag-etat-surveillee,
+.inc-etat,
+.statut-pill {
+  background: #f4f4f4;
+}
+.ag-etat-reprise {
+  color: var(--texte-doux);
+  background: #f4f4f4;
+}
+.statut-pill.s-ok,
+.statut-pill.s-attente,
+.statut-pill.s-alerte,
+.inc-etat.e-attente,
+.inc-etat.e-ok {
+  background: color-mix(in srgb, currentColor 9%, #ffffff);
+}
+.statut-pill.s-ok,
+.inc-etat.e-ok {
+  color: var(--ok);
+}
+.statut-pill.s-attente,
+.inc-etat.e-attente {
+  color: var(--script);
+}
+.inc-etat.e-libere,
+.inc-etat.e-neutre,
+.statut-pill.s-neutre {
+  color: var(--texte-doux);
+  background: #f4f4f4;
+}
+.e-libere {
+  --e: #8f8f8f;
+}
+
+/* ---- Boutons : pilules ---- */
+.ag-pilule {
+  border-radius: var(--pilule);
+  min-height: 44px;
+  padding: 5px 5px 5px 20px;
+  font-family: var(--sans);
+  font-size: 14.5px;
+  font-weight: 500;
+  border: 1px solid var(--bord-fort);
+  background: #ffffff;
+  color: var(--texte);
+  box-shadow: none;
+}
+.ag-pilule:hover:not(:disabled) {
+  background: var(--survol);
+}
+.ag-rond {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--pilule);
+  background: rgba(0, 0, 0, 0.05);
+}
+.ag-pilule-couper {
+  border-color: transparent;
+  background: var(--alerte);
+  color: #ffffff;
+  box-shadow: none;
+}
+.ag-pilule-couper:hover:not(:disabled) {
+  background: var(--alerte-fonce);
+  box-shadow: none;
+}
+.ag-pilule-couper .ag-rond {
+  background: rgba(255, 255, 255, 0.18);
+}
+.ag-pilule-reprendre,
+.ag-pilule-retirer,
+.ag-pilule-reprendre.confirme {
+  border-color: var(--bord-fort);
+  color: var(--texte);
+  background: #ffffff;
+  box-shadow: none;
+}
+.ag-pilule-reprendre .ag-rond,
+.ag-pilule-retirer .ag-rond,
+.ag-pilule-reprendre.confirme .ag-rond {
+  background: rgba(0, 0, 0, 0.05);
+}
+.ag-pilule-reprendre:hover:not(:disabled),
+.ag-pilule-retirer:hover:not(:disabled) {
+  border-color: rgba(0, 0, 0, 0.22);
+  background: var(--survol);
+}
+.ag-pilule-reprendre.confirme {
+  border-color: #0d0d0d;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+/* Action principale non destructive : pilule noire. */
+.ag-pilule-clore {
+  background: #0d0d0d;
+  border-color: transparent;
+  color: #ffffff;
+  border-radius: var(--pilule);
+}
+.ag-pilule-clore:hover:not(:disabled) {
+  background: #2f2f2f;
+}
+.ag-conseil,
+.ag-pilule-reprendre .ag-conseil,
+.ag-pilule-retirer .ag-conseil {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 1px 8px;
+  border-radius: var(--pilule);
+  border: 0;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--texte-doux);
+}
+.ag-pilule-couper .ag-conseil {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+.ag-aide {
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--texte-doux);
+}
+.ag-voir {
+  border-radius: var(--pilule);
+  border: 1px solid var(--bord-fort);
+  color: var(--texte);
+  background: #ffffff;
+  font-weight: 500;
+  font-size: 13.5px;
+  padding: 6px 14px 6px 12px;
+}
+.ag-voir:hover {
+  background: var(--survol);
+}
+.sig-btn {
+  border-radius: var(--pilule);
+  border: 1px solid var(--bord-fort);
+  color: var(--texte-doux);
+  font-size: 13px;
+  padding: 5px 12px;
+}
+.sig-btn:hover {
+  background: var(--survol);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+.sig-btn.epingle {
+  border-color: #0d0d0d;
+  color: var(--texte);
+  background: var(--actif);
+}
+.sig-n {
+  font-family: var(--sans);
+  font-size: 11.5px;
+}
+.sig-fermer,
+.modale-fermer {
+  border-radius: var(--pilule);
+  border: 0;
+  background: transparent;
+}
+.sig-fermer:hover,
+.modale-fermer:hover {
+  background: var(--actif);
+}
+/* « réglés (n) » et « Afficher… » : boutons fantômes en pilule. */
+.liste-regles-btn,
+.fil-plus {
+  border: 0;
+  border-radius: var(--pilule);
+  background: transparent;
+  color: var(--texte-doux);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  text-decoration: none;
+  transition: background 0.3s var(--courbe), color 0.3s var(--courbe);
+}
+.liste-regles-btn:hover,
+.liste-regles-btn[aria-expanded="true"],
+.fil-plus:hover {
+  background: var(--actif);
+  color: var(--texte);
+}
+.fil-plus {
+  display: inline-block;
+  width: auto;
+  margin: 2px 12px 14px;
+  border-top: 0;
+}
+.lien-incident,
+.session-actions .lien-incident,
+.fil-ligne .lien-incident {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--texte);
+  border-radius: var(--pilule);
+  padding: 4px 10px;
+  margin: 0;
+  transition: background 0.3s var(--courbe);
+}
+.lien-incident:hover {
+  text-decoration: none;
+  background: var(--actif);
+}
+.syn-raisons summary,
+.dp-refs summary {
+  color: var(--texte-doux);
+  font-size: 13px;
+}
+
+/* ---- Liste des incidents ---- */
+.liste-inc-lignes {
+  padding: 4px 10px 10px;
+}
+.inc-ligne {
+  border-radius: 12px;
+  border: 0;
+  padding: 10px 12px;
+}
+.inc-ligne:hover {
+  background: var(--survol);
+}
+.inc-ligne.actif {
+  background: var(--actif);
+  border: 0;
+}
+.inc-titre {
+  font-size: 14.5px;
+}
+.inc-heure,
+.fil-heure,
+.ag-heure,
+.m-heure {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--texte-faible);
+  font-variant-numeric: tabular-nums;
+}
+.inc-point.e-libere,
+.inc-point.e-neutre {
+  background: #c4c4c4;
+}
+.liste-regles {
+  border-top: 1px solid var(--bord);
+  margin: 0 10px;
+  padding: 8px 0 10px;
+}
+
+/* ---- Fil des agents ---- */
+.fil-ligne {
+  padding: 8px 22px;
+  font-size: 14px;
+}
+.fil-ligne + .fil-ligne {
+  border-top: 0;
+}
+.fil-legende {
+  font-size: 12.5px;
+}
+.fil-verdict {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+/* ---- Sessions ---- */
+.session-ligne {
+  border-bottom: 0;
+  padding: 12px 22px;
+  border-radius: 14px;
+  margin: 0 8px;
+}
+.session-ligne:hover {
+  background: var(--survol);
+}
+.session-ligne:last-child {
+  border-radius: 14px;
+  margin-bottom: 8px;
+}
+.score .num {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+.score .barre {
+  background: #ededed;
+}
+.sig-pop {
+  border-radius: 18px;
+  border: 0;
+  box-shadow: var(--ombre-haute);
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 14px 16px;
+}
+.sig {
+  border-top: 0;
+  padding: 6px 0;
+}
+.sig .lib {
+  font-size: 13.5px;
+}
+
+/* ---- Incident : en-tête, synthèse, chrono ---- */
+.ag-entete-haut .ag-meta {
+  font-size: 13px;
+  color: var(--texte-faible);
+}
+.syn {
+  border: 0;
+  border-radius: 16px;
+  background: #f9f9f9;
+  box-shadow: none;
+  padding: 18px 20px;
+}
+.syn-titre {
+  font-size: 13px;
+}
+.syn-phrases p {
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+.syn-certitude {
+  border: 0;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+  border-radius: var(--pilule);
+}
+.syn-conseil {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.syn-conseil-val {
+  font-weight: 600;
+}
+.ag-chrono-val {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 14px;
+}
+.ag-chrono-etape.vivant .ag-chrono-val {
+  color: var(--script);
+}
+
+/* ---- Boîte noire : icônes grises, fil discret ---- */
+.ag-noeud,
+.ton-alerte .ag-noeud,
+.ton-attente .ag-noeud,
+.ton-protege .ag-noeud,
+.ton-libere .ag-noeud,
+.ton-neutre .ag-noeud {
+  border-radius: var(--pilule);
+  color: var(--texte-doux);
+  background: #f4f4f4;
+  border: 0;
+  box-shadow: none;
+}
+.ag-rail::after {
+  background: rgba(0, 0, 0, 0.08);
+}
+.ag-fil li::before {
+  background: rgba(0, 0, 0, 0.1);
+}
+.ag-fil-point {
+  border-width: 0;
+  background: #c4c4c4;
+  box-shadow: 0 0 0 3px #ffffff;
+}
+.ton-alerte .ag-fil-point {
+  background: var(--alerte);
+}
+.ton-attente .ag-fil-point {
+  background: var(--script);
+}
+.ton-protege .ag-fil-point {
+  background: var(--ok);
+}
+.ag-fil-lib {
+  font-size: 12px;
+}
+.ag-maillon-titre {
+  font-family: var(--sans);
+  font-size: 15.5px;
+  font-weight: 600;
+}
+.ag-maillon-texte {
+  font-size: 14px;
+  color: var(--texte-doux);
+}
+.ag-etape-btn,
+.sal-etape-btn {
+  border: 0;
+  border-radius: 14px;
+}
+.ag-etape-btn:hover,
+.sal-etape-btn:hover,
+.ag-maillon.deplie .ag-etape-btn,
+.maillon.deplie .sal-etape-btn {
+  background: var(--survol);
+}
+.ag-chevron {
+  border-radius: var(--pilule);
+}
+.dp {
+  border: 0;
+  border-radius: 16px;
+  background: #f9f9f9;
+}
+.dp-bloc h5 {
+  margin-bottom: 4px;
+}
+.dp-pied {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+mark.piege-ligne,
+mark.piege {
+  border-radius: 12px;
+  border: 0;
+  border-left: 3px solid #c2410c;
+  background: #fff4e5;
+}
+.ag-enjeu {
+  border: 0;
+  border-radius: 14px;
+  background: #f9f9f9;
+  font-size: 14px;
+}
+.ag-zone-decision > .ag-noyau {
+  background: #ffffff;
+  border-color: var(--bord);
+}
+.ag-zone-decision > .ag-noyau::before {
+  display: none;
+}
+.ag-etat-long {
+  font-size: 17px !important;
+  font-weight: 600;
+}
+.issue-reprise .ag-etat-long,
+.issue-surveillee .ag-etat-long,
+.issue-salarie .ag-etat-long {
+  color: var(--texte);
+}
+.ag-journal {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 13px;
+}
+
+/* ---- Incident salarié ---- */
+.geste-popup {
+  border: 0;
+  border-left: 3px solid var(--script);
+  border-radius: 12px;
+  background: #f9f9f9;
+}
+.maillon {
+  border-left-color: rgba(0, 0, 0, 0.1);
+}
+.maillon .puce:empty,
+.maillon.phase-consigne .puce:empty,
+.maillon.phase-sortie .puce:empty,
+.maillon.phase-entree .puce:empty,
+.maillon.phase-riposte .puce:empty,
+.maillon.phase-outil .puce:empty,
+.maillon.phase-choix .puce:empty,
+.maillon.phase-contexte .puce:empty {
+  background: #c4c4c4;
+}
+.maillon.phase-avertissement .puce:empty,
+.maillon.phase-action_risquee .puce:empty {
+  background: var(--script);
+}
+.maillon.phase-consequence .puce:empty {
+  background: var(--alerte);
+}
+.maillon .m-titre strong {
+  font-size: 14.5px;
+}
+
+/* ---- Panneau « Voir le mail » ---- */
+.modale-fond {
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.modale {
+  border-radius: 24px;
+  border: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 24px 80px rgba(0, 0, 0, 0.18);
+}
+.modale-tete {
+  border-bottom: 0;
+  padding: 22px 24px 10px;
+}
+.modale-tete h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.modale-meta {
+  border-bottom: 0;
+  background: #f9f9f9;
+  margin: 0 24px;
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+.modale-corps {
+  padding: 18px 24px;
+  font-size: 14.5px;
+}
+
+/* ---- Mesures ---- */
+.kpi {
+  border-radius: var(--rayon);
+  box-shadow: none;
+}
+.kpi .lib {
+  font-family: var(--sans);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: var(--texte-faible);
+}
+.kpi .val {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .barre-laterale {
+    background: #f9f9f9;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 10px 12px;
+  }
+  .contenu {
+    padding: 16px 16px 36px;
+  }
+  .ag-noyau,
+  .ag-entete .ag-noyau {
+    padding: 18px 16px;
+    border-radius: 18px;
+  }
+  .panneau > .titre {
+    padding: 16px 16px 6px;
+  }
+  .fil-ligne {
+    padding: 9px 16px;
+  }
+  .session-ligne {
+    margin: 0 4px;
+    padding: 12px 12px;
+  }
+  .ag-aide {
+    padding-left: 12px;
+  }
+  .modale {
+    border-radius: 24px 24px 0 0;
+  }
+  .modale-meta {
+    margin: 0 16px;
+  }
+}
+
+.nav-item .pic {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+}
+.nav-item .pic svg {
+  stroke-width: 1.5;
+}
+@media (max-width: 760px) {
+  .logo .marque {
+    display: none;
+  }
+  .logo {
+    padding: 0 4px 0 0;
+  }
+  .nav-item .pic {
+    display: none;
+  }
+  .nav-item {
+    padding: 7px 11px;
+    font-size: 14px;
+  }
+  .grille-compteurs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .compteur {
+    padding: 12px 12px 13px;
+    border-radius: 16px;
+  }
+  .compteur .lib {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  .compteur .val {
+    font-size: 26px;
+    margin-top: 6px;
+  }
+  .compteur .sous {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .fil-ligne .lien-incident,
+  .session-actions .lien-incident {
+    margin-left: -10px;
+    justify-self: start;
+  }
+}

@@ -5,6 +5,7 @@ import { IncidentView } from "./screens/IncidentView";
 import { MesuresView } from "./screens/MesuresView";
 import { pilierDeSource } from "./ui/primitives";
 import { estATraiter } from "./ui/mots";
+import { Icone } from "./agent/icones";
 import type { Pilier } from "./types";
 
 // La page « Leurres » (screens/LeurresView.tsx) est sortie de la navigation :
@@ -98,9 +99,9 @@ export function App() {
 
   const aTrancher = incidents.filter(estATraiter).length;
   const nav = [
-    { id: "temps-reel" as const, pic: "◉", lib: "Temps réel" },
-    { id: "incident" as const, pic: "⬡", lib: "Incidents", compte: aTrancher },
-    { id: "mesures" as const, pic: "▦", lib: "Mesures" },
+    { id: "temps-reel" as const, pic: "direct" as const, lib: "Temps réel" },
+    { id: "incident" as const, pic: "incidents" as const, lib: "Incidents", compte: aTrancher },
+    { id: "mesures" as const, pic: "mesures" as const, lib: "Mesures" },
   ];
   const entete = enteteDe(ecran, pilier);
 
@@ -120,7 +121,9 @@ export function App() {
             className={`nav-item ${ecran === n.id ? "actif" : ""}`}
             onClick={() => setEcran(n.id)}
           >
-            <span className="pic">{n.pic}</span>
+            <span className="pic">
+              <Icone nom={n.pic} taille={18} />
+            </span>
             {n.lib}
             {n.compte != null && n.compte > 0 && (
               <span className="compte" title="Incidents à traiter">{n.compte}</span>
@@ -129,7 +132,9 @@ export function App() {
         ))}
         <div className="bas-laterale">
           <div className="nav-item" style={{ cursor: "default" }}>
-            <span className="pic">⌁</span>
+            <span className="pic">
+              <Icone nom="entreprise" taille={18} />
+            </span>
             Orbis Pay
           </div>
           <div className="note-laterale">
