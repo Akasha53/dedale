@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dédale">
+  <rect width="64" height="64" rx="13" fill="#091820"/>
+  <path d="M10 10h29v9H19v26h20v9H10V10Zm27 0h17v44H37v-9h8V19h-8v-9Z" fill="#61e1d0"/>
+</svg>
