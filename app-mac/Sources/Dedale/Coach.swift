@@ -82,8 +82,10 @@ enum Coach {
                      repere: Avertissement.nettoyer(repere, max: 150))
     }
 
+    /// La première phrase : un point suivi d'une espace ou de la fin, pas celui d'un nom de
+    /// fichier (« contrats.xlsx ») ni d'un domaine.
     private static func premierePhrase(_ s: String) -> String {
-        guard let fin = s.firstIndex(where: { ".!?".contains($0) }) else { return s }
-        return String(s[...fin])
+        guard let r = s.range(of: #"[.!?…](\s|$)"#, options: .regularExpression) else { return s }
+        return String(s[..<r.lowerBound]) + String(s[r].prefix(1))
     }
 }

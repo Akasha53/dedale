@@ -69,7 +69,7 @@ final class Backend {
             "message": "Mail signalé par le salarié : « \(m.objet) »",
             "verdict_analyseur": verdict.map { $0.statut ?? ($0.frauduleux ? "frauduleux" : "inconnu") } ?? "inconnu",
         ]
-        if !m.expediteur.isEmpty { details["cible"] = m.expediteur }
+        if !m.adresse.isEmpty { details["cible"] = m.adresse }
         var doc: [String: Any] = [
             "type": "mail",
             "id": id,

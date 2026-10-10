@@ -242,8 +242,8 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let objet = Messagerie.desarmerLigne(m.objet, max: 46)
             let titre = NSMutableAttributedString(string: objet, attributes: [
                 .font: NSFont.menuFont(ofSize: 13), .foregroundColor: Teinte.encre])
-            if !m.expediteur.isEmpty {
-                titre.append(NSAttributedString(string: "   " + Messagerie.desarmerLigne(m.expediteur, max: 36), attributes: [
+            if !m.adresse.isEmpty {
+                titre.append(NSAttributedString(string: "   " + Messagerie.desarmerLigne(m.adresse, max: 40), attributes: [
                     .font: NSFont.menuFont(ofSize: 11), .foregroundColor: Teinte.discret]))
             }
             item.attributedTitle = titre
