@@ -365,7 +365,7 @@ def verifier_incident(conn: sqlite3.Connection, iid: str) -> dict | None:
         iid, "intacte", "intacte",
         maillons_verifies=len(chaine), decisions_verifiees=len(sceaux_dec),
         evenements_anterieurs=anterieurs, sceau=sceau_stocke, sceau_recalcule=recalcule,
-        raison=(f"{anterieurs} événement(s) source antérieur(s) au scellement" if anterieurs else None),
+        raison=(f"événements sources antérieurs au scellement : {anterieurs}" if anterieurs else None),
     )
 
 

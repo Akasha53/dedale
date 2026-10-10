@@ -1,4 +1,4 @@
-"""Routes de preuve : vérification du journal scellé.
+"""Routes de preuve : vérification du journal scellé, rapport d'incident.
 
 Monté par main.py (`app.include_router`). La vérification lit la base SQLite en lecture
 seule, après avoir laissé l'écrivain vider sa file : elle juge ce qui est écrit, pas l'état
@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
-from . import config, journal_scelle
+from . import config, journal_scelle, rapport, synthese
 from .store import store
 
 routeur = APIRouter()
@@ -51,3 +52,31 @@ async def incident_verification(iid: str, request: Request):
     if iid not in store.incidents:
         raise HTTPException(status_code=404, detail=f"Incident inconnu : {iid}")
     return await verification(request, iid)
+
+
+@routeur.get("/api/incidents/{iid}/rapport", response_class=HTMLResponse)
+async def incident_rapport(iid: str, request: Request, format: str = "html"):
+    """Rapport d'une page, HTML imprimable (le PDF passe par l'impression du navigateur)."""
+    detail = store.incident_detail(iid)
+    if detail is None:
+        raise HTTPException(status_code=404, detail=f"Incident inconnu : {iid}")
+    if format.lower() != "html":
+        raise HTTPException(
+            status_code=400,
+            detail="format=html seulement : pas de bibliothèque PDF, imprimer la page en PDF",
+        )
+    sess = store.session_detail(detail["session_id"]) or {}
+    try:
+        syn = synthese.construire(detail, sess.get("evenements", []))
+    except Exception:  # le rapport garde le résumé de l'incident
+        syn = None
+    verif = await verification(request, iid)
+    return HTMLResponse(
+        rapport.rendre(detail, syn, verif),
+        headers={
+            "Content-Security-Policy": rapport.CSP,
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+            "Cache-Control": "no-store",
+        },
+    )
