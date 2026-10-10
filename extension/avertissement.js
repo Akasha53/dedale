@@ -28,7 +28,7 @@ function de(nom) {
 
 function afficherExpire() {
   $("titre-imite").textContent = "Cet avertissement a expiré.";
-  $("titre-suite").textContent = "Rouvrez le lien pour que Dédale vérifie l'adresse.";
+  $("titre-suite").textContent = "Rouvrez le lien pour que sAIfe vérifie l'adresse.";
   $("adresses").hidden = true;
   $("raison").hidden = true;
   $("continuer").hidden = true;

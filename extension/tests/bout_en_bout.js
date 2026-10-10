@@ -323,7 +323,7 @@ async function principal() {
   const tout = JSON.stringify(session) + JSON.stringify(incident);
   verifier(!tout.includes("chemin-prive-xq7") && !tout.includes("zz9"), "ni chemin ni paramètres envoyés au backend");
   const apresContinuer = await etat();
-  verifier(apresContinuer.dernierSignalement?.etat === "recu", "signalement reçu par Dédale", apresContinuer.dernierSignalement?.etat);
+  verifier(apresContinuer.dernierSignalement?.etat === "recu", "signalement reçu par sAIfe", apresContinuer.dernierSignalement?.etat);
 
   // 8. Alphabet étranger : le domaine s'affiche tel que l'œil le lit, et en punycode.
   await onglet.aller(`http://xn--rbispay-8ig.example${port}/`);

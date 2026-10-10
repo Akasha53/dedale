@@ -67,7 +67,7 @@ function lireRegles() {
 chrome.storage.onChanged.addListener((changements, zone) => {
   if (zone === "local" && changements.reglages) {
     cache = null;
-    majReglesBlocage().catch((e) => console.warn("Dédale, règles :", e));
+    majReglesBlocage().catch((e) => console.warn("sAIfe, règles :", e));
   }
 });
 
@@ -224,7 +224,7 @@ function surveiller(etape) {
   return (d) => {
     if (d.frameId !== 0) return;
     parOnglet(d.tabId, () => examiner(d.tabId, d.url, etape))
-      .catch((e) => console.warn("Dédale, navigation :", e));
+      .catch((e) => console.warn("sAIfe, navigation :", e));
   };
 }
 
@@ -365,5 +365,5 @@ chrome.runtime.onMessage.addListener((msg, expediteur, repondre) => {
 chrome.runtime.onInstalled.addListener(() => {
   idSession().catch(() => {});
 });
-majReglesBlocage().catch((e) => console.warn("Dédale, règles :", e));
+majReglesBlocage().catch((e) => console.warn("sAIfe, règles :", e));
 majBadge().catch(() => {});

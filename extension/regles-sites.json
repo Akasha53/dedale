@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "a_propos": "Règles communes de Dédale contre les sites louches. L'extension Chrome en lit une copie (extension/regles-sites.json), l'app Mac lit ce fichier. Après une modification, lancer partage/synchroniser.sh puis partage/verifier.sh.",
+  "a_propos": "Règles communes de sAIfe contre les sites louches. L'extension Chrome en lit une copie (extension/regles-sites.json), l'app Mac lit ce fichier. Après une modification, lancer partage/synchroniser.sh puis partage/verifier.sh.",
 
   "organisation": {
     "nom": "Orbis Pay",

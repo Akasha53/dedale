@@ -8,10 +8,10 @@ function heure(ms) {
 }
 
 function etatSignalement(etat) {
-  if (etat === "recu") return ["reçu par Dédale", "ok"];
-  if (etat === "injoignable") return ["Dédale ne répond pas", "ko"];
+  if (etat === "recu") return ["reçu par sAIfe", "ok"];
+  if (etat === "injoignable") return ["sAIfe ne répond pas", "ko"];
   const code = String(etat).replace("refuse_", "");
-  return [`refusé par Dédale (code ${code})`, "ko"];
+  return [`refusé par sAIfe (code ${code})`, "ko"];
 }
 
 async function afficher() {
@@ -42,7 +42,7 @@ function afficherRaccourci(r) {
   if (!r) return;
   const zone = $("raccourci");
   zone.textContent = `Lien raccourci (${r.domaine}, ${heure(r.heure)}) : sa destination n'apparaît `
-    + "qu'après la redirection, et Dédale l'examine à ce moment-là.";
+    + "qu'après la redirection, et sAIfe l'examine à ce moment-là.";
   zone.hidden = false;
 }
 
