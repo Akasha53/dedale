@@ -267,3 +267,22 @@ button:not(:disabled):active {
   background: var(--gris-50);
   padding: 14px 16px;
 }
+
+/* ---- Boîte noire : le chevron reste dans sa colonne, même sans heure ---- */
+.ag-maillon-tete .ag-lib + .ag-chevron {
+  margin-left: auto;
+}
+
+/* ---- Confirmation d'une décision : champ en pilule, sans double anneau ---- */
+.confirmation-champ input {
+  border: 1px solid var(--bord-fort);
+  border-radius: var(--rayon-controle);
+  padding: 11px 18px;
+  font: var(--texte-15) / 1.3 var(--police);
+  box-shadow: none;
+  transition: border-color var(--duree-survol) var(--courbe-sortie);
+}
+.confirmation-champ input:focus {
+  border-color: var(--texte);
+  box-shadow: none;
+}
