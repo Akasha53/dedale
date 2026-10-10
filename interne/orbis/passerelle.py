@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass, field
 
 from . import canaris, detection, droits, inter_agent, politiques, source
+from . import desarmeur as desarm
 from .boite_noire import BoiteNoire
 from .enregistreur import (Enregistreur, Instant, chrono_dict, empreinte, inerte, masquer,
                            references)
@@ -91,6 +92,7 @@ class Passerelle:
         decision_fraiche: bool = False,
         enregistreur: Enregistreur | None = None,
         agent: str = AGENT_DEFAUT,
+        desarmeur: bool | str = False,
     ):
         self.session_id = session_id
         self.agent = agent
@@ -140,6 +142,12 @@ class Passerelle:
         self._consigne_doc: tuple[str | None, str] | None = None
         # Documents piégés déjà montrés au backend (contenu complet désarmé, une fois chacun).
         self._sources_signalees: set[tuple[str, str]] = set()
+        # Désarmeur d'injections, coupé par défaut : avec lui, le contenu externe lu par l'agent
+        # est nettoyé avant de lui être rendu. True vaut le mode « retirer ».
+        self.desarmeur_mode: str | None = None
+        self.desarmements: list[dict] = []
+        if desarmeur:
+            self.activer_desarmeur(desarmeur if isinstance(desarmeur, str) else desarm.MODE_RETIRER)
 
     # --- émission vers le backend -------------------------------------------------
     def _emettre(self, type: str, surface: str, session_id: str, **options) -> dict | None:
@@ -285,6 +293,7 @@ class Passerelle:
         if sortant:
             charge = json.dumps(params, ensure_ascii=False, default=str)
             trouvailles = self._attribuer(detection.inspecter(charge, self.jetons))
+            trouvailles = trouvailles or self._envoi_externe(params)
         if trouvailles:
             det["verdict"] = RETENU
             det["raison"] = self._raison_canaris(trouvailles)
@@ -312,6 +321,7 @@ class Passerelle:
                 return self._refuser_droit_retire(nom, scope)
 
         resultat = fonction(**params)
+        resultat = self._desarmer_resultat(nom, resultat, descripteur)
         self._signaler_source(nom, resultat)
         # Un outil de lecture dont le résultat porte une consigne cachée est mémorisé comme
         # source piégée (attribution d'une exfiltration ultérieure). Jamais exécuté.
@@ -337,6 +347,9 @@ class Passerelle:
 
     @staticmethod
     def _raison_canaris(trouvailles: list) -> str:
+        externe = next((t.detail for t in trouvailles if t.type == "envoi_externe"), None)
+        if externe:
+            return externe + ", appel retenu pour l’analyste"
         ids = [t.canari_id for t in trouvailles if t.canari_id]
         ids = list(dict.fromkeys(ids))
         if not ids:
@@ -609,8 +622,10 @@ class Passerelle:
         if sortant:
             charge = json.dumps(params, ensure_ascii=False, default=str)
             trouvailles = self._attribuer(detection.inspecter(charge, self.jetons))
+            trouvailles = trouvailles or self._envoi_externe(params)
         if trouvailles:
-            return self._retenir(nom, params, fonction, intention, demande, motif="canari",
+            return self._retenir(nom, params, fonction, intention, demande,
+                                 motif=self._motif_retenue(trouvailles),
                                  scope=scope, trouvailles=trouvailles)
 
         det: dict = {"parametres": params}
@@ -631,6 +646,7 @@ class Passerelle:
             self.scopes_utilises.append(scope)
 
         resultat = fonction(**params)
+        resultat = self._desarmer_resultat(nom, resultat, descripteur)
         self._inspecter_source(nom, resultat)
         return resultat
 
@@ -765,6 +781,8 @@ class Passerelle:
             jeton = self.jeton_tache
             detail = (f"{nom} exige le droit {scope} ({droits.libelle(scope)}), absent du jeton "
                       f"{jeton.id} de la tâche « {jeton.tache} ». Appel retenu avant exécution.")
+        elif motif == "envoi_externe":
+            detail = self._detail_envoi_externe(nom, trouvailles or [])
         else:
             types = sorted({t.type for t in trouvailles or []})
             detail = (f"{nom} : les paramètres portent {', '.join(releves)} ({', '.join(types)}). "
@@ -779,6 +797,8 @@ class Passerelle:
         details: dict = {"maillon": "appel_outil", "retenu": True, "motif": motif,
                          "parametres": params, "verdict": RETENU,
                          "raison": (f"droit {scope} absent du jeton" if motif == "droits"
+                                    else self._raison_canaris(trouvailles or [])
+                                    if motif == "envoi_externe"
                                     else "paramètres porteurs du canari " + ", ".join(releves))}
         if motif == "droits":
             details["violation_droits"] = {"outil": nom, "scope_requis": scope,
@@ -801,6 +821,8 @@ class Passerelle:
             c = canaris.PAR_ID.get(cid)
             texte = (f"l'appel retenu {nom} suit la consigne du canari {cid}"
                      if c is not None and c.nature == "consigne_cachee"
+                     else f"l'appel retenu {nom} vise un destinataire hors d'Orbis Pay (règle {cid})"
+                     if c is not None and c.nature == "envoi_externe"
                      else f"l'appel retenu {nom} touche le canari {cid}")
             det_t = {"type": c.nature if c else "canari", "detail": texte,
                      "extrait": self._pour_backend(texte),
@@ -899,3 +921,142 @@ class Passerelle:
             details.update({"maillon": "resultat", **self._snapshot()})
         self._emettre("riposte", "outil", self.session_id, outil=nom, details=details)
         raise AgentCoupe("session coupée : appel refusé")
+
+    # =============================================================================
+    # Désarmeur d'injections : le contenu externe est nettoyé avant que l'agent le lise.
+    # =============================================================================
+    def activer_desarmeur(self, mode: str = desarm.MODE_RETIRER) -> None:
+        """Mails, documents, transcriptions, mémoire, résultats et descriptions d'outils MCP
+        passent désormais par le désarmeur avant d'être rendus à l'agent."""
+        if mode not in desarm.MODES:
+            raise ValueError(f"mode de désarmement inconnu : {mode}")
+        self.desarmeur_mode = mode
+
+    def _desarmer_resultat(self, nom: str, resultat, descripteur=None):
+        """Version propre du résultat d'un outil de lecture. Un élément qui portait une consigne
+        est signalé : son document d'origine (désarmé), puis le maillon « désarmé avant
+        lecture ». Sans désarmeur, le résultat passe tel quel."""
+        if not getattr(self, "desarmeur_mode", None) or not desarm.a_desarmer(nom, descripteur):
+            return resultat
+        propre, constats = desarm.desarmer_resultat(resultat, mode=self.desarmeur_mode)
+        for constat in constats:
+            if not constat.a_signaler:
+                continue
+            el = constat.original
+            document = self._cle_source(nom, el)[1]
+            cid = (canaris.CANARI_PAR_DOCUMENT.get(document) or SOURCES_LECTURE.get(nom, (None,))[0]
+                   or getattr(descripteur, "canari_id", None))
+            self._signaler_desarmement(nom, el, constat, document=document, canari_id=cid,
+                                       nature=source.TYPES.get(nom, "document"),
+                                       origine=self._origine(nom, el))
+        return propre
+
+    def presenter_outils(self, catalogue) -> list:
+        """Les outils MCP tels que l'agent doit les lire. Avec le désarmeur, une description qui
+        porte une consigne est nettoyée et signalée. La passerelle garde l'original pour son
+        inspection (`appel_outil(..., descripteur=…)`)."""
+        if not getattr(self, "desarmeur_mode", None):
+            return list(catalogue)
+        from dataclasses import replace as remplacer
+
+        propres = []
+        for outil in catalogue:
+            constat = desarm.desarmer_element(outil.description, mode=self.desarmeur_mode)
+            if constat.retraits:
+                nom = f"{outil.serveur}/{outil.nom}"
+                if constat.a_signaler:
+                    self._signaler_desarmement(
+                        "description_outil", {"nom": nom, "contenu": outil.description}, constat,
+                        document=nom, canari_id=outil.canari_id, nature="outil_mcp",
+                        origine="externe")
+                outil = remplacer(outil, description=constat.propre)
+            propres.append(outil)
+        return propres
+
+    def recevoir_contenu(self, texte: str, *, nom: str = "page", nature: str = "page",
+                         origine: str = "externe", canari_id: str | None = None) -> str:
+        """Tout autre contenu externe remis à l'agent (page web, pièce jointe en texte)."""
+        if not getattr(self, "desarmeur_mode", None):
+            return texte
+        constat = desarm.desarmer_element(texte, mode=self.desarmeur_mode)
+        if constat.a_signaler:
+            self._signaler_desarmement("lire_page", {"nom": nom, "contenu": texte}, constat,
+                                       document=nom, canari_id=canari_id, nature=nature,
+                                       origine=origine)
+        return constat.propre
+
+    def _signaler_desarmement(self, outil: str, element, constat, *, document: str,
+                              canari_id: str | None, nature: str, origine: str) -> None:
+        """Deux maillons pour le backend et la boîte noire locale : le document d'origine, montré
+        en entier mais désarmé, puis ce qui en a été retiré avant que l'agent le lise."""
+        surface = nature if nature in ("mail", "document", "appel", "memoire") else (
+            "outil" if nature == "outil_mcp" else "document")
+        cle = (outil, document)
+        if cle not in self._sources_signalees:
+            self._sources_signalees.add(cle)
+            doc = source.document_source(outil, element, self.jetons, canari_id=canari_id,
+                                         origine=origine)
+            if self.enregistreur is not None:
+                preuve = {"document": document, "empreinte": doc["empreinte"]}
+                detail_src = f"{outil} a renvoyé « {document} », contenu venu de l'extérieur, non fiable"
+                self.enregistreur.noter("source", "Contenu non fiable lu", detail_src, outil=outil,
+                                        canari_id=canari_id, preuve=preuve)
+                self._emettre("entree_agent", doc["type"], self.session_id, outil=outil,
+                              details={"maillon": "source",
+                                       "extrait": self._pour_backend(detail_src),
+                                       "source": {**preuve, "origine": origine,
+                                                  "confiance": "non fiable"},
+                                       "document_source": doc})
+                if self._consigne_doc is None:
+                    self._consigne_doc = (canari_id, document)
+            else:
+                self._emettre("lecture", doc["type"], self.session_id, outil=outil,
+                              details={"maillon": "source", "document_source": doc})
+
+        details = desarm.details_evenement(constat, nature=nature, document=document,
+                                           origine=origine, canari_id=canari_id,
+                                           mode=self.desarmeur_mode)
+        details["extrait"] = details["extrait"].replace("'", "’")
+        d = details["desarmement"]
+        resume = {"outil": outil, "document": document, "canari_id": canari_id, "nature": nature,
+                  "techniques": d["techniques"], "formules": d["formules"], "langues": d["langues"],
+                  "retraits": d["nombre_retraits"], "duree_ms": d["duree_ms"]}
+        if self.enregistreur is not None:
+            self.enregistreur.noter(
+                "desarme", "Désarmé avant lecture", details["extrait"], outil=outil,
+                canari_id=canari_id, refs=self._refs_canari(canari_id),
+                preuve={"document": document, "avant": d["avant"], "apres": d["apres"],
+                        "retraits": d["nombre_retraits"], "techniques": d["techniques"],
+                        "duree_ms": d["duree_ms"]})
+        self.desarmements.append(resume)
+        self._tracer("desarmement", resume)
+        self._emettre("desarmement", surface, self.session_id, outil=outil, leurre_id=canari_id,
+                      details=details)
+
+    # --- envoi vers l'extérieur -----------------------------------------------------
+    def _envoi_externe(self, params: dict) -> list:
+        """Outil sortant sans lien ni canari dans son contenu : s'il vise une adresse, une URL ou
+        un domaine hors d'Orbis Pay, il est retenu comme les autres, pour l'analyste. Une règle du
+        SOC qui vient de trancher cet appel (alerte, ou retenue libérée par l'analyste) prime :
+        l'appel n'est pas retenu une seconde fois."""
+        if self._tranche_par_une_regle():
+            return []
+        return self._attribuer(detection.detecter_envoi_externe(params))
+
+    def _tranche_par_une_regle(self) -> bool:
+        """Lu dans la trace locale que `politiques.appliquer` vient d'écrire pour cet appel."""
+        dernier = self.journal[-1] if self.journal else {}
+        if dernier.get("type") == "regle":
+            return dernier.get("effet") == "alerter"
+        return (dernier.get("type") == "riposte" and dernier.get("action") == "reprendre"
+                and bool(dernier.get("politique")))
+
+    @staticmethod
+    def _motif_retenue(trouvailles: list) -> str:
+        return "envoi_externe" if any(t.type == "envoi_externe" for t in trouvailles) else "canari"
+
+    @staticmethod
+    def _detail_envoi_externe(nom: str, trouvailles: list) -> str:
+        cause = next((t.detail for t in trouvailles if t.type == "envoi_externe"),
+                     "envoi vers l'extérieur")
+        return f"{nom} : {cause}. Appel retenu avant exécution."

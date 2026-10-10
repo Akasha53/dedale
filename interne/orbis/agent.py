@@ -138,4 +138,6 @@ class AgentInterne:
                             if getattr(self.passerelle, "enregistreur", None) else None),
             "chronos": (list(self.passerelle.enregistreur.chronos)
                         if getattr(self.passerelle, "enregistreur", None) else None),
+            # Désarmeur : éléments nettoyés avant lecture (vide sans désarmeur).
+            "desarmements": list(getattr(self.passerelle, "desarmements", [])),
         }

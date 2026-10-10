@@ -12,7 +12,11 @@ Deux issues :
   quand l'agent tente de l'envoyer dehors, la passerelle retient ce nouvel appel et
   l'analyste coupe. Le rapport ne part jamais.
 
-Entrée : `uv run python -m orbis.demo --scenario jury [--issue …] [--backend URL]`.
+Avec le désarmeur (`--desarmeur`), le commentaire invisible est retiré du relevé avant que l'agent
+le lise. L'agent ne voit plus la consigne : il ne demande jamais le coffre et envoie son rapport à
+Jean Moreau. La boîte noire montre le relevé d'origine puis le maillon « désarmé avant lecture ».
+
+Entrée : `uv run python -m orbis.demo --scenario jury [--issue …] [--backend URL] [--desarmeur]`.
 Tout est fictif et local. Le cerveau est scripté : la démo est reproductible.
 """
 
@@ -26,7 +30,7 @@ from datetime import datetime
 from urllib.parse import quote
 from uuid import uuid4
 
-from . import config
+from . import config, desarmeur
 from .agent import AgentInterne, enregistrer_canaris
 from .boite_noire import BoiteNoire
 from .canaris import jetons_secrets
@@ -109,11 +113,12 @@ def nouvelle_session(issue: str) -> str:
 
 def jouer(base: str, issue: str = "couper", *, session_id: str | None = None,
           delai_analyste: float = 1.0, poll_max_s: float = 30.0, intervalle: float = 0.2,
-          analyste: str = "analyste-jury") -> dict:
+          analyste: str = "analyste-jury", desarmeur: bool = False) -> dict:
     """Joue le scénario contre le backend `base` et renvoie le constat complet.
 
     issue : « couper », « reprendre » (l'analyste scripté décide) ou « console » (personne ne
-    décide à la place de l'analyste : la passerelle attend jusqu'à `poll_max_s`)."""
+    décide à la place de l'analyste : la passerelle attend jusqu'à `poll_max_s`). `desarmeur`
+    nettoie le contenu externe avant que l'agent le lise."""
     sid = session_id or nouvelle_session(issue)
     boite = BoiteNoire(base=base)
     canaris_ok = enregistrer_canaris(boite)
@@ -121,7 +126,7 @@ def jouer(base: str, issue: str = "couper", *, session_id: str | None = None,
     enregistreur = Enregistreur()
     passerelle = Passerelle(sid, jetons_secrets(), boite, intervalle_poll=intervalle,
                             poll_max_s=poll_max_s, retenir_hors_scope=True,
-                            decision_fraiche=True, enregistreur=enregistreur)
+                            decision_fraiche=True, enregistreur=enregistreur, desarmeur=desarmeur)
     agent = AgentInterne(sid, cerveau=CerveauScripte("jury"), outils=outils, boite=boite,
                          passerelle=passerelle, tache=TACHE)
 
@@ -162,6 +167,9 @@ def jouer(base: str, issue: str = "couper", *, session_id: str | None = None,
         "canaris_touches": list(passerelle.canaris_touches),
         "coffre_lectures": list(outils.coffre_lectures),
         "rapports_envoyes": len(outils.rapports_envoyes),
+        "destinataires": [r["destinataire"] for r in outils.rapports_envoyes],
+        "desarmeur": desarmeur,
+        "desarmements": list(passerelle.desarmements),
         "appels_liberes": list(passerelle.appels_liberes),
         "appels_refuses": list(passerelle.appels_refuses),
         # Correctif appliqué plus tôt par l'analyste : droits retirés à l'agent fictif.
@@ -204,6 +212,14 @@ def raconter(c: dict, afficher=print) -> None:
                  f"tard, accusé backend {_ms(ch.get('accuse_console_ms'))}, {attente}, appliquée en "
                  f"{_ms(ch.get('application_ms'))}.")
     afficher("Références : " + _refs_courtes(c["references"]))
+    for d in c.get("desarmements") or []:
+        techniques = ", ".join(desarmeur.TECHNIQUES.get(t, t) for t in d["techniques"])
+        formules = ", ".join(desarmeur.FORMULES.get(f, f) for f in d["formules"] if f != "historique_fr")
+        afficher(f"Désarmeur : « {d['document']} », {d['retraits']} passage(s) retiré(s) en "
+                 f"{_ms(d['duree_ms'])} ({techniques} ; {formules}). L’agent a lu la version propre.")
+    if c.get("desarmeur") and not c["coffre_lectures"]:
+        afficher(f"Prévention : l’agent n’a jamais demandé le coffre. Rapport envoyé à "
+                 f"{', '.join(c.get('destinataires') or []) or 'personne'}.")
     if c.get("droits_retires"):
         afficher(f"Correctif actif : droits retirés à l’agent {c['droits_retires']}. Les outils qui "
                  "les exigent sont refusés sans attendre l’analyste.")

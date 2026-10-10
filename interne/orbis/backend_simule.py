@@ -25,11 +25,13 @@ _ETAT_APRES = {"couper": "coupee", "valider_riposte": "coupee", "reprendre": "ac
 
 
 def _ouvre_incident(ev: dict) -> bool:
-    """Même règle que le backend pour une session interne : canari touché, droits dépassés
-    ou délégation non authentifiée."""
+    """Même règle que le backend pour une session interne : canari touché, droits dépassés,
+    délégation non authentifiée ou consigne désarmée avant lecture."""
     details = ev.get("details") or {}
+    desarme = details.get("desarmement") if isinstance(details.get("desarmement"), dict) else {}
     return (ev.get("type") == "leurre_touche" or isinstance(details.get("violation_droits"), dict)
-            or isinstance(details.get("provenance_invalide"), dict))
+            or isinstance(details.get("provenance_invalide"), dict)
+            or (ev.get("type") == "desarmement" and desarme.get("consigne") is True))
 
 
 class _Etat:

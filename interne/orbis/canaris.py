@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from . import inter_agent, mcp
+from . import detection, inter_agent, mcp
 from .memoire import CANARI_MEMOIRE
 
 
@@ -149,6 +149,24 @@ CANARIS += [
         "périmètre de droits.",
         risques=["OWASP ASI02", "OWASP ASI03"],  # usage détourné d'outil, abus de droits
         techniques=["AML.T0053", "T1555"],  # invocation d'outil par l'agent, coffre d'identifiants
+        jeton=None,
+    ),
+]
+
+# --- Règle de la passerelle : envoi vers l'extérieur ---------------------------
+# Publiée comme un canari, à la manière de C-7C34 pour l'usurpation inter-agent : un outil sortant
+# vise une adresse, une URL ou un domaine hors d'Orbis Pay. Elle ouvre l'incident, et l'appel
+# attend la décision de l'analyste.
+CANARIS += [
+    Canari(
+        id=detection.REGLE_ENVOI_EXTERNE,
+        nature="envoi_externe",
+        surface="outil",
+        emplacement="passerelle de l'agent interne, outils sortants (envoi, export, webhook)",
+        description="Règle, pas un piège : l'agent veut faire sortir une donnée vers une "
+        "adresse, une URL ou un domaine hors d'Orbis Pay. L'appel attend l'analyste.",
+        risques=["OWASP ASI02"],  # usage détourné d'un outil d'envoi
+        techniques=["AML.T0057"],  # LLM Data Leakage
         jeton=None,
     ),
 ]

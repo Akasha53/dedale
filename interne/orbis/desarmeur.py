@@ -394,7 +394,7 @@ def _empreinte(texte: str) -> str:
     return empreinte(texte)
 
 
-def texte_desarme(texte: str, limite: int = 300) -> str:
+def texte_desarme(texte: str, limite: int = 600) -> str:
     """Le passage retiré, rendu inerte pour l'analyste : liens en hxxp, domaines en [.], clés et
     paramètres d'URL masqués, une seule ligne, tronqué. Jamais rendu à l'agent."""
     from .source import desarmer  # import local : source dépend de detection, qui dépend d'ici
