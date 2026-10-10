@@ -175,7 +175,7 @@ def main(argv=None) -> int:
                     choices=["scripte", "cli", "api", "auto", "faux"])
     ap.add_argument("--backend-reel", action="store_true")
     ap.add_argument("--backend", default=None,
-                    help="adresse d'un backend Dédale (prioritaire sur --backend-reel)")
+                    help="adresse d'un backend sAIfe (prioritaire sur --backend-reel)")
     ap.add_argument("--scenario", default="tout",
                     choices=["tout", "jury", "outil-inconnu", "reel"])
     ap.add_argument("--essais", type=int, default=3,
