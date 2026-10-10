@@ -31,6 +31,7 @@ from app import auth
 from app import config, journal_scelle
 from app.store import store
 from app import gouvernance
+from app import besoin_d_en_connaitre
 
 
 @pytest.fixture(autouse=True)
@@ -51,6 +52,7 @@ def _reset_store(tmp_path, monkeypatch):
     store.tete_decisions = journal_scelle.GENESE
     gouvernance.vider()
     auth.vider_bilan()
+    besoin_d_en_connaitre.vider()
     yield
 
 

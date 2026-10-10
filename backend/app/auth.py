@@ -221,8 +221,8 @@ POSTE = Depends(exiger("poste"))
 ECRIVAINS = Depends(exiger("passerelle", "poste"))
 # L'état d'une session : la console, et la passerelle qui attend la décision de l'analyste.
 LECTURE_SESSION = Depends(exiger("analyste", "passerelle"))
-# Le verdict des quatre yeux : la console, et le poste qui l'attend.
-VERDICT_POSTE = Depends(exiger("analyste", "poste"))
+# Le verdict des quatre yeux : le poste qui l'attend, et la console (vue minimisée).
+VERDICT_POSTE = Depends(exiger("poste", "analyste"))
 # Les décisions prises sur une session : la console, la passerelle et le poste qui les attendent.
 DECISIONS_SESSION = Depends(exiger("analyste", "passerelle", "poste"))
 # Espace /validation : le responsable ou la finance confirme un geste métier retenu. Seul.

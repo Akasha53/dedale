@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 
+from app.store import store
 from tests.conftest import BASE, evenement, horo
 
 SID = "poste-camille-001"
@@ -133,10 +134,17 @@ def test_virement_lisible_et_iban_masque(client):
         session_id=sid, source="interne", surface="outil", type="riposte", outil="executer_paiement",
         details={"action": "bloquer_hors_scope", "scope_requis": "paiement:executer", "jeton_revoque": True},
         horodatage=horo(BASE, 1.01)))
+    # Le backend lit le virement en entier…
+    brut = next(e["details"]["virement"] for e in store.evenements.values()
+                if e["outil"] == "executer_paiement" and e["type"] == "appel_outil")
+    assert brut["montant"] == 3480.0 and brut["beneficiaire"] == "Atelier Nord"
+    assert re.fullmatch(r"FR76 •••• •••• \d{4}", brut["iban_masque"])
+    # …mais la console du SOC n'a pas besoin d'en connaître le détail : sans signal de fraude,
+    # elle lit une tranche, ni le bénéficiaire ni l'IBAN (besoin_d_en_connaitre.py).
     evs = client.get(f"/api/sessions/{sid}").json()["evenements"]
     vir = next(e["details"]["virement"] for e in evs if e["outil"] == "executer_paiement" and e["type"] == "appel_outil")
-    assert vir["montant"] == 3480.0 and vir["beneficiaire"] == "Atelier Nord"
-    assert re.fullmatch(r"FR76 •••• •••• \d{4}", vir["iban_masque"])
+    assert vir["montant"] is None and vir["montant_tranche"] == "entre 1 et 10 k€"
+    assert vir["beneficiaire"] == "[bénéficiaire masqué]" and vir["iban_masque"] == "[IBAN masqué]"
     assert vir["complete_par_demo"] is True
     # Refus d'office : le conseil suit l'état et propose de clore.
     iid = client.get("/api/incidents").json()["incidents"][0]["id"]

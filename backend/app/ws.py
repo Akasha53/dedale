@@ -12,6 +12,8 @@ class Diffuseur:
     def __init__(self) -> None:
         self.clients: set[WebSocket] = set()
         self.lock = asyncio.Lock()
+        # Posé par validation_metier.brancher : le SOC ne reçoit que la vue minimisée.
+        self.filtre = None
 
     async def connecter(self, ws: WebSocket) -> None:
         await ws.accept()
@@ -23,6 +25,8 @@ class Diffuseur:
             self.clients.discard(ws)
 
     async def diffuser(self, type_: str, donnees: dict) -> None:
+        if self.filtre is not None:
+            donnees = self.filtre(type_, donnees)
         message = {"type": type_, "donnees": donnees}
         async with self.lock:
             cibles = list(self.clients)

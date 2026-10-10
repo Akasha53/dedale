@@ -373,6 +373,9 @@ routes_relecteur.brancher(app, _enfiler)
 # Écritures signées, ajout seul et ancrage du journal sur Avalanche Fuji (routes_ancrage.py).
 from . import routes_ancrage  # noqa: E402
 routes_ancrage.brancher(app)
+# Besoin d'en connaître : espace de validation métier et vue minimisée du SOC (validation_metier.py).
+from . import validation_metier  # noqa: E402
+validation_metier.brancher(app, _enfiler)
 
 
 # ---------------------------------------------------------------- Console web
