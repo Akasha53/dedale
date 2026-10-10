@@ -6,7 +6,9 @@
   <meta name="theme-color" content="#ffffff">
   <meta name="color-scheme" content="light">
   <meta name="description" content="Dédale prévient le salarié avant un clic risqué, retient l'action douteuse d'un agent IA et donne au SOC de quoi décider. Prototype local sur données fictives.">
+  <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <title>Dédale : salariés prévenus, agents IA retenus</title>
   <script>document.documentElement.classList.add("js")</script>
   <link rel="stylesheet" href="../design/jetons.css">
@@ -72,7 +74,7 @@
     .tete-site{position:sticky;top:0;z-index:30;padding-top:12px}
     .nav{display:flex;align-items:center;gap:28px;width:min(100% - 32px,1200px);margin-inline:auto;padding:8px 8px 8px 20px;border-radius:999px;background:rgba(255,255,255,.8);box-shadow:0 0 0 1px var(--ligne),0 10px 30px -20px rgba(13,13,13,.25);backdrop-filter:saturate(1.6) blur(18px);-webkit-backdrop-filter:saturate(1.6) blur(18px)}
     .marque{display:inline-flex;align-items:center;gap:10px;font-size:18px;font-weight:650;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
-    .marque i{width:22px;height:22px;border-radius:7px;background:var(--texte);display:grid;place-items:center;color:#fff;font:700 12px/1 var(--sans);font-style:normal}
+    .marque img{display:block;flex-shrink:0}
     .nav-liens{display:flex;gap:26px;margin-left:auto}
     .nav-liens a{font-size:14px;color:var(--doux);text-decoration:none;white-space:nowrap;transition:color .4s var(--courbe)}
     .nav-liens a:hover{color:var(--texte)}
@@ -261,7 +263,7 @@
   <a class="saut" href="#contenu">Aller au contenu</a>
   <header class="tete-site">
     <nav class="nav" aria-label="Navigation principale">
-      <a class="marque" href="#haut" aria-label="Dédale, retour en haut"><i aria-hidden="true">D</i>Dédale</a>
+      <a class="marque" href="#haut" aria-label="Dédale, retour en haut"><img src="img/dedale.svg" width="22" height="22" alt="">Dédale</a>
       <div class="nav-liens"><a href="#demo">La démo</a><a href="#produit">Ce qu'il fait</a><a href="#vie-privee">Vie privée</a><a href="#conformite">Conformité</a></div>
       <a class="nav-cta" href="#demo">Voir la démo<span aria-hidden="true"><svg class="ic"><use href="#i-fleche-b"/></svg></span></a>
     </nav>
@@ -511,7 +513,7 @@
 
   <footer>
     <div class="shell pied">
-      <a class="marque" href="#haut"><i aria-hidden="true">D</i>Dédale</a>
+      <a class="marque" href="#haut"><img src="img/dedale.svg" width="22" height="22" alt="">Dédale</a>
       <p>Secure Horizons · ESSEC · 10-11 octobre 2026</p>
       <p>Orbis Pay et toutes les données de la démo sont fictives.</p>
     </div>
