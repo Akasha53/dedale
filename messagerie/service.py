@@ -185,6 +185,8 @@ class Service:
             self.boite_ok, self.erreur_boite = False, str(e)
             self.signaler_en_attente()
             return []
+        if len(resumes) < MAX_MAILS:
+            self._oublier_absents({r.get("ID") for r in resumes})
         nouveaux: list[dict] = []
         for resume in reversed(resumes):       # Mailpit liste du plus récent au plus ancien
             identifiant = resume.get("ID")
@@ -200,6 +202,15 @@ class Service:
             nouveaux.append(self._enregistrer(identifiant, brut, resume.get("Created")))
         self.signaler_en_attente()
         return nouveaux
+
+    def _oublier_absents(self, presents: set) -> None:
+        """Un mail supprimé de la boîte (envoyer_demo.py --vider) sort aussi des verdicts."""
+        with self.verrou:
+            for identifiant in [i for i in self.verdicts if i not in presents]:
+                del self.verdicts[identifiant]
+                self.mails.pop(identifiant, None)
+                if identifiant in self.a_signaler:
+                    self.a_signaler.remove(identifiant)
 
     def mail(self, identifiant: str) -> tuple[analyse.MailLu, dict] | None:
         with self.verrou:

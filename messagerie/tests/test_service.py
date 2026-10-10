@@ -186,3 +186,11 @@ def test_websocket_pousse_chaque_nouveau_verdict(client, boite):
         message = ws.receive_json()
         assert message["type"] == "verdict"
         assert message["donnees"]["id"] == identifiant and message["donnees"]["verdict"] == "frauduleux"
+
+
+def test_mail_supprime_de_la_boite_sort_des_verdicts(boite):
+    s = svc.Service(boite, BackendFaux())
+    s.relever()
+    del boite.mails["ID0000rh_entretiens"]
+    s.relever()
+    assert "ID0000rh_entretiens" not in s.verdicts and len(s.verdicts) == len(JEU) - 1

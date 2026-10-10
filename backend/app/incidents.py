@@ -14,8 +14,11 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from . import gouvernance
+
 # Ordre canonique des étapes de la boîte noire.
-ORDRE_ETAPES = ["appat", "consigne_lue", "action", "tentative_sortie", "riposte", "correctif"]
+ORDRE_ETAPES = ["appat", "consigne_lue", "action", "regle", "anomalie", "tentative_sortie", "riposte",
+                "correctif"]
 
 _LIBELLES = {
     "appat": "Document/mail piégé rencontré",
@@ -24,6 +27,8 @@ _LIBELLES = {
     "tentative_sortie": "Tentative de sortie de données",
     "riposte": "Riposte appliquée",
     "correctif": "Correctif : droit retiré",
+    "regle": "Règle du SOC déclenchée",
+    "anomalie": "Comportement inhabituel",
 }
 
 # Correspondance étape interne -> phase lue par la console.
@@ -34,6 +39,8 @@ _PHASE = {
     "tentative_sortie": "sortie",
     "riposte": "riposte",
     "correctif": "correctif",
+    "regle": "regle",
+    "anomalie": "anomalie",
 }
 
 
@@ -196,6 +203,11 @@ def _etape_pour(ev: dict, leurres: dict[str, Any]) -> str | None:
     # Correctif appliqué par l'analyste depuis la console (droit retiré à l'agent).
     if typ == "correctif":
         return "correctif"
+    # Gouvernance : règle écrite par le SOC, écart à l'habitude de l'agent (gouvernance.py).
+    if isinstance(details.get("politique"), dict):
+        return "regle"
+    if isinstance(details.get("anomalie"), dict):
+        return "anomalie"
     if typ == "sortie_agent" or details.get("exfiltration"):
         return "tentative_sortie"
     # Outil MCP piégé : la consigne vit dans la DESCRIPTION de l'outil. Qu'elle soit portée par
@@ -284,6 +296,8 @@ def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[d
                 "risques": risques,
             }
         )
+        if etape in gouvernance.ETAPES:
+            etapes[-1].update(gouvernance.maillon(etape, ev))
         # Maillon « source » : le document lu, complet et déjà désarmé à l'ingestion.
         if isinstance(details.get("document_source"), dict):
             etapes[-1]["document_source"] = details["document_source"]

@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app import config, journal_scelle
 from app.store import store
+from app import gouvernance
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +37,7 @@ def _reset_store(tmp_path, monkeypatch):
     store._incident_seq = 0
     store.tete_evenements = journal_scelle.GENESE
     store.tete_decisions = journal_scelle.GENESE
+    gouvernance.vider()
     yield
 
 

@@ -36,3 +36,7 @@ interne/instance/
 # Construction de l'app Mac
 app-mac/.build/
 app-mac/Dedale.app/
+
+# Règles du SOC et campagnes de résistance (backend/app/politiques.py, resistance.py)
+data/*.json
+data/*.json.tmp

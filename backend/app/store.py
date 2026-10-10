@@ -12,7 +12,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from . import activite, classement, config, incidents, journal_scelle, securite
+from . import activite, classement, config, gouvernance, incidents, journal_scelle, securite
 
 
 def maintenant() -> datetime:
@@ -121,6 +121,9 @@ class Session:
     # retirés : {code, libelle, agent, incident_id, session_id, analyste, horodatage}.
     agent: str | None = None
     droits_retires: list = field(default_factory=list)
+    # Gouvernance (gouvernance.py) : règles du SOC déclenchées, écarts à l'habitude de l'agent.
+    regles_declenchees: list = field(default_factory=list)
+    anomalies: list = field(default_factory=list)
 
     def abrege(self) -> dict:
         # Noms alignés sur ce que lit la console (premiere_vue/derniere_vue, leurres_touches int),
@@ -627,15 +630,19 @@ class Store:
             if _enregistre is not None:
                 # Le journal est déjà neutralisé ; conserver aussi ses ID et dates de réception.
                 enreg = deepcopy(_enregistre)
-            else:
-                self.tete_evenements = journal_scelle.sceller_evenement(enreg, self.tete_evenements)
             self.evenements[eid] = enreg
             sess.evenement_ids.append(eid)
+            gouvernance.apres_ingestion(self, sess, enreg, rejeu=_enregistre is not None)
 
             # Classement.
             sess.classement, sess.score, sess.signaux = classement.classer(sess)
             if sess.classement == "agent_ia" and sess.detecte_a is None:
                 sess.detecte_a = horo
+
+            # Scellement : après toute mise à jour de l'événement, avant la boîte noire qui cite
+            # son sceau. Un événement relu depuis la base garde le sceau qu'il avait.
+            if _enregistre is None:
+                self.tete_evenements = journal_scelle.sceller_evenement(enreg, self.tete_evenements)
 
             # Incident ?
             n_incidents = len(self.incidents)
@@ -704,6 +711,8 @@ class Store:
         if sess.flag_droits and not sess.flag_canari:
             scope = sess.tentatives_hors_scope[-1]["scope_requis"] if sess.tentatives_hors_scope else "—"
             return "interne_droits", f"Agent interne hors de son périmètre de droits (droit {scope})"
+        if not sess.flag_canari and (sess.regles_declenchees or sess.anomalies):
+            return gouvernance.type_titre(sess)
         return "interne_canari", f"Agent IA piégé en interne (canari {sess.canari_id or '—'})"
 
     def _maj_incident(self, sess: Session) -> Incident | None:
@@ -720,6 +729,7 @@ class Store:
                 or sess.flag_droits
                 or sess.flag_inter_agent
                 or sess.classement == "agent_ia"
+                or bool(sess.regles_declenchees or sess.anomalies)
             )
         if not est_incident and inc is None:
             return None
@@ -740,7 +750,7 @@ class Store:
             )
             self.incidents[inc.id] = inc
             # Un agent interne détourné (ou hors scope) est suspendu d'office, en attente de l'analyste.
-            if sess.source == "interne" and sess.etat == "active":
+            if sess.source == "interne" and sess.etat == "active" and gouvernance.suspendre_a_l_ouverture(typ):
                 sess.etat = "suspendue"
         # Type et titre se rafraîchissent à chaque passage : les drapeaux évoluent (le canari MCP
         # peut tomber après l'ouverture, et un incident droits peut se préciser).
@@ -778,6 +788,7 @@ class Store:
                 else:
                     inc.gravite = incidents.gravite(inc.chaine, sess.source)
                     inc.resume = incidents.resume(inc.chaine, sess.classement, sess.source)
+        gouvernance.ajuster(inc, sess)
         journal_scelle.sceller_incident(inc, self.decisions, self.evenements)
         return inc
 

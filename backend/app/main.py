@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, api_preuves, config, db, exports, nis2, synthese
+from . import __version__, alertes, api_preuves, config, db, exports, inventaire, nis2, routes_gouvernance, synthese
 from .models import DecisionIn, EvenementIn, LeurreIn, RetraitDroitIn
 from .store import store
 from .ws import diffuseur
@@ -83,6 +83,7 @@ async def cycle_de_vie(app: FastAPI):
     try:
         yield
     finally:
+        await alertes.attendre()
         await file.put(None)
         if _tache_ecrivain is not None:
             # Vide toute la file avant de fermer la connexion sur arrêt normal.
@@ -134,6 +135,8 @@ async def recevoir_evenement(ev: EvenementIn):
         "diffusions": res["diffusions"],
     }
     _enfiler(job)
+    if res.get("incident_nouveau"):
+        alertes.planifier(res["incident"].id)  # décision attendue : Slack/Teams, en tâche de fond
     return res["reponse"]
 
 
@@ -173,7 +176,7 @@ async def lister_incidents():
 @app.get("/api/agents")
 async def lister_agents():
     """Droits des agents internes : accordés vs utilisés vs nécessaires (moindre privilège)."""
-    return {"agents": store.liste_agents()}
+    return {"agents": store.liste_agents(), "inventaire": inventaire.lister(store)}
 
 
 @app.get("/api/incidents/{iid}")
@@ -319,8 +322,10 @@ async def erreur_generale(request: Request, exc: Exception):  # pragma: no cover
     return JSONResponse(status_code=500, content={"erreur": "erreur interne", "detail": str(exc)})
 
 
-# Vérification du journal scellé (api_preuves.py).
+# Vérification du journal scellé, rapport d'incident, alertes (api_preuves.py).
 app.include_router(api_preuves.routeur)
+# Gouvernance des agents : règles du SOC, inventaire, résistance (routes_gouvernance.py).
+app.include_router(routes_gouvernance.routeur)
 
 
 # ---------------------------------------------------------------- Console web
