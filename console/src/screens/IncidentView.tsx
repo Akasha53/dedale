@@ -23,22 +23,30 @@ import {
   Spinner,
 } from "../ui/primitives";
 
-const PHASE_LIB: Record<MaillonChaine["phase"], string> = {
+const PHASE_LIB: Record<string, string> = {
   entree: "Entrée",
   consigne: "Consigne lue",
   outil: "Appels d'outils",
   sortie: "Sortie de données",
   riposte: "Riposte",
+  contexte: "Contexte",
+  action_risquee: "Action risquée",
   avertissement: "Avertissement au salarié",
+  choix: "Choix du salarié",
+  consequence: "Conséquence",
 };
 
-const PHASE_PIC: Record<MaillonChaine["phase"], string> = {
+const PHASE_PIC: Record<string, string> = {
   entree: "✉",
   consigne: "!",
   outil: "⚙",
   sortie: "⇲",
   riposte: "⛊",
+  contexte: "◉",
+  action_risquee: "!",
   avertissement: "⚠",
+  choix: "◇",
+  consequence: "⇲",
 };
 
 const VIDE_PILIER: Record<Pilier, string> = {
@@ -47,11 +55,15 @@ const VIDE_PILIER: Record<Pilier, string> = {
   externe: "Aucun incident externe en réserve.",
 };
 
-const ACTIONS: { action: DecisionAction; lib: string; cls: string }[] = [
+const ACTIONS_AGENT: { action: DecisionAction; lib: string; cls: string }[] = [
   { action: "valider_riposte", lib: "Valider la riposte", cls: "primaire" },
-  { action: "couper", lib: "Couper", cls: "danger" },
-  { action: "reprendre", lib: "Reprendre", cls: "fantome" },
+  { action: "couper", lib: "Couper l'agent", cls: "danger" },
+  { action: "reprendre", lib: "Reprendre l'agent", cls: "fantome" },
   { action: "ignorer", lib: "Ignorer", cls: "fantome" },
+];
+const ACTIONS_HUMAIN: { action: DecisionAction; lib: string; cls: string }[] = [
+  { action: "clore", lib: "Clore le suivi", cls: "primaire" },
+  { action: "ignorer", lib: "Ignorer l'alerte", cls: "fantome" },
 ];
 
 export function IncidentView({
@@ -79,13 +91,16 @@ export function IncidentView({
   }, [incidents]);
 
   const idCourant = useMemo(() => {
-    if (incidentSel && incidentsVue.some((i) => i.id === incidentSel))
-      return incidentSel;
+    if (incidentSel)
+      return incidentsVue.some((i) => i.id === incidentSel) ? incidentSel : null;
     return incidentsVue[0]?.id ?? null;
   }, [incidentSel, incidentsVue]);
 
   const [detail, setDetail] = useState<Incident | null>(null);
   const [chargeDetail, setChargeDetail] = useState(false);
+  const [erreurDetail, setErreurDetail] = useState<string | null>(null);
+  const [decisionEnCours, setDecisionEnCours] = useState<DecisionAction | null>(null);
+  const [erreurDecision, setErreurDecision] = useState<string | null>(null);
 
   useEffect(() => {
     if (!idCourant) {
@@ -96,10 +111,12 @@ export function IncidentView({
     // On part de la version de la liste (souvent complète), puis on récupère le
     // détail à jour.
     setDetail(incidents.find((i) => i.id === idCourant) ?? null);
+    setErreurDetail(null);
+    setErreurDecision(null);
     setChargeDetail(true);
     getIncident(idCourant)
       .then((d) => vivant && setDetail(d))
-      .catch(() => {})
+      .catch(() => vivant && setErreurDetail("Le détail n'a pas pu être actualisé. Dernières données disponibles affichées."))
       .finally(() => vivant && setChargeDetail(false));
     return () => {
       vivant = false;
@@ -108,12 +125,26 @@ export function IncidentView({
   }, [idCourant, getIncident]);
 
   const trancher = async (action: DecisionAction) => {
-    if (!idCourant) return;
-    await decider(idCourant, action, "analyste-soc");
+    if (!idCourant || decisionEnCours) return;
+    setDecisionEnCours(action);
+    setErreurDecision(null);
     try {
-      setDetail(await getIncident(idCourant));
-    } catch {
-      /* ignore */
+      const resultat = await decider(idCourant, action, "analyste-soc");
+      setDetail(resultat);
+      try {
+        setDetail(await getIncident(idCourant));
+      } catch {
+        // La réponse de décision contient déjà le nouvel état.
+      }
+    } catch (e) {
+      setErreurDecision(e instanceof Error ? e.message : "La décision n'a pas pu être envoyée.");
+      try {
+        setDetail(await getIncident(idCourant));
+      } catch {
+        // État incertain : le message reste visible et aucun succès n'est supposé.
+      }
+    } finally {
+      setDecisionEnCours(null);
     }
   };
 
@@ -122,6 +153,16 @@ export function IncidentView({
   const segments = (
     <SegmentsPiliers pilier={pilier} setPilier={setPilier} comptes={comptes} />
   );
+
+  if (incidentSel && !idCourant)
+    return (
+      <>
+        {segments}
+        {incidents.some((i) => i.id === incidentSel)
+          ? <Spinner texte="Ouverture de l'incident…" />
+          : <div className="vide" role="status">Incident {incidentSel} introuvable dans la liste.</div>}
+      </>
+    );
 
   if (incidentsVue.length === 0)
     return (
@@ -151,7 +192,7 @@ export function IncidentView({
         </div>
       )}
 
-      {!detail ? (
+      {!detail || detail.id !== idCourant ? (
         <Spinner />
       ) : (
         <div className="incident-layout">
@@ -173,6 +214,8 @@ export function IncidentView({
             </div>
 
             <GestePanneau incident={detail} />
+
+            {erreurDetail && <div className="decision-erreur" role="alert">{erreurDetail}</div>}
 
             <div className="panneau">
               <div className="titre">
@@ -196,18 +239,34 @@ export function IncidentView({
             <div className="panneau">
               <div className="titre">Décision de l'analyste</div>
               <div className="corps">
-                <div className="actions-analyste">
-                  {ACTIONS.map((a) => (
+                <p className="decision-contexte">
+                  {estIncidentHumain(detail)
+                    ? "Le SOC peut clore ou ignorer ce signal. Ces choix ne coupent pas le poste du salarié."
+                    : detail.etat === "suspendue"
+                      ? "L'agent est suspendu : la passerelle retient son appel jusqu'à la décision du SOC."
+                      : detail.etat === "coupee"
+                        ? "L'agent est coupé. La décision et son auteur restent dans le journal."
+                        : "L'agent est actif. Le SOC peut encore décider de le couper si nécessaire."}
+                </p>
+                <div className="actions-analyste" aria-busy={decisionEnCours !== null}>
+                  {(estIncidentHumain(detail) ? ACTIONS_HUMAIN : ACTIONS_AGENT).map((a) => (
                     <button
                       key={a.action}
                       className={`btn ${a.cls}`}
-                      disabled={detail.etat === "coupee" && a.action !== "ignorer"}
-                      onClick={() => trancher(a.action)}
+                      disabled={decisionEnCours !== null || detail.statut === "clos" || detail.statut === "ignore" ||
+                        (a.action === "reprendre" && detail.etat !== "suspendue") ||
+                        (a.action === "valider_riposte" && detail.etat !== "suspendue") ||
+                        (a.action === "couper" && detail.etat === "coupee")}
+                      onClick={() => void trancher(a.action)}
                     >
-                      {a.lib}
+                      {decisionEnCours === a.action ? "Décision en cours…" : a.lib}
                     </button>
                   ))}
                 </div>
+                {erreurDecision && <p className="decision-erreur" role="alert">{erreurDecision}</p>}
+                {(detail.statut === "clos" || detail.statut === "ignore" || detail.statut === "surveille") && (
+                  <p className="decision-statut">Suivi : {detail.statut === "clos" ? "clos" : detail.statut === "ignore" ? "ignoré" : "sous surveillance"}</p>
+                )}
                 {detail.decisions?.length > 0 && (
                   <div style={{ marginTop: 14, fontSize: 12.5, color: "var(--texte-doux)" }}>
                     {detail.decisions.map((d, i) => (
@@ -234,9 +293,9 @@ export function IncidentView({
 function Maillon({ m }: { m: MaillonChaine }) {
   return (
     <div className={`maillon phase-${m.phase}`}>
-      <span className="puce">{PHASE_PIC[m.phase]}</span>
+      <span className="puce">{PHASE_PIC[m.phase] ?? "•"}</span>
       <div className="m-titre">
-        <span className="m-phase">{PHASE_LIB[m.phase]}</span>
+        <span className="m-phase">{PHASE_LIB[m.phase] ?? m.phase.replace(/_/g, " ")}</span>
         <strong>{m.titre}</strong>
         <span className="m-heure">{heure(m.horodatage)}</span>
       </div>
@@ -256,7 +315,7 @@ function Maillon({ m }: { m: MaillonChaine }) {
         ))}
         {(m.risques ?? []).map((r) => (
           <span key={r.id} className="tag risque" title={r.nom}>
-            OWASP {r.id} · {r.nom}
+            {r.id.startsWith("OWASP") ? r.id : `OWASP ${r.id}`} · {r.nom}
           </span>
         ))}
       </div>
@@ -273,23 +332,25 @@ function PanneauLateral({ incident }: { incident: Incident }) {
 
   useEffect(() => {
     let vivant = true;
+    setNis2Texte("Actualisation du brouillon…");
     nis2(incident.id)
       .then((t) => vivant && setNis2Texte(t))
       .catch(() => vivant && setNis2Texte("Brouillon indisponible."));
     return () => {
       vivant = false;
     };
-  }, [incident.id, nis2]);
+  }, [incident.id, incident.etat, incident.statut, incident.decisions?.length, nis2]);
 
   useEffect(() => {
     let vivant = true;
+    setExportTexte("Actualisation de l'export…");
     exporter(incident.id, format)
       .then((t) => vivant && setExportTexte(t))
       .catch(() => vivant && setExportTexte("Export indisponible."));
     return () => {
       vivant = false;
     };
-  }, [incident.id, format, exporter]);
+  }, [incident.id, incident.statut, incident.decisions?.length, format, exporter]);
 
   const copier = async (quoi: string, texte: string) => {
     try {
@@ -362,10 +423,20 @@ function estIncidentHumain(inc: Incident): boolean {
 function infosGeste(
   inc: Incident
 ): { geste?: string; avertissement?: string; choix?: ChoixSalarie } | null {
-  const m = (inc.chaine ?? []).find((x) => x.phase === "avertissement");
-  const geste = inc.geste;
-  const avertissement = inc.avertissement ?? m?.detail;
-  const choix = inc.choix ?? m?.choix;
+  const chaine = inc.chaine ?? [];
+  const averti = [...chaine].reverse().find((x) => x.phase === "avertissement");
+  const action = [...chaine].reverse().find((x) => x.phase === "action_risquee");
+  const choixMaillon = [...chaine].reverse().find((x) => x.phase === "choix");
+  const evenement = [...(inc.evenements ?? [])].reverse().find((e) => e.type === "avertissement");
+  const details = evenement?.details ?? {};
+  const texte = (valeur: unknown) => typeof valeur === "string" && valeur.trim() ? valeur.trim() : undefined;
+  const brut = details.choix;
+  const choix = inc.choix ?? averti?.choix ??
+    (brut === "continuer" || brut === "annuler" ? brut : undefined) ??
+    (choixMaillon?.detail.includes("annul") ? "annuler" :
+      choixMaillon?.detail.includes("continuer") || choixMaillon?.detail.includes("passé outre") ? "continuer" : undefined);
+  const geste = inc.geste ?? action?.detail;
+  const avertissement = inc.avertissement ?? texte(details.message) ?? averti?.detail;
   if (!geste && !avertissement && !choix) return null;
   return { geste, avertissement, choix };
 }
@@ -380,11 +451,12 @@ function GestePanneau({ incident }: { incident: Incident }) {
   if (!infos) return null;
   const { geste, avertissement, choix } = infos;
   const annule = choix === "annuler";
+  const physique = incident.source === "physique";
 
   return (
     <div className="panneau">
       <div className="titre">
-        Le garde du corps sur le poste
+        {physique ? "Canari physique" : "Le garde du corps sur le poste"}
         <span className="droite">
           <BadgeChoixSalarie choix={choix} />
         </span>
@@ -392,13 +464,13 @@ function GestePanneau({ incident }: { incident: Incident }) {
       <div className="corps">
         {geste && (
           <div className="geste-bloc">
-            <div className="geste-lib">Geste risqué repéré</div>
+            <div className="geste-lib">{physique ? "Accès détecté" : "Geste risqué repéré"}</div>
             <div className="geste-val">{geste}</div>
           </div>
         )}
         {avertissement && (
           <div className="geste-bloc">
-            <div className="geste-lib">Avertissement affiché au salarié</div>
+            <div className="geste-lib">{physique ? "Signal du canari" : "Avertissement affiché au salarié"}</div>
             <div className="geste-popup">{avertissement}</div>
           </div>
         )}
@@ -409,7 +481,7 @@ function GestePanneau({ incident }: { incident: Incident }) {
           >
             {annule
               ? "Le salarié a annulé après l'alerte : le geste risqué s'est arrêté là, avant d'aboutir."
-              : "Le salarié est passé outre l'alerte : le geste a eu lieu. Dédale l'a repéré au clic et l'a escaladé au SOC."}
+              : "Le salarié est passé outre l'alerte. Le geste a été remonté au SOC."}
           </p>
         )}
       </div>

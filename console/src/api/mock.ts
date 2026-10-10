@@ -83,7 +83,7 @@ let sessions: Session[] = [
     id: "badge-salle-serveurs",
     classement: "inconnu",
     score: 0.5,
-    etat: "suspendue",
+    etat: "active",
     source: "physique",
     leurres_touches: 1,
     premiere_vue: ilYA(900),
@@ -144,7 +144,7 @@ let sessions: Session[] = [
     id: "sess-int-3310",
     classement: "agent_ia",
     score: 0.88,
-    etat: "active",
+    etat: "suspendue",
     source: "interne",
     leurres_touches: 1,
     premiere_vue: ilYA(320),
@@ -361,7 +361,7 @@ const incidents: Incident[] = [
     source: "humain",
     classement: "humain",
     score: 0.18,
-    etat: "suspendue",
+    etat: "active",
     type: "humain_mail_externe",
     titre: "Export clients envoyé vers une adresse personnelle",
     gravite: "critique",
@@ -462,7 +462,7 @@ const incidents: Incident[] = [
     source: "humain",
     classement: "humain",
     score: 0.3,
-    etat: "suspendue",
+    etat: "active",
     type: "humain_phishing",
     titre: "Clic sur un lien de phishing dans un faux mail « DSI »",
     gravite: "haute",
@@ -512,7 +512,7 @@ const incidents: Incident[] = [
     source: "physique",
     classement: "inconnu",
     score: 0.5,
-    etat: "suspendue",
+    etat: "active",
     type: "humain_intrusion_physique",
     titre: "Port-leurre d'un serveur-leurre touché en salle serveurs",
     gravite: "haute",
@@ -633,13 +633,13 @@ const incidents: Incident[] = [
     source: "interne",
     classement: "agent_ia",
     score: 0.88,
-    etat: "active",
+    etat: "suspendue",
     type: "interne_canari",
     titre: "Agent interne détourné par un mail piégé (canari C-0021)",
     gravite: "critique",
     ouvert_le: ilYA(200),
     resume:
-      "L'agent interne d'Orbis Pay a lu un mail contenant un canari, a changé de but et appelé l'outil d'export clients. Jeton encore actif.",
+      "L'agent interne d'Orbis Pay a lu un mail contenant un canari, a changé de but et appelé l'outil d'export clients. La passerelle retient l'appel en attendant le SOC.",
     chaine: [
       {
         ordre: 1,
@@ -890,8 +890,7 @@ function mesuresCourantes(): Mesures {
     number
   >;
   for (const s of sessions) repartition[s.classement]++;
-  // Le mock garde ses gestes annulés comme incidents : on en tire le bloc
-  // gestes_humains que le backend calcule sur ses avertissements.
+  // Les exemples annulés servent aux compteurs, sans ouvrir d'incident.
   const humains = incidents.filter((i) => i.source === "humain" || i.source === "physique");
   const arretes = humains.filter((i) => i.choix === "annuler").length;
   const passesOutre = humains.filter((i) => i.choix === "continuer").length;
@@ -902,8 +901,8 @@ function mesuresCourantes(): Mesures {
     temps_confinement_s: 11,
     sessions_total: sessions.length,
     agents_detectes: agents,
-    incidents_ouverts: incidents.filter((i) => i.etat !== "coupee").length,
-    incidents_clos: incidents.filter((i) => i.etat === "coupee").length,
+    incidents_ouverts: incidentsVisibles().filter((i) => !i.statut || i.statut === "ouvert").length,
+    incidents_clos: incidentsVisibles().filter((i) => i.statut === "clos" || i.statut === "ignore").length,
     repartition,
     serie_detection: [
       { t: "-6 min", valeur: 0.78 },
@@ -918,13 +917,17 @@ function mesuresCourantes(): Mesures {
       arretes,
       passes_outre: passesOutre,
       total: arretes + passesOutre,
-      incidents_humains: humains.length,
+      incidents_humains: humains.filter((i) => i.choix !== "annuler").length,
     },
   };
 }
 
 function nis2(inc: Incident): string {
   const d = maintenant().toLocaleString("fr-FR");
+  const humain = inc.source === "humain" || inc.source === "physique";
+  const mesures = humain
+    ? `Signal remonté au SOC ; suivi ${inc.statut === "clos" ? "clos" : inc.statut === "ignore" ? "ignoré" : "en cours"}. Aucun poste salarié coupé par Dédale.`
+    : `Session ${inc.session_id} ${inc.etat === "coupee" ? "coupée (jeton révoqué)" : inc.etat === "suspendue" ? "suspendue, appel retenu en attente de la décision humaine" : "active sous surveillance"}.`;
   return `ALERTE PRÉCOCE NIS2 — notification sous 24 h (brouillon)
 
 Date de rédaction : ${d}
@@ -951,7 +954,7 @@ Gravité estimée : ${inc.gravite}.
 Aucun à ce stade. Données concernées : synthétiques, périmètre de test.
 
 4. Mesures déjà prises
-Session ${inc.session_id} ${inc.etat === "coupee" ? "coupée (jeton révoqué)" : "suspendue, riposte en attente de validation humaine"}.
+${mesures}
 Chaîne d'attaque reconstruite et conservée (boîte noire).
 
 5. Suite
@@ -962,6 +965,21 @@ Notification complète sous 72 h. Contact : soc@orbispay.example (fictif).
 
 function exportSiem(inc: Incident, format: "ecs" | "sigma"): string {
   if (format === "sigma") {
+    if (inc.source === "humain" || inc.source === "physique") {
+      return `title: ${inc.titre}
+id: ${inc.id}
+status: experimental
+description: Geste risqué passé outre ou canari physique déclenché (${inc.type}).
+logsource:
+  product: dedale
+  service: console
+detection:
+  selection:
+    incident.type: '${inc.type}'
+    incident.source: '${inc.source}'
+  condition: selection
+level: ${inc.gravite === "critique" ? "critical" : inc.gravite === "haute" ? "high" : "medium"}`;
+    }
     return `title: ${inc.titre}
 id: ${inc.id}
 status: experimental
@@ -1000,13 +1018,17 @@ falsepositives:
     .join("\n");
 }
 
+function incidentsVisibles(): Incident[] {
+  return incidents.filter((i) => i.choix !== "annuler");
+}
+
 export function creerSourceMock(): SourceDonnees {
   return {
     nom: "mock",
-    getSessions: async () => sessions.map((s) => ({ ...s })),
-    getIncidents: async () => incidents.map((i) => ({ ...i })),
+    getSessions: async () => sessions.map((s) => ({ ...s, etat: s.source === "humain" ? "active" : s.etat })),
+    getIncidents: async () => incidentsVisibles().map((i) => ({ ...i })),
     getIncident: async (id) => {
-      const i = incidents.find((x) => x.id === id);
+      const i = incidentsVisibles().find((x) => x.id === id);
       if (!i) throw new Error("incident inconnu");
       return { ...i };
     },
@@ -1015,15 +1037,21 @@ export function creerSourceMock(): SourceDonnees {
     postDecision: async (id, action: DecisionAction, analyste) => {
       const i = incidents.find((x) => x.id === id);
       if (!i) throw new Error("incident inconnu");
+      if ((i.source === "humain" || i.source === "physique") && !["clore", "ignorer"].includes(action)) {
+        throw new Error("Cette action n'est pas disponible pour un poste salarié.");
+      }
       i.decisions.push({ action, analyste, horodatage: new Date().toISOString() });
-      if (action === "couper") i.etat = "coupee";
-      else if (action === "reprendre") i.etat = "active";
-      else if (action === "valider_riposte") i.etat = "coupee";
+      i.statut = action === "ignorer" ? "ignore" : action === "reprendre" ? "surveille" : "clos";
+      if (i.source !== "humain" && i.source !== "physique") {
+        if (action === "couper" || action === "valider_riposte") i.etat = "coupee";
+        else if (action === "reprendre") i.etat = "active";
+      }
       const s = sessions.find((x) => x.id === i.session_id);
-      if (s) {
+      if (s && i.source !== "humain" && i.source !== "physique") {
         if (action === "couper" || action === "valider_riposte") s.etat = "coupee";
         else if (action === "reprendre") s.etat = "active";
       }
+      return { ...i };
     },
     getNis2: async (id) => {
       const i = incidents.find((x) => x.id === id);

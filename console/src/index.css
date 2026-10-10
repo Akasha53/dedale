@@ -700,6 +700,26 @@ button {
   flex-wrap: wrap;
   gap: 10px;
 }
+.decision-contexte {
+  color: var(--texte-doux);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+.decision-erreur {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--alerte);
+  border-radius: var(--rayon-s);
+  color: var(--texte);
+  background: color-mix(in srgb, var(--alerte) 13%, var(--fond-2));
+  font-size: 13px;
+}
+.decision-statut {
+  margin: 14px 0 0;
+  color: var(--texte-doux);
+  font-size: 12px;
+}
 .btn {
   display: inline-flex;
   align-items: center;
@@ -941,6 +961,10 @@ table.grille .idc {
 .lien-incident {
   color: var(--accent);
   cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
   font-family: var(--mono);
   font-size: 12.5px;
   display: inline-block;
@@ -948,6 +972,10 @@ table.grille .idc {
 }
 .lien-incident:hover {
   text-decoration: underline;
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .gravite {

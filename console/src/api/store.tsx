@@ -31,7 +31,7 @@ interface Etat {
   erreur: string | null;
   rafraichir: () => Promise<void>;
   getIncident: (id: string) => Promise<Incident>;
-  decider: (id: string, action: DecisionAction, analyste: string) => Promise<void>;
+  decider: (id: string, action: DecisionAction, analyste: string) => Promise<Incident>;
   nis2: (id: string) => Promise<string>;
   exporter: (id: string, format: "ecs" | "sigma") => Promise<string>;
 }
@@ -52,16 +52,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const deconnecterRef = useRef<(() => void) | null>(null);
 
   const chargerTout = useCallback(async (src: SourceDonnees) => {
-    const [se, inc, le, me] = await Promise.all([
-      src.getSessions().catch(() => [] as Session[]),
-      src.getIncidents().catch(() => [] as Incident[]),
-      src.getLeurres().catch(() => [] as Leurre[]),
-      src.getMesures().catch(() => null),
+    const [se, inc, le, me] = await Promise.allSettled([
+      src.getSessions(), src.getIncidents(), src.getLeurres(), src.getMesures(),
     ]);
-    setSessions(se);
-    setIncidents(inc);
-    setLeurres(le);
-    setMesures(me);
+    if (sourceRef.current !== src) return;
+    if (se.status === "fulfilled") setSessions(se.value);
+    if (inc.status === "fulfilled") setIncidents(inc.value);
+    if (le.status === "fulfilled") setLeurres(le.value);
+    if (me.status === "fulfilled") setMesures(me.value);
+    setErreur([se, inc, le, me].some((r) => r.status === "rejected")
+      ? "Actualisation incomplète. Les dernières données reçues restent affichées."
+      : null);
   }, []);
 
   const rafraichir = useCallback(async () => {
@@ -69,7 +70,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!src) return;
     try {
       await chargerTout(src);
-      setErreur(null);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "erreur de chargement");
     }
@@ -154,9 +154,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const decider = useCallback(
     async (id: string, action: DecisionAction, analyste: string) => {
       const src = sourceRef.current;
-      if (!src) return;
-      await src.postDecision(id, action, analyste);
-      await rafraichir();
+      if (!src) throw new Error("Connexion au backend en cours. Réessayez après le chargement.");
+      const incident = await src.postDecision(id, action, analyste);
+      setIncidents((prev) => prev.map((i) => i.id === id ? { ...i, ...incident } : i));
+      setSessions((prev) => prev.map((s) => s.id === incident.session_id ? { ...s, etat: incident.etat } : s));
+      void rafraichir();
+      return incident;
     },
     [rafraichir]
   );

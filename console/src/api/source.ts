@@ -5,6 +5,7 @@ import type {
   MessageWS,
   Session,
   DecisionAction,
+  Evenement,
 } from "../types";
 
 // Interface unique que la console consomme. Deux implémentations : le backend
@@ -21,7 +22,7 @@ export interface SourceDonnees {
     id: string,
     action: DecisionAction,
     analyste: string
-  ): Promise<void>;
+  ): Promise<Incident>;
   getNis2(id: string): Promise<string>;
   getExport(id: string, format: "ecs" | "sigma"): Promise<string>;
   // S'abonne au flux ; renvoie une fonction de désabonnement.
@@ -68,19 +69,45 @@ export const sourceLive: SourceDonnees = {
   nom: "live",
   getSessions: () => liste<Session>("/api/sessions", "sessions"),
   getIncidents: () => liste<Incident>("/api/incidents", "incidents"),
-  getIncident: (id) => j<Incident>(`/api/incidents/${encodeURIComponent(id)}`),
+  getIncident: async (id) => {
+    const incident = await j<Incident>(`/api/incidents/${encodeURIComponent(id)}`);
+    if (incident.source === "humain" || incident.source === "physique") {
+      try {
+        const session = await j<{ evenements: Evenement[] }>(
+          `/api/sessions/${encodeURIComponent(incident.session_id)}`
+        );
+        return { ...incident, evenements: session.evenements };
+      } catch {
+        // Le détail de l'incident reste consultable si le journal de session échoue.
+      }
+    }
+    return incident;
+  },
   getLeurres: () => liste<Leurre>("/api/leurres", "leurres"),
   getMesures: () => j<Mesures>("/api/mesures"),
   postDecision: async (id, action, analyste) => {
-    const r = await fetch(
-      BASE + `/api/incidents/${encodeURIComponent(id)}/decision`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, analyste }),
+    const ctrl = new AbortController();
+    const minuteur = setTimeout(() => ctrl.abort(), 10000);
+    try {
+      const r = await fetch(
+        BASE + `/api/incidents/${encodeURIComponent(id)}/decision`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action, analyste }),
+          signal: ctrl.signal,
+        }
+      );
+      if (!r.ok) throw new Error(`Décision refusée par le backend (HTTP ${r.status}).`);
+      return (await r.json()) as Incident;
+    } catch (erreur) {
+      if (ctrl.signal.aborted || erreur instanceof TypeError) {
+        throw new Error("Réponse du backend non reçue. Vérifiez le journal avant de réessayer : la décision a peut-être été enregistrée.");
       }
-    );
-    if (!r.ok) throw new Error(`decision → ${r.status}`);
+      throw erreur;
+    } finally {
+      clearTimeout(minuteur);
+    }
   },
   getNis2: (id) => texte(`/api/incidents/${encodeURIComponent(id)}/nis2`),
   getExport: (id, format) =>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDonnees } from "./api/store";
 import { LiveView } from "./screens/LiveView";
 import { IncidentView } from "./screens/IncidentView";
@@ -66,15 +66,48 @@ function enteteDe(ecran: Ecran, pilier: Pilier): { titre: string; desc: string }
 
 export function App() {
   const { mode, flux, incidents } = useDonnees();
-  const [ecran, setEcran] = useState<Ecran>("temps-reel");
+  const [ecran, setEcran] = useState<Ecran>(() =>
+    new URLSearchParams(window.location.search).has("incident") ? "incident" : "temps-reel"
+  );
   // Pilier partagé entre temps réel et incidents. Par défaut : les salariés.
   const [pilier, setPilier] = useState<Pilier>("humain");
-  const [incidentSel, setIncidentSel] = useState<string | null>(null);
+  const [incidentSel, setIncidentSel] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("incident")
+  );
+
+  useEffect(() => {
+    if (!incidentSel) return;
+    const inc = incidents.find((i) => i.id === incidentSel);
+    if (inc) setPilier(pilierDeSource(inc.source));
+  }, [incidents, incidentSel]);
+
+  useEffect(() => {
+    const synchroniser = () => {
+      const id = new URLSearchParams(window.location.search).get("incident");
+      setIncidentSel(id);
+      if (id) setEcran("incident");
+    };
+    window.addEventListener("popstate", synchroniser);
+    return () => window.removeEventListener("popstate", synchroniser);
+  }, []);
+
+  const lierIncident = (id: string | null) => {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("incident", id);
+    else url.searchParams.delete("incident");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    setIncidentSel(id);
+  };
+
+  const choisirPilier = (p: Pilier) => {
+    setPilier(p);
+    lierIncident(null);
+  };
 
   const ouvrirIncident = (id: string) => {
     const inc = incidents.find((i) => i.id === id);
     if (inc) setPilier(pilierDeSource(inc.source));
-    setIncidentSel(id);
+    lierIncident(id);
     setEcran("incident");
   };
 
@@ -141,15 +174,15 @@ export function App() {
             <LiveView
               ouvrirIncident={ouvrirIncident}
               pilier={pilier}
-              setPilier={setPilier}
+              setPilier={choisirPilier}
             />
           )}
           {ecran === "incident" && (
             <IncidentView
               incidentSel={incidentSel}
-              setIncidentSel={setIncidentSel}
+              setIncidentSel={lierIncident}
               pilier={pilier}
-              setPilier={setPilier}
+              setPilier={choisirPilier}
             />
           )}
           {ecran === "leurres" && <LeurresView />}

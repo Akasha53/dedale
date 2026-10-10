@@ -10,8 +10,7 @@ export type Etat = "active" | "suspendue" | "coupee";
 // deux sources IA. La console tolère une source inconnue.
 export type Source = "externe" | "interne" | "humain" | "physique" | (string & {});
 
-// Pilier d'affichage. Le virage met les SALARIÉS en tête ; les agents IA
-// passent en second ; l'attaquant externe reste en réserve.
+// Filtres d'une même console : salariés, agents internes, surface externe.
 export type Pilier = "humain" | "interne" | "externe";
 
 // Choix du salarié face à l'avertissement du garde du corps : il annule (bien,
@@ -59,7 +58,12 @@ export type Phase =
   | "outil"
   | "sortie"
   | "riposte"
-  | "avertissement";
+  | "contexte"
+  | "action_risquee"
+  | "avertissement"
+  | "choix"
+  | "consequence"
+  | (string & {});
 
 export interface MaillonChaine {
   ordre: number;
@@ -67,6 +71,7 @@ export interface MaillonChaine {
   horodatage?: string;
   titre: string;
   detail: string;
+  evenement_id?: number;
   leurre_id?: string | null;
   canari_id?: string | null;
   // Pour un maillon `avertissement` : le choix du salarié face à la pop-up.
@@ -114,6 +119,7 @@ export type DecisionAction =
   | "valider_riposte"
   | "couper"
   | "reprendre"
+  | "clore"
   | "ignorer";
 
 export interface Decision {
@@ -138,6 +144,7 @@ export interface Incident {
   resume: string;
   chaine: MaillonChaine[];
   decisions: Decision[];
+  statut?: "ouvert" | "surveille" | "clos" | "ignore";
   droits?: DroitsAgent; // présent surtout pour type "interne_droits"
   // Incident humain : le geste risqué observé, le texte de l'avertissement
   // affiché au salarié, et son choix. Tous optionnels (dégradé propre tant que
@@ -146,6 +153,14 @@ export interface Incident {
   geste?: string;
   avertissement?: string;
   choix?: ChoixSalarie;
+  evenements?: Evenement[];
+}
+
+export interface Evenement {
+  id: number;
+  type: string;
+  horodatage?: string;
+  details: Record<string, unknown>;
 }
 
 export interface Leurre {
@@ -168,10 +183,10 @@ export interface PointSerie {
 }
 
 export interface Mesures {
-  taux_detection: number; // 0..1
-  faux_positifs: number; // 0..1
-  temps_detection_s: number; // médiane, secondes
-  temps_confinement_s: number; // médiane, secondes
+  taux_detection: number | null; // 0..1, absent sans vérité terrain
+  faux_positifs: number | null; // 0..1, absent sans vérité terrain
+  temps_detection_s: number | null; // moyenne, secondes
+  temps_confinement_s: number | null; // moyenne, secondes
   sessions_total: number;
   agents_detectes: number;
   incidents_ouverts: number;

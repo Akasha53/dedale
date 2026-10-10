@@ -22,7 +22,7 @@ function compteursPilier(
   incidentsVue: Incident[],
   gestes: GestesHumains | undefined
 ): { lib: string; val: number; sous: string; alerte?: boolean }[] {
-  const incidentsOuverts = incidentsVue.filter((i) => i.etat !== "coupee").length;
+  const incidentsOuverts = incidentsVue.filter((i) => !i.statut || i.statut === "ouvert").length;
   if (pilier === "humain") {
     const arretes = gestes?.arretes ?? 0;
     const passesOutre = gestes?.passes_outre ?? 0;
@@ -175,13 +175,13 @@ function LigneSession({
         {s.id}
         <span className="srcv">{s.source}</span>
         {incidentId && (
-          <span
+          <button
+            type="button"
             className="lien-incident"
             onClick={() => ouvrirIncident(incidentId)}
-            role="button"
           >
             → {incidentId}
-          </span>
+          </button>
         )}
       </div>
 

@@ -16,16 +16,16 @@ export function MesuresView() {
   if (!mesures)
     return <div className="vide">Mesures indisponibles (backend muet).</div>;
 
-  const pctDet = Math.round(mesures.taux_detection * 100);
-  const pctFP = Math.round(mesures.faux_positifs * 100);
+  const pctDet = mesures.taux_detection == null ? null : Math.round(mesures.taux_detection * 100);
+  const pctFP = mesures.faux_positifs == null ? null : Math.round(mesures.faux_positifs * 100);
 
   return (
     <>
       <div className="grille-mesures">
-        <Kpi lib="Taux de détection" val={`${pctDet} %`} cls="bon" />
-        <Kpi lib="Faux positifs" val={`${pctFP} %`} cls={pctFP > 10 ? "att" : "bon"} />
-        <Kpi lib="Temps de détection (méd.)" val={`${mesures.temps_detection_s} s`} />
-        <Kpi lib="Temps de confinement (méd.)" val={`${mesures.temps_confinement_s} s`} />
+        <Kpi lib="Taux de détection" val={pctDet == null ? "—" : `${pctDet} %`} cls={pctDet == null ? "" : "bon"} />
+        <Kpi lib="Faux positifs" val={pctFP == null ? "—" : `${pctFP} %`} cls={pctFP == null ? "" : pctFP > 10 ? "att" : "bon"} />
+        <Kpi lib="Temps de détection (méd.)" val={mesures.temps_detection_s == null ? "—" : `${mesures.temps_detection_s} s`} />
+        <Kpi lib="Temps de confinement (méd.)" val={mesures.temps_confinement_s == null ? "—" : `${mesures.temps_confinement_s} s`} />
       </div>
 
       <div className="grille-mesures">
@@ -42,7 +42,9 @@ export function MesuresView() {
             <span className="droite">7 derniers points</span>
           </div>
           <div className="corps">
-            <GrapheLigne points={mesures.serie_detection} />
+            {mesures.taux_detection == null
+              ? <div className="vide">Taux indisponible sans vérité terrain.</div>
+              : <GrapheLigne points={mesures.serie_detection} />}
           </div>
         </div>
 
