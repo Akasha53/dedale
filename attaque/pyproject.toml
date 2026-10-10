@@ -1,0 +1,23 @@
+[project]
+name = "dedale-attaque"
+version = "0.1.0"
+description = "Banc d'attaque et de mesure de Dédale : génère un trafic étiqueté (humain, script, agent IA, agent interne détourné) vers la surface fictive et vérifie la cohérence de la détection."
+requires-python = ">=3.12"
+# Aucune dépendance d'exécution : le banc n'utilise que la bibliothèque standard
+# (urllib pour le HTTP, subprocess pour `claude -p`). Les chiffres restent
+# reproductibles sans aucune installation réseau.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+campagne = "campagne:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools]
+py-modules = ["campagne"]
+packages = ["banc"]

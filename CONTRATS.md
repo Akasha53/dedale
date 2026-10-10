@@ -148,3 +148,37 @@ absent.
 - `WS /ws` : un message `{"type":"session","donnees": <session>}` ou
   `{"type":"incident","donnees": <incident>}` met à jour la liste côté console
   (fusion par `id`). Les `evenement` alimentent le flux.
+
+### Agent E (banc de mesure) — vérité terrain du trafic
+
+Le banc produit un trafic dont il connaît la nature. Pour que `/api/mesures`
+sépare vraie détection et faux positifs, il faut une convention sur cette vérité.
+Le banc l'inscrit de deux façons redondantes :
+
+- **Préfixe du `session_id`** : `banc-<verite>-NNNN`, `verite` ∈
+  `humain | script | agentia | interne`. Canal principal : il traverse la surface
+  sans qu'elle ait rien à faire, le `session_id` étant déjà transmis au backend.
+- **`details.verite_terrain`** sur chaque événement : `humain | script | agent_ia |
+  agent_interne`. Posé par le banc en mode autonome ; en mode surface il n'existe
+  que si la surface le recopie, et le préfixe suffit alors.
+
+Demandes :
+1. **Backend (A)** : dans `/api/mesures`, calculer `taux_detection` et
+   `faux_positifs` à partir de cette vérité terrain, pas seulement de la
+   `repartition` par classement. Détection = part des sessions `banc-agentia-*`
+   et `banc-interne-*` classées `agent_ia` ; faux positifs = part des sessions
+   `banc-humain-*` et `banc-script-*` classées `agent_ia`.
+2. **leurres/ (B) et interne/ (C)** : prendre l'en-tête HTTP `X-Dedale-Session`
+   envoyé par le banc comme `session_id`, pour que le préfixe arrive intact.
+   Optionnel : recopier la valeur dans `details.verite_terrain`.
+3. **leurres/ (B)** : renvoyer la consigne du backend dans l'en-tête de réponse
+   `X-Dedale-Consigne` ; le banc, en mode surface, la lit pour jouer la
+   contre-injection (`sortie_agent` avec l'objectif avoué).
+4. **interne/ (C)** : exposer un déclencheur du scénario de mail piégé :
+   `POST /scenario` `{"scenario": "mail_piege", "session_id": "banc-interne-NNNN"}`.
+
+Tant que leurres/ et interne/ ne tournent pas, le banc tourne en **mode autonome** :
+il sert une surface de remplacement en mémoire et poste lui-même les événements
+étiquetés au backend, ce qui permet de développer et mesurer le backend tout de
+suite. En **mode surface**, le banc tape sur les vrais modules et ne poste rien,
+ce sont eux qui émettent. Le banc choisit selon que leurres/ répond.
