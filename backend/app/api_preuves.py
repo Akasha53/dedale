@@ -1,4 +1,4 @@
-"""Routes de preuve : vérification du journal scellé, rapport d'incident.
+"""Routes de preuve : vérification du journal scellé, rapport d'incident, alertes préparées.
 
 Monté par main.py (`app.include_router`). La vérification lit la base SQLite en lecture
 seule, après avoir laissé l'écrivain vider sa file : elle juge ce qui est écrit, pas l'état
@@ -14,7 +14,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from . import config, journal_scelle, rapport, synthese
+from . import alertes, config, journal_scelle, rapport, synthese
 from .store import store
 
 routeur = APIRouter()
@@ -80,3 +80,9 @@ async def incident_rapport(iid: str, request: Request, format: str = "html"):
             "Cache-Control": "no-store",
         },
     )
+
+
+@routeur.get("/api/alertes")
+async def lister_alertes():
+    """Dernières alertes « décision attendue » préparées, avec leur statut d'envoi."""
+    return {"webhook_configure": alertes.url_webhook() is not None, "alertes": list(alertes.historique)}
