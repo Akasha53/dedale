@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dédale — le garde du corps de vos agents internes</title>
-<meta name="description" content="Dédale pose des pièges que seul un agent IA détourné déclenche, rejoue toute la chaîne d'attaque et laisse un humain trancher la riposte. Projet hackathon Secure Horizons, données fictives.">
+<title>Dédale — vos agents IA sont protégés, vos salariés non</title>
+<meta name="description" content="Dédale met un garde du corps sur le poste du salarié : il repère le geste à risque (secret collé, données clients envoyées dehors, fichier déposé dans une IA non autorisée), prévient une seconde avant, et laisse l'humain décider. Même moteur pour les agents IA. Projet hackathon Secure Horizons, données fictives.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -85,7 +85,7 @@ h1.title{font-size:clamp(52px,9vw,116px);line-height:.92;letter-spacing:-.04em;f
   background:linear-gradient(180deg,#fff 30%,#b9c7f0);-webkit-background-clip:text;background-clip:text;color:transparent}
 .baseline{font-size:clamp(20px,3.3vw,34px);font-weight:500;letter-spacing:-.02em;margin:22px 0 0;color:var(--ink)}
 .baseline b{background:linear-gradient(90deg,var(--cyan),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent}
-.lede{max-width:620px;font-size:clamp(16px,2vw,19px);color:var(--muted);margin:26px 0 0}
+.lede{max-width:640px;font-size:clamp(16px,2vw,19px);color:var(--muted);margin:26px 0 0}
 .hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:38px}
 .ghost{display:inline-flex;align-items:center;gap:9px;color:var(--ink);text-decoration:none;font-size:14px;font-weight:500;
   border:1px solid var(--line);background:rgba(140,170,255,.04);border-radius:999px;padding:12px 20px;transition:all .4s var(--ease)}
@@ -103,8 +103,8 @@ h1.title{font-size:clamp(52px,9vw,116px);line-height:.92;letter-spacing:-.04em;f
 /* Section scaffolding */
 section{padding:clamp(80px,12vw,150px) 0;position:relative}
 .sec-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--cyan);margin-bottom:18px}
-.sec-title{font-size:clamp(30px,5vw,54px);line-height:1.02;letter-spacing:-.03em;font-weight:600;margin:0;max-width:16ch}
-.sec-sub{color:var(--muted);font-size:clamp(16px,2vw,18px);margin-top:20px;max-width:60ch}
+.sec-title{font-size:clamp(30px,5vw,54px);line-height:1.02;letter-spacing:-.03em;font-weight:600;margin:0;max-width:18ch}
+.sec-sub{color:var(--muted);font-size:clamp(16px,2vw,18px);margin-top:20px;max-width:62ch}
 .sec-head{margin-bottom:56px}
 
 /* Problème */
@@ -128,6 +128,26 @@ section{padding:clamp(80px,12vw,150px) 0;position:relative}
 .step .arrow{position:absolute;right:-13px;top:50%;transform:translateY(-50%);color:var(--muted2);z-index:2}
 .step:last-child .arrow{display:none}
 
+/* Trois chemins */
+.paths{display:grid;grid-template-columns:1.22fr 1fr 1fr;gap:20px;align-items:stretch}
+.path{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:30px;position:relative;overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);display:flex;flex-direction:column}
+.path .rank{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted2)}
+.path .pic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin:16px 0 14px;
+  border:1px solid var(--line);background:rgba(76,123,255,.06);color:var(--cyan)}
+.path h3{font-size:22px;letter-spacing:-.02em;margin:0 0 6px;font-weight:600}
+.path .tagline{color:var(--muted);font-size:14px;margin:0 0 20px}
+.path ul{list-style:none;padding:0;margin:auto 0 0}
+.path li{display:flex;gap:11px;padding:10px 0;border-top:1px solid var(--line2);color:var(--muted);font-size:13.5px;line-height:1.4}
+.path li:first-child{border-top:none}
+.path .d{flex:0 0 auto;color:var(--cyan);margin-top:2px}
+.path.lead{border-color:rgba(53,214,255,.4);background:linear-gradient(180deg,rgba(53,214,255,.08),var(--card))}
+.path.lead .rank{color:var(--cyan)}
+.path.lead .pic{background:rgba(53,214,255,.1);box-shadow:0 0 24px -8px rgba(53,214,255,.5)}
+.path.ext .rank{color:var(--amber)}
+.path.ext .pic{color:var(--amber);background:rgba(255,187,69,.06)}
+.path.ext .d{color:var(--amber)}
+
 /* Feature split (boîte noire) */
 .split{display:grid;grid-template-columns:.9fr 1.1fr;gap:54px;align-items:center}
 .feat-list{list-style:none;padding:0;margin:28px 0 0}
@@ -139,20 +159,6 @@ section{padding:clamp(80px,12vw,150px) 0;position:relative}
 .chain span{padding:7px 12px;border-radius:9px;border:1px solid var(--line);background:rgba(140,170,255,.04);color:var(--muted)}
 .chain .hot{color:var(--red);border-color:rgba(255,90,106,.35);background:rgba(255,90,106,.07)}
 .chain i{color:var(--muted2);font-style:normal}
-
-/* Cases grid */
-.cases{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-.case{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;transition:all .5s var(--ease);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
-.case:hover{transform:translateY(-4px);border-color:rgba(53,214,255,.28);background:rgba(20,30,56,.65)}
-.case .icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;margin-bottom:16px;
-  border:1px solid var(--line);background:rgba(76,123,255,.06);color:var(--cyan)}
-.case h4{font-size:16px;letter-spacing:-.01em;margin:0 0 6px;font-weight:600}
-.case p{color:var(--muted2);font-size:13px;margin:0}
-.case.reserve{opacity:.72}
-.case.reserve .icon{color:var(--muted);background:rgba(140,170,255,.04)}
-.case.reserve .tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--muted2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin-bottom:12px}
 
 /* Metrics */
 .metrics-band{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(8,12,24,.5)}
@@ -167,7 +173,7 @@ section{padding:clamp(80px,12vw,150px) 0;position:relative}
 /* Compliance */
 .comp{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:40px}
 .comp .badge{display:flex;flex-direction:column;gap:3px;border:1px solid var(--line);border-radius:16px;padding:18px 26px;
-  background:var(--card);min-width:190px}
+  background:var(--card);min-width:180px}
 .comp .badge b{font-size:15px;letter-spacing:-.01em}
 .comp .badge span{color:var(--muted2);font-size:12px;font-family:"IBM Plex Mono",monospace;letter-spacing:.03em}
 
@@ -204,15 +210,13 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
 .stagger.in>*:nth-child(8){transition-delay:.56s}
 
 @media (max-width:900px){
-  .prob-grid,.steps,.cases,.metrics,.gallery{grid-template-columns:1fr}
+  .prob-grid,.steps,.paths,.metrics,.gallery{grid-template-columns:1fr}
   .split{grid-template-columns:1fr;gap:34px}
   .step .arrow{display:none}
   .navlinks{display:none}
-  .cases{grid-template-columns:1fr 1fr}
 }
 @media (max-width:620px){
   .wrap{padding:0 18px}
-  .cases{grid-template-columns:1fr}
   .hero{padding:130px 0 70px}
 }
 @media (prefers-reduced-motion:reduce){
@@ -232,7 +236,7 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
     <div class="navlinks">
       <a href="#probleme">Le problème</a>
       <a href="#mecanique">Comment ça marche</a>
-      <a href="#cas">Cas couverts</a>
+      <a href="#chemins">Les trois chemins</a>
       <a href="#mesures">Chiffres</a>
     </div>
     <a class="pill-btn nav-cta" href="#mecanique">Voir la méthode
@@ -248,24 +252,24 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
       <div class="reveal in">
         <span class="eyebrow"><span class="dot"></span>Secure Horizons · ESSEC · 10–11 oct. 2026</span>
         <h1 class="title">Dédale</h1>
-        <p class="baseline">Le garde du corps de <b>vos agents internes</b>.</p>
-        <p class="lede">Vos agents IA lisent les mails, ouvrent les documents, appellent les outils. Un seul message piégé peut les retourner contre vous. Dédale repère l'instant où un agent décroche, rejoue toute la chaîne, et laisse un humain décider de la riposte.</p>
+        <p class="baseline">Vos agents IA sont protégés. <b>Vos salariés, non.</b></p>
+        <p class="lede">Le maillon faible, c'est l'humain, et vous le savez déjà. Vos faux tests de phishing le prouvent chaque mois : malgré les rappels, un salarié colle un mot de passe au mauvais endroit, envoie un fichier client en externe, dépose un contrat dans une IA grand public. Dédale se tient sur son poste et l'arrête une seconde avant le geste.</p>
         <div class="hero-cta">
           <a class="pill-btn" href="#mecanique">Comment ça marche
             <span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span>
           </a>
-          <a class="ghost" href="#cas">Les cas couverts</a>
+          <a class="ghost" href="#chemins">Les trois chemins de fuite</a>
         </div>
       </div>
 
       <figure class="hero-visual reveal" style="margin:66px 0 0">
         <div class="frame">
           <div class="inner">
-            <img id="heroImg" src="img/gen/hero.png" alt="Labyrinthe cyber : un agent piégé mène à un noeud d'alerte au coeur du dédale">
+            <img id="heroImg" src="img/gen/salarie-garde.png" alt="Une main sur un clavier au moment de coller un secret ; une alerte douce intercepte le geste">
             <div class="glow"></div>
           </div>
         </div>
-        <figcaption class="caption">Un agent détourné entre dans le labyrinthe. Le canari qu'il touche révèle sa trajectoire.</figcaption>
+        <figcaption class="caption">Le geste est déjà parti dans la tête. Dédale le rattrape à l'écran, une seconde avant.</figcaption>
       </figure>
     </div>
   </section>
@@ -275,24 +279,24 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
     <div class="wrap">
       <div class="sec-head reveal">
         <div class="sec-eyebrow">Le problème</div>
-        <h2 class="sec-title">Vos agents IA sont naïfs, et ils ont les clés.</h2>
-        <p class="sec-sub">On branche des agents sur les mails, les documents, les outils, parfois les uns sur les autres. Personne ne garde la porte quand ils agissent seuls.</p>
+        <h2 class="sec-title">Vous testez vos salariés. Ils tombent quand même.</h2>
+        <p class="sec-sub">Les campagnes de faux phishing tournent depuis des années dans les grandes entreprises. Le taux de clic baisse, puis remonte. Le vrai trou n'est pas l'ignorance : c'est le geste, rapide et machinal, déjà parti avant la réflexion. Coller un secret, envoyer des données clients dehors, nourrir une IA non autorisée, cliquer un lien piégé.</p>
       </div>
       <div class="prob-grid stagger">
         <div class="pcard"><span class="edge"></span>
           <div class="num">01</div>
-          <h3>Ils obéissent au contenu piégé</h3>
-          <p>Un mail, une pièce jointe, un serveur MCP vérolé, une mémoire empoisonnée : l'ordre caché arrive par les données, et l'agent l'exécute comme s'il venait de vous.</p>
+          <h3>Un secret collé en clair</h3>
+          <p>Un mot de passe, une clé API, un token collés dans un chat, un ticket ou un site externe. Partis en clair, impossibles à rappeler.</p>
         </div>
         <div class="pcard"><span class="edge"></span>
           <div class="num">02</div>
-          <h3>L'exfiltration ne demande aucun clic</h3>
-          <p>Pas d'humain devant l'écran. L'agent sort les données tout seul, en une poignée d'appels d'outils. C'est le scénario qu'a montré EchoLeak en 2025.</p>
+          <h3>Des données clients envoyées dehors</h3>
+          <p>Un fichier client glissé dans un mail externe ou un Drive perso, une pièce jointe au mauvais destinataire. La donnée a quitté l'entreprise.</p>
         </div>
         <div class="pcard"><span class="edge"></span>
           <div class="num">03</div>
-          <h3>On leur a donné trop de droits</h3>
-          <p>Un jeton trop large transforme une consigne cachée en virement, en accès, en fuite. Les droits accordés dépassent largement ceux dont la tâche a besoin.</p>
+          <h3>Une IA non autorisée nourrie</h3>
+          <p>Un contrat, un export, un bout de code déposés dans une IA grand public. La donnée part s'entraîner ailleurs, hors de tout contrôle.</p>
         </div>
       </div>
     </div>
@@ -303,52 +307,100 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
     <div class="wrap">
       <div class="sec-head reveal">
         <div class="sec-eyebrow">Comment ça marche</div>
-        <h2 class="sec-title">Des pièges, une détection nette, une boîte noire.</h2>
-        <p class="sec-sub">Dédale ne cherche pas une signature d'attaque. Il pose des appâts qu'un agent sain n'a aucune raison de toucher.</p>
+        <h2 class="sec-title">Un garde du corps sur le poste, une seconde avant le geste.</h2>
+        <p class="sec-sub">Dédale ne bloque pas tout et ne regarde pas par-dessus l'épaule. Il attend le geste à risque, prévient, laisse le salarié décider, puis remonte au SOC. C'est le même moteur que pour les agents IA : détecter, reconstruire, faire trancher un humain, exporter.</p>
       </div>
       <figure class="hero-visual reveal" style="margin:0 0 56px">
         <div class="frame">
-          <div class="inner"><img src="img/gen/concept.png" alt="Dédale veille sur les agents internes : un bouclier-sentinelle au-dessus des agents, l'un d'eux retourné en rouge"><div class="glow"></div></div>
+          <div class="inner"><img src="img/gen/concept.png" alt="Dédale veille sur les postes et les agents internes, et bascule au rouge dès qu'un geste à risque part"><div class="glow"></div></div>
         </div>
-        <figcaption class="caption">Dédale veille sur chaque agent interne. Celui qui se fait retourner bascule au rouge.</figcaption>
+        <figcaption class="caption">Un seul garde du corps pour les salariés et les agents. Le geste à risque bascule au rouge.</figcaption>
       </figure>
       <div class="steps stagger">
         <div class="step">
-          <div class="k">01 · PIÈGES</div>
-          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4z"/><circle cx="12" cy="11" r="2.2"/></svg></div>
-          <h3>Des canaris</h3>
-          <p>Faux secrets, fausses routes, faux outils MCP, semés dans les mails et les documents. Invisibles pour un humain, saillants pour un lecteur automatique.</p>
+          <div class="k">01 · DÉTECTION</div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg></div>
+          <h3>Le geste repéré</h3>
+          <p>Un secret collé vers l'externe, un fichier client en partance, un document déposé dans une IA. Côté agent : un canari touché. Lu au moment où l'intention part.</p>
           <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
         </div>
         <div class="step">
-          <div class="k">02 · DÉTECTION</div>
-          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg></div>
-          <h3>Zéro faux positif</h3>
-          <p>Un agent qui fait son travail ne mord jamais. Celui qui touche un canari est détourné, sans ambiguïté. Pas de seuil à régler, pas d'alerte à trier.</p>
+          <div class="k">02 · ALERTE</div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M12 3a6 6 0 0 0-6 6c0 4-2 5-2 7h16c0-2-2-3-2-7a6 6 0 0 0-6-6z"/><path d="M10 20a2 2 0 0 0 4 0" stroke-linecap="round"/></svg></div>
+          <h3>Prévenir avant</h3>
+          <p>« Attends — tu colles un mot de passe sur un site externe. » Pas un mur, un rappel à la seconde où il compte. Côté agent : la session se suspend.</p>
           <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
         </div>
         <div class="step">
           <div class="k">03 · BOÎTE NOIRE</div>
           <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M3 7h18v12H3zM3 7l3-4h12l3 4" stroke-linejoin="round"/><path d="M8 12h8" stroke-linecap="round"/></svg></div>
           <h3>La chaîne reconstruite</h3>
-          <p>Entrée piégée, consigne lue, appels d'outils, tentative de sortie. Chaque maillon horodaté, relié à OWASP et MITRE ATLAS.</p>
+          <p>Qui, quoi, vers où, à quelle heure. Chaque maillon du geste horodaté et relié à OWASP, MITRE ATT&amp;CK et ATLAS.</p>
           <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
         </div>
         <div class="step">
-          <div class="k">04 · RIPOSTE</div>
+          <div class="k">04 · DÉCISION</div>
           <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4z"/><path d="m9 11 2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <h3>L'humain tranche</h3>
-          <p>Dédale suspend l'agent et propose la riposte. L'analyste valide. En sortie : un brouillon de notification NIS2 et un export SIEM (ECS / Sigma).</p>
+          <p>Le salarié annule ou confirme en connaissance de cause. L'analyste reçoit un brouillon de notification NIS2 et un export SIEM (ECS / Sigma).</p>
           <div class="arrow"></div>
         </div>
       </div>
 
       <figure class="hero-visual reveal" style="margin-top:64px">
         <div class="frame">
-          <div class="inner"><img src="img/shots/dashboard-temps-reel.png" alt="Console Dédale : flux des agents internes surveillés en temps réel"><div class="glow"></div></div>
+          <div class="inner"><img src="img/shots/dashboard-temps-reel.png" alt="Console Dédale : flux des postes et des agents surveillés en temps réel"><div class="glow"></div></div>
         </div>
-        <figcaption class="caption">Console SOC — flux des agents internes en temps réel, canaris touchés, incidents à trancher.</figcaption>
+        <figcaption class="caption">Console SOC — flux en temps réel, gestes à risque, incidents à trancher.</figcaption>
       </figure>
+    </div>
+  </section>
+
+  <!-- TROIS CHEMINS -->
+  <section id="chemins">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Les trois chemins de fuite</div>
+        <h2 class="sec-title">La donnée sort par trois portes. Dédale les tient toutes.</h2>
+        <p class="sec-sub">Une seule console, un seul moteur. Les salariés d'abord, parce que c'est par eux que ça fuit le plus. Les agents IA ensuite. Le physique en extension.</p>
+      </div>
+      <div class="paths stagger">
+        <div class="path lead">
+          <div class="rank">Tête d'affiche</div>
+          <div class="pic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7" stroke-linecap="round"/></svg></div>
+          <h3>Les salariés</h3>
+          <p class="tagline">Le geste humain sur le poste, rattrapé une seconde avant qu'il parte.</p>
+          <ul>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un secret collé vers l'externe : mot de passe, clé, token</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Des données clients envoyées dehors, par mail ou Drive perso</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un document déposé dans une IA non autorisée</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un lien piégé, cliqué sans réfléchir</span></li>
+          </ul>
+        </div>
+        <div class="path">
+          <div class="rank">Chemin 2</div>
+          <div class="pic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.3" fill="currentColor" stroke="none"/><path d="M9 15h6" stroke-linecap="round"/></svg></div>
+          <h3>Les agents IA</h3>
+          <p class="tagline">Partout où un agent peut se faire retourner contre vous.</p>
+          <ul>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un mail ou un document piégé</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un outil ou un serveur MCP vérolé</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un chatbot détourné par son interlocuteur</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Une mémoire empoisonnée, des droits trop larges</span></li>
+          </ul>
+        </div>
+        <div class="path ext">
+          <div class="rank">En extension</div>
+          <div class="pic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01" stroke-linecap="round"/></svg></div>
+          <h3>Le physique</h3>
+          <p class="tagline">L'intrus qui entre et branche une machine sur le réseau.</p>
+          <ul>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Un serveur-leurre l'accueille et l'enregistre</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>Chaque sonde touchée est un signal franc, sans faux positif</span></li>
+            <li><span class="d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></span><span>La tentative remonte au SOC comme le reste</span></li>
+          </ul>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -358,69 +410,24 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
       <div class="split">
         <div class="reveal">
           <div class="sec-eyebrow">La boîte noire</div>
-          <h2 class="sec-title" style="font-size:clamp(28px,4vw,44px)">Toute l'attaque, maillon par maillon.</h2>
-          <p class="sec-sub">Dès qu'un canari tombe, Dédale rejoue la session complète. L'analyste voit d'où vient l'ordre, ce que l'agent a lu, ce qu'il a tenté de faire sortir.</p>
+          <h2 class="sec-title" style="font-size:clamp(28px,4vw,44px)">Tout le geste, maillon par maillon.</h2>
+          <p class="sec-sub">Dès qu'un geste à risque part, Dédale rejoue la séquence complète. L'analyste voit l'origine, la donnée concernée, la destination visée, et l'instant où l'humain a tranché.</p>
           <div class="chain">
-            <span class="hot">mail / doc piégé</span><i>→</i>
-            <span>consigne cachée</span><i>→</i>
-            <span>appels d'outils</span><i>→</i>
-            <span class="hot">tentative de sortie</span>
+            <span class="hot">geste à risque</span><i>→</i>
+            <span>donnée concernée</span><i>→</i>
+            <span>destination visée</span><i>→</i>
+            <span class="hot">décision humaine</span>
           </div>
           <ul class="feat-list">
             <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Brouillon NIS2</b> prêt en 24 h, référence d'incident incluse, à relire avant envoi.</span></li>
             <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Export SIEM</b> au format ECS ou Sigma, pour brancher sur l'outillage existant.</span></li>
-            <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Vue des droits</b> : accès accordés face aux accès vraiment nécessaires.</span></li>
+            <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Vue des droits</b> : ce qu'un poste ou un agent peut atteindre, face à ce dont il a besoin.</span></li>
           </ul>
         </div>
         <figure class="reveal" style="margin:0">
-          <div class="frame"><div class="inner"><img src="img/shots/incident-boite-noire.png" alt="Incident reconstruit : chaîne d'attaque, brouillon NIS2 et export SIEM"><div class="glow"></div></div></div>
-          <figcaption class="caption" style="text-align:left">Incident interne — chaîne reconstruite, notification NIS2, export SIEM.</figcaption>
+          <div class="frame"><div class="inner"><img src="img/shots/incident-boite-noire.png" alt="Incident reconstruit : chaîne du geste, brouillon NIS2 et export SIEM"><div class="glow"></div></div></div>
+          <figcaption class="caption" style="text-align:left">Incident — chaîne reconstruite, notification NIS2, export SIEM.</figcaption>
         </figure>
-      </div>
-    </div>
-  </section>
-
-  <!-- CAS COUVERTS -->
-  <section id="cas">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <div class="sec-eyebrow">Les cas couverts</div>
-        <h2 class="sec-title">Partout où un agent peut se faire retourner.</h2>
-      </div>
-      <div class="cases stagger">
-        <div class="case">
-          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6" stroke-linecap="round"/></svg></div>
-          <h4>Mails piégés</h4><p>Une consigne cachée dans un message reçu.</p>
-        </div>
-        <div class="case">
-          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 5c0 9 6 15 15 15 1 0 1.5-.8 1-1.6l-2-3c-.4-.6-1.2-.7-1.8-.3l-1.6 1C12.5 14.5 9.5 11.5 8 9l1-1.6c.4-.6.3-1.4-.3-1.8l-3-2C4.8 3 4 3.5 4 5z" stroke-linejoin="round"/></svg></div>
-          <h4>Appels piégés</h4><p>Une instruction glissée dans un appel entrant.</p>
-        </div>
-        <div class="case">
-          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3 3 8v8l9 5 9-5V8l-9-5z" stroke-linejoin="round"/><path d="M12 12v9M3 8l9 4 9-4" stroke-linecap="round"/></svg></div>
-          <h4>Outils / MCP vérolés</h4><p>Un serveur ou un outil dont la description cache un ordre.</p>
-        </div>
-        <div class="case">
-          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M7 8h10a4 4 0 0 1 4 4 4 4 0 0 1-4 4h-1l-4 3v-3H7a4 4 0 0 1-4-4 4 4 0 0 1 4-4z" stroke-linejoin="round"/></svg></div>
-          <h4>Chatbots détournés</h4><p>Un agent conversationnel retourné par son interlocuteur.</p>
-        </div>
-        <div class="case">
-          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5M15 15c3 0 6 2 6 5" stroke-linecap="round"/></svg></div>
-          <h4>Usurpation d'agent</h4><p>Un agent qui se fait passer pour un autre.</p>
-        </div>
-        <div class="case">
-          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" stroke-linecap="round"/></svg></div>
-          <h4>Mémoire empoisonnée</h4><p>Un faux souvenir implanté dans la mémoire long terme.</p>
-        </div>
-        <div class="case">
-          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v4M15 12v3" stroke-linecap="round"/></svg></div>
-          <h4>Droits excessifs</h4><p>Un agent qui agit hors de son périmètre de droits.</p>
-        </div>
-        <div class="case reserve">
-          <span class="tag">En réserve</span>
-          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" stroke-linecap="round"/></svg></div>
-          <h4>Agents attaquants externes</h4><p>Détecter l'agent qui attaque la surface exposée, et le perdre dans le labyrinthe.</p>
-        </div>
       </div>
     </div>
   </section>
@@ -430,12 +437,12 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
     <div class="wrap">
       <div class="sec-head reveal" style="text-align:center;margin-bottom:48px">
         <div class="sec-eyebrow" style="color:var(--cyan)">Les chiffres</div>
-        <h2 class="sec-title" style="margin:0 auto">Détecter vite, confiner avant la fuite.</h2>
+        <h2 class="sec-title" style="margin:0 auto">Prévenir vite, retenir avant la fuite.</h2>
       </div>
       <div class="metrics stagger">
-        <div class="metric"><div class="big">~0 %</div><div class="lab">de faux positifs</div><div class="sub">un canari = un agent détourné</div></div>
-        <div class="metric"><div class="big">~0,6 s</div><div class="lab">pour détecter</div><div class="sub">du canari touché à l'alerte</div></div>
-        <div class="metric"><div class="big">~2 s</div><div class="lab">pour confiner</div><div class="sub">session suspendue, appel retenu</div></div>
+        <div class="metric"><div class="big">~0 %</div><div class="lab">de faux positifs</div><div class="sub">un geste réellement à risque, pas une alerte de plus</div></div>
+        <div class="metric"><div class="big">~0,6 s</div><div class="lab">pour prévenir</div><div class="sub">du geste repéré au pop-up</div></div>
+        <div class="metric"><div class="big">~2 s</div><div class="lab">pour retenir</div><div class="sub">secret bloqué, session suspendue</div></div>
       </div>
       <p class="metric-note">Chiffres de démonstration, mesurés sur le banc d'attaque fictif. Entreprise et trafic simulés.</p>
     </div>
@@ -450,7 +457,7 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
       </div>
       <div class="gallery stagger">
         <figure style="margin:0" class="reveal"><div class="frame"><div class="inner"><img src="img/shots/outil-mcp-piege.png" alt="Signal : outil MCP piégé par sa description"><div class="glow"></div></div></div><figcaption>Un outil MCP piégé par sa propre description.</figcaption></figure>
-        <figure style="margin:0" class="reveal"><div class="frame"><div class="inner"><img src="img/shots/droits-trop-larges.png" alt="Signal : agent interne hors de son périmètre de droits"><div class="glow"></div></div></div><figcaption>Agent hors de son périmètre de droits.</figcaption></figure>
+        <figure style="margin:0" class="reveal"><div class="frame"><div class="inner"><img src="img/shots/droits-trop-larges.png" alt="Signal : agent ou poste hors de son périmètre de droits"><div class="glow"></div></div></div><figcaption>Un accès qui dépasse le périmètre prévu.</figcaption></figure>
       </div>
     </div>
   </section>
@@ -462,8 +469,9 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
         <div class="sec-eyebrow" style="text-align:center">Rattachements</div>
         <h2 class="sec-title">Aligné sur les cadres de référence.</h2>
         <div class="comp stagger">
-          <div class="badge"><b>OWASP</b><span>Top 10 for Agentic Apps</span></div>
-          <div class="badge"><b>MITRE ATLAS</b><span>tactiques & techniques</span></div>
+          <div class="badge"><b>OWASP</b><span>Top 10 LLM &amp; Agentic</span></div>
+          <div class="badge"><b>MITRE ATT&amp;CK</b><span>tactiques humaines</span></div>
+          <div class="badge"><b>MITRE ATLAS</b><span>tactiques IA</span></div>
           <div class="badge"><b>NIST CSF</b><span>Detect · Respond</span></div>
           <div class="badge"><b>NIS2</b><span>notification 24 h</span></div>
         </div>
@@ -474,7 +482,7 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-
 
 <footer>
   <div class="wrap foot">
-    <div class="brand"><span class="logo" style="display:inline-grid;vertical-align:middle;margin-right:8px">D</span>Dédale — le garde du corps de vos agents internes</div>
+    <div class="brand"><span class="logo" style="display:inline-grid;vertical-align:middle;margin-right:8px">D</span>Dédale — le garde du corps de vos salariés et de vos agents</div>
     <span class="fictif"><span class="dot" style="background:var(--amber);box-shadow:0 0 10px var(--amber)"></span>Données entièrement fictives</span>
     <div class="mono">Projet Secure Horizons · ESSEC · 10–11 oct. 2026 · entité Orbis Pay (fictive)</div>
   </div>
