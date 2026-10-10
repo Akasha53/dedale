@@ -832,3 +832,37 @@ Dans `GET /api/mesures`, la demande compte comme un geste passé outre, même re
 - Champs lus : `frauduleux` (ou `verdict == "frauduleux"`), `verdict`, `titre_alerte`, `raisons` (deux au plus à l'écran), `signaux[].code`, `gravite`, `geste`, `lien_reel`, `signalement.session_id`, `de`, `a`, `objet`, `recu_a`, et pour l'aperçu `texte`, `liens`, `pieces_jointes`, `texte_cache`. `conseil` n'est pas affiché : le coach tire son repère du code du signal le plus lourd.
 - Un mail `suspect` n'ouvre pas de pop-up. Les mails frauduleux déjà là au démarrage non plus, sauf avec `DEDALE_MAILS_AU_DEMARRAGE=alerter`.
 - Le choix du salarié (`annuler` ou `continuer`) part dans la session `signalement.session_id`, sinon `mail-<id>`.
+
+## Avenant du 10 octobre 2026 : extension Chrome contre les sites sosies (`extension/`)
+
+L'extension (Chrome, Manifest V3) protège le salarié pendant sa navigation. Elle ne lit que l'adresse des pages, jamais leur contenu ni les formulaires. Elle n'ajoute ni endpoint ni type d'événement : elle reprend le schéma `avertissement` de l'avenant « humain ».
+
+**Quand.** Un seul envoi, au clic sur « Continuer quand même » dans la page d'avertissement qui s'affiche à la place d'un sosie d'un domaine de confiance. « Revenir en arrière » n'envoie rien : ce choix reste dans le navigateur.
+
+**Quoi.** `POST {backend}/api/evenements`, backend réglable dans les options (défaut `http://127.0.0.1:8700`) :
+
+```json
+{
+  "horodatage": "2026-10-10T19:11:43.988Z",
+  "source": "humain",
+  "surface": "poste",
+  "type": "avertissement",
+  "session_id": "navigateur-1a2b3c4d",
+  "user_agent": "dedale-extension/0.1.0",
+  "details": {
+    "categorie": "phishing",
+    "choix": "continuer",
+    "contexte": "navigation",
+    "cible": "orbispay-verification.example"
+  }
+}
+```
+
+- `details` porte ces quatre clés et aucune autre. `cible` est le nom d'hôte seul, en ASCII : un nom Unicode arrive en punycode (`xn--rbispay-8ig.example`). Ni chemin, ni paramètres, ni titre, ni contenu de page, ni `ip`, ni `message`, ni `lien`. Le backend neutralise `cible` comme les autres champs piégés (`[leurre, neutralisé] orbispay-verification.example`).
+- `contexte: "navigation"` distingue l'extension du garde du corps de `poste/`. Le backend le stocke tel quel ; la boîte noire ne le lit pas.
+- `session_id` vaut `navigateur-` suivi de 8 caractères tirés au hasard à l'installation, stables pour ce navigateur. Les passages outre d'un même navigateur s'ajoutent au même incident.
+- Pas de `gravite` : le backend applique celle de `humain_phishing`, `haute`.
+- Délai de 3 s. Un backend absent, lent ou en erreur ne bloque pas la page et ne lève rien. La réponse (`{"session": …, "consigne": "aucune"}`) est ignorée ; l'état du dernier envoi (`recu`, `injoignable`, `refuse_<code>`) n'apparaît que dans la fenêtre de l'icône.
+- CORS inchangé : la requête part du service worker de l'extension, couvert par ses permissions d'hôte (`127.0.0.1`, `localhost`). Un backend sur une autre machine demande l'accord de Chrome à l'enregistrement des options.
+
+**Effet côté backend**, vérifié sur un backend isolé par `extension/tests/bout_en_bout.js` : incident `humain_phishing`, gravité `haute`, titre « Salarié piégé par un lien de phishing », boîte noire `action_risquee` (avec la cible neutralisée) → `avertissement` (libellé générique, faute de `message`) → `choix` (passé outre) → `consequence` (escalade matérialisée par le backend). `mesures.gestes_humains.passes_outre` compte ces envois ; `arretes` ne compte pas les retours arrière de l'extension.
