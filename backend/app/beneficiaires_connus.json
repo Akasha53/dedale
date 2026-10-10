@@ -1,0 +1,17 @@
+{
+  "_lisez_moi": "Bénéficiaires connus d'Orbis Pay, entreprise fictive : données de démo lues par le relecteur IA et ses règles. Aucun IBAN complet, seulement les quatre derniers chiffres. Autre fichier : DEDALE_BENEFICIAIRES.",
+  "beneficiaires": [
+    {"id": "atelier-nord", "nom": "Atelier Nord", "nature": "fournisseur", "objet": "maintenance des terminaux",
+     "iban_fin": "6789", "montant_habituel": 3480, "montant_max": 5000,
+     "alias": ["atelier nord", "atelier-nord"], "domaine": "atelier-nord.example"},
+    {"id": "imprimerie-du-lys", "nom": "Imprimerie du Lys", "nature": "fournisseur", "objet": "impressions et enveloppes",
+     "iban_fin": "4412", "montant_habituel": 320, "montant_max": 600,
+     "alias": ["imprimerie du lys", "imprimerie lys"], "domaine": "imprimerie-lys.example"},
+    {"id": "azur-nettoyage", "nom": "Azur Nettoyage", "nature": "fournisseur", "objet": "entretien des locaux",
+     "iban_fin": "0931", "montant_habituel": 1150, "montant_max": 1500,
+     "alias": ["azur nettoyage"], "domaine": "azur-nettoyage.example"},
+    {"id": "cabinet-ferrand", "nom": "Cabinet Ferrand", "nature": "client", "objet": "remboursements de frais",
+     "iban_fin": "2207", "montant_habituel": 890, "montant_max": 1200,
+     "alias": ["cabinet ferrand"], "domaine": "cabinet-ferrand.example"}
+  ]
+}

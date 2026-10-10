@@ -152,19 +152,21 @@ def test_repli_sur_panne_les_regles_tranchent(client):
     assert "frauduleux" in rel["motif"]
 
 
-def test_repli_sans_regle_refuse_par_prudence(client):
+def test_repli_sans_regle_retenu_pour_l_analyste(client):
     relecteur.definir_modele(FauxModele(erreur=relecteur.ErreurModele("panne")))
-    _demande(client, did="d4", geste="virement", message="Virement demandé par le salarié.")
+    _demande(client, did="d4", geste=None, message="Geste demandé par le salarié.")
     rel = _relecture(client, "d4")
-    assert rel["decision"] == "refuse" and rel["repli"] == "panne" and rel["tranche_par"] == "règles"
-    assert "prudence" in rel["motif"]
+    # Dans le doute, le repli retient le geste pour un analyste : ni refus sec, ni accord.
+    assert rel["decision"] == "retenu" and rel["repli"] == "panne" and rel["tranche_par"] == "règles"
+    assert "retenu pour l'analyste" in rel["motif"]
 
 
 def test_repli_sur_delai_depasse(client):
     relecteur.definir_modele(FauxModele(geste=ACCORDE, attente=3.0))
     _demande(client, did="d5", geste="virement", message="Virement demandé par le salarié.")
     rel = _relecture(client, "d5")
-    assert rel["repli"] == "delai" and rel["decision"] == "refuse" and rel["tranche_par"] == "règles"
+    # Bénéficiaire inconnu : les règles retiennent le virement pour un analyste.
+    assert rel["repli"] == "delai" and rel["decision"] == "retenu" and rel["tranche_par"] == "règles"
     assert rel["duree_ms"] < 2500
 
 
@@ -176,7 +178,7 @@ def test_limite_d_usage_suspend_le_modele(client):
     appels = len(faux.appels)
     _demande(client, did="d7", geste="virement", message="Virement demandé par le salarié.", t=1)
     rel = _relecture(client, "d7")
-    assert rel["repli"] == "limite_usage" and rel["decision"] == "refuse"
+    assert rel["repli"] == "limite_usage" and rel["decision"] == "retenu"
     assert len(faux.appels) == appels  # suspendu : le modèle n'est pas rappelé
     assert client.get("/api/relecteur").json()["modele_suspendu_jusqua"] is not None
 
@@ -192,11 +194,11 @@ def test_limite_d_usage_suspend_le_modele(client):
     {"decision": "accorde", "motif": "ancien format", "confiance": 0.9},
     ["accorde"],
 ])
-def test_sortie_invalide_vaut_refus(sortie):
+def test_sortie_invalide_ne_passe_jamais(sortie):
     relecteur.definir_modele(FauxModele(geste=sortie))
-    faits = {"acte": "quatre_yeux", "geste": "virement", "destination": {}, "historique": {}}
+    faits = {"acte": "quatre_yeux", "geste": None, "destination": {}, "historique": {}}
     res = asyncio.run(relecteur.decider_geste(faits))
-    assert res["decision"] == "refuse" and res["repli"] == "sortie_invalide" and res["tranche_par"] == "règles"
+    assert res["decision"] == "retenu" and res["repli"] == "sortie_invalide" and res["tranche_par"] == "règles"
 
 
 def test_injection_dans_l_extrait_ne_change_pas_la_decision(client):
@@ -478,3 +480,201 @@ def test_motif_salarie_technique_remplace_et_motif_soc_garde(client):
     sess = client.get("/api/sessions/poste-mac-camille-4y-t1").json()
     details = next(e["details"] for e in sess["evenements"] if e["type"] == "relecture")
     assert details["motif_salarie"] == rel["motif_salarie"] and details["motif_soc"] == rel["motif_soc"]
+
+
+# ---------------------------------------------------------------- Bénéficiaires connus
+PANNE = relecteur.ErreurModele("panne")
+
+
+@pytest.mark.parametrize("message, attendu", [
+    ("Virement de 320 € à Imprimerie du Lys, facture d'octobre.", "accorde"),
+    ("Virement de 320 € à Imprimerie du Lys, IBAN FR76 3000 4000 0500 0012 3456 4412.", "accorde"),
+    ("Virement de 320 € à Imprimerie du Lys sur leur nouveau RIB FR76 1027 8000 0100 0099 8877 6655.", "retenu"),
+    ("Virement de 890 € au Cabinet Ferrand, nouvelles coordonnées bancaires.", "retenu"),
+    ("Virement de 2 400 € à Imprimerie du Lys.", "retenu"),
+    ("Virement de 300 € à Compta Express.", "retenu"),
+    ("Virement de 48 500 € à Compta Express.", "refuse"),
+])
+def test_virements_et_beneficiaires_connus(client, message, attendu):
+    relecteur.definir_modele(FauxModele(erreur=PANNE))
+    _demande(client, did="b1", geste="virement", message=message)
+    rel = _relecture(client, "b1")
+    assert rel["decision"] == attendu, rel
+    assert relecteur.motif_salarie_propre(rel["motif_salarie"]) == rel["motif_salarie"]
+    assert "orbispay" not in rel["motif_soc"]  # un fournisseur n'est jamais dans orbispay.example
+    inc = client.get("/api/incidents").json()["incidents"][0]
+    if attendu == "retenu":
+        # Ni refus ni accord : aucune décision, le geste attend un analyste.
+        assert inc["decisions"] == [] and inc["relecteur"]["suivi"]["a_confirmer"] is True
+
+
+def test_rib_change_retenu_meme_si_le_modele_accorde_ou_refuse(client):
+    for did, sortie in (("r1", ACCORDE), ("r2", REFUSE)):
+        relecteur.definir_modele(FauxModele(geste=sortie))
+        _demande(client, did=did, geste="virement", t=0 if did == "r1" else 1,
+                 message="Virement de 3 480 € à Atelier Nord, qui a changé de RIB : FR76 1111 2222 3333 4444 5555 0042.")
+        rel = _relecture(client, did)
+        assert rel["decision"] == "retenu" and rel["tranche_par"] == "règles"
+        assert "Atelier Nord" in rel["motif_salarie"] and "confirmer" in rel["motif_salarie"]
+
+
+def test_fournisseur_habituel_refuse_par_le_modele_est_retenu_pas_refuse(client):
+    relecteur.definir_modele(FauxModele(geste={"decision": "refuse", "motif_salarie": "Destination inconnue.",
+                                               "motif_soc": "Destination hors orbispay.example.", "confiance": 0.8}))
+    _demande(client, did="f1", geste="virement", message="Virement de 320 € à Imprimerie du Lys.")
+    rel = _relecture(client, "f1")
+    assert rel["decision"] == "retenu" and rel["garde_fou"] is True
+
+
+def test_fournisseur_habituel_accorde_par_le_modele(client):
+    relecteur.definir_modele(FauxModele(geste=ACCORDE))
+    _demande(client, did="f2", geste="virement", message="Virement de 320 € à Imprimerie du Lys.")
+    rel = _relecture(client, "f2")
+    assert rel["decision"] == "accorde" and rel["tranche_par"] == "Haiku"
+    faits = json.loads(relecteur._injecte["appel"].appels[-1]["utilisateur"].split("\n", 1)[1])
+    assert faits["beneficiaire"]["connu"] is True and faits["beneficiaire"]["montant_dans_les_usages"] is True
+
+
+# ---------------------------------------------------------------- « À confirmer » par un analyste
+def test_refus_du_relecteur_a_confirmer_puis_confirme(client):
+    relecteur.definir_modele(FauxModele(geste=REFUSE))
+    _demande(client, did="c1")
+    _relecture(client, "c1")
+    inc = client.get("/api/incidents").json()["incidents"][0]
+    assert inc["relecteur"]["decision"] == "refuse" and inc["relecteur"]["suivi"]["etat"] == "a_confirmer"
+    file = client.get("/api/relecteur/file").json()
+    assert file["incidents"][0]["incident_id"] == inc["id"] and file["incidents"][0]["raisons"][0] == "a_confirmer"
+    client.post(f"/api/incidents/{inc['id']}/decision", json={"action": "refuser", "analyste": "claire.d",
+                                                              "motif": "Confirmé avec le responsable."})
+    inc = client.get(f"/api/incidents/{inc['id']}").json()
+    assert inc["relecteur"]["suivi"]["etat"] == "confirme" and inc["relecteur"]["suivi"]["a_confirmer"] is False
+    assert client.get("/api/relecteur/file").json()["total"] == 0
+
+
+def test_refus_renverse_par_l_analyste(client):
+    relecteur.definir_modele(FauxModele(geste=REFUSE))
+    _demande(client, did="c2")
+    _relecture(client, "c2")
+    iid = client.get("/api/incidents").json()["incidents"][0]["id"]
+    client.post(f"/api/incidents/{iid}/decision", json={"action": "accorder", "analyste": "claire.d"})
+    assert client.get(f"/api/incidents/{iid}").json()["relecteur"]["suivi"]["etat"] == "renverse"
+
+
+@pytest.mark.parametrize("confiance, a_confirmer", [(0.55, True), (0.9, False)])
+def test_accord_a_faible_confiance_a_confirmer(client, confiance, a_confirmer):
+    relecteur.definir_modele(FauxModele(geste={**ACCORDE, "confiance": confiance}))
+    _demande(client, did="c3", cible="direction.financiere@orbispay.example")
+    _relecture(client, "c3")
+    inc = client.get("/api/incidents").json()["incidents"][0]
+    assert inc["relecteur"]["suivi"]["a_confirmer"] is a_confirmer
+    ids = [l["incident_id"] for l in client.get("/api/relecteur/file").json()["incidents"]]
+    assert (inc["id"] in ids) is a_confirmer
+
+
+# ---------------------------------------------------------------- Récit : il suit le geste et son état
+def _recit(client) -> tuple[str, str]:
+    iid = client.get("/api/incidents").json()["incidents"][-1]["id"]
+    phrases = " ".join(p["texte"] for p in client.get(f"/api/incidents/{iid}/synthese").json()["phrases"])
+    chaine = " | ".join(e["detail"] for e in client.get(f"/api/incidents/{iid}").json()["chaine"])
+    return phrases, chaine
+
+
+def _sans_faux_recit(phrases: str, chaine: str) -> None:
+    import re
+    for faux in (r"\bliens?\b", "faux site", "Le geste a eu lieu", "phishing", "abouti"):
+        assert not re.search(faux, phrases) and not re.search(faux, chaine), (faux, phrases, chaine)
+
+
+def test_recit_virement_refuse(client):
+    relecteur.definir_modele(FauxModele(geste=REFUSE))
+    sid = _mail_frauduleux(client, "V1")
+    _demande(client, did="v1", sid=sid, geste="virement", categorie="phishing", message="Virement de 4 800 € demandé.")
+    _relecture(client, "v1")
+    phrases, chaine = _recit(client)
+    assert "virement" in phrases and "refusé" in phrases and "n’a pas eu lieu" in phrases
+    assert "réclame un virement" in chaine and "relu par Dédale : refusé" in chaine
+    _sans_faux_recit(phrases, chaine.replace("un mail jugé frauduleux réclame", ""))
+
+
+def test_recit_virement_retenu(client):
+    relecteur.definir_modele(FauxModele(erreur=PANNE))
+    _demande(client, did="v2", geste="virement", message="Virement de 890 € au Cabinet Ferrand, nouvelles coordonnées bancaires.")
+    _relecture(client, "v2")
+    phrases, chaine = _recit(client)
+    assert "virement" in phrases and "retenu" in phrases and "attend la décision" in phrases
+    _sans_faux_recit(phrases, chaine)
+
+
+def test_recit_export_accorde(client):
+    relecteur.definir_modele(FauxModele(geste=ACCORDE))
+    _demande(client, did="e1", cible="direction.financiere@orbispay.example")
+    _relecture(client, "e1")
+    phrases, chaine = _recit(client)
+    assert "export de données clients" in phrases and "accordé" in phrases
+    assert "le salarié demande un export de données clients" in chaine
+    _sans_faux_recit(phrases, chaine)
+
+
+def test_recit_mail_clic_inchange(client):
+    client.post("/api/evenements", json=evenement(
+        source="humain", surface="poste", type="avertissement", session_id="poste-mac-zoe",
+        details={"categorie": "phishing", "choix": "continuer", "gravite": "haute",
+                 "lien": "http://orbispay-verification.example/connexion", "message": "Lien suspect."}))
+    phrases, chaine = _recit(client)
+    assert "lien" in phrases and "virement" not in phrases and "export de" not in phrases
+
+
+# ---------------------------------------------------------------- Montants : chaque format, et jamais d'accord à l'aveugle
+from app import montants  # noqa: E402
+
+
+@pytest.mark.parametrize("texte, valeur", [
+    ("Virement de 48,5 k€ à Atelier Nord.", 48500),
+    ("Virement de douze mille euros.", 12000),
+    ("Virement de 48 500,00 EUR.", 48500),
+    ("Virement de 48.500 €.", 48500),
+    ("Virement de 48,500 €.", 48500),
+    ("Virement de 1,2 M€.", 1_200_000),
+    ("Virement de 3 millions d’euros.", 3_000_000),
+    ("Virement de quatre-vingt-dix mille euros.", 90000),
+    ("Virement d'un million deux cent mille euros.", 1_200_000),
+    ("Virement de 12k EUR.", 12000),
+    ("Paiement de € 320 sur la facture 2026.", 320),
+    ("Virement de 4\u202f200 € à Atelier Nord.", 4200),
+])
+def test_formats_de_montant(texte, valeur):
+    lu, lecture, devise = montants.lire_montant(texte)
+    assert (lu, lecture, devise) == (valeur, "certain", "EUR")
+
+
+@pytest.mark.parametrize("texte", [
+    "Virement de 48,500.00 USD.", "Virement de 900 CHF.", "Virement de 320 € au lieu de 300 €.",
+    "Virement de quelques milliers d'euros.",
+])
+def test_montant_douteux_dit_incertain(texte):
+    assert montants.lire_montant(texte)[1] == "incertain"
+
+
+@pytest.mark.parametrize("message", [
+    "Virement de 48,5 k€ à Atelier Nord sur son nouveau RIB FR76 1111 2222 3333 4444 5555 0042.",
+    "Virement de 48,5 k€ vers un nouveau RIB.",
+    "Virement de 48,5 k€ à Imprimerie du Lys, nouvelles coordonnées bancaires.",
+    "Virement de douze mille euros à Atelier Nord.",
+    "Virement de 320 € ou 3 200 € à Imprimerie du Lys.",
+    "Virement de 900 CHF à Imprimerie du Lys.",
+])
+def test_haiku_injoignable_jamais_d_accord_d_un_virement_douteux(client, message):
+    relecteur.definir_modele(FauxModele(erreur=relecteur.ErreurModele("delai")))
+    _demande(client, did="x1", geste="virement", message=message)
+    rel = _relecture(client, "x1")
+    assert rel["decision"] in ("retenu", "refuse"), (message, rel)
+    inc = client.get("/api/incidents").json()["incidents"][0]
+    assert inc["relecteur"]["suivi"]["a_confirmer"] is True
+
+
+def test_virement_de_4200_au_fournisseur_habituel_rib_inchange(client):
+    relecteur.definir_modele(FauxModele(erreur=relecteur.ErreurModele("delai")))
+    _demande(client, did="x2", geste="virement",
+             message="Virement de 4 200 € à Atelier Nord, IBAN FR76 3000 4000 0500 0012 3456 6789.")
+    rel = _relecture(client, "x2")
+    assert rel["decision"] == "accorde" and "Atelier Nord" in rel["motif_salarie"]

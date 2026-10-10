@@ -257,6 +257,16 @@ export function etatIncident(inc: Incident): { lib: string; cls: string; aTraite
     // Le relecteur IA tranche le geste critique en quelques secondes ; l'analyste
     // garde un recours, mais n'a rien à faire.
     const parRelecteur = /^relecteur/i.test(d?.analyste ?? "");
+    // Refus, geste retenu ou accord peu sûr du relecteur : orange tant qu'un analyste n'a pas
+    // confirmé ou renversé (champ `relecteur.suivi` du backend).
+    const rel = (inc as { relecteur?: { decision?: string; suivi?: { a_confirmer?: boolean } } | null }).relecteur;
+    if (rel?.suivi?.a_confirmer) {
+      const lib =
+        rel.decision === "retenu" ? "Retenu, à confirmer"
+        : rel.decision === "refuse" ? "Refusé par le relecteur, à confirmer"
+        : "Accordé par le relecteur, à confirmer";
+      return { lib, cls: "attente", aTraiter: true };
+    }
     if (derniere === "accorder")
       return { lib: parRelecteur ? "Accordé par le relecteur" : "Geste accordé", cls: "neutre", aTraiter: false };
     if (derniere === "refuser")

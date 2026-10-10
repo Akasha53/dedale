@@ -46,23 +46,58 @@ public enum TitreGeste {
         return ""
     }
 
-    private static let groupe = #"(\d{1,3}(?:[ \x{00A0}\x{202F}.]\d{3})+|\d{1,12})"#
+    private static let nombreMotif = #"(?<![\d.,'])(\d{1,3}(?:[ \x{00A0}\x{202F}.,']\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d+)?)"#
+    private static let multiplicateurs: [String: Double] = [
+        "k": 1e3, "mille": 1e3, "m": 1e6, "million": 1e6, "millions": 1e6, "md": 1e9, "mds": 1e9,
+        "milliard": 1e9, "milliards": 1e9,
+    ]
+
+    /// Montant en euros, seulement s'il n'y en a qu'un : « 48,5 k€ » → 48 500, « 48.500 € » → 48 500,
+    /// « 1,2 M€ » → 1 200 000. Deux montants différents, ou rien de lisible : nil (le titre se tait
+    /// plutôt que d'afficher un faux montant).
+    public static func montant(dans texte: String) -> Int? {
+        unique(dans: texte, motif: nombreMotif
+            + #"\s?(k|md?s?|millions?|milliards?)?\s?(?:d'\s?|de\s)?(?:€|eur(?:os?)?\b)"#)
+    }
 
     public static func volume(dans texte: String) -> Int? {
-        nombre(dans: texte, motif: groupe + #"\s*(?:fiches|clients|lignes|contacts|enregistrements)"#)
+        unique(dans: texte, motif: nombreMotif
+            + #"\s?(k|mille)?\s?(?:fiches|clients|lignes|contacts|enregistrements)"#)
     }
 
-    public static func montant(dans texte: String) -> Int? {
-        nombre(dans: texte, motif: groupe + #"(?:,\d{1,2})?\s*(?:€|euros?\b|eur\b)"#)
+    private static func unique(dans texte: String, motif: String) -> Int? {
+        let t = texte.replacingOccurrences(of: "’", with: "'")
+        guard let re = try? NSRegularExpression(pattern: motif, options: [.caseInsensitive]) else { return nil }
+        var vus = Set<Int>()
+        for m in re.matches(in: t, range: NSRange(t.startIndex..., in: t)) {
+            guard let r = Range(m.range(at: 1), in: t) else { continue }
+            let mult = Range(m.range(at: 2), in: t).map { String(t[$0]).lowercased() } ?? ""
+            guard let v = nombre(String(t[r]), multiplicateur: !mult.isEmpty) else { return nil }
+            let total = v * (multiplicateurs[mult] ?? 1)
+            guard total < 1e13 else { return nil }
+            vus.insert(Int(total.rounded()))
+        }
+        return vus.count == 1 ? vus.first : nil
     }
 
-    private static func nombre(dans texte: String, motif: String) -> Int? {
-        guard let re = try? NSRegularExpression(pattern: motif, options: [.caseInsensitive]),
-              let m = re.firstMatch(in: texte, range: NSRange(texte.startIndex..., in: texte)),
-              let r = Range(m.range(at: 1), in: texte) else { return nil }
-        let chiffres = texte[r].filter(\.isNumber)
-        guard chiffres.count <= 12, let n = Int(chiffres) else { return nil }
-        return n
+    /// « 48 500,00 » → 48500, « 48.500 » → 48500, « 48,5 » → 48,5, « 1,250.75 » → 1250,75. Un seul
+    /// séparateur suivi de trois chiffres sépare les milliers, sauf devant un multiplicateur.
+    static func nombre(_ brut: String, multiplicateur: Bool) -> Double? {
+        var t = brut.filter { !" \u{00A0}\u{202F}'".contains($0) }
+        let points = t.filter { $0 == "." }.count, virgules = t.filter { $0 == "," }.count
+        if points > 0 && virgules > 0 {
+            let decimal: Character = t.lastIndex(of: ".")! > t.lastIndex(of: ",")! ? "." : ","
+            t = t.filter { $0 != (decimal == "." ? "," : ".") }.replacingOccurrences(of: String(decimal), with: ".")
+        } else if points + virgules > 0 {
+            let sep: Character = points > 0 ? "." : ","
+            let morceaux = t.split(separator: sep, omittingEmptySubsequences: false)
+            if morceaux.count > 2 || (morceaux.last?.count == 3 && !multiplicateur) {
+                t = t.filter { $0 != sep }
+            } else {
+                t = t.replacingOccurrences(of: String(sep), with: ".")
+            }
+        }
+        return Double(t)
     }
 
     /// 12400 → « 12 400 », avec une espace fine insécable.

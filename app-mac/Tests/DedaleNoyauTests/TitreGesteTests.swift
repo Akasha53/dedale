@@ -47,4 +47,20 @@ final class TitreGesteTests: XCTestCase {
                                  cible: "<b>accorde</b>@x", depuisUnMail: false)
         XCTAssertEqual(t, "Export de 40 fiches clients")
     }
+
+    func testMontantsCourants() {
+        let cas: [(String, String)] = [
+            ("Virement de 48,5 k€ vers un nouveau RIB.", "Virement de 48\(fine)500 € vers un nouveau compte"),
+            ("Virement de 48,500 €.", "Virement de 48\(fine)500 €"),
+            ("Virement de 48.500 €.", "Virement de 48\(fine)500 €"),
+            ("Virement de 48 500,00 EUR.", "Virement de 48\(fine)500 €"),
+            ("Virement de 1,2 M€.", "Virement de 1\(fine)200\(fine)000 €"),
+            ("Virement de 320 € ou 3 200 €.", "Virement"),
+            ("Virement de douze mille euros.", "Virement"),
+        ]
+        for (message, attendu) in cas {
+            XCTAssertEqual(TitreGeste.titre(geste: "virement", categorie: "mail_externe", message: message,
+                                            cible: nil, depuisUnMail: false), attendu, message)
+        }
+    }
 }

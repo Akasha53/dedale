@@ -11,7 +11,9 @@ import { desarmer, preuveInerte } from "../agent/preuve";
 import { fusionnerRefs, lireRef } from "../agent/references";
 import { sansCodes } from "../ui/mots";
 
-export type Genre = "mail_recu" | "lien" | "piece" | "coller" | "mail_sortant" | "depot" | "signal" | "fichier" | "autre";
+export type Genre =
+  | "mail_recu" | "lien" | "piece" | "coller" | "mail_sortant" | "depot" | "signal" | "fichier"
+  | "virement" | "export" | "autre";
 
 const PAR_CONTEXTE: Record<string, Genre> = {
   "mail reçu": "mail_recu",
@@ -40,6 +42,10 @@ function texte(v: unknown): string {
 }
 
 function genreDe(d: Details, type?: string): Genre {
+  // Geste critique : le récit suit le geste (champ structuré), pas la catégorie de l'alerte.
+  // Un virement réclamé par mail est classé « phishing », mais personne n'a cliqué de lien.
+  if (d.geste === "virement") return "virement";
+  if (d.geste === "export_clients") return "export";
   const ctx = typeof d.contexte === "string" ? d.contexte : "";
   return PAR_CONTEXTE[ctx] ?? PAR_TYPE[type ?? ""] ?? "autre";
 }
@@ -54,6 +60,8 @@ const CONTEXTE: Record<Genre, string> = {
   depot: "Il préparait un dépôt de fichier",
   signal: "Un mail est arrivé dans sa boîte",
   fichier: "Un fichier est arrivé dans ses Téléchargements",
+  virement: "Il préparait un virement",
+  export: "Il préparait un export de données clients",
   autre: "Sur son poste",
 };
 
@@ -67,6 +75,8 @@ const GESTE: Record<Genre, string> = {
   depot: "Il déposait un fichier confidentiel en ligne",
   signal: "Il a signalé un mail",
   fichier: "Il a téléchargé un fichier à risque",
+  virement: "Il a demandé un virement",
+  export: "Il a demandé un export de données clients",
   autre: "Il a fait un geste risqué",
 };
 
@@ -79,6 +89,8 @@ const POURQUOI: Record<Genre, string> = {
   depot: "Ce service n'est pas validé par Orbis Pay et le fichier est confidentiel.",
   signal: "Le salarié a jugé ce mail suspect et l'a signalé lui-même.",
   fichier: "Le fichier peut lancer un programme et vient de l'extérieur.",
+  virement: "Un virement est un geste critique : il ne part qu'avec une double validation.",
+  export: "Un export de données clients est un geste critique : il ne part qu'avec une double validation.",
   autre: "Dédale a reconnu un geste qui expose l'entreprise.",
 };
 
@@ -91,6 +103,8 @@ const RISQUE: Record<Genre, string> = {
   depot: "Le fichier serait stocké chez un service que l'entreprise ne contrôle pas.",
   signal: "Un mail frauduleux non signalé peut piéger d'autres salariés.",
   fichier: "Le programme se serait lancé sur le poste.",
+  virement: "L'argent serait parti sans second contrôle.",
+  export: "Les données clients seraient sorties sans second contrôle.",
   autre: "Le geste aurait pu exposer des données de l'entreprise.",
 };
 
@@ -105,6 +119,8 @@ const RISQUE_PASSE: Record<Genre, string> = {
   depot: "Le fichier est peut-être déjà chez un service que l'entreprise ne contrôle pas.",
   signal: "Le mail est peut-être arrivé chez d'autres salariés.",
   fichier: "Le fichier est resté sur le poste : il a peut-être été ouvert.",
+  virement: "Le virement reste suspendu tant qu'il n'est pas validé.",
+  export: "L'export reste suspendu tant qu'il n'est pas validé.",
   autre: "Le geste a peut-être exposé des données de l'entreprise.",
 };
 const TITRE_PASSE = "Ce qui a pu se passer";
@@ -138,6 +154,10 @@ function phraseGeste(g: Genre, d: Details): string {
         : "Le salarié a voulu déposer un fichier confidentiel sur un service non autorisé.";
     case "signal":
       return "Le salarié a signalé lui-même un mail qu'il trouvait suspect.";
+    case "virement":
+      return "Le salarié a demandé un virement, soumis à double validation.";
+    case "export":
+      return "Le salarié a demandé un export de données clients, soumis à double validation.";
     case "fichier": {
       const quoi = TYPES_FICHIER[String(d.type_fichier ?? "")] ?? "un fichier à risque";
       const dom = texte(d.domaine);
@@ -315,9 +335,10 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
     return (ev?.details ?? dPrincipal) as Details;
   };
 
-  // Une seule « Suite » par geste : le backend en pose parfois deux d'affilée.
+  // Une seule « Suite » par geste : le backend en pose parfois plusieurs d'affilée (geste
+  // suspendu, relu, tranché). On garde la dernière, qui dit l'état réel.
   const etapes = chaine.filter(
-    (m, k) => !((m.phase === "consequence" || m.phase === "sortie") && (chaine[k - 1]?.phase === "consequence" || chaine[k - 1]?.phase === "sortie"))
+    (m, k) => !((m.phase === "consequence" || m.phase === "sortie") && (chaine[k + 1]?.phase === "consequence" || chaine[k + 1]?.phase === "sortie"))
   );
   const maillons: MaillonAgent[] = etapes.map((m, k) => {
     const d = detailsDe(m, k);
@@ -419,20 +440,29 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
           },
         };
       }
-      default:
+      default: {
+        // Geste suspendu, relu ou tranché : le backend dit son vrai état, on le reprend.
+        const etat = /relu par Dédale|suspendu|refusé|accordé|aucune décision/i.test(observe) ? observe : "";
+        const nAPasEuLieu = /refus|aucune décision/i.test(etat);
+        const accorde = !nAPasEuLieu && /accord/i.test(etat);
         return {
           ...base,
-          titre: "Le dossier est arrivé au SOC",
-          texte: g === "fichier" ? "Le fichier est resté sur le poste." : "Le geste a abouti malgré l'alerte.",
-          ton: "neutre" as TonMaillon,
+          titre: etat
+            ? nAPasEuLieu ? "Le geste n'a pas eu lieu" : accorde ? "Le geste a été accordé" : "Le geste attend une décision"
+            : "Le dossier est arrivé au SOC",
+          texte: etat || (g === "fichier" ? "Le fichier est resté sur le poste." : "Le geste a abouti malgré l'alerte."),
+          ton: (etat ? (nAPasEuLieu ? "protege" : accorde ? "neutre" : "attente") : "neutre") as TonMaillon,
           detail: {
-            brut: [],
-            pourquoi: "Le salarié a continué malgré l'alerte : le dossier remonte au SOC.",
-            risque: RISQUE_PASSE[g],
-            risqueTitre: TITRE_PASSE,
+            brut: etat ? [{ lib: "État", valeur: etat }] : [],
+            pourquoi: etat
+              ? "Un geste critique ne part qu'avec une validation : du relecteur IA, puis de l'analyste."
+              : "Le salarié a continué malgré l'alerte : le dossier remonte au SOC.",
+            risque: etat ? undefined : RISQUE_PASSE[g],
+            risqueTitre: etat ? undefined : TITRE_PASSE,
             refs,
           },
         };
+      }
     }
   });
 

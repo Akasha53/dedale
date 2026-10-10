@@ -504,6 +504,10 @@ class _Redaction:
         if telechargement is not None:
             return self._rediger_telechargement(telechargement)
         actions = self.etapes("action_risquee")
+        critique = next((e for e in actions if self.det(e).get("geste") in ("virement", "export_clients")
+                         and self.det(e).get("choix")), None)
+        if critique is not None:
+            return self._rediger_geste_critique(critique)
         avert = self.etapes("avertissement")
         choix = self.etapes("choix")
         consequences = self.etapes("consequence")
@@ -531,6 +535,49 @@ class _Redaction:
                 self.ecrire([("L’équipe sécurité a été prévenue", [p(q, "detail", "escalade au SOC")]), "."])
         return {"actions": actions, "passe_outre": passe_outre, "contexte": self.etapes("contexte")}
 
+
+    def _rediger_geste_critique(self, a: dict) -> dict:
+        """Virement ou export de données clients à double validation : le geste tel qu'il est, et
+        son vrai état (suspendu, relu, accordé, refusé ou retenu). Jamais un « clic sur un lien »."""
+        p = self.p
+        virement = self.det(a).get("geste") == "virement"
+        quoi, mot = ("un virement", "virement") if virement else ("un export de données clients", "export")
+        detail = a.get("detail") or ""
+        if "réclamé par un mail" in detail:
+            debut = (f"Un salarié a voulu faire {quoi} réclamé par un mail que Dédale juge frauduleux",
+                     [p(a, "detail", mot), p(a, "detail", "réclamé par un mail")])
+        else:
+            debut = (f"Un salarié a demandé {quoi}", [p(a, "detail", mot)])
+        morceaux: list = [debut]
+        if "double validation" in detail:
+            morceaux += [", puis ", ("Dédale l’a suspendu pour une double validation",
+                                     [p(a, "detail", "double validation")])]
+        self.ecrire(morceaux + ["."])
+        consequences = self.etapes("consequence")
+        relu = next((c for c in reversed(consequences) if "relu par Dédale" in (c.get("detail") or "")), None)
+        issue = next((c for c in reversed(consequences)
+                      if any(k in (c.get("detail") or "") for k in ("Refusé", "Accordé", "Aucune décision"))), None)
+        if relu is not None:
+            for cle, phrase in (("refusé", "Le relecteur de Dédale l’a refusé : le geste n’a pas eu lieu"),
+                                ("accordé", "Le relecteur de Dédale l’a accordé"),
+                                ("retenu", "Le relecteur de Dédale l’a retenu : il attend la décision d’un analyste")):
+                if cle in (relu.get("detail") or ""):
+                    self.ecrire([(phrase, [p(relu, "detail", cle)]), "."])
+                    break
+        elif issue is not None:
+            d_issue = issue.get("detail") or ""
+            for cle, phrase in (("Refusé", "Le geste a été refusé et n’a pas eu lieu"),
+                                ("Accordé", "Le geste a été accordé"),
+                                ("Aucune décision", "Sans décision dans le délai, le geste a été refusé")):
+                if cle in d_issue:
+                    self.ecrire([(phrase, [p(issue, "detail", cle)]), "."])
+                    break
+        else:
+            attente = next((c for c in consequences if "suspendu" in (c.get("detail") or "")), None)
+            if attente is not None:
+                self.ecrire([("Le geste attend une décision", [p(attente, "detail", "suspendu")]), "."])
+        choix = next((c for c in self.etapes("choix") if "continuer" in (c.get("detail") or "")), None)
+        return {"actions": [a], "passe_outre": choix, "contexte": self.etapes("contexte"), "critique": a}
 
     def _rediger_telechargement(self, a: dict) -> dict:
         """Fichier à risque gardé par le salarié (app Mac) : quoi, d'où, et son choix."""
@@ -681,11 +728,26 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
         intrusion = d.get("type") == "humain_intrusion_physique"
         quatre_yeux = any((e.get("details") or {}).get("quatre_yeux") == "demande" for e in r.evs.values())
         if quatre_yeux:
-            # Geste critique suspendu : on conseille de le refuser, l'analyste peut l'accorder.
+            # Geste critique : le conseil suit ce qu'a fait le relecteur IA, puis l'analyste.
             possibles = ["accorder", "refuser", "clore", "ignorer"]
+            rel = d.get("relecteur") or {}
+            suivi = (rel.get("suivi") or {}).get("etat")
             action = "refuser"
-            justification = ("Le salarié veut continuer un geste critique. Refusez-le, sauf si une raison métier "
-                             "vérifiée justifie de l’accorder. Son poste reste utilisable.")
+            if suivi in ("confirme", "renverse", "tranche_par_analyste"):
+                action = "clore"
+                justification = "Un analyste a déjà tranché ce geste : classez le dossier."
+            elif rel.get("decision") == "refuse":
+                justification = ("Le relecteur a refusé ce geste. Confirmez le refus, ou accordez-le si le "
+                                 "responsable du salarié le justifie. Son poste reste utilisable.")
+            elif rel.get("decision") == "retenu":
+                justification = ("Le relecteur a retenu ce geste pour vous. Vérifiez auprès du bénéficiaire par un "
+                                 "canal connu, puis accordez-le ou refusez-le. Sans vérification, refusez.")
+            elif rel.get("decision") == "accorde":
+                action = "accorder"
+                justification = "Le relecteur a accordé ce geste. Confirmez, ou refusez si quelque chose ne colle pas."
+            else:
+                justification = ("Le salarié veut continuer un geste critique. Refusez-le, sauf si une raison "
+                                 "métier vérifiée justifie de l’accorder. Son poste reste utilisable.")
         elif humain.get("telechargement") is not None and humain["passe_outre"] is not None:
             possibles = ACTIONS_HUMAIN
             action = "clore"

@@ -869,6 +869,9 @@ class Store:
         d["journal_console"] = self._journal_console(inc.id, evs)
         if sess.source in ("humain", "physique"):
             d.update(self._vue_humaine(sess, evs, d["journal_console"]))
+            from . import relecteur  # import local : le relecteur dépend du store
+            # Relecteur IA : dernier geste relu et suivi de l'analyste (« à confirmer » tant que rien).
+            d["relecteur"] = relecteur.resume_incident(inc.id, evs, self.decisions)
             d = identites.masqueur(sess.id, evs)(d)
         return d
 

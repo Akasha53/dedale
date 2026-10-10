@@ -412,6 +412,29 @@ _GESTE_LIBELLE = {
 
 _NIVEAUX = ("faible", "moyenne", "haute", "critique")
 
+# Geste critique (quatre yeux) : le récit suit le geste, pas la catégorie de l'alerte. Un virement
+# réclamé par mail est rangé en « phishing », mais personne n'a cliqué sur un lien.
+_GESTES_CRITIQUES = {"virement": "un virement", "export_clients": "un export de données clients"}
+_RELECTURE_HUMAIN = {
+    "refuse": "relu par Dédale : refusé, le geste n'a pas eu lieu",
+    "accorde": "relu par Dédale : accordé, le geste a pu avoir lieu",
+    "retenu": "relu par Dédale : retenu, le geste attend la décision d'un analyste",
+}
+
+
+def geste_critique(details: dict, categorie: str | None) -> str | None:
+    """Libellé d'un virement ou d'un export de données clients, ou None pour un autre geste."""
+    g = _GESTES_CRITIQUES.get(details.get("geste"))
+    if g is None:
+        return None
+    if details.get("verdict") in ("suspect", "frauduleux") and not details.get("choix"):
+        return f"un mail jugé {details['verdict']} réclame {g}"
+    texte = (f"le salarié veut faire {g} réclamé par un mail jugé frauduleux" if categorie == "phishing"
+             else f"le salarié demande {g}")
+    if details.get("quatre_yeux") == "demande":
+        texte += ", geste critique soumis à double validation"
+    return texte
+
 # Gravité par défaut d'un type de geste humain (surchargée par details.gravite d'un geste passé outre).
 _GRAVITE_HUMAIN = {
     "humain_secret": "haute",
@@ -561,7 +584,7 @@ def construire_chaine_humaine(evenements: list[dict], leurres: dict[str, Any]) -
         type_inc = type_humain(cat, intrusion)
 
         if typ == "avertissement":
-            geste = _GESTE_LIBELLE.get(cat, "geste à risque détecté sur le poste")
+            geste = geste_critique(details, cat) or _GESTE_LIBELLE.get(cat, "geste à risque détecté sur le poste")
             cible = details.get("cible")
             d_action = geste + (f" — cible : {_abrege(cible, 160)}" if cible else "")
             if details.get("contexte") == "telechargement":
@@ -611,6 +634,10 @@ def construire_chaine_humaine(evenements: list[dict], leurres: dict[str, Any]) -
             etapes.append(_mk_humain(
                 "signalement", f"le salarié a signalé ce mail ; verdict de l'analyseur : {verdict}", ev,
                 list(_TECH_HUMAIN["humain_phishing"])))
+        elif typ == "relecture" and details.get("acte") == "quatre_yeux" and details.get("decision") in _RELECTURE_HUMAIN:
+            # Le relecteur IA a tranché le geste critique : c'est son vrai état, cité par le récit.
+            etapes.append(_mk_humain("consequence", _RELECTURE_HUMAIN[details["decision"]], ev))
+            a_consequence = True
         elif typ == "leurre_touche" and intrusion:
             tech = list(_TECH_HUMAIN["humain_intrusion_physique"])
             if leurre is not None:

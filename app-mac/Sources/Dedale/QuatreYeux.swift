@@ -23,6 +23,8 @@ final class DemandeQuatreYeux {
     /// le motif technique et le nom du modèle restent dans la console.
     struct Relecture {
         let accorde: Bool
+        /// Ni accordé ni refusé : le relecteur laisse la main à l'équipe sécurité (RIB changé…).
+        var retenu = false
         let motifSalarie: String
         let tranchePar: String
         let dureeMs: Int
@@ -63,7 +65,13 @@ final class DemandeQuatreYeux {
     static let titreAttente = "Vérification en cours…"
     static let conseilRefus = "Si c'est légitime, demande à ton responsable de le confirmer à l'équipe sécurité."
 
+    /// Motif d'un geste retenu par le relecteur, montré pendant que l'équipe sécurité décide.
+    private static var motifRetenu: String?
+
     static func texteAttente(restant: Int) -> String {
+        if let motif = motifRetenu {
+            return "\(motif)\nSans décision de l'équipe sécurité dans \(restant) s, le geste est refusé."
+        }
         if delai - restant < attenteRelecteur {
             return "Dédale vérifie ce geste, cela prend quelques secondes."
         }
@@ -168,6 +176,15 @@ final class DemandeQuatreYeux {
             self.sondeEnCours = false
             if absent { self.sondesSansRelecteur += 1 }
             guard !self.finie, let r else { return }
+            if r.retenu {
+                // Le relecteur passe la main : on attend la décision d'un analyste, avec le délai.
+                Self.motifRetenu = r.motifSalarie
+                self.sondesSansRelecteur = 3
+                self.sonde?.invalidate()
+                self.sonde = nil
+                journal("quatre yeux : demande \(self.avertissement.id) retenue par le relecteur, l'analyste décide")
+                return
+            }
             self.relecture = r
             self.terminer(r.accorde ? .accorde : .refuse, fin: fin)
         }
@@ -181,12 +198,14 @@ final class DemandeQuatreYeux {
             if erreur == nil, code == 200, let donnees,
                let json = try? JSONSerialization.jsonObject(with: donnees) as? [String: Any],
                json["statut"] as? String == "tranchee",
-               let decision = json["decision"] as? String, decision == "accorde" || decision == "refuse" {
+               let decision = json["decision"] as? String, ["accorde", "refuse", "retenu"].contains(decision) {
                 // Jamais `motif` ni `motif_soc` : ce sont les détails techniques de la SOC.
                 let defaut = decision == "accorde" ? "Rien d'inhabituel n'a été repéré dans ce geste."
+                    : decision == "retenu" ? "Ce geste doit être confirmé par l'équipe sécurité avant d'avoir lieu."
                     : "Ce geste présente des signes inhabituels : il est bloqué par précaution."
                 let phrase = (json["motif_salarie"] as? String).map { String($0.prefix(220)) } ?? ""
-                r = Relecture(accorde: decision == "accorde", motifSalarie: phrase.isEmpty ? defaut : phrase,
+                r = Relecture(accorde: decision == "accorde", retenu: decision == "retenu",
+                              motifSalarie: phrase.isEmpty ? defaut : phrase,
                               tranchePar: (json["tranche_par"] as? String) ?? "règles",
                               dureeMs: (json["duree_ms"] as? NSNumber)?.intValue ?? 0)
             }
@@ -208,7 +227,7 @@ final class DemandeQuatreYeux {
             // La décision peut venir du relecteur : on lit son motif avant de conclure.
             self.lireRelecture { [weak self] r, _ in
                 guard let self, !self.finie else { return }
-                if let r, r.accorde == (issue == .accorde) { self.relecture = r }
+                if let r, !r.retenu, r.accorde == (issue == .accorde) { self.relecture = r }
                 self.terminer(issue, fin: fin)
             }
         }
@@ -221,6 +240,7 @@ final class DemandeQuatreYeux {
         minuteur = nil
         sonde?.invalidate()
         sonde = nil
+        Self.motifRetenu = nil
         if let relecture { Self.relectures[avertissement.id] = relecture }
         let par = relecture.map { " par le relecteur (\($0.tranchePar), \($0.duree))" } ?? ""
         journal("quatre yeux : demande \(avertissement.id) \(issue)\(par)")

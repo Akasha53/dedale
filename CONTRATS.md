@@ -1022,9 +1022,9 @@ Un modèle rapide relit à la place d'un analyste qui ne peut pas regarder la co
 
 - `auto` : l'API Anthropic par le SDK officiel si `ANTHROPIC_API_KEY` est défini, sinon `claude -p` s'il est installé, sinon les règles.
 - Modèle : `DEDALE_MODELE_LEGER`, `claude-haiku-5-5` par défaut. Délai : `DEDALE_RELECTEUR_DELAI`, 8 s.
-- Une limite d'usage (429), une panne, un délai dépassé ou une sortie hors schéma font retomber sur les règles. Quand les règles ne tranchent pas, la réponse est `refuse`. Après une limite d'usage, le modèle n'est plus appelé pendant 5 minutes.
+- Une limite d'usage (429), une panne, un délai dépassé ou une sortie hors schéma font retomber sur les règles. Quand les règles ne tranchent pas, la réponse est `retenu` (voir l'avenant « relecteur IA : correctifs » plus bas). Après une limite d'usage, le modèle n'est plus appelé pendant 5 minutes.
 - `DEDALE_LLM=off` vaut `regles`. `off` coupe le relecteur : l'app retrouve l'attente d'un analyste.
-- Le modèle peut refuser seul. Il ne peut pas accorder un geste que les règles refusent d'office.
+- Le modèle peut refuser seul. Il ne peut pas accorder un geste que les règles refusent ou retiennent.
 - Chaque résultat dit qui a tranché : `tranche_par` vaut `Haiku` ou `règles`.
 
 ### Ce que le modèle reçoit
@@ -1102,7 +1102,7 @@ Chaque décision est un événement de la session de l'incident, scellé dans la
    "confiance": 0.93, "duree_ms": 1830, "repli": null, "garde_fou": false}}
 ```
 
-Il n'entre pas dans la boîte noire et ne touche ni au classement ni aux gestes comptés. Après coup, la `consequence` de la riposte envoyée par l'app (`quatre_yeux: accorde | refuse`) nomme le relecteur.
+Il ne touche ni au classement ni aux gestes comptés. Depuis l'avenant « correctifs », la relecture d'un geste entre aussi dans la boîte noire (étape `consequence`, « relu par Dédale : refusé… »). Après coup, la `consequence` de la riposte envoyée par l'app (`quatre_yeux: accorde | refuse`) nomme le relecteur.
 
 ### Mesures
 
@@ -1322,3 +1322,56 @@ Sur un backend isolé, « j'aimerais que tu enlèves les permissions en trop aux
 ## Avenant : carte d'agent, droits retirés (10 octobre, 23 h)
 
 Aucun champ nouveau. La carte d'inventaire (`console/src/agent/Inventaire.tsx`) affiche désormais `droits.retires` de `GET /api/agents` : une ligne « Droits retirés », chaque droit en gris barré. Pour un droit retiré par une règle de moindre privilège encore active, la carte lit `GET /api/politiques` (`intention`, `retraits`, `numero`, `par`, `creee_a`) et ajoute « Retirés par la règle n°N, par <analyste> à HH:MM », puis « Rendre les droits », qui passe par `DELETE /api/politiques/{id}` après une confirmation. La confirmation dit combien d'agents la règle couvre, puisque rendre les droits retire la règle entière. Un droit retiré depuis un incident n'a pas de règle : il reste affiché seul, sans bouton. La puce « +N » des droits en trop est un bouton qui déplie la liste complète et la replie.
+
+## Avenant du 10 octobre 2026 : relecteur IA, correctifs (bénéficiaires connus, « retenu », « à confirmer », montants, récit)
+
+Retours de trois testeuses et testeurs. Les formes déjà décrites restent valables ; ce qui suit s'ajoute.
+
+### Ce que Haiku reçoit (phrase pour la landing)
+
+Haiku ne lit jamais le mail ni le message du salarié : il reçoit des faits établis par Dédale (type de geste, montant lu, bénéficiaire connu ou non, RIB habituel ou nouveau, domaine de destination, verdict de l'analyseur, salarié sous pseudonyme), plus le texte de la pop-up désarmé dans un champ que son prompt désigne comme une donnée, et il rend un JSON validé que les règles du SOC peuvent toujours contredire.
+
+### Trois issues : `accorde`, `refuse`, `retenu`
+
+- `retenu` : ni refus sec, ni accord. Aucune décision n'entre dans `decisions` ; le geste attend celle d'un analyste (Accorder ou Refuser), dans le délai de l'app. L'app Mac affiche `motif_salarie`, puis « Sans décision de l'équipe sécurité dans N s, le geste est refusé. ».
+- `GET /api/relecteur/demandes/{id}` : `decision` peut valoir `retenu`, avec `action: null`.
+- Le repli sur règles ne refuse plus « par prudence » : quand il ne sait pas trancher, il retient. Il n'accorde jamais un geste dont il n'a pas lu le montant (virement), le bénéficiaire ou la destination. Sans modèle, seul un cas lu en entier et couvert par un bénéficiaire connu (ou, pour un export, une destination interne et un volume lu) est accordé.
+- Quand les règles accordent un virement à un bénéficiaire connu et que le modèle le refuse, le geste est `retenu` (avis partagés, `garde_fou: true`).
+
+### Bénéficiaires connus
+
+Données de démo `backend/app/beneficiaires_connus.json` (autre fichier : `DEDALE_BENEFICIAIRES`) : `id`, `nom`, `nature` (`fournisseur` ou `client`), `objet`, `iban_fin` (quatre derniers chiffres seulement), `montant_habituel`, `montant_max`, `alias`, `domaine`. Le relecteur reconnaît un nom de la liste dans `details.beneficiaire`, dans le texte, ou par le domaine de la cible ; le texte ne crée jamais un bénéficiaire. Un fournisseur n'est jamais dans `orbispay.example` : ce n'est plus un signal pour un virement.
+
+| Virement | Issue |
+|---|---|
+| bénéficiaire connu, RIB habituel ou non précisé, montant lu ≤ `montant_max` | `accorde` (« Virement de 4 200 € à Atelier Nord, fournisseur habituel… ») |
+| bénéficiaire connu, RIB qui change (IBAN différent, « nouveau RIB », « nouvelles coordonnées bancaires ») | `retenu`, quel que soit l'avis du modèle |
+| bénéficiaire connu, montant au-dessus de ses usages, illisible ou ambigu | `retenu` |
+| bénéficiaire inconnu, montant > 10 000 € | `refuse` |
+| bénéficiaire inconnu, sinon | `retenu` |
+
+Champs facultatifs d'une demande à quatre yeux, lus avant le texte : `details.montant` (euros), `details.beneficiaire`, `details.iban`. Faits transmis : `beneficiaire: {connu, nom, nature, objet, montant_habituel_eur, montant_max_eur, rib: habituel | nouveau | non_precise, rib_enregistre: "•••• 6789", rib_demande, montant_dans_les_usages}`, `lecture_du_montant: certain | incertain | absent`.
+
+### Montants (`backend/app/montants.py`)
+
+Formats lus : « 48 500 € », « 48.500 € », « 48,500 € », « 48 500,00 EUR », « 48,500.00 », « € 320 », « 48,5 k€ », « 12k EUR », « 1,2 M€ », « 3 millions d'euros », et en lettres jusqu'aux milliards (« douze mille euros », « quatre-vingt-dix mille euros »). Devises reconnues : €, EUR, $, USD, £, GBP, CHF. `incertain` : deux montants différents, une autre devise que l'euro, ou un indice d'argent non converti. Un virement au montant `incertain` ou `absent` n'est jamais accordé sans analyste.
+
+### « À confirmer » par un analyste
+
+Chaque incident d'un salarié porte `relecteur` (`null` si aucun geste n'a été relu) :
+
+```json
+{"demande_id": "a1b2c3", "decision": "refuse", "motif_soc": "…", "motif_salarie": "…", "confiance": 0.88,
+ "tranche_par": "Haiku", "mode": "cli", "duree_ms": 3400, "horodatage": "…",
+ "suivi": {"etat": "a_confirmer", "a_confirmer": true, "analyste": null, "action": null, "horodatage": null}}
+```
+
+- `suivi.etat` : `a_confirmer` (refus, geste retenu, ou accord de confiance < 0,7), `tranche` (accord sûr), `confirme` ou `renverse` (décision humaine postérieure à la relecture, même sens ou sens contraire), `tranche_par_analyste` (geste retenu, puis tranché).
+- `GET /api/relecteur/file` garde tout incident `a_confirmer`, en tête, avec `a_confirmer: true` et la raison `a_confirmer`.
+- Console (`ui/mots.ts`, `etatIncident`) : « Refusé par le relecteur, à confirmer », « Retenu, à confirmer » ou « Accordé par le relecteur, à confirmer », en orange (`attente`), dans la liste à traiter, jusqu'à la décision d'un analyste.
+
+### Récit d'un geste critique
+
+- Boîte noire : l'étape `action_risquee` d'un virement ou d'un export dit « le salarié demande un virement, geste critique soumis à double validation » (ou « un mail jugé frauduleux réclame un virement »), plus « lien de phishing ». La relecture ajoute une étape `consequence` : « relu par Dédale : refusé, le geste n'a pas eu lieu » (ou accordé, ou retenu).
+- `GET /api/incidents/{id}/synthese` suit le geste et son état : « Un salarié a demandé un virement, puis Dédale l'a suspendu pour une double validation. Le relecteur de Dédale l'a refusé : le geste n'a pas eu lieu. » Le conseil suit le relecteur et le suivi de l'analyste.
+- Console (`salarie/lecture.ts`) : genres `virement` et `export` tirés de `details.geste` ; la dernière étape « Suite » reprend l'état du backend au lieu de « le geste a abouti malgré l'alerte ».
