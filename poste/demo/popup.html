@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dédale — poste du salarié</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+         background: #0f172a; color: #0f172a; }
+  .ecran { position: relative; min-height: 100vh; padding: 16px;
+           background:
+             radial-gradient(1200px 600px at 70% -10%, #1e293b, #0f172a);
+           overflow: hidden; }
+  .barre { height: 34px; background: #e2e8f0; border-radius: 8px 8px 0 0;
+           display: flex; align-items: center; gap: 8px; padding: 0 12px; max-width: 960px; margin: 24px auto 0; }
+  .barre span { width: 11px; height: 11px; border-radius: 50%; background: #cbd5e1; }
+  .fenetre { max-width: 960px; margin: 0 auto; background: #f8fafc; border-radius: 0 0 8px 8px;
+             min-height: 420px; padding: 28px 32px; filter: blur(0.4px); }
+  .fenetre h1 { font-size: 20px; margin: 0 0 4px; }
+  .fenetre p.sous { color: #64748b; margin: 0 0 20px; }
+  .champ { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 14px;
+           color: #94a3b8; margin-bottom: 12px; }
+  .popups { position: relative; max-width: 960px; margin: -360px auto 0;
+            display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; z-index: 5; padding: 0 8px 40px; }
+  .popup { width: 420px; background: #fff; border-radius: 14px; overflow: hidden;
+           box-shadow: 0 24px 60px rgba(2,6,23,.55); border-top: 6px solid var(--grav); }
+  .entete { display: flex; gap: 12px; align-items: center; padding: 16px 18px 6px; }
+  .entete .ico { font-size: 26px; }
+  .entete .meta { display: block; color: #64748b; font-size: 12px; }
+  .titre { font-weight: 650; padding: 4px 18px 0; margin: 6px 0; font-size: 16px; }
+  .expli { padding: 0 18px; color: #334155; margin: 6px 0 12px; font-size: 14px; line-height: 1.45; }
+  .preuve { margin: 0 18px 14px; background: #f1f5f9; border-radius: 8px; padding: 10px 12px;
+            font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; color: #475569;
+            white-space: pre-wrap; word-break: break-word; }
+  .boutons { display: flex; gap: 10px; padding: 0 18px 16px; }
+  .boutons button { flex: 1; padding: 10px; border-radius: 9px; border: 0; font-size: 14px; cursor: default; }
+  .continuer { background: #e2e8f0; color: #334155; }
+  .annuler { background: var(--grav); color: #fff; font-weight: 600; }
+  .etat { margin: 0; padding: 10px 18px 16px; font-size: 13px; font-weight: 600; }
+  .etat.ok { color: #15803d; }
+  .etat.ko { color: #b91c1c; }
+  footer { text-align: center; color: #64748b; font-size: 12px; padding: 16px; }
+</style>
+</head>
+<body>
+  <div class="ecran">
+    <div class="barre"><span></span><span></span><span></span></div>
+    <div class="fenetre">
+      <h1>Orbis Pay — poste de Camille (démonstration)</h1>
+      <p class="sous">Tout est fictif et local. Le garde du corps intercepte le geste avant qu'il n'aboutisse.</p>
+      <div class="champ">Coller un message…</div>
+      <div class="champ">À : …</div>
+      <div class="champ">Joindre un fichier…</div>
+    </div>
+    <div class="popups">
+      <div class="popup" style="--grav:#c62828">
+        <div class="entete"><span class="ico">⚠</span>
+          <div><strong>DÉDALE — garde du corps</strong>
+          <span class="meta">gravité haute · règle SECRET_ANTHROPIC</span></div>
+        </div>
+        <p class="titre">Attends — tu es sur le point de coller clé API Anthropic dans ChatGPT.</p>
+        <p class="expli">Un clé API Anthropic a été repéré dans ce que tu colles, et ChatGPT est hors du périmètre de l&#x27;entreprise. Une fois collé, le secret est exposé.</p>
+        <pre class="preuve">[preuve, neutralisée] clé API Anthropic, 33 caractères</pre>
+        <div class="boutons">
+          <button class="continuer">Continuer quand même</button>
+          <button class="annuler">Annuler</button>
+        </div>
+        <p class="etat ko">Le salarié est passé outre — incident remonté au SOC.</p>
+      </div>
+      <div class="popup" style="--grav:#c62828">
+        <div class="entete"><span class="ico">⚠</span>
+          <div><strong>DÉDALE — garde du corps</strong>
+          <span class="meta">gravité haute · règle MAIL_EXTERNE_SENSIBLE</span></div>
+        </div>
+        <p class="titre">Attends — ce mail part à l&#x27;extérieur avec des données sensibles.</p>
+        <p class="expli">Destinataire(s) hors de orbispay.example : camille.perso@gmail.com. Le mail contient pièce « base-clients-complete.csv ».</p>
+        <pre class="preuve">[preuve, neutralisée] camille.perso@gmail.com …</pre>
+        <div class="boutons">
+          <button class="continuer">Continuer quand même</button>
+          <button class="annuler">Annuler</button>
+        </div>
+        <p class="etat ok">Le salarié a annulé — l'incident a été évité.</p>
+      </div>
+      <div class="popup" style="--grav:#c62828">
+        <div class="entete"><span class="ico">⚠</span>
+          <div><strong>DÉDALE — garde du corps</strong>
+          <span class="meta">gravité haute · règle UPLOAD_IA_NON_AUTORISEE</span></div>
+        </div>
+        <p class="titre">Attends — tu déposes un fichier confidentiel sur Google Drive perso.</p>
+        <p class="expli">« plan-strategique-2027-confidentiel.pdf » est confidentiel et Google Drive perso ne fait pas partie des outils validés par la DSI. Le document sort de l&#x27;entreprise et peut servir à entraîner un modèle.</p>
+        <pre class="preuve">[preuve, neutralisée] plan-strategique-2027-confid…</pre>
+        <div class="boutons">
+          <button class="continuer">Continuer quand même</button>
+          <button class="annuler">Annuler</button>
+        </div>
+        <p class="etat ko">Le salarié est passé outre — incident remonté au SOC.</p>
+      </div>
+      <div class="popup" style="--grav:#c62828">
+        <div class="entete"><span class="ico">⚠</span>
+          <div><strong>DÉDALE — garde du corps</strong>
+          <span class="meta">gravité haute · règle PHISHING_LISTE</span></div>
+        </div>
+        <p class="titre">Attends — ce lien n&#x27;est pas celui d&#x27;Orbis Pay.</p>
+        <p class="expli">Raison : domaine déjà connu comme piège. Ne saisis surtout pas tes identifiants.</p>
+        <pre class="preuve">[preuve, neutralisée] http://orbispay-secure.com/verif?compte=…</pre>
+        <div class="boutons">
+          <button class="continuer">Continuer quand même</button>
+          <button class="annuler">Annuler</button>
+        </div>
+        <p class="etat ok">Le salarié a annulé — l'incident a été évité.</p>
+      </div>
+      <div class="popup" style="--grav:#7b1020">
+        <div class="entete"><span class="ico">⚠</span>
+          <div><strong>DÉDALE — garde du corps</strong>
+          <span class="meta">gravité critique · règle PIECE_DOUBLE_EXT</span></div>
+        </div>
+        <p class="titre">Attends — cette pièce jointe est dangereuse.</p>
+        <p class="expli">Raison : double extension : un exécutable déguisé en document. Ouvrir ce fichier peut installer un logiciel malveillant.</p>
+        <pre class="preuve">[preuve, neutralisée] facture_impayee.pdf.exe</pre>
+        <div class="boutons">
+          <button class="continuer">Continuer quand même</button>
+          <button class="annuler">Annuler</button>
+        </div>
+        <p class="etat ko">Le salarié est passé outre — incident remonté au SOC.</p>
+      </div>
+    </div>
+    <footer>Dédale · avenant « humain, le maillon faible » · Dédale — poste du salarié</footer>
+  </div>
+</body>
+</html>
