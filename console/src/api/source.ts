@@ -39,6 +39,18 @@ async function j<T>(chemin: string, signal?: AbortSignal): Promise<T> {
   return (await r.json()) as T;
 }
 
+// Le backend emballe ses listes : {sessions:[…]}, {incidents:[…]}, {leurres:[…]}.
+// On accepte aussi un tableau brut, au cas où le contrat évoluerait.
+async function liste<T>(chemin: string, cle: string, signal?: AbortSignal): Promise<T[]> {
+  const data = await j<unknown>(chemin, signal);
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    const v = (data as Record<string, unknown>)[cle];
+    if (Array.isArray(v)) return v as T[];
+  }
+  return [];
+}
+
 async function texte(chemin: string): Promise<string> {
   const r = await fetch(BASE + chemin);
   if (!r.ok) throw new Error(`${chemin} → ${r.status}`);
@@ -54,10 +66,10 @@ async function texte(chemin: string): Promise<string> {
 
 export const sourceLive: SourceDonnees = {
   nom: "live",
-  getSessions: () => j<Session[]>("/api/sessions"),
-  getIncidents: () => j<Incident[]>("/api/incidents"),
+  getSessions: () => liste<Session>("/api/sessions", "sessions"),
+  getIncidents: () => liste<Incident>("/api/incidents", "incidents"),
   getIncident: (id) => j<Incident>(`/api/incidents/${encodeURIComponent(id)}`),
-  getLeurres: () => j<Leurre[]>("/api/leurres"),
+  getLeurres: () => liste<Leurre>("/api/leurres", "leurres"),
   getMesures: () => j<Mesures>("/api/mesures"),
   postDecision: async (id, action, analyste) => {
     const r = await fetch(
