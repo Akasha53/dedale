@@ -1644,3 +1644,71 @@ Résumés de repli (`repliAgent` dans `agent/IncidentAgent.tsx`) :
 ### Latence mesurée
 
 Coût de l'examen et du masquage d'un appel, médiane sur 3 000 appels : 0,010 ms pour `lire_mail`, 0,024 ms pour une recherche de document, 0,036 ms pour un outil MCP, 0,048 ms pour une lecture qui porte une URL et un canari en base64, 0,73 ms pour un rapport de 2 Ko. Sur un appel autorisé de bout en bout contre un backend isolé, la médiane passe de 0,96 ms à 1,03 ms (+0,07 ms). Pire cas mesuré : 6 ms pour 10 Ko de base64, 56 ms pour 100 Ko.
+
+## Avenant du 10 octobre 2026 : authentification des appels au backend
+
+Un testeur a accordé sans aucun jeton, par un simple `curl`, un virement de 380 000 € retenu par les quatre yeux, sous le nom de Marc. Depuis cet avenant, chaque appel au backend présente le jeton de son identité. Code : `backend/app/auth.py`, une ligne dans `main.py` (`auth.brancher(app)`).
+
+### Quatre identités
+
+| Identité | Qui la présente | Ce qu'elle ouvre |
+|---|---|---|
+| `analyste` | la console du SOC (par le proxy de Vite), les scripts de démo qui lisent ou jouent l'analyste, les lectures du banc | toute l'API, sauf l'espace de validation ; le flux `/ws` |
+| `passerelle` | la passerelle et la boîte noire de `interne/`, `leurres/`, `messagerie/`, les écritures du banc, `backend/seed.py` | `POST /api/evenements`, `POST /api/leurres`, `GET /api/sessions/{id}`, `GET /api/sessions/{id}/decisions`, `POST /api/politiques/evaluer`, `POST /api/resistance/campagnes`, `POST /api/relecteur/verifier` |
+| `poste` | l'app Mac, le garde du poste (`poste/`), l'extension Chrome | `POST /api/evenements`, `POST /api/agents/poste`, `GET /api/relecteur/demandes/{id}`, `GET /api/sessions/{id}/decisions`, `POST /api/relecteur/verifier` |
+| `validateur` | le responsable du salarié ou la finance, dans l'espace `/validation` | les routes sous `/api/validation/`, et elles seules |
+
+La passerelle et le poste écrivent et attendent ; ils ne décident jamais. Le validateur ne voit pas la console du SOC, et l'analyste ne décide pas d'un geste métier dans l'espace de validation.
+
+### Où vivent les jetons
+
+Un fichier par identité : `~/.config/dedale/jeton-analyste`, `jeton-passerelle`, `jeton-poste`, `jeton-validateur`. Dossier en 700, fichiers en 600, jamais dans le dépôt. `DEDALE_JETONS` désigne un autre dossier ; les tests en tirent un jetable. Le backend crée au démarrage les jetons qui manquent (`secrets.token_urlsafe(32)`, écriture atomique) et garde ceux qui existent ; il refuse de démarrer si deux jetons sont identiques. Chaque client relit son fichier à chaque appel. Pour changer un jeton : supprimer le fichier, relancer le backend, puis les clients.
+
+### Sur le fil
+
+`Authorization: Bearer <jeton>`. Comparaison en temps constant avec chacun des jetons, sans sortie anticipée.
+
+- Sans jeton valable : `401`, `WWW-Authenticate: Bearer`, `{"detail": "Jeton absent ou invalide."}`. Le middleware répond avant que le corps soit lu : un corps mal formé sans jeton donne 401, pas 422.
+- Jeton valable d'une autre identité : `403`, `{"detail": "Route réservée à : analyste."}`.
+- `/ws` : sans jeton analyste, la poignée de main est refusée (fermeture 1008, HTTP 403). Le flux porte les mêmes incidents que les lectures de la console.
+- Ouvertes sans jeton : `GET /api/sante` et les fichiers statiques de la console.
+
+### Refus par défaut
+
+Une dépendance posée sur toute l'application, avant celles des routes, n'admet que l'analyste sur une route qui ne déclare rien, y compris une route ajoutée plus tard par un autre module. Une route ouverte à une autre identité le déclare en une ligne :
+
+```python
+@routeur.post("/api/validation/gestes/{did}/decision", dependencies=[auth.VALIDATEUR])
+```
+
+Dépendances prêtes : `auth.ANALYSTE`, `auth.PASSERELLE`, `auth.POSTE`, `auth.VALIDATEUR`, `auth.ECRIVAINS` (passerelle ou poste), `auth.LECTURE_SESSION` (analyste ou passerelle), `auth.VERDICT_POSTE` (analyste ou poste), `auth.DECISIONS_SESSION` (analyste, passerelle ou poste). `auth.exiger(...)`, ou son alias `auth.exige_role(...)`, compose une autre liste. `backend/tests/test_auth.py` essaie chaque route avec chaque jeton : un jeton de machine n'ouvre que les routes listées ci-dessus, et une route est soit à la console, soit à l'espace de validation, jamais aux deux.
+
+### Décisions
+
+N'admettent que l'analyste : `POST /api/incidents/{id}/decision` (accorder, refuser, couper, reprendre, ignorer, clore, valider la riposte), `/identite`, `/remediation`, `/retirer-droit`, `POST /api/politiques`, `DELETE /api/politiques/{id}` (activer ou retirer une règle, rendre des droits), `POST /api/politiques/analyser`. Le champ `analyste` du corps signe la décision dans le journal, et seulement quand le jeton analyste est valide.
+
+### Décisions d'une session
+
+`GET /api/sessions/{id}/decisions`, pour l'analyste, la passerelle et le poste. La passerelle y attend la décision sur un appel retenu, l'app Mac le verdict des quatre yeux. Ni la chaîne, ni le salarié, ni les autres incidents :
+
+```json
+{"incidents": [{"id": "INC-0007", "session_id": "jury-…-agent", "type": "interne_canari", "statut": "ouvert",
+  "decisions": [{"action": "couper", "analyste": "Marc", "horodatage": "2026-10-10T21:41:01+00:00"}]}]}
+```
+
+### Refus comptés
+
+Chaque 401 ou 403 part dans le journal `dedale.auth` (niveau WARNING : code, méthode, chemin sans la chaîne de requête, identité présentée, client), jamais le jeton. `GET /api/mesures` porte `acces_refuses` : `{"refus_401": n, "refus_403": n, "derniers": [{"horodatage", "code", "methode", "chemin", "identite", "motif", "client"}]}`, les vingt derniers en tête.
+
+### Console
+
+Le proxy de Vite (`console/vite.config.ts`) ajoute l'en-tête côté serveur : le jeton n'est jamais dans le JavaScript servi. Il ne signe qu'une requête qui porte la session de son espace, un cookie `HttpOnly`, `SameSite=Strict`, tiré au lancement de Vite et posé à l'ouverture d'une page : `dedale_console` (jeton analyste) ou, sous `/validation`, `dedale_validation` (jeton validateur, seulement vers `/api/validation/`). Une requête d'une autre origine ou marquée `Sec-Fetch-Site: cross-site` n'est pas signée ; un en-tête `Host` autre que `localhost` ou `127.0.0.1` reçoit 403. Un script qui présente son propre jeton le garde. Après un redémarrage de Vite, la page se recharge et reprend une session.
+
+### Limites
+
+- Un jeton par identité, pas un par personne. Le nom qui signe une décision est celui que la console déclare. En production il faut un SSO (OIDC) qui authentifie chaque analyste et chaque validateur, et des rôles portés par l'annuaire.
+- Sur ce Mac, quiconque lit `~/.config/dedale/` sous le compte de l'utilisateur a tous les jetons, et tout navigateur local qui ouvre la console sur 5173 agit comme analyste. Les deux espaces ouverts dans le même navigateur partagent leurs deux cookies.
+- Pas de TLS : les jetons passent en clair sur 127.0.0.1. Ils n'expirent pas et ne tournent pas d'eux-mêmes.
+- La passerelle lit une session, et la passerelle comme le poste ses décisions, dès qu'ils en connaissent l'identifiant.
+- La console construite et servie par le backend sur 8700 (`console/dist`) n'a pas de jeton : elle se sert par Vite, sur 5173.
+- L'extension Chrome garde le jeton du poste en clair dans `chrome.storage.local`.

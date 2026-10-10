@@ -175,6 +175,19 @@ cd app-mac && swift test
 cd console && npm run build        # vérification des types, sans test compté
 ```
 
+## Authentification
+
+Chaque appel au backend présente le jeton de son identité, dans `Authorization: Bearer`. Quatre identités : `analyste` (la console du SOC), `passerelle` (agents internes, leurres, messagerie, banc), `poste` (app Mac, garde du poste, extension) et `validateur` (l'espace `/validation`, où le responsable ou la finance confirme un geste métier). La passerelle et le poste écrivent des événements et attendent une décision, ils n'en prennent aucune. Sans jeton : 401. Avec le jeton d'une autre identité : 403. Une route qui ne déclare rien n'admet que l'analyste. Seule `GET /api/sante` reste ouverte. Chaque refus est journalisé sans le jeton et compté dans `GET /api/mesures` (`acces_refuses`).
+
+Les jetons vivent dans `~/.config/dedale/jeton-<identité>` (dossier en 700, fichiers en 600), jamais dans le dépôt. Le backend les tire au premier démarrage ; chaque module relit le sien. La console ne le reçoit jamais : le proxy de Vite (5173) ajoute l'en-tête côté serveur, et seulement pour un navigateur qui a ouvert la page. L'extension Chrome attend le jeton du poste dans ses réglages.
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:8700/api/incidents/INC-0001/decision \
+  -H 'content-type: application/json' -d '{"action":"accorder","analyste":"Marc"}'   # 401
+```
+
+Limite : un jeton par identité, pas par personne. Le nom qui signe une décision est celui que déclare la console, et tout navigateur de ce Mac qui ouvre la console agit comme analyste. En production il faudrait un SSO (OIDC) et des rôles portés par l'annuaire. Détail, routes de chaque identité et autres limites : `CONTRATS.md`, avenant « authentification des appels au backend ».
+
 ## Secrets
 
 Aucun secret réel dans le dépôt ni dans son historique. Les clés qui apparaissent (canaris, fixtures de tests) sont des valeurs fictives d'Orbis Pay. Le contrôle combine gitleaks et un script Python, et tourne avant chaque commit :
@@ -195,7 +208,7 @@ Résultats, périmètre et valeurs fictives autorisées : [docs/SCAN_SECRETS.md]
 - Le désarmeur, l'analyseur de mails et l'extension reposent sur des motifs. Une consigne paraphrasée, visible et polie peut passer le désarmeur ; c'est pourquoi la passerelle contrôle aussi l'action (jeton, canaris, envoi externe retenu).
 - Le relecteur IA lit des faits structurés, pas le texte brut, mais reste attaquable comme tout modèle. Il peut accorder à tort un geste que les règles laissent ouvert : l'analyste garde le recours, après coup.
 - Le brouillon NIS2 est à relire : aucune qualification juridique, aucun envoi. Les correspondances OWASP, ATLAS et ATT&CK n'ont été auditées par personne.
-- SQLite et un seul écrivain suffisent à la démo, pas à un grand groupe. Pas d'annuaire d'identités ni d'authentification de la console.
+- SQLite et un seul écrivain suffisent à la démo, pas à un grand groupe. Pas d'annuaire d'identités : un jeton par rôle, pas par personne (voir Authentification).
 - L'app Mac est signée ad hoc, sans notarisation. Son port 8712 n'a pas d'authentification : un programme local peut y afficher une fausse alerte.
 
 ## Documents
