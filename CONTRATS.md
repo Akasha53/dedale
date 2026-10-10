@@ -1804,3 +1804,80 @@ La règle vient de `details.<motif>.regle` de l'appel retenu, sinon du type de l
 ### Inventaire
 
 Chaque fiche de `GET /api/agents` (`inventaire[]`) porte `dedale: bool`, vrai pour l'agent des règles (`dedale-regles`). Il appartient à sAIfe, pas à Orbis Pay : la console le range dans une rangée à part sous les cartes et ne le compte pas dans « Agents surveillés ». Un client qui ignore le champ peut s'en tenir au préfixe `dedale-` de l'identifiant.
+
+## Avenant du 11 octobre 2026 : intégrations SIEM, alertes par rôle, résumé du lundi
+
+Retours de trois testeurs : un RSSI dont le SOC est externalisé veut les alertes dans le SIEM du prestataire, une DSI sans SOC veut un mail le lundi et un SMS pour un geste critique, un responsable sécurité IA ne pouvait pas réutiliser l'export Sigma. Modules neufs : `backend/app/ecs.py`, `cef.py`, `sigma_regles.py`, `transfert_syslog.py`, `notifications.py`, `resume_hebdo.py`, `routes_integrations.py`, `recepteur_siem.py`. Branchement : une ligne dans `main.py` (`routes_integrations.brancher(app)`, après la validation métier) et le format `cef` de la route d'export. Tests : `backend/tests/test_integrations.py`. Mode d'emploi : `docs/INTEGRATIONS.md`. Rien ne part pour de vrai : le SMS est simulé, un webhook ou un transfert syslog ne part que si sa variable est posée.
+
+### `GET /api/incidents/{id}/export?format=ecs`
+
+L'enveloppe ne change pas (`incident`, `ecs_version`, `documents`, `n_documents`) ; `ecs_version` vaut `8.11.0`. Chaque document suit ECS 8.11 :
+
+- `event.kind` vaut `alert` pour l'événement qui porte le signal (piège touché, alerte passée outre, appel retenu ou soumis à une règle, sortie de données), `event` sinon. `event.category` et `event.type` ne prennent que des valeurs autorisées par ECS. `event.outcome` : `success` quand le geste ou l'appel est passé, `failure` quand il a été arrêté, `unknown` sinon. `event.action` garde le type d'événement Dédale : les règles de `sigma/` le lisent. Un document `alert` porte `event.severity` et `event.risk_score` (21, 47, 73 ou 99 selon la gravité) et `event.reason` (titre de l'incident).
+- `threat.*` seulement sur un document `alert` : `framework: "MITRE ATT&CK"`, `technique.id/name/reference` et `tactic.id/name/reference` du type d'incident (et du geste : T1657 pour un virement). L'événement où un agent lit une consigne cachée porte `framework: "MITRE ATLAS"`, `technique.id: ["AML.T0051"]`.
+- `url.*` (`original` sans paramètres, `scheme`, `domain`, `path`, `registered_domain`) et `destination.domain` ne sont remplis que par un nom d'hôte qui passe une expression stricte, lu dans `lien`, `url`, `cible`, `destinataire` ou `domaine`. `source.ip`, `user_agent.original`, `http.request.method` comme avant.
+- `user.*` : un salarié sous son pseudonyme (`name: "Salarié 7751"`, `id: "S-" + 12 hex`, `group.name` son service, `roles: ["salarie"]`) ; un agent sous son identifiant, `roles: ["agent_ia"]`. Pour un salarié, `dedale.session_id` sort pseudonymisé (`S-` + 12 hex) : l'identifiant de session d'un poste peut porter un prénom.
+- `rule.*` : un piège (`rule.id` = leurre ou canari, `rule.name` = sa nature, `ruleset: "dedale-leurres"`) ou une règle du SOC (`ruleset: "dedale-regles-soc"`). `labels.*` : `categorie`, `choix`, `contexte`, `geste`, `quatre_yeux`, `verdict`, `outil`, `droit_requis`, `hors_perimetre`, `provenance`, `anomalie`, `exfiltration`.
+- `observer: {vendor: "sAIfe", product: "sAIfe", type: "ids"}`, `tags`, et `dedale.*` comme avant, plus `dedale.incident: {id, type}`.
+
+Deux assertions de tests existants suivent : l'événement d'injection se reconnaît à `threat.technique.id` contenant `AML.T0051`, et un geste humain porte sa technique ATT&CK (plus de document sans `threat` pour un avertissement passé outre).
+
+### `GET /api/incidents/{id}/export?format=sigma`
+
+YAML à plusieurs documents séparés par `---`, que `sigma check` et `sigma convert` lisent tels quels : la règle du type d'incident, les règles du catalogue qui attrapent au moins un événement de l'incident (gestes, coffre de clés, virement d'un agent), puis, pour les types qui en ont, la variante `proxy` ou `webserver` générique et sa version spécialisée sur l'indicateur vu (domaine sosie, routes-leurres), reliée par `related: [{id, type: derived}]` et `status: experimental`. Un lecteur qui attendait un seul document prend le premier.
+
+Catalogue : `GET /api/sigma/regles?format=yaml|json` (analyste) et `sigma/types/`, généré par `cd backend && uv run python -m app.sigma_regles --ecrire ../sigma/types`. Une règle par type d'incident de ce fichier, plus `geste_critique_virement` (T1657), `geste_critique_export` (T1048), `agent_coffre_cles` (T1555), `agent_virement` (T1657), et trois variantes sans `product` : `humain_phishing/proxy` (domaine sosie), `humain_upload_ia/proxy` (envoi de plus de 100 ko vers une IA publique), `exfiltration/proxy` (POST vers un service de collecte), plus `externe_agent_ia/webserver`. `id` : uuid5 de la clé de la règle, stable. `logsource: {product: dedale, category: <famille>}` ; détection sur des champs ECS. `sigma check sigma/` : 0 erreur, 0 avertissement (sigma-cli 3.1, données ATT&CK 19 : l'usurpation est T1684.001).
+
+### `GET /api/incidents/{id}/export?format=cef`
+
+`text/plain`, une ligne CEF par événement, construite depuis le document ECS : `CEF:0|sAIfe|sAIfe|<version>|<type>:<action>|<nom>|<sévérité 0-10>|<extensions>`. Extensions : `rt`, `src`, `dhost`, `request`, `requestMethod`, `requestClientApplication`, `suser`, `suid`, `act`, `outcome`, `cat`, `externalId`, `msg`, `cs1` incident, `cs2` session, `cs3` techniques, `cs4` piège ou règle, `cs5` type, `cs6` lien console, `cn1` score de risque. `\` et `|` échappés dans l'en-tête, `\`, `=` et sauts de ligne dans les extensions.
+
+### Transfert syslog
+
+`DEDALE_SYSLOG=udp://hôte:port` ou `tcp://hôte:port` (TCP : trame préfixée par sa longueur, RFC 6587). Une ligne CEF par changement d'un incident de gravité moyenne ou plus (ouverture, gravité, statut, décision, relecture), dans une trame RFC 5424 : `<PRI>1 <horodatage> <hôte> dedale - ouverture|mise_a_jour - CEF:0|…`, facilité local4. Elle résume l'incident sans montant, bénéficiaire ni nom. Envoi dans un fil à part, délai de 2 s, aucune erreur ne remonte. Faux SIEM de démo : `cd backend && uv run python -m app.recepteur_siem [--syslog-port N] [--webhook-port N]`, sur 127.0.0.1 seulement.
+
+### Qui reçoit quoi
+
+| Règle | Quand | Destinataire | Canaux |
+|---|---|---|---|
+| `geste_retenu` | acte `validation_demandee` encore `a_valider` (geste retenu sans signal de fraude) | validateur métier | webhook, SMS |
+| `menace` | incident de gravité moyenne ou plus, ni clos ni ignoré ; geste à quatre yeux refusé ou retenu pour fraude | SOC | webhook, syslog |
+| `menace_critique` | la même menace en gravité critique, hors surface exposée et hors session `banc-` | SOC | SMS |
+| `personne` | geste accordé, dossier clos, gravité faible | personne | aucun |
+
+Sur un geste à quatre yeux, la règle attend la relecture (`regle: "attente"`) tant que le relecteur est actif et n'a pas tranché. Un envoi part une fois par dossier et par règle. Le message au validateur donne le geste, une tranche de montant (`besoin_d_en_connaitre.tranche`), le service et le lien vers `/validation` ; jamais le bénéficiaire ni le montant exact. Un message au SOC est bâti sur des gabarits sans texte libre, puis passe par `notifications.expurger_soc`, qui retire montants, IBAN, adresses et noms de bénéficiaires connus.
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `DEDALE_NOTIF_SOC_URL`, `DEDALE_NOTIF_VALIDATION_URL` | absentes | webhook `http(s)` de chaque destinataire ; absente, rien ne part |
+| `DEDALE_NOTIF_SOC_FORMAT`, `DEDALE_NOTIF_VALIDATION_FORMAT` | `json` | `slack` (blocs), `teams` (carte adaptative 1.4 pour un flux Workflows) ou `json` |
+| `DEDALE_SMS_SOC`, `DEDALE_SMS_VALIDATION` | `+33639980001`, `+33639980002` | numéros fictifs (plage ARCEP réservée à la fiction) |
+| `DEDALE_SMS_JOURNAL` | `sms-demo.log` à côté de la base | journal JSON d'un SMS par ligne, ignoré par git |
+| `DEDALE_SMS` | actif | `off` coupe le SMS simulé |
+| `DEDALE_SMS_MAX_HEURE`, `DEDALE_NOTIF_MAX_MINUTE` | 10, 20 | plafonds ; au-delà, l'envoi est noté `limitee` |
+| `DEDALE_VALIDATION_URL` | `<DEDALE_CONSOLE_URL>/validation` | lien du message au validateur |
+| `DEDALE_NOTIFICATIONS` | actif | `off` coupe le module |
+
+Le SMS n'est jamais envoyé : `statut: "simule"`, une ligne dans le journal, et la console montre le texte qui partirait avec `encodage` (`GSM-7` ou `UCS-2`), `caracteres` et `segments`. L'alerte « décision attendue » (`DEDALE_WEBHOOK_URL`, `alertes.py`) ne change pas.
+
+Routes, toutes en lecture :
+
+- `GET /api/incidents/{id}/notifications` (analyste) : `{incident_id, regle, raison, prevus: [envoi], envoyes: [envoi], syslog: {configure, cible, erreur, ligne_cef}, rien_ne_part}`. Un envoi : `{id, horodatage, reference, incident_id, regle, destinataire: "soc"|"validation", destinataire_libelle, canal: "webhook"|"sms", a, texte, statut, raison?, format?, message?, encodage?, caracteres?, segments?}`. `statut` : `simule`, `coupe`, `pret`, `non_configure`, `en_cours`, `envoyee`, `refusee`, `echec`, `non_envoyee`, `limitee`, `configuration_invalide`. `a` est masqué (`+33 ••••••• 01`).
+- `GET /api/notifications?limite=N` (analyste) : `{notifications, syslog}`. Un envoi au validateur n'y montre que son canal et son statut, `texte` vaut « Détail réservé à la validation métier. ».
+- `GET /api/validation/notifications` (validateur) : les envois au validateur, en entier.
+- `GET /api/integrations` (analyste) : connecteurs (jamais d'URL), `regles`, état du syslog, nom du journal SMS, derniers envois vus par le SOC.
+
+### `GET /api/resume-hebdo?jours=7&format=html|json` (analyste)
+
+Mail HTML d'une page, mise en page en tableaux et styles en ligne, aucun script ni image distante, jamais envoyé. Parties : les menaces (arrêtées ou à suivre), les gestes retenus et leur issue (demandes de validation métier réduites à leur sens, plus le nombre de gestes passés sans retenue), les agents à surveiller (risque élevé ou moyen de l'inventaire, ou dossier dans la semaine), les règles du SOC qui ont joué. Une phrase par point, sans nom, pseudonyme, montant exact ni identifiant de dossier. En-têtes : `Content-Security-Policy` (`default-src 'none'`, `frame-ancestors 'self'` pour l'aperçu de la console), `nosniff`, `no-store`. `format=json` rend les points calculés et `envoye: false`.
+
+### Console
+
+Menu « Exporter » d'un dossier : « Lignes CEF » et « Alertes et SMS » (fenêtre « Qui est prévenu »). Mesures : panneau « Résumé du lundi », bouton « Voir le mail » (aperçu dans un cadre isolé). Code : `console/src/integrations/`.
+
+### Limites
+
+- L'état des envois (dédoublonnage, historique) vit en mémoire : après un redémarrage, un nouvel événement sur un dossier encore ouvert peut le renvoyer.
+- Pas de nouvel essai : un webhook en échec reste `echec`. UDP peut perdre une trame ; pas de TLS (`tls://`) pour le syslog.
+- Le domaine enregistré (`registered_domain`) est approché par les deux derniers labels, sans liste des suffixes publics.
+- Les variantes proxy citent la marque fictive Orbis Pay et une liste de services d'IA et de collecte : à adapter chez le client.
