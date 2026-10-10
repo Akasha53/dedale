@@ -3,10 +3,10 @@
 Chaque ligne CEF se construit depuis le document ECS du même événement (`ecs.py`) : une seule
 correspondance des champs, deux formats. En-tête :
 
-    CEF:0|Dedale|Dedale|<version>|<type d'incident>:<action>|<nom>|<sévérité 0-10>|<extensions>
+    CEF:0|sAIfe|sAIfe|<version>|<type d'incident>:<action>|<nom>|<sévérité 0-10>|<extensions>
 
 - En-tête : `\\` et `|` échappés. Extensions : `\\`, `=` échappés, retours à la ligne en `\\n`.
-  Le fournisseur et le produit restent en ASCII (« Dedale ») : certains analyseurs CEF lisent mal
+  Le fournisseur et le produit restent en ASCII (« sAIfe ») : certains analyseurs CEF lisent mal
   un accent dans l'en-tête. Les extensions sont en UTF-8.
 - Clés du dictionnaire CEF : `rt` (horodatage en ms), `src`, `dhost`, `request`,
   `requestMethod`, `requestClientApplication`, `suser` et `suid` (pseudonyme du salarié ou
@@ -58,7 +58,7 @@ def ligne(doc: dict, incident: dict, lien: str | None = None) -> str:
     severite = SEVERITE_CEF.get(gravite, 5) if alerte else 2
     type_inc = incident.get("type") or "inconnu"
     signature = f"{type_inc}:{ev.get('action') or 'evenement'}"
-    nom = (incident.get("titre") if alerte else None) or f"Événement {ev.get('action') or ''} de Dédale"
+    nom = (incident.get("titre") if alerte else None) or f"Événement {ev.get('action') or ''} de sAIfe"
     ext: list[tuple[str, object]] = []
     rt = ecs.horodatage_ms(doc.get("@timestamp"))
     if rt is not None:
@@ -110,7 +110,7 @@ def ligne(doc: dict, incident: dict, lien: str | None = None) -> str:
         limite = _LIMITE.get(cle, 4000)
         morceaux.append(f"{cle}={texte[:limite]}")
     entete = "|".join([
-        "CEF:0", "Dedale", "Dedale", echapper_entete(__version__), echapper_entete(signature),
+        "CEF:0", "sAIfe", "sAIfe", echapper_entete(__version__), echapper_entete(signature),
         echapper_entete(str(nom)[:512]), str(severite),
     ])
     return entete + "|" + " ".join(morceaux)
@@ -123,12 +123,12 @@ def vers_cef(incident: dict, evenements: list[dict], lien: str | None = None) ->
 
 
 def ligne_incident(incident: dict, titre: str, phrase: str, lien: str | None = None,
-                   motif: str = "incident") -> str:
+                   motif: str = "incident", geste: str | None = None) -> str:
     """Ligne CEF qui résume un incident (ouverture, gravité qui monte, décision). `titre` et
     `phrase` viennent de `notifications` : ni montant, ni bénéficiaire, ni nom de salarié."""
     gravite = incident.get("gravite") or "moyenne"
     type_inc = incident.get("type") or "inconnu"
-    techniques = [t["id"] for t in ecs.sigma_regles.techniques_incident(type_inc)]
+    techniques = [t["id"] for t in ecs.sigma_regles.techniques_incident(type_inc, geste)]
     rt = ecs.horodatage_ms(incident.get("cree_a")) or int(datetime.now(timezone.utc).timestamp() * 1000)
     ext = [
         ("rt", rt), ("act", motif), ("cat", "intrusion_detection"), ("externalId", incident.get("id")),
@@ -140,7 +140,7 @@ def ligne_incident(incident: dict, titre: str, phrase: str, lien: str | None = N
         ("flexString1Label", "statut"), ("flexString1", incident.get("statut")),
     ]
     morceaux = [f"{k}={echapper_extension(v)[:_LIMITE.get(k, 4000)]}" for k, v in ext if v not in (None, "")]
-    entete = "|".join(["CEF:0", "Dedale", "Dedale", echapper_entete(__version__),
+    entete = "|".join(["CEF:0", "sAIfe", "sAIfe", echapper_entete(__version__),
                        echapper_entete(f"{type_inc}:{motif}"), echapper_entete(str(titre)[:512]),
                        str(SEVERITE_CEF.get(gravite, 5))])
     return entete + "|" + " ".join(morceaux)

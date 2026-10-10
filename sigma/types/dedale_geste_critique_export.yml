@@ -1,10 +1,10 @@
-title: 'Dédale : Export de données clients soumis à double validation'
+title: 'sAIfe : Export de données clients soumis à double validation'
 id: abf00689-c75d-5705-bda6-80fd69d142cd
 status: test
-description: Un salarié a demandé un export de données clients que Dédale a suspendu pour une double validation.
+description: Un salarié a demandé un export de données clients que sAIfe a suspendu pour une double validation.
 references:
 - https://attack.mitre.org/techniques/T1048/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.exfiltration

@@ -1,11 +1,11 @@
-title: 'Dédale : Virement soumis à double validation'
+title: 'sAIfe : Virement soumis à double validation'
 id: bc2618c9-fa0f-57da-901b-179034755510
 status: test
-description: 'Un salarié a demandé un virement que Dédale a suspendu pour une double validation : relecture, puis
+description: 'Un salarié a demandé un virement que sAIfe a suspendu pour une double validation : relecture, puis
   décision d''un responsable.'
 references:
 - https://attack.mitre.org/techniques/T1657/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.impact

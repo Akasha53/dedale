@@ -298,7 +298,7 @@ def document(ev: dict, incident: dict, injection_ids: set) -> dict:
             "dataset": f"dedale.{ev.get('source')}",
             "provider": f"dedale-{ev.get('surface') or 'inconnu'}",
         },
-        "observer": {"vendor": "Dédale", "product": "Dédale", "type": "ids"},
+        "observer": {"vendor": "sAIfe", "product": "sAIfe", "type": "ids"},
         "dedale": {
             "session_id": pseudo_session(sid) if est_humain else sid,
             "surface": ev.get("surface"),

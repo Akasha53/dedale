@@ -1,10 +1,10 @@
-title: 'Dédale : Accès physique à un actif-leurre'
+title: 'sAIfe : Accès physique à un actif-leurre'
 id: c2d0b09a-8dba-5ea6-ae92-f79ea80e7d0c
 status: test
 description: Un équipement-leurre (port, serveur factice) a été branché ou ouvert sur place.
 references:
 - https://attack.mitre.org/techniques/T1200/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.initial-access

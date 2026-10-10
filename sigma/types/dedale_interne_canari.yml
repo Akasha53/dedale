@@ -1,11 +1,11 @@
-title: 'Dédale : Agent IA interne qui suit une consigne cachée dans un mail ou un document'
+title: 'sAIfe : Agent IA interne qui suit une consigne cachée dans un mail ou un document'
 id: 55f6d255-7126-59b7-b4f1-79aaed4afbbe
 status: test
 description: 'L''agent a lu un mail ou un document qui portait une consigne cachée et l''a suivie : le piège posé
   dans ce contenu a été touché. Injection indirecte (MITRE ATLAS AML.T0051).'
 references:
 - https://attack.mitre.org/techniques/T1566/001/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.initial-access

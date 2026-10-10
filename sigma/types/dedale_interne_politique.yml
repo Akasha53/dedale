@@ -1,10 +1,10 @@
-title: 'Dédale : Règle du SOC déclenchée par un agent IA'
+title: 'sAIfe : Règle du SOC déclenchée par un agent IA'
 id: d53063a1-0452-5a99-a2ce-f5340e4410ed
 status: test
 description: Un appel d'outil a déclenché une règle écrite par le SOC (blocage, retenue ou droit retiré).
 references:
 - https://attack.mitre.org/techniques/T1078/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.privilege-escalation

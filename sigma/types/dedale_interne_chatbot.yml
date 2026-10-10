@@ -1,10 +1,10 @@
-title: 'Dédale : Chatbot interne détourné par un message'
+title: 'sAIfe : Chatbot interne détourné par un message'
 id: 71d7509f-d261-5be0-8fed-9c9270a06924
 status: test
 description: Un message adressé au chatbot portait une consigne qui l'a détourné de sa tâche.
 references:
 - https://attack.mitre.org/techniques/T1566/003/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.initial-access

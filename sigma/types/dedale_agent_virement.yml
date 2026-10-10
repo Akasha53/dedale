@@ -1,10 +1,10 @@
-title: 'Dédale : Virement tenté par un agent IA, arrêté'
+title: 'sAIfe : Virement tenté par un agent IA, arrêté'
 id: 66312d62-3c10-5e3d-94b7-8b96b46effb0
 status: test
 description: Un agent a demandé un virement et la passerelle l'a retenu ou refusé.
 references:
 - https://attack.mitre.org/techniques/T1657/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.impact

@@ -1,11 +1,11 @@
-title: 'Dédale : Outil MCP modifié en cours de session'
+title: 'sAIfe : Outil MCP modifié en cours de session'
 id: e8cd98cd-90f2-5dcd-a9e2-43788531e9fd
 status: test
 description: La description ou les paramètres d'un outil ont changé après que l'agent l'a chargé. La passerelle
   a retenu l'appel suivant.
 references:
 - https://attack.mitre.org/techniques/T1195/002/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.initial-access

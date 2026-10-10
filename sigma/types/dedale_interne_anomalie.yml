@@ -1,10 +1,10 @@
-title: 'Dédale : Agent IA qui s''écarte de son habitude'
+title: 'sAIfe : Agent IA qui s''écarte de son habitude'
 id: ce9ede6e-10aa-59ca-ad8e-3361859693b5
 status: test
 description: Pic d'appels, outil jamais utilisé ou volume lu inhabituel pour cet agent.
 references:
 - https://attack.mitre.org/techniques/T1078/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.privilege-escalation

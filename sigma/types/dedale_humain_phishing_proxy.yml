@@ -1,11 +1,11 @@
-title: 'Dédale : Domaine sosie de la marque ouvert depuis le réseau, journaux du proxy'
+title: 'sAIfe : Domaine sosie de la marque ouvert depuis le réseau, journaux du proxy'
 id: bbfb7e7c-59f5-5333-b8f8-82b2ecade83d
 status: test
 description: Un poste a ouvert un domaine qui imite la marque (tiret, chiffre à la place d'une lettre, lettre doublée,
   homoglyphe en punycode). Remplacer la marque fictive Orbis Pay par la vôtre.
 references:
 - https://attack.mitre.org/techniques/T1566/002/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.initial-access

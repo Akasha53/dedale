@@ -1,11 +1,11 @@
-title: 'Dédale : Envoi vers un service de collecte de données, journaux du proxy'
+title: 'sAIfe : Envoi vers un service de collecte de données, journaux du proxy'
 id: 2b4d7be2-eb2c-552f-bdee-7749fa5a57d8
 status: test
 description: Requête POST ou PUT vers un service souvent utilisé pour récupérer des données volées (webhook jetable,
   collage de texte, tunnel). C'est là qu'un agent détourné envoie ce qu'il a lu.
 references:
 - https://attack.mitre.org/techniques/T1567/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.exfiltration

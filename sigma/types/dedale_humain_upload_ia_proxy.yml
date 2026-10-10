@@ -1,11 +1,11 @@
-title: 'Dédale : Gros envoi vers une IA générative publique, journaux du proxy'
+title: 'sAIfe : Gros envoi vers une IA générative publique, journaux du proxy'
 id: 9aad0f31-ea9d-53fb-8070-c75ab436e8af
 status: test
 description: 'Requête POST de plus de 100 ko vers un service d''IA générative grand public : souvent un fichier
   déposé dans la conversation.'
 references:
 - https://attack.mitre.org/techniques/T1567/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.exfiltration

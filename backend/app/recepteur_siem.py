@@ -224,7 +224,7 @@ class Recepteur:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Faux SIEM (syslog CEF) et faux Teams (webhook) pour la démo Dédale.")
+    p = argparse.ArgumentParser(description="Faux SIEM (syslog CEF) et faux Teams (webhook) pour la démo sAIfe.")
     p.add_argument("--syslog-port", type=int, default=0, help="port syslog UDP et TCP (défaut : un port libre)")
     p.add_argument("--webhook-port", type=int, default=0, help="port HTTP des webhooks (défaut : un port libre)")
     args = p.parse_args(argv)

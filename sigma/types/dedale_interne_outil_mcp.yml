@@ -1,11 +1,11 @@
-title: 'Dédale : Agent IA interne piégé par la description d''un outil MCP'
+title: 'sAIfe : Agent IA interne piégé par la description d''un outil MCP'
 id: 5d6e069e-d73c-5772-b59f-c72e5e697dca
 status: test
 description: La description d'un outil MCP branché à l'agent portait une consigne cachée, et l'agent l'a suivie
   (empoisonnement d'outil).
 references:
 - https://attack.mitre.org/techniques/T1195/002/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.initial-access

@@ -1,10 +1,10 @@
-title: 'Dédale : Données sensibles envoyées vers une adresse extérieure'
+title: 'sAIfe : Données sensibles envoyées vers une adresse extérieure'
 id: 8a01bd8d-135b-5ed2-9d6b-61f8baa097a2
 status: test
 description: Le salarié a envoyé des données sensibles à une adresse hors de l'entreprise après l'alerte.
 references:
 - https://attack.mitre.org/techniques/T1048/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.exfiltration

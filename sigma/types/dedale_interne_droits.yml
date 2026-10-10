@@ -1,11 +1,11 @@
-title: 'Dédale : Agent IA interne hors de son périmètre de droits'
+title: 'sAIfe : Agent IA interne hors de son périmètre de droits'
 id: 13f1be2b-d972-57c7-82a0-10e5d4114c32
 status: test
 description: L'agent a tenté un appel d'outil qui exige un droit absent de son jeton de tâche. La passerelle l'a
   refusé.
 references:
 - https://attack.mitre.org/techniques/T1078/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.privilege-escalation

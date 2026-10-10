@@ -1,10 +1,10 @@
-title: 'Dédale : Agent IA interne piégé par la transcription d''un appel'
+title: 'sAIfe : Agent IA interne piégé par la transcription d''un appel'
 id: 034c52e3-674c-5938-b6a1-477af329d5f4
 status: test
 description: La transcription d'un appel téléphonique lue par l'agent portait une consigne, et l'agent l'a suivie.
 references:
 - https://attack.mitre.org/techniques/T1566/004/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.initial-access

@@ -1,11 +1,11 @@
-title: 'Dédale : Requête vers une route-leurre, journaux du serveur web'
+title: 'sAIfe : Requête vers une route-leurre, journaux du serveur web'
 id: 127ac862-a039-5e34-b13f-91b47c0ab0b0
 status: test
 description: Requête sur une route qui n'existe que comme piège (listée dans robots.txt ou dans un commentaire caché).
   Adapter la liste aux routes-leurres déployées sur le site.
 references:
 - https://attack.mitre.org/techniques/T1595/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 date: '2026-10-10'
 tags:
 - attack.reconnaissance
