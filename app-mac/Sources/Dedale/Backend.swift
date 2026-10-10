@@ -67,7 +67,7 @@ final class Backend {
             "origine": "app-mac",
             "mail_id": id,
             "message": "Mail signalé par le salarié : « \(m.objet) »",
-            "verdict_analyseur": verdict.map { $0.frauduleux ? "frauduleux" : "sain" } ?? "inconnu",
+            "verdict_analyseur": verdict.map { $0.statut ?? ($0.frauduleux ? "frauduleux" : "inconnu") } ?? "inconnu",
         ]
         if !m.expediteur.isEmpty { details["cible"] = m.expediteur }
         var doc: [String: Any] = [

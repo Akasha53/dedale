@@ -20,6 +20,8 @@ struct MailResume: Equatable {
 struct VerdictMail {
     let mail: MailResume
     let frauduleux: Bool
+    /// Verdict brut de l'analyseur (`sur`, `suspect`, `frauduleux`), s'il est donné en texte.
+    let statut: String?
     /// Titre court de l'alerte, s'il est fourni (sinon la pop-up dit « Ce mail est sûrement frauduleux. »).
     let titre: String?
     let raisons: [String]
@@ -166,6 +168,7 @@ final class Messagerie {
         guard let mail = lireResume(d) else { return nil }
 
         var frauduleux = false
+        let statut = texte(d, ["verdict", "statut", "classement"])
         // Seul « frauduleux » déclenche une alerte : un mail « suspect » reste dans la boîte.
         if let b = (d["frauduleux"] ?? d["est_frauduleux"] ?? d["fraude"]) as? Bool {
             frauduleux = b
@@ -201,6 +204,7 @@ final class Messagerie {
         return VerdictMail(
             mail: mail,
             frauduleux: frauduleux,
+            statut: statut.map { Avertissement.identifiantSur($0) },
             titre: titre,
             raisons: raisons,
             gravite: gravite,
