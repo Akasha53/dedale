@@ -3,190 +3,183 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dédale — poste du salarié</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="light">
+<title>Dédale : poste du salarié</title>
 <style>
+  /* Même palette que l'extension et la console : clair, police du système,
+     arrondis larges, peu de couleurs. Le rouge signale le risque, le cyan le bon réflexe. */
   :root {
-    color-scheme: light;
-    --bg:#F6F7F9; --card:#FFFFFF; --bord:#E5E7EB;
-    --ink:#0B1220; --muted:#5B6474;
-    --cyan:#22D3EE; --cyan-txt:#0891B2; --cyan-doux:#E6F8FC;
-    --ok:#0F7B55; --ko:#B42318;
-    --dsp:"Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-    --txt:"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    --fond:#ffffff; --surface:#f4f4f4; --surface-forte:#ececec; --bord:#e5e5e5;
+    --texte:#0d0d0d; --doux:#5d5d5d; --faible:#6b6b6b;
+    --rouge:#b42318; --rouge-fond:#fef3f2; --rouge-bord:#fecdca;
+    --cyan:#22d3ee; --cyan-txt:#0e7490; --cyan-fond:#ecfbfe;
+    --vert:#15803d;
+    --courbe:cubic-bezier(.32,.72,0,1);
+    --sans:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin:0; font-family:var(--txt); color:var(--ink); background:var(--bg);
-    -webkit-font-smoothing:antialiased; line-height:1.5;
-  }
-  .enveloppe { max-width:1040px; margin:0 auto; padding:72px 24px 96px; }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--fond); color:var(--texte); font:400 15px/1.55 var(--sans); -webkit-font-smoothing:antialiased; overflow-x:clip; }
+  h1, h2, h3, p { margin:0; }
+  a { color:inherit; }
+  .enveloppe { width:min(100% - 32px, 1040px); margin:0 auto; padding:72px 0 96px; }
 
-  header.hero { margin-bottom:64px; }
-  .pastille {
-    display:inline-flex; align-items:center; gap:8px;
-    font-size:11px; letter-spacing:.2em; text-transform:uppercase;
-    color:var(--cyan-txt); background:var(--cyan-doux);
-    border:1px solid #BDEBF5; border-radius:999px; padding:6px 14px;
-    font-weight:600;
-  }
-  header.hero h1 {
-    font-family:var(--dsp); font-weight:700; font-size:clamp(32px,5vw,52px);
-    letter-spacing:-.02em; line-height:1.04; margin:22px 0 14px; max-width:16ch;
-  }
-  header.hero p { color:var(--muted); font-size:17px; max-width:56ch; margin:0; }
+  .pastille { justify-self:start; display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; background:var(--surface); font-size:12px; font-weight:500; color:var(--doux); }
+  .pastille::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--cyan-txt); }
 
-  .scene { margin-bottom:72px; }
-  .scene-tete { margin-bottom:26px; }
-  .scene-tete h2 {
-    font-family:var(--dsp); font-weight:600; font-size:clamp(22px,3vw,30px);
-    letter-spacing:-.01em; margin:16px 0 8px;
-  }
-  .scene-sous { color:var(--muted); font-size:15px; margin:0; max-width:60ch; }
+  header.tete { margin-bottom:72px; display:grid; gap:20px; }
+  header.tete h1 { font-size:clamp(32px,5vw,48px); line-height:1.06; letter-spacing:-.03em; font-weight:650; max-width:18ch; }
+  header.tete > p { color:var(--doux); font-size:17px; max-width:60ch; }
+  .perimetre { display:grid; gap:6px; max-width:720px; padding:18px 22px; border-radius:20px; background:var(--surface); }
+  .perimetre strong { font-size:13px; font-weight:600; }
+  .perimetre p { color:var(--doux); font-size:15px; }
 
-  /* poste : cadre + scène + voile + pop-up */
-  .poste {
-    position:relative; border-radius:20px; padding:10px;
-    background:#EDEFF3; border:1px solid var(--bord);
-    box-shadow:0 24px 50px -30px rgba(11,18,32,.25);
-  }
-  .app {
-    position:relative; border-radius:12px; overflow:hidden;
-    background:var(--card); border:1px solid var(--bord);
-  }
-  .chrome {
-    display:flex; align-items:center; gap:8px; padding:12px 16px;
-    background:#F3F4F6; border-bottom:1px solid var(--bord);
-  }
-  .feu { width:11px; height:11px; border-radius:50%; background:#D1D5DB; }
-  .feu.r { background:#FF5F57; } .feu.o { background:#FEBC2E; } .feu.v { background:#28C840; }
-  .chrome-titre, .onglet { color:var(--muted); font-size:13px; margin-left:8px; }
-  .onglet {
-    margin-left:14px; background:var(--card); color:var(--ink);
-    padding:5px 14px; border-radius:9px 9px 0 0; font-size:12.5px;
-    border:1px solid var(--bord); border-bottom:0;
-  }
+  .scene { margin-bottom:80px; }
+  .scene-tete { display:grid; gap:12px; margin-bottom:24px; }
+  .scene-tete h2 { font-size:clamp(22px,3vw,28px); line-height:1.2; letter-spacing:-.02em; font-weight:650; }
+  .scene-sous { color:var(--doux); max-width:62ch; }
 
-  /* mail */
-  .mail-corps { display:grid; grid-template-columns:168px 1fr; min-height:340px; }
-  .mail-rail { border-right:1px solid var(--bord); background:#F9FAFB; padding:14px 10px; display:flex; flex-direction:column; gap:4px; }
-  .rail-item { color:var(--muted); font-size:13px; padding:9px 12px; border-radius:9px; display:flex; justify-content:space-between; }
-  .rail-item.actif { background:#E5EEFB; color:var(--ink); font-weight:500; }
-  .rail-item b { color:var(--cyan-txt); }
-  .mail-lecture { padding:22px 26px; }
-  .mail-objet { font-family:var(--dsp); font-weight:600; font-size:18px; margin:0 0 12px; }
-  .mail-de { font-size:13.5px; margin:0 0 20px; color:var(--ink); }
-  .mail-adr { color:var(--ko); }
-  .mail-texte { color:var(--muted); font-size:14.5px; margin:0 0 20px; max-width:46ch; }
-  .mail-lien {
-    display:inline-block; background:#FEF3F2; color:var(--ko);
-    border:1px solid #FECDCA; border-radius:10px; padding:10px 16px;
-    font-size:13px; font-weight:500;
-  }
+  /* Le poste : cadre, application, voile, alerte */
+  .poste { position:relative; padding:8px; border-radius:28px; background:var(--surface); }
+  .app { position:relative; border-radius:20px; overflow:hidden; background:var(--fond); box-shadow:0 0 0 1px var(--bord); }
+  .chrome { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--bord); }
+  .feu { width:11px; height:11px; border-radius:50%; background:#d9d9d9; }
+  .chrome-titre { color:var(--doux); font-size:13px; margin-left:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .barre-url { display:flex; align-items:center; gap:10px; min-width:0; flex:1; margin-left:10px; padding:6px 14px; border-radius:999px; background:var(--surface); font:400 13px/1.3 var(--mono); color:var(--doux); }
+  .barre-url span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  /* navigateur */
-  .barre-url { display:flex; align-items:center; gap:12px; padding:11px 16px; background:var(--card); border-bottom:1px solid var(--bord); }
-  .cadenas { font-size:11px; color:var(--ko); border:1px solid #FECDCA; background:#FEF3F2; border-radius:999px; padding:3px 10px; letter-spacing:.04em; }
-  .url { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:13px; color:var(--muted); overflow-wrap:anywhere; }
-  .page-faux { min-height:316px; padding:40px 34px; display:flex; flex-direction:column; align-items:center; gap:14px; background:#FAFBFC; }
-  .faux-logo { font-family:var(--dsp); font-weight:700; font-size:22px; letter-spacing:-.01em; color:var(--ink); }
-  .faux-titre { color:var(--muted); font-size:14px; margin:0 0 6px; }
-  .faux-champ { width:min(320px,80%); color:var(--muted); font-size:13px; background:var(--card); border:1px solid var(--bord); border-radius:10px; padding:12px 14px; }
-  .faux-cta { width:min(320px,80%); text-align:center; background:#2563EB; color:#fff; border-radius:10px; padding:12px; font-weight:600; font-size:14px; }
+  .mail-corps { display:grid; grid-template-columns:168px minmax(0,1fr); min-height:400px; }
+  .mail-rail { border-right:1px solid var(--bord); padding:14px 10px; display:flex; flex-direction:column; gap:4px; }
+  .rail-item { color:var(--doux); font-size:13px; padding:8px 12px; border-radius:10px; display:flex; justify-content:space-between; }
+  .rail-item.actif { background:var(--surface); color:var(--texte); font-weight:500; }
+  .mail-lecture { padding:24px 28px; }
+  .mail-objet { font-weight:600; font-size:18px; letter-spacing:-.01em; margin-bottom:10px; }
+  .mail-de { font-size:13.5px; margin-bottom:18px; }
+  .mail-adr { color:var(--rouge); overflow-wrap:anywhere; }
+  .mail-texte { color:var(--doux); font-size:14.5px; margin-bottom:18px; max-width:46ch; }
+  .mail-lien { display:inline-block; border-radius:12px; padding:10px 16px; background:var(--texte); color:#fff; font-size:13px; font-weight:600; }
 
-  /* voile + pop-up du garde */
-  .voile {
-    position:absolute; inset:10px; border-radius:12px;
-    display:flex; align-items:flex-end; justify-content:flex-end; padding:22px;
-    background:linear-gradient(115deg, rgba(246,247,249,0), rgba(11,18,32,.07));
-  }
-  .garde {
-    width:min(400px,88%);
-    background:#F9F9FA;
-    border:1px solid var(--bord); border-radius:14px; overflow:hidden;
-    box-shadow:0 18px 44px -12px rgba(11,18,32,.28), 0 2px 6px rgba(11,18,32,.06);
-    animation:surgir .5s cubic-bezier(.32,.72,0,1) both;
-  }
-  @keyframes surgir { from { opacity:0; transform:translateY(14px) scale(.97); } to { opacity:1; transform:none; } }
-  .garde-tete { display:flex; gap:12px; align-items:center; padding:18px 20px 8px; }
-  .garde-ico { width:38px; height:38px; flex:none; color:var(--cyan-txt); background:#D4F1F7; border-radius:11px; display:flex; align-items:center; justify-content:center; }
-  .garde-ico svg { width:20px; height:20px; }
-  .garde-id { display:flex; flex-direction:column; gap:4px; min-width:0; }
-  .garde-nom { font-family:var(--dsp); font-weight:600; font-size:14px; }
-  .garde-meta { color:#3F4857; font-size:11px; font-weight:500; display:inline-flex; align-items:center; gap:6px; align-self:flex-start; background:#F1F2F5; border:1px solid var(--bord); border-radius:8px; padding:2px 8px; }
-  .dot { width:7px; height:7px; border-radius:50%; background:var(--grav); }
-  .garde-titre { font-family:var(--dsp); font-weight:700; font-size:19px; letter-spacing:-.01em; padding:4px 20px 0; margin:6px 0 8px; color:var(--ink); }
-  .garde-expli { padding:0 20px; color:var(--muted); font-size:14px; margin:0 0 14px; }
-  .garde-preuve { margin:0 20px 16px; background:var(--card); border:1px solid var(--bord); border-radius:10px; padding:10px 13px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12px; color:var(--muted); word-break:break-word; }
-  .garde-boutons { display:flex; gap:10px; padding:0 20px 12px; }
-  .garde-boutons button { flex:1; padding:11px 8px; border-radius:12px; border:1px solid var(--bord); font-family:var(--txt); font-size:13.5px; font-weight:700; cursor:default; }
-  .b-annuler { background:var(--cyan); color:var(--ink); border-color:transparent; }
-  .b-continuer { background:var(--card); color:var(--ko); border-color:#F4C9C4; }
-  .garde-note { margin:0; padding:0 20px 18px; font-size:12px; color:#6B7280; }
+  .voile { position:absolute; inset:8px; border-radius:20px; display:flex; align-items:flex-end; justify-content:flex-end; padding:22px; background:linear-gradient(115deg, rgba(255,255,255,0), rgba(13,13,13,.06)); }
 
-  /* issues : les deux fins possibles */
-  .issues { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }
-  .issue { border-radius:14px; padding:16px 18px; background:var(--card); border:1px solid var(--bord); opacity:.6; transition:opacity .4s ease; }
-  .issue p { margin:8px 0 0; font-size:13.5px; color:var(--muted); }
-  .issue-tag { font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:700; }
-  .issue.ok .issue-tag { color:var(--ok); }
-  .issue.ko .issue-tag { color:var(--ko); }
-  .issue.est-arrive { opacity:1; }
-  .issue.ok.est-arrive { border-color:#A6DFC6; box-shadow:0 0 0 1px #D3F0E4; }
-  .issue.ko.est-arrive { border-color:#F4C9C4; box-shadow:0 0 0 1px #FBE3E0; }
-  .issue.est-arrive .issue-tag::after { content:" · ce qui s'est passé"; color:var(--muted); font-weight:400; letter-spacing:0; text-transform:none; }
+  /* Alerte de l'app Mac (même gabarit que app-mac/captures/mail.png) */
+  .alerte { width:min(400px,100%); display:grid; gap:10px; padding:20px; border-radius:22px; background:#f7f7f8; box-shadow:0 0 0 1px var(--bord), 0 24px 48px -20px rgba(13,13,13,.28); animation:surgir .6s var(--courbe) both; }
+  @keyframes surgir { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:none; } }
+  .alerte-tete { display:flex; align-items:center; gap:10px; }
+  .alerte-ico { width:34px; height:34px; flex:none; border-radius:10px; display:grid; place-items:center; color:var(--cyan-txt); background:#d5f3f9; }
+  .alerte-ico svg { width:18px; height:18px; }
+  .alerte-nom { font-weight:600; font-size:14px; }
+  .alerte-cat { margin-left:auto; padding:3px 10px; border-radius:8px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); font-size:12px; font-weight:500; color:var(--doux); }
+  .alerte-titre { font-size:19px; font-weight:650; letter-spacing:-.015em; line-height:1.25; margin-top:4px; }
+  .alerte-meta { font-size:13px; color:var(--doux); overflow-wrap:anywhere; }
+  .alerte-raison { font-size:14px; }
+  .alerte-lien { justify-self:start; font-size:13px; font-weight:600; color:var(--cyan-txt); text-underline-offset:3px; }
+  .alerte-boutons { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px; }
+  .alerte-boutons button { min-height:42px; padding:10px; border-radius:12px; font:600 14px/1.2 var(--sans); cursor:default; }
+  .b-continuer { background:var(--fond); color:var(--rouge); border:1px solid var(--rouge-bord); }
+  .b-annuler { background:var(--cyan); color:var(--texte); border:1px solid transparent; }
+  .alerte-note { font-size:12.5px; line-height:1.5; color:var(--faible); }
 
-  /* second plan */
-  .second { margin-top:16px; }
-  .grille { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:26px; }
-  .carte { border-radius:14px; padding:20px; background:var(--card); border:1px solid var(--bord); border-left:3px solid var(--grav); box-shadow:0 1px 3px rgba(11,18,32,.05); }
-  .carte-tete { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-  .carte-ctx { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--cyan-txt); font-weight:700; }
-  .carte-grav { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); }
-  .carte-geste { color:var(--muted); font-size:13px; margin:0 0 8px; }
-  .carte-titre { font-family:var(--dsp); font-weight:600; font-size:15.5px; margin:0 0 14px; }
-  .carte-issue { font-size:12.5px; font-weight:600; margin:0; }
-  .carte-issue.ok { color:var(--ok); }
-  .carte-issue.ko { color:var(--ko); }
+  /* Page d'avertissement de l'extension Chrome, à la place du site sosie */
+  .page-ext { min-height:440px; display:grid; place-items:center; padding:40px 24px; }
+  .ext { width:100%; max-width:500px; display:grid; gap:20px; animation:surgir .6s var(--courbe) both; }
+  .ext-ico { width:52px; height:52px; border-radius:50%; display:grid; place-items:center; color:var(--rouge); background:var(--rouge-fond); box-shadow:inset 0 0 0 1px var(--rouge-bord); }
+  .ext-ico svg { width:26px; height:26px; }
+  .ext h3 { font-size:26px; line-height:1.2; letter-spacing:-.015em; font-weight:650; display:grid; gap:2px; }
+  .ext h3 span { color:var(--rouge); }
+  .ext dl { margin:0; padding:4px 20px; border-radius:20px; background:var(--surface); }
+  .ext dl div { padding:12px 0; display:grid; gap:2px; }
+  .ext dl div + div { border-top:1px solid var(--bord); }
+  .ext dt { font-size:13px; color:var(--doux); }
+  .ext dd { margin:0; font:600 15px/1.4 var(--mono); overflow-wrap:anywhere; }
+  .ext dd.sosie { color:var(--rouge); }
+  .ext-raison { color:var(--doux); }
+  .ext-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .ext-actions span { display:inline-flex; align-items:center; min-height:44px; padding:0 22px; border-radius:999px; font-weight:600; font-size:14.5px; }
+  .ext-actions .principal { background:var(--texte); color:#fff; }
+  .ext-actions .discret { color:var(--doux); box-shadow:inset 0 0 0 1px var(--bord); }
+  .ext-note { font-size:13px; color:var(--faible); }
 
-  footer { color:var(--muted); font-size:12.5px; border-top:1px solid var(--bord); margin-top:40px; padding-top:22px; }
+  /* Les deux issues */
+  .issues { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+  .issue { display:grid; gap:6px; padding:16px 18px; border-radius:18px; background:var(--surface); }
+  .issue-tag { font-size:13px; font-weight:600; }
+  .issue.ok .issue-tag { color:var(--vert); }
+  .issue.ko .issue-tag { color:var(--rouge); }
+  .issue p { font-size:14px; color:var(--doux); }
+
+  /* Autres gestes */
+  .grille { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .grille.trois { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .carte { display:grid; gap:8px; align-content:start; padding:20px; border-radius:22px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); }
+  .carte-ctx { font-size:12px; font-weight:600; color:var(--cyan-txt); }
+  .carte-geste { color:var(--doux); font-size:14px; }
+  .carte-titre { font-weight:600; font-size:15.5px; letter-spacing:-.01em; }
+  .carte-part { margin-top:6px; padding-top:12px; border-top:1px solid var(--bord); font-size:13.5px; color:var(--doux); }
+  .carte-part b { color:var(--texte); font-weight:600; }
+
+  /* Ce qui part */
+  .part { scroll-margin-top:24px; }
+  .tableau { width:100%; border-collapse:separate; border-spacing:0; border-radius:22px; overflow:hidden; box-shadow:0 0 0 1px var(--bord); font-size:14px; }
+  .tableau th, .tableau td { text-align:left; vertical-align:top; padding:14px 18px; }
+  .tableau thead th { background:var(--surface); font-size:13px; font-weight:600; color:var(--doux); }
+  .tableau tbody th { font-weight:600; width:24%; }
+  .tableau tbody tr + tr th, .tableau tbody tr + tr td { border-top:1px solid var(--bord); }
+  .tableau td { color:var(--doux); }
+  .part-note { margin-top:16px; color:var(--doux); font-size:14px; max-width:70ch; }
+
+  footer { margin-top:56px; padding-top:22px; border-top:1px solid var(--bord); color:var(--faible); font-size:13px; }
 
   @media (min-width:761px) {
-    .mail-lecture { padding-right:430px; }
-    .page-faux { padding-right:430px; }
+    .mail-lecture { padding-right:440px; }
   }
-
   @media (max-width:760px) {
-    .enveloppe { padding:48px 16px 64px; }
-    .mail-corps { grid-template-columns:1fr; }
+    .enveloppe { padding:48px 0 64px; }
+    header.tete { margin-bottom:56px; }
+    .mail-corps { grid-template-columns:1fr; min-height:0; }
     .mail-rail { display:none; }
-    .issues, .grille { grid-template-columns:1fr; }
-    .voile { padding:12px; align-items:center; justify-content:center; }
-    .garde { width:min(380px,96%); }
+    .voile { position:static; padding:0 8px 12px; background:none; justify-content:center; }
+    .alerte { margin-top:-4px; }
+    .issues, .grille, .grille.trois { grid-template-columns:1fr; }
+    .page-ext { padding:28px 18px; min-height:0; }
+    .ext h3 { font-size:22px; }
+    .ext-actions { flex-direction:column; align-items:stretch; }
+    .ext-actions span { justify-content:center; }
+    .tableau thead { display:none; }
+    .tableau, .tableau tbody, .tableau tr, .tableau th, .tableau td { display:block; width:auto; }
+    .tableau tbody tr + tr { border-top:1px solid var(--bord); }
+    .tableau tbody tr + tr th, .tableau tbody tr + tr td { border-top:0; }
+    .tableau tbody th { width:auto; padding-bottom:4px; }
+    .tableau td { padding-top:4px; }
+    .tableau td::before { content:attr(data-col) " : "; color:var(--texte); font-weight:500; }
   }
+  @media (prefers-reduced-motion:reduce) { .alerte, .ext { animation:none; } }
 </style>
 </head>
 <body>
   <div class="enveloppe">
-    <header class="hero">
-      <span class="pastille">Dédale · garde du corps du poste</span>
+    <header class="tete">
+      <span class="pastille">Dédale · poste du salarié</span>
       <h1>Camille est prévenue avant le clic de trop.</h1>
-      <p>Une appli discrète tourne sur son poste. Elle lit le mail qui arrive et le lien qu'elle s'apprête à ouvrir, puis prévient au bon moment. Tout est fictif, local et inerte.</p>
+      <p>Dédale est une app visible : son icône reste dans la barre de menus du Mac. Elle prévient le salarié avant un geste risqué et lui laisse le choix. Elle ne bloque jamais le poste.</p>
+      <div class="perimetre">
+        <strong>Ce que Dédale regarde</strong>
+        <p>Quatre choses, chacune dans un module qu'on peut couper : les mails qui arrivent, l'adresse de l'onglet actif, les nouveaux téléchargements et les agents IA installés sur le poste. Dédale ne lit jamais le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique. Orbis Pay et Camille sont fictifs, tout tourne en local.</p>
+      </div>
     </header>
-<section class="scene">
+
+    <section class="scene" aria-labelledby="scene-mail">
       <div class="scene-tete">
-        <span class="pastille">01 · mail reçu</span>
-        <h2>Au moment où elle ouvre le mail</h2>
-        <p class="scene-sous">Le garde du corps lit l'expéditeur et le lien avant qu'un seul clic ne parte.</p>
+        <span class="pastille">01 · mail reçu, app Mac</span>
+        <h2 id="scene-mail">Au moment où elle ouvre le mail</h2>
+        <p class="scene-sous">L'analyseur lit l'expéditeur, les liens et le texte du mail. Il le juge frauduleux, et l'app affiche l'alerte avant le moindre clic.</p>
       </div>
       <div class="poste">
-        <div class="app mail">
-          <div class="chrome"><span class="feu r"></span><span class="feu o"></span><span class="feu v"></span>
-            <span class="chrome-titre">Courrier — Boîte de réception</span></div>
+        <div class="app">
+          <div class="chrome"><span class="feu"></span><span class="feu"></span><span class="feu"></span>
+            <span class="chrome-titre">Courrier · Boîte de réception</span></div>
           <div class="mail-corps">
-            <aside class="mail-rail">
+            <aside class="mail-rail" aria-hidden="true">
               <span class="rail-item actif">Réception <b>1</b></span>
               <span class="rail-item">Envoyés</span>
               <span class="rail-item">Brouillons</span>
@@ -195,139 +188,126 @@
             <div class="mail-lecture">
               <p class="mail-objet">Votre accès Orbis Pay expire : confirmez vos identifiants</p>
               <p class="mail-de"><b>Orbis Pay Sécurité</b> <span class="mail-adr">&lt;alerte@orbispay-verification.net&gt;</span></p>
-              <p class="mail-texte">Bonjour Camille, votre accès sera suspendu sous 24 h.
-                 Pour le garder, confirmez vos identifiants.</p>
-              <span class="mail-lien">Réactiver mon accès — orbispay-verification.net</span>
+              <p class="mail-texte">Bonjour Camille, votre accès sera suspendu sous 24 h. Pour le garder, confirmez vos identifiants.</p>
+              <span class="mail-lien">Réactiver mon accès</span>
             </div>
           </div>
         </div>
         <div class="voile">
-          <div class="garde" style="--grav:#FB923C">
-          <div class="garde-tete">
-            <span class="garde-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9.5 12l1.8 1.8L15 10.3"/></svg></span>
-            <div class="garde-id">
-              <span class="garde-nom">Dédale · garde du corps</span>
-              <span class="garde-meta"><span class="dot"></span>gravité haute · PHISHING_LISTE</span>
+          <div class="alerte" role="group" aria-label="Alerte de Dédale sur le mail">
+            <div class="alerte-tete">
+              <span class="alerte-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5 4.5 5.4v5.9c0 4.6 3.1 8.6 7.5 10.2 4.4-1.6 7.5-5.6 7.5-10.2V5.4L12 2.5Zm0 2.2v14.5c-3.2-1.4-5.3-4.5-5.3-7.9V6.9L12 4.7Z"/></svg></span>
+              <span class="alerte-nom">Dédale</span>
+              <span class="alerte-cat">Hameçonnage</span>
             </div>
+            <p class="alerte-titre">Ce mail est sûrement frauduleux.</p>
+            <p class="alerte-meta">« Votre accès Orbis Pay expire » · alerte@orbispay-verification[.]net</p>
+            <p class="alerte-raison">Il se présente comme Orbis Pay, mais il vient d'un domaine déjà connu comme piège. Ne clique sur rien et ne réponds pas.</p>
+            <a class="alerte-lien" href="#ce-qui-part">Ce que Dédale envoie</a>
+            <div class="alerte-boutons">
+              <button type="button" class="b-continuer" tabindex="-1">Continuer</button>
+              <button type="button" class="b-annuler" tabindex="-1">Annuler</button>
+            </div>
+            <p class="alerte-note">Annuler ou continuer, l'équipe sécurité reçoit le type d'alerte, l'expéditeur et ton choix, avec une copie désarmée de ce mail. Rien d'autre de ta boîte.</p>
           </div>
-          <p class="garde-titre">Ce mail est sûrement frauduleux.</p>
-          <p class="garde-expli">Il se présente comme Orbis Pay, mais domaine déjà connu comme piège. Ne clique sur rien et ne réponds pas : signale-le à la sécurité.</p>
-          <p class="garde-preuve">[preuve, neutralisée] alerte@orbispay-verification.net · http:…</p>
-          <div class="garde-boutons">
-            <button class="b-annuler">Annuler</button>
-            <button class="b-continuer">Continuer quand même</button>
-          </div>
-          <p class="garde-note">Si tu continues, l'équipe sécurité est prévenue.</p>
-        </div>
         </div>
       </div>
       <div class="issues">
-          <div class="issue ok">
-            <span class="issue-tag">Annuler</span>
-            <p>Camille revient en arrière. Rien ne part, le geste est protégé.</p>
-          </div>
-          <div class="issue ko est-arrive">
-            <span class="issue-tag">Continuer</span>
-            <p>Le geste passe. Un incident remonte au SOC avec son contexte.</p>
-          </div>
+        <div class="issue ok">
+          <span class="issue-tag">Annuler</span>
+          <p>Camille revient en arrière. L'équipe sécurité compte un piège évité, sans ouvrir de dossier. Trois lignes expliquent ensuite le piège.</p>
         </div>
-    </section><section class="scene">
+        <div class="issue ko">
+          <span class="issue-tag">Continuer</span>
+          <p>Camille poursuit. Un dossier s'ouvre au SOC avec le type d'alerte, l'expéditeur, le lien et la copie désarmée du mail.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="scene" aria-labelledby="scene-web">
       <div class="scene-tete">
-        <span class="pastille">02 · navigation web</span>
-        <h2>Au moment où elle clique le lien</h2>
-        <p class="scene-sous">Un résultat sponsorisé qui imite la page de connexion. Le garde du corps le voit avant la saisie.</p>
+        <span class="pastille">02 · navigation, extension Chrome</span>
+        <h2 id="scene-web">Au moment où elle ouvre le lien</h2>
+        <p class="scene-sous">L'adresse imite celle d'Orbis Pay. L'extension affiche son avertissement à la place de la page, avant toute saisie. Elle ne lit que l'adresse.</p>
       </div>
       <div class="poste">
-        <div class="app nav">
-          <div class="chrome"><span class="feu r"></span><span class="feu o"></span><span class="feu v"></span>
-            <span class="onglet">Connexion Orbis Pay</span></div>
-          <div class="barre-url"><span class="cadenas">non sécurisé</span>
-            <span class="url">http://login-orbispay.help/connexion</span></div>
-          <div class="page-faux">
-            <div class="faux-logo">Orbis Pay</div>
-            <p class="faux-titre">Connexion à votre espace</p>
-            <span class="faux-champ">Identifiant</span>
-            <span class="faux-champ">Mot de passe</span>
-            <span class="faux-cta">Se connecter</span>
-          </div>
-        </div>
-        <div class="voile">
-          <div class="garde" style="--grav:#FB923C">
-          <div class="garde-tete">
-            <span class="garde-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9.5 12l1.8 1.8L15 10.3"/></svg></span>
-            <div class="garde-id">
-              <span class="garde-nom">Dédale · garde du corps</span>
-              <span class="garde-meta"><span class="dot"></span>gravité haute · PHISHING_LISTE</span>
+        <div class="app">
+          <div class="chrome"><span class="feu"></span><span class="feu"></span><span class="feu"></span>
+            <span class="barre-url"><span>login-orbispay.help/connexion</span></span></div>
+          <div class="page-ext">
+            <div class="ext" role="group" aria-label="Avertissement de l'extension Dédale">
+              <span class="ext-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
+              <h3>Ce site imite Orbis Pay.<span>Ce n'est pas le vrai site.</span></h3>
+              <dl>
+                <div><dt>Tu allais sur</dt><dd class="sosie">login-orbispay.help</dd></div>
+                <div><dt>Le vrai site</dt><dd>orbispay.example</dd></div>
+              </dl>
+              <p class="ext-raison">Le nom « orbispay » est glissé dans un autre domaine.</p>
+              <div class="ext-actions"><span class="principal">Revenir en arrière</span><span class="discret">Continuer quand même</span></div>
+              <p class="ext-note">Si tu reviens en arrière, rien ne part. Si tu continues, l'équipe sécurité reçoit le type d'alerte, le nom du site et ton choix, jamais le contenu de la page ni ce que tu tapes.</p>
             </div>
           </div>
-          <p class="garde-titre">Ce lien n&#x27;est pas le vrai site d&#x27;Orbis Pay.</p>
-          <p class="garde-expli">En clair : domaine déjà connu comme piège. N&#x27;entre pas tes identifiants sur cette page.</p>
-          <p class="garde-preuve">[preuve, neutralisée] http://login-orbispay.help/connexion</p>
-          <div class="garde-boutons">
-            <button class="b-annuler">Annuler</button>
-            <button class="b-continuer">Continuer quand même</button>
-          </div>
-          <p class="garde-note">Si tu continues, l'équipe sécurité est prévenue.</p>
-        </div>
         </div>
       </div>
       <div class="issues">
-          <div class="issue ok">
-            <span class="issue-tag">Annuler</span>
-            <p>Camille revient en arrière. Rien ne part, le geste est protégé.</p>
-          </div>
-          <div class="issue ko est-arrive">
-            <span class="issue-tag">Continuer</span>
-            <p>Le geste passe. Un incident remonte au SOC avec son contexte.</p>
-          </div>
+        <div class="issue ok">
+          <span class="issue-tag">Revenir en arrière</span>
+          <p>Camille retrouve la page d'avant. Rien ne part : ce choix reste dans le navigateur.</p>
         </div>
+        <div class="issue ko">
+          <span class="issue-tag">Continuer quand même</span>
+          <p>La page s'ouvre. L'équipe sécurité reçoit le nom du site et le choix, et un dossier s'ouvre.</p>
+        </div>
+      </div>
     </section>
-<section class="second">
+
+    <section class="scene" aria-labelledby="autres">
       <div class="scene-tete">
         <span class="pastille">au second plan</span>
-        <h2>Les autres gestes qu'il surveille</h2>
-        <p class="scene-sous">Secret collé, données clients vers l'extérieur, dépôt sur une IA non validée, pièce jointe piégée.</p>
+        <h2 id="autres">Les autres modules</h2>
+        <p class="scene-sous">Chacun regarde une seule chose et se coupe séparément.</p>
       </div>
-      <div class="grille">
-<article class="carte" style="--grav:#FB923C">
-        <div class="carte-tete">
-          <span class="carte-ctx">copier-coller</span>
-          <span class="carte-grav"><span class="dot"></span>haute</span>
-        </div>
-        <p class="carte-geste">Camille colle une clé API dans ChatGPT pour « debugger »</p>
-        <p class="carte-titre">Ne colle pas clé API Anthropic dans ChatGPT.</p>
-        <p class="carte-issue ko">Passé outre, incident au SOC</p>
-      </article>
-<article class="carte" style="--grav:#FB923C">
-        <div class="carte-tete">
-          <span class="carte-ctx">mail sortant</span>
-          <span class="carte-grav"><span class="dot"></span>haute</span>
-        </div>
-        <p class="carte-geste">Camille envoie l&#x27;export clients à son adresse Gmail perso</p>
-        <p class="carte-titre">Ce mail part à l&#x27;extérieur avec des données sensibles.</p>
-        <p class="carte-issue ko">Passé outre, incident au SOC</p>
-      </article>
-<article class="carte" style="--grav:#FB923C">
-        <div class="carte-tete">
-          <span class="carte-ctx">dépôt de fichier</span>
-          <span class="carte-grav"><span class="dot"></span>haute</span>
-        </div>
-        <p class="carte-geste">Camille dépose le plan stratégique sur un Drive perso</p>
-        <p class="carte-titre">Ce fichier confidentiel ne doit pas aller sur Google Drive perso.</p>
-        <p class="carte-issue ko">Passé outre, incident au SOC</p>
-      </article>
-<article class="carte" style="--grav:#F87171">
-        <div class="carte-tete">
-          <span class="carte-ctx">pièce jointe</span>
-          <span class="carte-grav"><span class="dot"></span>critique</span>
-        </div>
-        <p class="carte-geste">Camille ouvre une pièce jointe d&#x27;un expéditeur inconnu</p>
-        <p class="carte-titre">N&#x27;ouvre pas cette pièce jointe.</p>
-        <p class="carte-issue ko">Passé outre, incident au SOC</p>
-      </article>
+      <div class="grille trois">
+        <article class="carte">
+          <span class="carte-ctx">Téléchargements</span>
+          <p class="carte-geste">Camille télécharge « facture.pdf.exe » depuis un site inconnu.</p>
+          <p class="carte-titre">Ce fichier n'est pas ce qu'il prétend être.</p>
+          <p class="carte-part"><b>Part au SOC :</b> le type de fichier, le site d'origine, l'empreinte du fichier et le choix. Jamais le fichier lui-même.</p>
+        </article>
+        <article class="carte">
+          <span class="carte-ctx">Agents IA du poste</span>
+          <p class="carte-geste">Un assistant IA vient d'être installé sur le poste de Camille.</p>
+          <p class="carte-titre">Dédale l'ajoute à l'inventaire.</p>
+          <p class="carte-part"><b>Part au SOC :</b> son nom et les types d'outils qu'il peut utiliser. Jamais un secret ni une clé.</p>
+        </article>
+        <article class="carte">
+          <span class="carte-ctx">Geste critique</span>
+          <p class="carte-geste">Un mail demande à Camille un virement urgent.</p>
+          <p class="carte-titre">Ce virement attend un second avis.</p>
+          <p class="carte-part">Un relecteur IA l'accorde ou le refuse en quelques secondes, et l'analyste peut revenir sur cette décision. <b>Part au SOC :</b> la catégorie, le geste et la décision.</p>
+        </article>
       </div>
     </section>
-    <footer>Dédale · pilier humain, le maillon faible · Dédale — poste du salarié. Rien ne quitte le poste : chaque avertissement et chaque choix part à la console, preuve neutralisée.</footer>
+
+    <section class="scene part" id="ce-qui-part" aria-labelledby="part-titre">
+      <div class="scene-tete">
+        <span class="pastille">pour le salarié</span>
+        <h2 id="part-titre">Ce qui part à l'équipe sécurité</h2>
+      </div>
+      <table class="tableau">
+        <thead><tr><th scope="col">Module</th><th scope="col">Ce que l'app regarde</th><th scope="col">Ce qui part au SOC</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Mails reçus</th><td data-col="Regarde">L'expéditeur, les liens, le texte et le nom des pièces jointes, sans les ouvrir.</td><td data-col="Part au SOC">La catégorie, l'expéditeur et ton choix, que tu annules ou que tu continues. Pour un mail jugé frauduleux, une copie désarmée de ce mail : liens cassés, rien d'exécutable.</td></tr>
+          <tr><th scope="row">Onglet actif</th><td data-col="Regarde">L'adresse de la page, vérifiée sur le poste.</td><td data-col="Part au SOC">La catégorie, le domaine et ton choix. Avec l'extension Chrome, rien ne part si tu reviens en arrière.</td></tr>
+          <tr><th scope="row">Téléchargements</th><td data-col="Regarde">Le type du fichier et le site d'origine.</td><td data-col="Part au SOC">La catégorie, le domaine, l'empreinte du fichier et ton choix.</td></tr>
+          <tr><th scope="row">Agents IA du poste</th><td data-col="Regarde">Les agents installés : leur nom et leurs types d'outils.</td><td data-col="Part au SOC">Cet inventaire, sans secret ni clé.</td></tr>
+        </tbody>
+      </table>
+      <p class="part-note">Jamais lus : le presse-papiers, les frappes, l'écran, le contenu des pages, l'historique. Jamais envoyés : le contenu d'un fichier, la valeur d'un secret, tes autres mails. Un mail que tu signales toi-même part aussi, désarmé.</p>
+      <p class="part-note">Dédale ne bloque jamais ton poste : il prévient, tu décides. Seul un geste critique, comme un virement, attend un second avis.</p>
+    </section>
+
+    <footer>Dédale · démo du poste du salarié. Orbis Pay, Camille et tous les mails sont fictifs ; tout tourne en local.</footer>
   </div>
 </body>
 </html>
