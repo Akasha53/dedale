@@ -1108,3 +1108,75 @@ Il n'entre pas dans la boîte noire et ne touche ni au classement ni aux gestes 
 ### À faire côté console
 
 Sur un incident à quatre yeux, afficher la relecture (« Relu par Haiku en 1,8 s : refusé », puis le motif) avec Accorder et Refuser en recours. Afficher la file `GET /api/relecteur/file` et, sur chaque incident, la priorité et la décision proposée de `/tri`. Écouter `relecture` sur le WS. Aligner le mock.
+
+## Avenant du 10 octobre 2026 : app Mac, poste (téléchargements, agents IA, transparence)
+
+L'app de barre de menus (`app-mac/`) regarde trois choses de plus sur le poste : les nouveaux fichiers du dossier Téléchargements, la configuration des assistants IA, et elle affiche ce qu'elle regarde. Une route s'ajoute au backend (`/api/agents/poste`) ; le schéma d'événement ne change pas.
+
+### Téléchargements : événement `avertissement`, `contexte: "telechargement"`
+
+L'app surveille le premier niveau de `~/Downloads` (FSEvents ; `DEDALE_TELECHARGEMENTS` pour un autre dossier). Un nouveau fichier est jugé quand sa taille ne bouge plus. La règle (`app-mac/Sources/DedaleNoyau/RegleTelechargement.swift`) lit le nom, l'attribut `com.apple.quarantine`, la liste `com.apple.metadata:kMDItemWhereFroms` (dont seul le nom de domaine est gardé) et la structure du fichier (en-tête, annuaire d'une archive ZIP). Elle alerte sur :
+
+- une double extension (`facture.pdf.app`) ou un nom retourné par un caractère bidirectionnel, quelle que soit la provenance ;
+- une application, un script, une image disque, un installeur ou un raccourci venu d'un mail, d'une messagerie, d'AirDrop ou d'un site hors des domaines connus (`orbispay.example`, `apple.com`, `microsoft.com`, `mozilla.org`, `google.com`, plus `DEDALE_DOMAINES_CONNUS`) ;
+- un document Office avec macros, ou une archive ZIP chiffrée, venus de l'extérieur.
+
+La pop-up dit « Ce fichier vient de <domaine> et peut lancer un programme. », avec « Garder » et « Mettre de côté ». Mettre de côté déplace le fichier dans `~/Downloads/Dédale - mis de côté/` ; le menu « Fichiers mis de côté » le remet à sa place. Le choix part au backend :
+
+```json
+{"source": "humain", "surface": "poste", "type": "avertissement",
+ "session_id": "poste-mac-telechargement-<12 premiers caractères du SHA-256>",
+ "user_agent": "dedale-mac/0.2",
+ "details": {"origine": "app-mac", "contexte": "telechargement", "categorie": "phishing",
+             "choix": "annuler | continuer", "choix_poste": "mettre_de_cote | garder",
+             "type_fichier": "application | script | image_disque | installeur | raccourci | document_macros | archive_chiffree | document",
+             "motifs": ["double_extension", "application"],
+             "provenance": "mail | site | messagerie | airdrop | inconnue | locale",
+             "domaine": "cdn.factures-orbis.example", "cible": "cdn.factures-orbis.example",
+             "sha256": "<64 caractères hexadécimaux>", "gravite": "haute | moyenne",
+             "message": "Ce fichier vient de cdn.factures-orbis.example et peut lancer un programme."}}
+```
+
+- Ni le nom du fichier, ni son chemin, ni son contenu ne partent. `domaine` est un hôte seul : jamais le chemin ni les paramètres de l'URL, ni l'expéditeur ou l'objet d'un mail.
+- `motifs` parmi `nom_trompeur`, `double_extension`, `application`, `installeur`, `script`, `image_disque`, `raccourci`, `macros`, `archive_chiffree`. `gravite` vaut `haute` pour ce qui lance un programme, `moyenne` pour macros et archive chiffrée.
+- « Mettre de côté » vaut `choix: "annuler"` (bon réflexe, compté dans les pièges évités de la semaine), « Garder » vaut `choix: "continuer"` : le backend ouvre un incident `humain_phishing` (catégorie existante, aucune nouvelle à gérer) et son `contexte_humain` vaut `telechargement`. Remettre un fichier à sa place n'envoie rien.
+- Le backend neutralise `cible` et `message` comme les autres champs de texte. Les autres champs sont des codes ou une empreinte.
+- À faire côté backend et console : l'incident garde aujourd'hui le titre générique de `humain_phishing` (« Salarié piégé par un lien de phishing »). Quand `details.contexte` vaut `telechargement`, un titre comme « Fichier à risque gardé par le salarié » et l'affichage de `type_fichier`, `domaine` et `sha256` dans la boîte noire diraient mieux ce qui s'est passé.
+
+### Agents IA du poste : `POST /api/agents/poste`
+
+L'app lit les fichiers de configuration MCP des clients connus, relatifs au dossier personnel : Claude Desktop (`Library/Application Support/Claude/claude_desktop_config.json`), Claude Code (`.claude.json`, projets compris), Cursor (`.cursor/mcp.json`), VS Code (`Library/Application Support/Code/User/mcp.json` et `settings.json`), Windsurf (`.codeium/windsurf/mcp_config.json`), Cline, Zed, Gemini CLI, Codex (`.codex/config.toml`) et LM Studio. Elle n'extrait de chaque serveur que `command`, `args` (passés au filtre des secrets) et l'hôte de `url`. `env`, `headers` et toute autre clé ne sont jamais extraits. Les arguments servent à deviner le type, puis restent sur le Mac.
+
+Par défaut l'app lit une configuration factice (`app-mac/demo/agents-factices`, copiée dans `Dedale.app`), ou le dossier `DEDALE_DEMO_AGENTS_DIR`. La vraie configuration du Mac n'est lue qu'avec `DEDALE_AGENTS_REEL=1` : aucun bouton ne l'active. Envoi au lancement, à la remise en route du module, puis toutes les 5 minutes :
+
+```json
+{"poste": "poste-mac-1a2b3c4d", "contexte": "poste", "source_config": "demo | reel",
+ "horodatage": "2026-10-10T21:40:00.000+02:00", "clients": ["Claude Desktop", "Cursor"],
+ "agents": [{"client": "Cursor", "client_id": "cursor", "serveur": "terminal",
+             "types": ["shell", "fichiers"], "droits_risques": ["shell", "disque_entier"],
+             "transport": "local | distant"}]}
+```
+
+- `poste` : `poste-mac-` et 8 caractères tirés au hasard au premier lancement (`~/Library/Application Support/Dedale/poste.json`). Ni le nom du Mac, ni celui de l'utilisateur.
+- `types` parmi `fichiers`, `shell`, `mail`, `navigateur`, `reseau`, `autre`. `droits_risques` parmi `shell`, `mail`, `disque_entier` (un serveur de fichiers ouvert sur `/`, `~` ou `/Users/<nom>`, ou Desktop Commander).
+- Réponse 201 : l'inventaire rangé, avec `total`, `risques` et `phrase` (« 7 serveurs MCP sur ce poste, dont 3 avec des droits risqués. »). 400 pour un `poste` invalide, un `contexte` autre que `poste` ou plus de 200 agents.
+- Le backend ne garde que ces champs : toute autre clé est ignorée, un texte est borné et échappé, un nom de serveur à l'allure de jeton devient « nom masqué ». Chaque envoi remplace l'inventaire précédent du même poste. Stockage : `data/<base>-agents-poste.json`, atomique.
+- `GET /api/agents` : chaque serveur des postes s'ajoute au champ `inventaire`, après les agents d'Orbis, au format des fiches existantes avec `contexte: "poste"`, `declare: false`, `id: "poste:<poste>:<client_id>:<serveur>"`, `droits.accordes` (les droits risqués), `risque` (shell 4 points, tout le disque 4, mail 3, serveur distant 1 ; mêmes seuils) et les champs `poste`, `client`, `serveur`, `types`, `droits_risques`, `transport`, `source_config`. Une fiche sans `contexte` reste un agent interne d'Orbis.
+- `GET /api/agents/poste` : `{"postes": [...]}`, l'inventaire brut de chaque poste, le plus récent d'abord.
+
+### Ce que Dédale regarde sur ce poste
+
+Le menu ouvre un panneau qui liste les modules, ce que chacun lit, ce qui part à la SOC, avec un interrupteur par module. Ces textes sont dans `app-mac/Sources/Dedale/ModulesPoste.swift` ; la section « Vie privée » de la landing les reprend.
+
+| Module | Lit | Envoie à la SOC |
+|---|---|---|
+| Mails | Les mails de la boîte de démo et le verdict de l'analyseur : expéditeur, objet, raisons. | Votre choix devant un mail frauduleux, et le mail que vous signalez, désarmé. |
+| Sites | L'adresse des pages ouvertes, pour repérer un site sosie. Jamais leur contenu ni vos formulaires. | Le nom du site sosie, si vous passez outre l'avertissement. |
+| Téléchargements | Les nouveaux fichiers du dossier Téléchargements : leur nom, la provenance notée par macOS et leur structure (macros, chiffrement). | Le type du fichier, son domaine d'origine, son empreinte SHA-256 et votre choix. Jamais son contenu ni son nom. |
+| Agents IA | Les fichiers de configuration MCP des assistants connus (Claude, Cursor, VS Code, Windsurf…) : le nom de chaque serveur et sa commande de lancement. | Le nom de chaque serveur, son type et ses droits risqués. Jamais les jetons, les clés ni les variables d'environnement. |
+
+Ce que l'app ne lit jamais : le presse-papiers, les frappes au clavier, les captures d'écran, le contenu des pages, l'historique de navigation.
+
+- Un module coupé ne lit plus rien et n'envoie plus rien. Les interrupteurs restent sur le Mac (`modules.json` dans le dossier d'état). `DEDALE_MODULES_COUPES=sites,agents` coupe des modules au lancement.
+- Pour le module Sites, branché ailleurs dans l'app : `ReglagesModules.partage.actif(.sites)` dit s'il est allumé, et la notification `ReglagesModules.changement` (le module en `object`) annonce chaque bascule.
+- La barre de menus n'a qu'une icône. En tête du menu : « Protégé » (tous les modules allumés, SOC joignable), « Protégé, SOC hors ligne », « Protection partielle (N modules sur 4) » ou « Protection en pause », puis le compteur des pièges évités. `GET 127.0.0.1:8712/etat` porte aussi `poste`, `modules`, `telechargements` et `agents_ia`.

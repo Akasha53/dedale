@@ -1,14 +1,22 @@
 import AppKit
 
-/// Application de barre de menus : icône discrète, état du SOC et de la boîte de démo,
-/// compteur de la semaine, signalement d'un mail, file des alertes.
+/// Application de barre de menus : une icône d'état (« Protégé »), le compteur de la semaine,
+/// l'état de chaque module (SOC, mails, téléchargements, agents IA), le signalement d'un mail,
+/// les fichiers mis de côté, le panneau de transparence et la file des pop-ups.
 final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let fileMax = 10
     private static let mailsAuMenu = 8
+    /// La remise en place automatique (test) ne joue qu'une fois.
+    fileprivate static var remiseAutoFaite = false
 
     private var element: NSStatusItem!
     private let menu = NSMenu()
+    private let ligneEtat = NSMenuItem(title: "Protégé", action: nil, keyEquivalent: "")
     private let ligneSoc = NSMenuItem(title: "Recherche de la SOC…", action: nil, keyEquivalent: "")
+    private let ligneTelechargements = NSMenuItem(title: "Téléchargements : démarrage…", action: nil, keyEquivalent: "")
+    private let ligneAgents = NSMenuItem(title: "Agents IA : analyse…", action: nil, keyEquivalent: "")
+    private let entreeMisDeCote = NSMenuItem(title: "Mis de côté", action: nil, keyEquivalent: "")
+    private let sousMenuMisDeCote = NSMenu()
     private let ligneBoite = NSMenuItem(title: "Recherche de la boîte de démo…", action: nil, keyEquivalent: "")
     private let ligneEcoute = NSMenuItem(title: "Alertes locales : démarrage…", action: nil, keyEquivalent: "")
     private let ligneCompteur = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -27,6 +35,18 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var socConnecte: Bool?
     private var ecouteOk = false
     private var minuteurs: [Timer] = []
+
+    // Poste : téléchargements, agents IA, transparence
+    private let surveillance = SurveillanceTelechargements()
+    private let miseDeCote = MiseDeCote()
+    private lazy var agentsPoste = AgentsDuPoste(backend: backend.base)
+    private var fileTelechargements: [FichierSignale] = []
+    private var fenetreTelechargement: FenetreTelechargement?
+    private var transparence: FenetreTransparence?
+    private var fenetreAgents: FenetreAgents?
+    private var etatTelechargements: SurveillanceTelechargements.Etat = .arretee
+    /// Après une remise en route du module Mails, les mails déjà là ne rejouent pas d'alerte.
+    private var mailsAIgnorer = false
 
     // Boîte de démo
     private var boiteEnLigne: Bool?
@@ -50,21 +70,35 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         element = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         element.button?.toolTip = "Dédale"
-        majIcone()
 
         menu.autoenablesItems = false
         menu.delegate = self
-        for ligne in [ligneSoc, ligneBoite, ligneEcoute, ligneCompteur] { ligne.isEnabled = false }
-        ligneBoite.image = Self.pastille(Teinte.gris)
+        for ligne in [ligneEtat, ligneSoc, ligneBoite, ligneTelechargements, ligneEcoute, ligneCompteur] {
+            ligne.isEnabled = false
+        }
+        for ligne in [ligneBoite, ligneTelechargements, ligneAgents] { ligne.image = Self.pastille(Teinte.gris) }
+        ligneAgents.target = self
+        ligneAgents.action = #selector(ouvrirAgents)
+        // En tête : l'état d'ensemble et le compteur de la semaine.
+        menu.addItem(ligneEtat)
+        menu.addItem(ligneCompteur)
+        menu.addItem(.separator())
         menu.addItem(ligneSoc)
         menu.addItem(ligneBoite)
+        menu.addItem(ligneTelechargements)
+        menu.addItem(ligneAgents)
         menu.addItem(ligneEcoute)
-        menu.addItem(.separator())
-        menu.addItem(ligneCompteur)
         menu.addItem(.separator())
         sousMenuSignaler.autoenablesItems = false
         entreeSignaler.submenu = sousMenuSignaler
         menu.addItem(entreeSignaler)
+        sousMenuMisDeCote.autoenablesItems = false
+        entreeMisDeCote.submenu = sousMenuMisDeCote
+        menu.addItem(entreeMisDeCote)
+        let regarde = NSMenuItem(title: "Ce que Dédale regarde sur ce poste…", action: #selector(ouvrirTransparence),
+                                 keyEquivalent: "")
+        regarde.target = self
+        menu.addItem(regarde)
         let tester = NSMenuItem(title: "Tester une alerte", action: #selector(testerAlerte), keyEquivalent: "t")
         tester.target = self
         menu.addItem(tester)
@@ -75,6 +109,8 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         element.menu = menu
         majCompteur()
         majSousMenu()
+        majMisDeCote()
+        majEtat()
 
         serveur.surAvertissement = { [weak self] a in
             self?.recevoir(a) ?? .erreur(503, "application pas prête")
@@ -97,7 +133,9 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.releverBoite() },
         ]
         minuteurs.forEach { RunLoop.main.add($0, forMode: .common) }
-        journal("Dédale démarré, backend \(backend.base.absoluteString), boîte de démo \(messagerie.base.absoluteString)")
+        demarrerPoste()
+        journal("Dédale démarré, backend \(backend.base.absoluteString), boîte de démo \(messagerie.base.absoluteString), "
+                + "poste \(IdentitePoste.identifiant)")
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -117,15 +155,34 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         socConnecte = ok
         ligneSoc.title = ok ? "Connecté à la SOC" : "SOC hors ligne"
         ligneSoc.image = Self.pastille(ok ? Teinte.cyan : Teinte.gris)
-        majIcone()
+        majEtat()
         if change { prevoirCaptureMenu() }
     }
 
-    private func majIcone() {
-        let symbole = socConnecte == false ? "shield.slash" : "shield.lefthalf.filled"
-        let image = NSImage(systemSymbolName: symbole, accessibilityDescription: "Dédale")
+    /// Une seule icône dans la barre de menus, et en tête du menu l'état d'ensemble :
+    /// « Protégé » quand tous les modules tournent et que la SOC répond.
+    private func majEtat() {
+        let actifs = ReglagesModules.partage.actifs.count
+        let total = ModulePoste.allCases.count
+        let titre: String
+        let symbole: String
+        let couleur: NSColor
+        if actifs == 0 {
+            (titre, symbole, couleur) = ("Protection en pause", "shield.slash", Teinte.discret)
+        } else if actifs < total {
+            (titre, symbole, couleur) = ("Protection partielle (\(actifs) modules sur \(total))", "exclamationmark.shield", Teinte.rouge)
+        } else if socConnecte == false {
+            (titre, symbole, couleur) = ("Protégé, SOC hors ligne", "exclamationmark.shield", Teinte.rouge)
+        } else {
+            (titre, symbole, couleur) = ("Protégé", "checkmark.shield", Teinte.cyanFonce)
+        }
+        ligneEtat.attributedTitle = NSAttributedString(string: titre, attributes: [
+            .font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: Teinte.encre])
+        ligneEtat.image = Gabarit.symbole(symbole + ".fill", taille: 13, couleurs: [couleur])
+        let image = NSImage(systemSymbolName: symbole, accessibilityDescription: "Dédale : \(titre)")
         image?.isTemplate = true
-        element.button?.image = image
+        element?.button?.image = image
+        element?.button?.toolTip = "Dédale : \(titre)"
     }
 
     private func etat() -> [String: Any] {
@@ -138,6 +195,22 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "en_file": file.count,
             "quatre_yeux_en_attente": demande != nil,
             "pieges_evites_semaine": compteur.cetteSemaine(),
+            "poste": IdentitePoste.identifiant,
+            "modules": Dictionary(uniqueKeysWithValues: ModulePoste.allCases.map {
+                ($0.rawValue, ReglagesModules.partage.actif($0))
+            }),
+            "telechargements": [
+                "etat": "\(etatTelechargements)",
+                "en_file": fileTelechargements.count,
+                "pop_up_affichee": fenetreTelechargement != nil,
+                "mis_de_cote": miseDeCote.entrees.count,
+            ] as [String: Any],
+            "agents_ia": [
+                "source": agentsPoste.source.code,
+                "serveurs": agentsPoste.resultat?.serveurs.count ?? 0,
+                "risques": agentsPoste.resultat?.risques ?? 0,
+                "envoye": agentsPoste.envoiOk ?? false,
+            ] as [String: Any],
         ]
     }
 
@@ -147,7 +220,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// devient une alerte. Les mails déjà là au premier relevé ne sont pas rejoués, sauf avec
     /// DEDALE_MAILS_AU_DEMARRAGE=alerter.
     private func releverBoite() {
-        guard !releveEnCours else { return }
+        guard !releveEnCours, ReglagesModules.partage.actif(.mails) else { return }
         releveEnCours = true
         messagerie.verdicts { [weak self] liste in
             guard let self else { return }
@@ -164,8 +237,16 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 journal("boîte de démo : \(liste.count) verdict(s), \(fraudes.count) frauduleux, "
                         + (rejouer ? "rejoués" : "déjà là, pas d'alerte"))
                 // Le flux ne s'ouvre qu'après ce premier relevé : il n'apporte que du neuf.
-                self.flux.surVerdict = { [weak self] v in self?.traiter([v], source: "flux") }
+                self.flux.surVerdict = { [weak self] v in
+                    guard ReglagesModules.partage.actif(.mails) else { return }
+                    self?.traiter([v], source: "flux")
+                }
                 self.flux.demarrer()
+            }
+            if self.mailsAIgnorer {
+                // Module Mails remis en route : ce qui est arrivé pendant la coupure ne rejoue rien.
+                self.mailsAIgnorer = false
+                self.mailsVus.formUnion(liste.filter(\.frauduleux).map(\.mail.id))
             }
             self.traiter(liste, source: "relevé")
             self.messagerie.mails { [weak self] mails in
@@ -218,6 +299,12 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func majSousMenu() {
         sousMenuSignaler.removeAllItems()
+        guard ReglagesModules.partage.actif(.mails) else {
+            let l = NSMenuItem(title: "Module Mails coupé", action: nil, keyEquivalent: "")
+            l.isEnabled = false
+            sousMenuSignaler.addItem(l)
+            return
+        }
         guard boiteEnLigne == true else {
             let l = NSMenuItem(title: boiteEnLigne == nil ? "Recherche de la boîte de démo…" : "Boîte de démo hors ligne",
                                action: nil, keyEquivalent: "")
@@ -310,7 +397,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         file.append(a)
         journal("alerte reçue : \(a.categorie) (session \(a.sessionId))")
-        let enFile = fenetre != nil
+        let enFile = fenetre != nil || fenetreTelechargement != nil
         afficherSuivante()
         return ReponseHTTP(code: 202, corps: [
             "statut": enFile ? "en_file" : "affichee",
@@ -319,9 +406,18 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ])
     }
 
-    /// Une seule pop-up à la fois : la suivante attend la fin de la précédente.
+    /// Une seule pop-up à la fois, alertes et téléchargements confondus : la suivante attend
+    /// la fin de la précédente. Les alertes passent d'abord.
     private func afficherSuivante() {
-        guard fenetre == nil, !file.isEmpty else { return }
+        guard fenetre == nil, fenetreTelechargement == nil else { return }
+        if !file.isEmpty {
+            afficherAlerte()
+        } else if !fileTelechargements.isEmpty {
+            montrerTelechargement(fileTelechargements.removeFirst())
+        }
+    }
+
+    private func afficherAlerte() {
         let a = file.removeFirst()
         let f = FenetreAlerte(a)
         f.surChoix = { [weak self, weak f] choix in
@@ -400,6 +496,9 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             Capture.ecrireMenu(self.menu, vers: dossier.appendingPathComponent("menu.png"))
             Capture.ecrireMenu(self.sousMenuSignaler, vers: dossier.appendingPathComponent("menu-signaler.png"))
+            if !self.entreeMisDeCote.isHidden {
+                Capture.ecrireMenu(self.sousMenuMisDeCote, vers: dossier.appendingPathComponent("menu-mis-de-cote.png"))
+            }
             journal("capture du menu écrite : \(dossier.path)/menu.png")
         }
         captureMenuPrevue = travail
@@ -411,6 +510,263 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             couleur.setFill()
             NSBezierPath(ovalIn: r).fill()
             return true
+        }
+    }
+}
+
+// MARK: - Poste : téléchargements, agents IA, transparence
+
+
+extension AppDelegue {
+    fileprivate func demarrerPoste() {
+        surveillance.surSignalement = { [weak self] f in self?.recevoirTelechargement(f) }
+        surveillance.surEtat = { [weak self] e in
+            self?.etatTelechargements = e
+            self?.majTelechargements()
+        }
+        agentsPoste.surMaj = { [weak self] in self?.majAgents() }
+        NotificationCenter.default.addObserver(forName: ReglagesModules.changement, object: nil, queue: .main) {
+            [weak self] note in self?.appliquerModules(change: note.object as? ModulePoste)
+        }
+        appliquerModules(change: nil)
+        ouvertureAutomatique()
+    }
+
+    /// Met chaque module en route ou à l'arrêt selon son interrupteur.
+    fileprivate func appliquerModules(change: ModulePoste?) {
+        let r = ReglagesModules.partage
+        if change == nil || change == .telechargements {
+            if r.actif(.telechargements) { surveillance.demarrer() } else {
+                surveillance.arreter()
+                fileTelechargements.removeAll()
+            }
+        }
+        if change == nil || change == .agents {
+            if r.actif(.agents) { agentsPoste.demarrer() } else { agentsPoste.arreter() }
+        }
+        if change == .mails {
+            if r.actif(.mails) {
+                mailsAIgnorer = true
+                releverBoite()
+            }
+            ligneBoite.title = r.actif(.mails) ? "Boîte de démo : relevé…" : "Mails : coupé"
+            ligneBoite.image = Self.pastille(Teinte.gris)
+            majSousMenu()
+        }
+        majTelechargements()
+        majAgents()
+        majEtat()
+        transparence?.rafraichir()
+        prevoirCaptureMenu()
+    }
+
+    fileprivate func majTelechargements() {
+        let titre: String
+        let teinte: NSColor
+        if !ReglagesModules.partage.actif(.telechargements) {
+            (titre, teinte) = ("Téléchargements : coupé", Teinte.gris)
+        } else {
+            switch etatTelechargements {
+            case .active: (titre, teinte) = ("Téléchargements surveillés", Teinte.cyan)
+            case .accesRefuse: (titre, teinte) = ("Téléchargements : accès à autoriser", Teinte.rouge)
+            case .dossierAbsent: (titre, teinte) = ("Téléchargements : dossier introuvable", Teinte.rouge)
+            case .arretee: (titre, teinte) = ("Téléchargements : démarrage…", Teinte.gris)
+            }
+        }
+        ligneTelechargements.title = titre
+        ligneTelechargements.image = Self.pastille(teinte)
+        transparence?.rafraichir()
+        prevoirCaptureMenu()
+    }
+
+    fileprivate func majAgents() {
+        if !ReglagesModules.partage.actif(.agents) {
+            ligneAgents.title = "Agents IA : coupé"
+            ligneAgents.image = Self.pastille(Teinte.gris)
+            ligneAgents.isEnabled = false
+        } else if let r = agentsPoste.resultat {
+            let n = r.serveurs.count
+            ligneAgents.title = "Agents IA : \(n) serveur\(n > 1 ? "s" : "") dont \(r.risques) à risque"
+            ligneAgents.image = Self.pastille(r.risques > 0 ? Teinte.rouge : Teinte.cyan)
+            ligneAgents.isEnabled = true
+        } else {
+            if case .aucune = agentsPoste.source {
+                ligneAgents.title = "Agents IA : aucune configuration lue"
+            } else {
+                ligneAgents.title = "Agents IA : analyse…"
+            }
+            ligneAgents.image = Self.pastille(Teinte.gris)
+            ligneAgents.isEnabled = false
+        }
+        fenetreAgents?.rafraichir(agentsPoste)
+        transparence?.rafraichir()
+        prevoirCaptureMenu()
+    }
+
+    // MARK: Téléchargements
+
+    fileprivate func recevoirTelechargement(_ f: FichierSignale) {
+        guard ReglagesModules.partage.actif(.telechargements) else { return }
+        guard fileTelechargements.count < Self.fileMax else {
+            journal("téléchargement à risque ignoré : file pleine")
+            return
+        }
+        fileTelechargements.append(f)
+        afficherSuivante()
+    }
+
+    fileprivate func montrerTelechargement(_ f: FichierSignale) {
+        let w = FenetreTelechargement(f)
+        w.surChoix = { [weak self, weak w] choix in
+            guard let self else { return }
+            var deplace = false
+            if choix == "mettre_de_cote" {
+                do {
+                    _ = try self.miseDeCote.mettreDeCote(f)
+                    deplace = true
+                    self.compteur.ajouter()
+                    self.majCompteur()
+                    self.majMisDeCote()
+                    self.remiseAutomatique()
+                } catch {
+                    journal("mise de côté impossible : \(error.localizedDescription)")
+                }
+            }
+            self.backend.envoyerTelechargement(f, choix: choix) { [weak self, weak w] ok in
+                if ok { self?.majSoc(true) } else { self?.sonder() }
+                w?.montrerIssue(choix: choix, deplace: deplace, remonte: ok)
+            }
+        }
+        w.surFermeture = { [weak self] in
+            self?.fenetreTelechargement = nil
+            self?.afficherSuivante()
+        }
+        fenetreTelechargement = w
+        w.montrer()
+    }
+
+    fileprivate func majMisDeCote() {
+        sousMenuMisDeCote.removeAllItems()
+        let entrees = miseDeCote.entrees
+        entreeMisDeCote.isHidden = entrees.isEmpty
+        entreeMisDeCote.title = "Fichiers mis de côté (\(entrees.count))"
+        for e in entrees.reversed().prefix(10) {
+            let item = NSMenuItem(title: "Remettre « \(e.nom) » à sa place", action: #selector(remettre(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            item.representedObject = e.id
+            sousMenuMisDeCote.addItem(item)
+        }
+        if let premier = entrees.first {
+            sousMenuMisDeCote.addItem(.separator())
+            let voir = NSMenuItem(title: "Afficher le dossier dans le Finder", action: #selector(afficherMisDeCote(_:)),
+                                  keyEquivalent: "")
+            voir.target = self
+            voir.representedObject = premier.actuel
+            sousMenuMisDeCote.addItem(voir)
+        }
+        prevoirCaptureMenu()
+    }
+
+    @objc fileprivate func remettre(_ item: NSMenuItem) {
+        guard let id = item.representedObject as? String,
+              let e = miseDeCote.entrees.first(where: { $0.id == id }) else { return }
+        surveillance.ignorerProchaineApparition(MiseDeCote.libre(e.origine).lastPathComponent)
+        do {
+            try miseDeCote.remettre(id)
+            journal("fichier remis à sa place (\(id))")
+            Bulle("« \(e.nom) » est de retour dans Téléchargements.", ok: true).montrer(capture: "remis-en-place")
+        } catch {
+            journal("remise en place impossible : \(error.localizedDescription)")
+            Bulle("Impossible de remettre le fichier à sa place.", ok: false).montrer()
+        }
+        majMisDeCote()
+    }
+
+    @objc fileprivate func afficherMisDeCote(_ item: NSMenuItem) {
+        guard let url = item.representedObject as? URL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    /// Test : DEDALE_REMETTRE_AUTO=<secondes> remet le dernier fichier mis de côté à sa place,
+    /// par le même chemin qu'un clic dans le sous-menu.
+    fileprivate func remiseAutomatique() {
+        guard !Self.remiseAutoFaite, let brut = ProcessInfo.processInfo.environment["DEDALE_REMETTRE_AUTO"],
+              let delai = Double(brut) else { return }
+        Self.remiseAutoFaite = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + delai) { [weak self] in
+            guard let self, let i = self.sousMenuMisDeCote.items.firstIndex(where: { $0.action == #selector(self.remettre(_:)) })
+            else { return }
+            journal("remise en place automatique (test)")
+            self.sousMenuMisDeCote.performActionForItem(at: i)
+        }
+    }
+
+    // MARK: Panneaux
+
+    @objc fileprivate func ouvrirTransparence() {
+        let t = transparence ?? FenetreTransparence()
+        t.etatModule = { [weak self] m in self?.etatModule(m) ?? "" }
+        let hote = backend.base.host.map { h in backend.base.port.map { "\(h):\($0)" } ?? h } ?? backend.base.absoluteString
+        t.piedDePage = "Poste \(IdentitePoste.identifiant) · SOC \(hote)"
+        t.surFermeture = { [weak self] in self?.transparence = nil }
+        transparence = t
+        t.afficher()
+    }
+
+    @objc fileprivate func ouvrirAgents() {
+        let f = fenetreAgents ?? FenetreAgents()
+        f.surFermeture = { [weak self] in self?.fenetreAgents = nil }
+        fenetreAgents = f
+        f.afficher(agentsPoste)
+    }
+
+    fileprivate func etatModule(_ m: ModulePoste) -> String {
+        switch m {
+        case .mails:
+            guard let enLigne = boiteEnLigne else { return "Recherche de la boîte de démo…" }
+            return enLigne ? "Boîte de démo : \(mailsRecents.count) mail\(mailsRecents.count > 1 ? "s" : "")"
+                           : "Boîte de démo hors ligne"
+        case .sites:
+            return "Avertit avant un site sosie"
+        case .telechargements:
+            switch etatTelechargements {
+            case .active: return "\(surveillance.dossierAffiche) surveillé"
+            case .accesRefuse: return "Accès à \(surveillance.dossierAffiche) à autoriser"
+            case .dossierAbsent: return "\(surveillance.dossierAffiche) introuvable"
+            case .arretee: return "Démarrage…"
+            }
+        case .agents:
+            let n = agentsPoste.resultat?.serveurs.count
+            return agentsPoste.source.libelle + (n.map { " · \($0) serveur\($0 > 1 ? "s" : "")" } ?? "")
+        }
+    }
+
+    /// Test et captures : DEDALE_OUVRIR=transparence,agents ouvre ces panneaux l'un après
+    /// l'autre au lancement, quatre secondes chacun. DEDALE_BASCULER_AUTO=<module> bascule en
+    /// plus l'interrupteur de ce module dans le panneau de transparence.
+    fileprivate func ouvertureAutomatique() {
+        let panneaux = (ProcessInfo.processInfo.environment["DEDALE_OUVRIR"] ?? "").split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        for (i, nom) in panneaux.enumerated() {
+            let debut = 3.0 + Double(i) * 5
+            DispatchQueue.main.asyncAfter(deadline: .now() + debut) { [weak self] in
+                guard let self else { return }
+                journal("ouverture automatique (test) : \(nom)")
+                if nom == "transparence" {
+                    self.ouvrirTransparence()
+                    // DEDALE_BASCULER_AUTO=agents : bascule ce module par son interrupteur.
+                    if let brut = ProcessInfo.processInfo.environment["DEDALE_BASCULER_AUTO"],
+                       let m = ModulePoste(rawValue: brut) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self.transparence?.basculerParClic(m) }
+                    }
+                }
+                if nom == "agents" { self.ouvrirAgents() }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + debut + 4) { [weak self] in
+                if nom == "transparence" { self?.transparence?.fermer() }
+                if nom == "agents" { self?.fenetreAgents?.fermer() }
+            }
         }
     }
 }

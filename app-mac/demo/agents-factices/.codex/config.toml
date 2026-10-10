@@ -1,0 +1,8 @@
+model = "gpt-5"
+
+[mcp_servers.documents-equipe]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/Users/camille/Documents/Orbis"]
+
+[mcp_servers.documents-equipe.env]
+JETON = "exemple-factice"

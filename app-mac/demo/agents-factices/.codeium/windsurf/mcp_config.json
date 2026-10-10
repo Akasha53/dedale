@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "recherche-web": {
+      "serverUrl": "https://mcp.recherche.example/sse?cle=exemple-factice"
+    }
+  }
+}

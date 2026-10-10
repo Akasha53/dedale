@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "terminal": {
+      "command": "npx",
+      "args": ["-y", "@wonderwhy-er/desktop-commander"]
+    },
+    "navigateur": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}

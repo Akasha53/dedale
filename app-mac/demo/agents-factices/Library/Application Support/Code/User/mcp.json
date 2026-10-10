@@ -1,0 +1,10 @@
+{
+  // Boîte mail partagée de l'équipe Finance (configuration factice)
+  "servers": {
+    "boite-mail-finance": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-mail-imap", "--host", "imap.orbispay.example", "--password", "exemple-factice"],
+    },
+  },
+}

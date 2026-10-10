@@ -14,6 +14,9 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp "$BIN" "$APP/Contents/MacOS/Dedale"
 cp "$ICI/Ressources/Info.plist" "$APP/Contents/Info.plist"
+# Configuration MCP factice lue par le module Agents IA tant que le scan réel est coupé.
+mkdir -p "$APP/Contents/Resources"
+cp -R "$ICI/demo/agents-factices" "$APP/Contents/Resources/agents-factices"
 # Signature ad hoc : suffit pour lancer l'app sur ce Mac.
 codesign --force --sign - "$APP" >/dev/null 2>&1 || echo "Signature ad hoc impossible, l'app reste lançable en local."
 echo "Construit : $APP"

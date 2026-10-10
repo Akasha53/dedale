@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "fichiers-camille": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/camille"]
+    },
+    "github-orbis": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "jeton-exemple-factice-ne-sert-a-rien" }
+    }
+  }
+}
