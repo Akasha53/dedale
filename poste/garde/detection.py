@@ -136,6 +136,58 @@ def _analyse_lien(url: str) -> tuple[str, str] | None:
     return None
 
 
+# --- mail reçu : phishing à l'ouverture -----------------------------------------
+
+# Tournures d'un mail qui pousse à agir dans l'urgence sur ses identifiants.
+_APPAT_MAIL = re.compile(
+    r"(?i)(v[ée]rifi|confirm|r[ée]activ|r[ée]initialis|suspend|bloqu|"
+    r"expire|d[ée]sactiv|identifiant|mot de passe|cliqu|connect|"
+    r"sous 24|dans les 24|imm[ée]diat|derni[eè]re? (chance|relance))"
+)
+_URL_DANS_CORPS = re.compile(r"https?://[^\s\"'<>]+")
+
+
+def _lien_du_mail(g: actions.Geste) -> str:
+    if g.lien:
+        return g.lien
+    m = _URL_DANS_CORPS.search(g.corps or "")
+    return m.group(0) if m else ""
+
+
+def _mail_recu_suspect(g: actions.Geste) -> tuple[str, str, str] | None:
+    """Renvoie (code, raison, lien) si le mail reçu est du phishing, sinon None.
+
+    On lit l'expéditeur et le lien du corps au moment où Camille ouvre le mail,
+    avant tout clic. Un expéditeur interne et sans lien piégé ne déclenche rien.
+    """
+    exp_domaine = _domaine_mail(g.expediteur)
+    lien = _lien_du_mail(g)
+
+    # 1) Le lien du corps est lui-même un piège (liste noire, sosie, IP, TLD…).
+    if lien:
+        verdict_lien = _analyse_lien(lien)
+        if verdict_lien:
+            return verdict_lien[0], verdict_lien[1], lien
+
+    # 2) L'expéditeur imite Orbis Pay sans en être le vrai domaine.
+    if exp_domaine:
+        if exp_domaine in config.PHISHING_CONNUS:
+            return "MAIL_EXPEDITEUR_CONNU", "l'expéditeur est un domaine déjà repéré comme piège", lien
+        if "orbispay" in exp_domaine and not _est_interne(exp_domaine):
+            return "MAIL_EXPEDITEUR_SOSIE", "l'adresse imite orbispay.example sans en être le vrai domaine", lien
+
+    # 3) Le nom affiché se réclame d'Orbis ou d'une banque, l'adresse part ailleurs.
+    nom = (g.expediteur_affiche or "").lower()
+    if exp_domaine and not _est_interne(exp_domaine) and re.search(r"(orbis|s[ée]curit|banque|support|rh|paie)", nom):
+        return "MAIL_NOM_USURPE", "le nom affiché se fait passer pour Orbis Pay, l'adresse réelle est externe", lien
+
+    # 4) Appât aux identifiants depuis un expéditeur externe.
+    if exp_domaine and not _est_interne(exp_domaine) and _APPAT_MAIL.search((g.objet or "") + " " + (g.corps or "")):
+        return "MAIL_APPAT", "mail externe qui réclame tes identifiants dans l'urgence", lien
+
+    return None
+
+
 def _extension(nom: str) -> str:
     nom = (nom or "").lower()
     i = nom.rfind(".")
@@ -160,6 +212,28 @@ def _piece_piegee(nom: str, externe: bool) -> tuple[str, str] | None:
 
 def evaluer(g: actions.Geste) -> Verdict:
     """Décide si le geste est risqué. Un seul verdict par geste."""
+    # --- geste vedette : Camille ouvre un mail reçu qui est frauduleux ---
+    if g.nature == actions.OUVRIR_MAIL:
+        trouve = _mail_recu_suspect(g)
+        if trouve:
+            code, raison, lien = trouve
+            de = g.expediteur_affiche or g.expediteur or "un expéditeur inconnu"
+            preuve = neutraliser((g.expediteur or de) + (" · " + lien if lien else ""), garder=40)
+            return Verdict(
+                risque=True,
+                incident="humain_phishing",
+                regle=code,
+                titre="Ce mail est sûrement frauduleux.",
+                explication="Il se présente comme Orbis Pay, mais " + raison
+                            + ". Ne clique sur rien et ne réponds pas : signale-le à la sécurité.",
+                gravite="haute",
+                preuve=preuve,
+                details={"contexte": "mail reçu", "raison": raison,
+                         "expediteur": g.expediteur, "expediteur_affiche": g.expediteur_affiche,
+                         "objet": g.objet, "lien": lien},
+            )
+        return Verdict(risque=False)
+
     if g.nature == actions.COLLER_TEXTE:
         trouve = _cherche_secret(g.texte)
         if trouve and not _est_interne(g.domaine):
@@ -169,14 +243,15 @@ def evaluer(g: actions.Geste) -> Verdict:
                 risque=True,
                 incident="humain_secret",
                 regle=code,
-                titre="Attends — tu es sur le point de coller " + libelle + " dans " + cible + ".",
+                titre="Ne colle pas " + libelle + " dans " + cible + ".",
                 explication="Un " + libelle + " a été repéré dans ce que tu colles, et "
                             + cible + " est hors du périmètre de l'entreprise. "
                             "Une fois collé, le secret est exposé.",
                 gravite="haute",
                 # Un secret ne laisse rien fuir : ni valeur, ni préfixe exploitable.
                 preuve="[preuve, neutralisée] " + libelle + ", " + str(len(brut)) + " caractères",
-                details={"cible": cible, "domaine": g.domaine, "categorie_secret": libelle},
+                details={"contexte": "copier-coller", "cible": cible, "domaine": g.domaine,
+                         "categorie_secret": libelle},
             )
         return Verdict(risque=False)
 
@@ -188,13 +263,13 @@ def evaluer(g: actions.Geste) -> Verdict:
                 risque=True,
                 incident="humain_mail_externe",
                 regle="MAIL_EXTERNE_SENSIBLE",
-                titre="Attends — ce mail part à l'extérieur avec des données sensibles.",
+                titre="Ce mail part à l'extérieur avec des données sensibles.",
                 explication="Destinataire(s) hors de " + config.DOMAINE_ENTREPRISE + " : "
                             + ", ".join(externes) + ". Le mail contient " + sensible + ".",
                 gravite="haute",
                 preuve=neutraliser(", ".join(externes) + " | " + sensible, garder=24),
-                details={"destinataires_externes": externes, "indice": sensible,
-                         "pieces": g.pieces},
+                details={"contexte": "mail sortant", "destinataires_externes": externes,
+                         "indice": sensible, "pieces": g.pieces},
             )
         return Verdict(risque=False)
 
@@ -205,13 +280,14 @@ def evaluer(g: actions.Geste) -> Verdict:
                 risque=True,
                 incident="humain_upload_ia",
                 regle="UPLOAD_IA_NON_AUTORISEE",
-                titre="Attends — tu déposes un fichier confidentiel sur " + cible + ".",
+                titre="Ce fichier confidentiel ne doit pas aller sur " + cible + ".",
                 explication="« " + g.fichier + " » est confidentiel et " + cible
                             + " ne fait pas partie des outils validés par la DSI. "
                             "Le document sort de l'entreprise et peut servir à entraîner un modèle.",
                 gravite="haute",
                 preuve=neutraliser(g.fichier + " → " + (g.domaine or cible), garder=28),
-                details={"fichier": g.fichier, "cible": cible, "domaine": g.domaine},
+                details={"contexte": "dépôt de fichier", "fichier": g.fichier,
+                         "cible": cible, "domaine": g.domaine},
             )
         return Verdict(risque=False)
 
@@ -223,11 +299,13 @@ def evaluer(g: actions.Geste) -> Verdict:
                 risque=True,
                 incident="humain_phishing",
                 regle=code,
-                titre="Attends — ce lien n'est pas celui d'Orbis Pay.",
-                explication="Raison : " + raison + ". Ne saisis surtout pas tes identifiants.",
+                titre="Ce lien n'est pas le vrai site d'Orbis Pay.",
+                explication="En clair : " + raison + ". N'entre pas tes identifiants sur cette page.",
                 gravite="haute",
                 preuve=neutraliser(g.url, garder=40),
-                details={"url": neutraliser(g.url, garder=80), "raison": raison},
+                details={"contexte": "navigation web", "url": neutraliser(g.url, garder=80),
+                         "hote": urlsplit(g.url if "://" in (g.url or "") else "http://" + (g.url or "")).hostname or "",
+                         "raison": raison},
             )
         return Verdict(risque=False)
 
@@ -239,11 +317,11 @@ def evaluer(g: actions.Geste) -> Verdict:
                 risque=True,
                 incident="humain_phishing",
                 regle=code,
-                titre="Attends — cette pièce jointe est dangereuse.",
-                explication="Raison : " + raison + ". Ouvrir ce fichier peut installer un logiciel malveillant.",
+                titre="N'ouvre pas cette pièce jointe.",
+                explication="En clair : " + raison + ". L'ouvrir peut installer un logiciel malveillant sur ton poste.",
                 gravite="critique" if "EXT" in code else "haute",
                 preuve=neutraliser(g.fichier, garder=40),
-                details={"fichier": g.fichier, "raison": raison,
+                details={"contexte": "pièce jointe", "fichier": g.fichier, "raison": raison,
                          "expediteur_externe": g.expediteur_externe},
             )
         return Verdict(risque=False)

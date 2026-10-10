@@ -58,7 +58,11 @@ class GardeDuCorps:
 
     def _charge_commune(self, verdict: Verdict, escalade: bool) -> dict:
         # Données inertes : la preuve est déjà neutralisée par la détection.
+        # `categorie` est la forme courte attendue par la console (secret,
+        # mail_externe, upload_ia, phishing) ; on la dérive de l'incident.
+        categorie = verdict.incident.removeprefix("humain_") if verdict.incident else None
         return {
+            "categorie": categorie,
             "incident": verdict.incident,
             "regle": verdict.regle,
             "gravite": verdict.gravite,

@@ -40,6 +40,32 @@ def test_secret_dans_chat_externe_declenche():
     assert "sk-ant" not in v.preuve  # preuve neutralisée
 
 
+def test_ouvrir_mail_phishing_declenche():
+    g = actions.Geste(actions.OUVRIR_MAIL, expediteur_affiche="Orbis Pay Sécurité",
+                      expediteur="alerte@orbispay-verification.net",
+                      objet="Votre accès expire : confirmez vos identifiants",
+                      corps="confirmez ici : http://orbispay-verification.net/reactivation",
+                      lien="http://orbispay-verification.net/reactivation")
+    v = evaluer(g)
+    assert v.risque and v.incident == "humain_phishing"
+    assert v.details["contexte"] == "mail reçu"
+    assert "reactivation" not in v.preuve  # preuve neutralisée
+
+
+def test_ouvrir_mail_interne_est_sur():
+    g = actions.Geste(actions.OUVRIR_MAIL, expediteur="paul@orbispay.example",
+                      objet="compte rendu de la réunion",
+                      corps="voici le compte rendu de ce matin, merci")
+    assert evaluer(g).risque is False
+
+
+def test_avertissement_porte_categorie_courte():
+    garde, esp = _garde(choix="annuler")
+    garde.observer(actions.Geste(actions.OUVRIR_MAIL, expediteur="alerte@orbispay-verification.net",
+                                 lien="http://orbispay-verification.net/x"))
+    assert esp.recus[0][2]["categorie"] == "phishing"
+
+
 def test_mail_externe_sensible_declenche():
     g = actions.Geste(actions.ENVOYER_MAIL, destinataires=["x@gmail.com"],
                       objet="pour ce soir", corps="l'export", pieces=["base-clients.csv"])

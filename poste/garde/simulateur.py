@@ -21,37 +21,44 @@ from .popup import page_html, rendu_terminal
 
 
 def journee() -> list[actions.Geste]:
-    """Les gestes de la journée. Sûrs et risqués mêlés, comme en vrai."""
+    """Les gestes de la journée. Les deux vedettes d'abord (mail reçu, navigation
+    web), puis le reste mêlé, sûrs et risqués comme en vrai."""
     return [
-        # --- gestes SÛRS : rien ne doit se déclencher ---
+        # === GESTES VEDETTES : phishing, là où ça commence vraiment ===
+        # 1. Camille ouvre un mail reçu qui est du phishing.
+        actions.Geste(actions.OUVRIR_MAIL, "Camille ouvre un mail « votre accès expire »",
+                      expediteur_affiche="Orbis Pay Sécurité",
+                      expediteur="alerte@orbispay-verification.net",
+                      objet="Votre accès Orbis Pay expire : confirmez vos identifiants",
+                      corps="Bonjour Camille, votre accès sera suspendu sous 24 h. "
+                            "Confirmez vos identifiants ici : http://orbispay-verification.net/reactivation?u=camille",
+                      lien="http://orbispay-verification.net/reactivation?u=camille"),
+        # 2. Camille clique un lien piégé en naviguant sur le web.
+        actions.Geste(actions.CLIQUER_LIEN, "Camille clique un résultat sponsorisé « connexion Orbis Pay »",
+                      cible="Navigateur web", url="http://login-orbispay.help/connexion"),
+
+        # === GESTES DE SECOND PLAN, mêlés aux gestes sûrs de la journée ===
+        actions.Geste(actions.CLIQUER_LIEN, "Camille ouvre le portail RH interne",
+                      cible="Navigateur web", url="https://rh.orbispay.example/conges"),
         actions.Geste(actions.COLLER_TEXTE, "Camille colle un compte rendu dans le chat interne",
                       cible="Chat interne", domaine="assistant.orbispay.example",
                       texte="Compte rendu de la réunion de ce matin : trois points à suivre."),
-        actions.Geste(actions.ENVOYER_MAIL, "Camille envoie la base clients à un collègue interne",
-                      destinataires=["paul@orbispay.example"], objet="Export clients du mois",
-                      corps="Voici l'export clients demandé.", pieces=["export-clients.csv"]),
-        actions.Geste(actions.ENVOYER_MAIL, "Camille répond à un prospect externe, sans données sensibles",
-                      destinataires=["prospect@acheteur.example"], objet="Suite à notre échange",
-                      corps="Merci pour votre temps, je reviens vers vous la semaine prochaine."),
-        actions.Geste(actions.DEPOSER_FICHIER, "Camille dépose une plaquette publique sur l'assistant validé",
-                      cible="Assistant Orbis", domaine="assistant.orbispay.example",
-                      fichier="plaquette-commerciale.pdf", confidentiel=False),
-        actions.Geste(actions.CLIQUER_LIEN, "Camille ouvre le portail RH interne",
-                      url="https://rh.orbispay.example/conges"),
-
-        # --- gestes RISQUÉS : un par type d'incident ---
         actions.Geste(actions.COLLER_TEXTE, "Camille colle une clé API dans ChatGPT pour « debugger »",
                       cible="ChatGPT", domaine="chat.openai.com",
                       texte="peux-tu analyser cette erreur ? ma clé est sk-ant-api03-7h2Kd9fLmQ0zXc4Vb1Np"),
+        actions.Geste(actions.ENVOYER_MAIL, "Camille envoie la base clients à un collègue interne",
+                      destinataires=["paul@orbispay.example"], objet="Export clients du mois",
+                      corps="Voici l'export clients demandé.", pieces=["export-clients.csv"]),
         actions.Geste(actions.ENVOYER_MAIL, "Camille envoie l'export clients à son adresse Gmail perso",
                       destinataires=["camille.perso@gmail.com"], objet="pour bosser ce soir",
                       corps="je m'envoie le fichier clients pour avancer à la maison",
                       pieces=["base-clients-complete.csv"]),
+        actions.Geste(actions.DEPOSER_FICHIER, "Camille dépose une plaquette publique sur l'assistant validé",
+                      cible="Assistant Orbis", domaine="assistant.orbispay.example",
+                      fichier="plaquette-commerciale.pdf", confidentiel=False),
         actions.Geste(actions.DEPOSER_FICHIER, "Camille dépose le plan stratégique sur un Drive perso",
                       cible="Google Drive perso", domaine="drive.google.com",
                       fichier="plan-strategique-2027-confidentiel.pdf", confidentiel=True),
-        actions.Geste(actions.CLIQUER_LIEN, "Camille clique le lien « vérifiez votre compte » d'un mail",
-                      url="http://orbispay-secure.com/verif?compte=camille"),
         actions.Geste(actions.OUVRIR_PIECE, "Camille ouvre une pièce jointe d'un expéditeur inconnu",
                       fichier="facture_impayee.pdf.exe", expediteur_externe=True),
     ]
@@ -93,7 +100,7 @@ def lancer(backend: Backend, choix: str, chemin_html: str) -> dict:
         marque = "→ passé outre, INCIDENT remonté" if res.choix == "continuer" else "→ annulé, incident évité"
         esc = "  [escaladé au SOC]" if res.escalade else ""
         print(f"  choix du salarié : {res.choix}  {marque}{esc}\n")
-        cartes.append((res.verdict, res.choix))
+        cartes.append((geste, res.verdict, res.choix))
 
     Path(chemin_html).parent.mkdir(parents=True, exist_ok=True)
     Path(chemin_html).write_text(page_html(cartes), encoding="utf-8")
