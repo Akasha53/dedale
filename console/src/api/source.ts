@@ -1,11 +1,15 @@
 import type {
+  Activite,
+  DocumentSource,
   Incident,
   Leurre,
   Mesures,
   MessageWS,
+  RetraitDroit,
   Session,
   DecisionAction,
   Evenement,
+  Synthese,
   TempsSession,
 } from "../types";
 
@@ -24,6 +28,14 @@ export interface SourceDonnees {
     action: DecisionAction,
     analyste: string
   ): Promise<Incident>;
+  // Copilote SOC : résumé en phrases, confiance, décision conseillée.
+  getSynthese(id: string): Promise<Synthese>;
+  // Contenu lu par l'agent (mail, document), désarmé, partie piégée repérée.
+  getSource(id: string): Promise<DocumentSource[]>;
+  // Fil des agents : dernières actions passées par la passerelle.
+  getActivite(limite: number): Promise<Activite[]>;
+  // Correctif en un clic : retire un droit en trop à l'agent.
+  retirerDroit(id: string, droit: string, analyste: string): Promise<RetraitDroit>;
   // S'abonne au flux ; renvoie une fonction de désabonnement.
   connecter(
     onMessage: (m: MessageWS) => void,
@@ -105,6 +117,29 @@ export const sourceLive: SourceDonnees = {
     } finally {
       clearTimeout(minuteur);
     }
+  },
+
+  getSynthese: (id) => j<Synthese>(`/api/incidents/${encodeURIComponent(id)}/synthese`),
+  getSource: (id) => liste<DocumentSource>(`/api/incidents/${encodeURIComponent(id)}/source`, "documents"),
+  getActivite: (limite) => liste<Activite>(`/api/activite?limite=${limite}`, "activite"),
+  retirerDroit: async (id, droit, analyste) => {
+    const r = await fetch(BASE + `/api/incidents/${encodeURIComponent(id)}/retirer-droit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ droit, analyste }),
+    });
+    if (!r.ok) {
+      // 400 : le droit n'est pas retirable (déjà retiré, nécessaire à la tâche…).
+      let detail = "";
+      try {
+        const corps = (await r.json()) as { detail?: unknown };
+        detail = typeof corps.detail === "string" ? corps.detail : "";
+      } catch {
+        /* corps non JSON */
+      }
+      throw new Error(detail ? `Retrait refusé : ${detail}` : `Retrait refusé par le backend (HTTP ${r.status}).`);
+    }
+    return (await r.json()) as RetraitDroit;
   },
 
   connecter(onMessage, onEtat) {

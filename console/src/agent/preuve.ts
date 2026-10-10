@@ -63,6 +63,10 @@ export function preuveInerte(brut: unknown, max = 320): string {
   // ![alt](url) : une image markdown est le vecteur de sortie, on la décrit.
   t = t.replace(/!\[[^\]]*\]\(([^)\s]+)\)/g, (_m, url) => `[image → ${desarmerUrl(url)}]`);
   t = t.replace(/https?:\/\/[^\s)"'\]]+/gi, (url) => desarmerUrl(url));
+  // Adresses mail hors d'Orbis Pay : domaine coupé.
+  t = t.replace(/\b([\w.+-]+)@((?:[\w-]+\.)+[a-z]{2,})\b/gi, (m, nom, dom) =>
+    HOTES_INTERNES.has(String(dom).toLowerCase()) ? m : `${nom}@${couperDomaine(dom)}`
+  );
   // Domaines nus (hors adresses mail et hôtes internes d'Orbis Pay) : coupés.
   t = t.replace(
     /(?<![@\w.[\]-])((?:[a-z0-9-]+\.)+(?:example|com|net|org|io|fr|ru|xyz|info|biz|co|app|dev))\b/gi,

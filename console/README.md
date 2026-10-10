@@ -1,17 +1,18 @@
 # Console SOC — Dédale
 
-Écran de l'analyste, recentré sur « l'humain, le maillon faible ». Lit l'API du
-backend (`127.0.0.1:8700`) et son WebSocket `/ws`. Stack : Vite + React +
-TypeScript. Thème clair, repris du cadre « V1. Console » de `design.pen` et
-aligné sur la landing.
+Écran de l'analyste. Lit l'API du backend (`127.0.0.1:8700`) et son WebSocket
+`/ws`. Stack : Vite + React + TypeScript, thème clair.
 
-Deux piliers partagés entre le temps réel et les incidents, ouverts par défaut
-sur les **salariés** : **Salariés** (source `humain`/`physique` : gestes
-risqués interceptés sur le poste) et **Agents IA** (agents internes détournés).
-Les sessions, incidents et leurres de la source `externe` restent dans le
-backend : la console ne les affiche pas et ne les compte pas. Mapping des types
-d'incident et libellés/icônes centralisé dans `src/ui/primitives.tsx`
-(`TYPE_INCIDENT`, `PILIERS`).
+Deux piliers, partagés entre le temps réel et les incidents, ouverts par défaut
+sur les **agents IA** (le produit principal) : **Agents IA** (source `interne`)
+et **Salariés** (source `humain`). La surface externe et le volet physique
+restent dans le backend : la console ne les affiche pas et ne les compte pas.
+La page « Leurres » est sortie de la navigation (`src/screens/LeurresView.tsx`
+reste en place, la décision est réversible).
+
+Tout le texte visible est en français simple. Les codes du backend (droits,
+outils, états) sont traduits dans `src/ui/mots.ts`. Le mot « canary » reste,
+avec une infobulle à sa première occurrence (`src/ui/Canary.tsx`).
 
 ## Lancer
 
@@ -22,61 +23,57 @@ npm run dev        # dev sur http://localhost:5173
 npm run build      # build statique dans console/dist/ (servi par le backend sur 8700)
 ```
 
-En dev, `/api` et `/ws` sont relayés vers `127.0.0.1:8700` par le proxy Vite
-(`vite.config.ts`). Les URL restent relatives : le même build marche tel quel
-une fois servi par le backend. Pour viser un autre backend, par exemple une base
-de test sur un autre port :
+En dev, `/api` et `/ws` passent par le proxy Vite vers `127.0.0.1:8700`
+(`vite.config.ts`). Pour viser un autre backend, par exemple une base de test
+sur un autre port :
 
 ```bash
 DEDALE_BACKEND=http://127.0.0.1:8790 npx vite --port 5290
 ```
 
-Les polices (Space Grotesk, IBM Plex Mono, licence OFL) sont dans
-`src/assets/fonts` : la console ne charge rien depuis un CDN.
-
 ## Sans backend
 
-Tant que `/api/mesures` ne répond pas, la console tourne sur un **mock local**
-(`src/api/mock.ts`, calqué sur CONTRATS.md) : les quatre écrans sont remplis et
-le flux temps réel bouge. Un bandeau le signale. La console sonde le backend
-toutes les 5 s et bascule en direct dès qu'il répond, sans rechargement.
+Tant que `/api/mesures` ne répond pas, la console tourne sur des données
+simulées (`src/api/mock.ts`, calquées sur CONTRATS.md), sans rien afficher de
+particulier. Elle sonde le backend toutes les 5 s et bascule en direct dès
+qu'il répond.
 
 ## Écrans
 
-1. **Temps réel** — flux des sessions du pilier choisi, score, et au survol les
-   signaux en clair qui expliquent la décision. Compteurs en tête, propres au
-   pilier : pour les salariés, salariés surveillés et gestes risqués arrêtés.
-2. **Incident d'agent IA** (`src/agent/`) : la boîte noire en six maillons
-   datés à la milliseconde (source, consigne, intention, appel d'outil,
-   décision, résultat), lue dans le journal de session, avec les preuves rendues
-   inertes (liens désarmés, domaines coupés, clés canaris masquées). À droite :
-   **Couper** (session coupée, jeton révoqué) et **Reprendre** (libère le seul
-   appel retenu, en deux clics), désactivé quand l'action était hors droits ;
-   les accès accordés face aux accès nécessaires. En tête, le chrono détection,
-   remontée et décision humaine, et les repères OWASP Agentic / ATLAS / ATT&CK.
-   Une technique ATT&CK que le backend envoie avec `a_confirmer: true` porte la
-   mention « à confirmer ». Sans journal (mock), la vue se replie sur la chaîne
-   du backend.
-3. **Incident salarié** : chaîne « boîte noire » en frise verticale, techniques MITRE
-   ATLAS/ATT&CK et risques OWASP Agentic. Pour un incident humain, un panneau
-   « garde du corps sur le poste » montre le geste risqué, l'avertissement
-   affiché et le choix du salarié (annulé = protégé / passé outre = incident).
-   Boutons de décision (`POST /api/incidents/{id}/decision`) : clore ou
-   ignorer, jamais couper le poste.
-4. **Leurres & canaris** : inventaire des canaris des agents IA et des canaris
-   physiques (`GET /api/leurres`, sans les leurres `L-xxxx` externes) et
-   compteur de touches.
+1. **Temps réel**. Pour les agents : le fil « Ce que font les agents en ce
+   moment » (`GET /api/activite` puis messages WS `activite`), une ligne par
+   action, autorisée en vert, retenue en orange, refusée en rouge. Puis la
+   liste des agents, avec « Pourquoi ? » : le survol montre l'explication, le
+   clic la garde ouverte. Pour les salariés : les postes et les mêmes
+   explications.
+2. **Incidents**. La liste ne montre que ce qui reste à traiter. Un incident
+   réglé (couper, laisser passer, retirer un droit, clore, classer) se barre
+   quelques secondes, puis se replie. Les incidents déjà réglés sont sous
+   « réglés (n) ». Le détail ouvert reste affiché jusqu'au choix suivant.
+3. **Incident d'agent IA** (`src/agent/`). En tête, « Ce qui s'est passé »
+   (`GET /api/incidents/{id}/synthese`) : les phrases du copilote, la certitude
+   et la décision conseillée. Puis la boîte noire, triée par heure : chaque
+   étape se déplie et montre la donnée brute désarmée, pourquoi Dédale l'a
+   repérée, ce qu'elle aurait pu provoquer, l'heure précise et les références
+   OWASP / ATLAS / ATT&CK, repliées. L'étape « Lecture » ouvre le mail ou le
+   document en entier, partie piégée surlignée (`document_source` du maillon
+   source, sinon `GET /api/incidents/{id}/source`). À droite, trois choix,
+   chacun expliqué en une ligne : couper l'agent, laisser passer l'action,
+   retirer un droit (`POST /api/incidents/{id}/retirer-droit`).
+4. **Incident salarié**. Le geste, le message affiché par Dédale, le choix du
+   salarié, les étapes dépliables, et deux choix : clore ou classer sans suite.
 5. **Mesures** : détection, faux positifs, temps de détection et de
-   confinement, en chiffres clés et deux graphes SVG. Les totaux de sessions et
-   d'incidents sont comptés par la console sur ses deux piliers ; les taux et
-   les temps viennent tels quels de `/api/mesures`.
+   confinement.
 
 ## Carte des fichiers
 
-- `src/api/source.ts` — client REST + WebSocket (reconnexion avec backoff) et sonde backend.
-- `src/api/mock.ts` — mock local.
-- `src/api/store.tsx` — choix de la source, chargement, flux, bascule mock → live.
-- `src/agent/` — écran d'incident d'agent IA : `boiteNoire.ts` lit le journal
-  en six maillons, `preuve.ts` rend les preuves inertes, `references.tsx` les
-  badges OWASP/ATLAS/ATT&CK.
-- `src/screens/` — un fichier par écran. `src/ui/primitives.tsx` — badges, jauges, formats.
+- `src/api/source.ts` — client REST + WebSocket (reconnexion) et sonde backend.
+- `src/api/mock.ts` — données simulées, mêmes formes que le backend.
+- `src/api/store.tsx` — choix de la source, chargement, flux, bascule vers le direct.
+- `src/agent/boiteNoire.ts` — lit le journal de session en étapes simples et
+  leur détail ; `preuve.ts` désarme les preuves ; `sources.ts` et
+  `ModaleSource.tsx` le contenu lu ; `Synthese.tsx` l'encadré « Ce qui s'est
+  passé » ; `Depliant.tsx` le détail d'une étape.
+- `src/ui/mots.ts` — vocabulaire simple ; `src/ui/primitives.tsx` — piliers,
+  badges, jauges, formats.
+- `src/screens/` — un fichier par écran.

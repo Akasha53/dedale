@@ -8,33 +8,27 @@ import type {
   TypeIncident,
 } from "../types";
 
-// Libellé et icône clairs par type d'incident. Table centrale : tout nouveau
-// type passe ici. Les cinq types du pilier salariés (avenant « humain, le
-// maillon faible »), puis les types agents IA internes. Un type inconnu
-// retombe sur un libellé générique (dégradé propre).
-const TYPE_INCIDENT: Record<string, { lib: string; pic: string }> = {
-  // Pilier salariés.
-  humain_secret: { lib: "Secret exposé", pic: "🔑" },
-  humain_mail_externe: { lib: "Envoi externe", pic: "✉" },
-  humain_upload_ia: { lib: "Upload vers une IA", pic: "☁" },
-  humain_phishing: { lib: "Phishing cliqué", pic: "🎣" },
-  humain_intrusion_physique: { lib: "Intrusion physique", pic: "🚪" },
-  // Pilier agents IA internes.
-  interne_canari: { lib: "Canari déclenché", pic: "✉" },
-  interne_outil_mcp: { lib: "Outil / MCP piégé", pic: "⚙" },
-  interne_droits: { lib: "Droits trop larges", pic: "🔑" },
-  interne_appel: { lib: "Appel piégé", pic: "☎" },
-  interne_chatbot: { lib: "Chatbot détourné", pic: "💬" },
-  interne_inter_agent: { lib: "Usurpation d'agent", pic: "⇄" },
-  interne_memoire: { lib: "Mémoire empoisonnée", pic: "❖" },
+// Libellé court par type d'incident. Un type inconnu retombe sur un libellé
+// générique.
+const TYPE_INCIDENT: Record<string, { lib: string }> = {
+  humain_secret: { lib: "Clé secrète exposée" },
+  humain_mail_externe: { lib: "Envoi vers l'extérieur" },
+  humain_upload_ia: { lib: "Fichier vers une IA" },
+  humain_phishing: { lib: "Lien piégé" },
+  interne_canari: { lib: "Instruction cachée" },
+  interne_outil_mcp: { lib: "Faux outil" },
+  interne_droits: { lib: "Hors de sa tâche" },
+  interne_appel: { lib: "Appel piégé" },
+  interne_chatbot: { lib: "Message piégé" },
+  interne_inter_agent: { lib: "Faux collègue" },
+  interne_memoire: { lib: "Fausse mémoire" },
 };
 
-// Les deux piliers, dans l'ordre d'affichage. Chaque pilier regroupe une ou
-// plusieurs sources d'événement. Le pilier salariés inclut `physique` (accès
-// locaux/serveurs) : même histoire « l'humain, le maillon faible ».
-export const PILIERS: { id: Pilier; lib: string; pic: string; sources: Source[] }[] = [
-  { id: "humain", lib: "Salariés", pic: "👤", sources: ["humain", "physique"] },
-  { id: "interne", lib: "Agents IA", pic: "⌁", sources: ["interne"] },
+// Les deux piliers, dans l'ordre d'affichage : les agents IA d'abord (le
+// produit principal), puis les salariés.
+export const PILIERS: { id: Pilier; lib: string; sources: Source[] }[] = [
+  { id: "interne", lib: "Agents IA", sources: ["interne"] },
+  { id: "humain", lib: "Salariés", sources: ["humain"] },
 ];
 
 export function pilierDeSource(source?: Source): Pilier {
@@ -46,6 +40,12 @@ export function pilierDeSource(source?: Source): Pilier {
 // compte (sessions, incidents, leurres L-xxxx).
 export function horsExterne(x: { source?: Source }): boolean {
   return x.source !== "externe";
+}
+
+// Ce que la console affiche : agents IA et salariés. La surface externe et le
+// volet physique (abandonné, feuille de route) restent hors de l'écran.
+export function visibleConsole(x: { source?: Source; type?: string }): boolean {
+  return x.source !== "externe" && x.source !== "physique" && x.type !== "humain_intrusion_physique";
 }
 
 export function appartientPilier(source: Source | undefined, pilier: Pilier): boolean {
@@ -73,7 +73,6 @@ export function SegmentsPiliers({
           className={pilier === p.id ? "actif" : ""}
           onClick={() => setPilier(p.id)}
         >
-          <span className="pic">{p.pic}</span>
           {p.lib} <span className="pastille-compte">{comptes[p.id] ?? 0}</span>
         </button>
       ))}
@@ -88,7 +87,7 @@ export function BadgeChoixSalarie({ choix }: { choix?: ChoixSalarie }) {
   const annule = choix === "annuler";
   return (
     <span className={`badge-choix ${annule ? "bien" : "outre"}`}>
-      {annule ? "✓ geste annulé — protégé" : "⚠ passé outre — incident"}
+      {annule ? "Annulé à temps" : "Continué malgré l'alerte"}
     </span>
   );
 }
@@ -96,18 +95,6 @@ export function BadgeChoixSalarie({ choix }: { choix?: ChoixSalarie }) {
 export function libelleType(type?: TypeIncident): string {
   if (!type) return "Incident";
   return TYPE_INCIDENT[type]?.lib ?? type.replace(/_/g, " ");
-}
-
-export function BadgeTypeIncident({ type }: { type?: TypeIncident }) {
-  if (!type) return null;
-  const t = TYPE_INCIDENT[type];
-  const cls = t ? type : "generique";
-  return (
-    <span className={`type-inc ${cls}`} title={type}>
-      <span className="pic">{t?.pic ?? "⬡"}</span>
-      {libelleType(type)}
-    </span>
-  );
 }
 
 // Normalise un droit (chaîne « code » ou objet {code, libelle}).

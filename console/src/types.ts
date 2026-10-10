@@ -38,6 +38,7 @@ export interface Session {
   ip?: string | null;
   user_agent?: string | null;
   droits?: DroitsAgent; // optionnel : droits de l'agent interne de la session
+  agent?: string | null; // nom de l'agent interne annoncé par la passerelle
 }
 
 export type Cadre = "ATLAS" | "ATT&CK";
@@ -80,6 +81,8 @@ export interface MaillonChaine {
   canari_id?: string | null;
   // Pour un maillon `avertissement` : le choix du salarié face à la pop-up.
   choix?: ChoixSalarie;
+  // Maillon « source » d'un agent : le contenu lu, en entier et désarmé.
+  document_source?: DocumentSource | null;
   techniques?: Technique[];
   risques?: Risque[];
 }
@@ -169,6 +172,100 @@ export interface Incident {
   // optionnels : le chrono se replie sur la chaîne et les décisions.
   temps_session?: TempsSession;
   decide_a?: string | null;
+  // Correctif en un clic : droits en trop que l'analyste peut retirer à
+  // l'agent, et retraits déjà faits depuis cet incident.
+  droits_retirables?: { code: string; libelle?: string }[];
+  correctifs?: { code: string; libelle?: string; analyste?: string; horodatage?: string }[];
+  // Contenu lu par l'agent (mail, document, description d'outil), quand le
+  // backend le transmet. Sinon la console prend sa copie de démonstration.
+  source_lue?: SourceLue | null;
+}
+
+// Document source tel que le backend l'envoie (maillon source de la chaîne,
+// ou GET /api/incidents/{id}/source) : désarmé, partie piégée repérée.
+export interface DocumentSource {
+  type?: "mail" | "document" | "appel" | "memoire" | "outil" | (string & {});
+  id?: string;
+  titre?: string;
+  expediteur?: string;
+  destinataire?: string;
+  date?: string;
+  origine?: string;
+  canari_id?: string | null;
+  empreinte?: string;
+  corps?: string;
+  segments?: { texte: string; piege?: boolean }[];
+  piege?: { debut: number; fin: number }[];
+  texte_piege?: string;
+  instruction_cachee?: boolean;
+  desarme?: boolean;
+  maillon?: number;
+  evenement_id?: number;
+  horodatage?: string;
+}
+
+// Ce que l'agent a lu, affiché en entier dans le panneau « Voir le mail ».
+// `corps` est découpé en morceaux ; `piege: true` marque la partie piégée.
+export interface SourceLue {
+  genre: "mail" | "document" | "outil";
+  titre: string;
+  de?: string;
+  a?: string;
+  date?: string;
+  morceaux: { texte: string; piege?: boolean }[];
+  note?: string;
+}
+
+// Copilote SOC : GET /api/incidents/{id}/synthese (CONTRATS.md).
+export interface PhraseSynthese {
+  texte: string;
+  maillons?: number[];
+}
+export interface RaisonConfiance {
+  code: string;
+  effet: number;
+  texte: string;
+}
+export interface Synthese {
+  incident_id: string;
+  phrases: PhraseSynthese[];
+  confiance?: {
+    score: number;
+    niveau?: "elevee" | "moyenne" | "faible" | string;
+    raisons?: RaisonConfiance[];
+    manquants?: RaisonConfiance[];
+  } | null;
+  decision_recommandee?: {
+    action: DecisionAction | string;
+    justification?: string;
+    rappel?: string;
+    deja_appliquee?: boolean;
+  } | null;
+  correctif_suggere?: { droit: string; libelle?: string; texte?: string } | null;
+}
+
+// Fil des agents : GET /api/activite et messages WS `activite`.
+export type VerdictActivite = "autorise" | "retenu" | "refuse";
+export interface Activite {
+  id: number | string;
+  heure: string;
+  session_id?: string;
+  agent?: string | null;
+  outil: string;
+  verdict: VerdictActivite;
+  raison?: string;
+  droit?: string | null;
+  etape?: "appel" | "issue" | string;
+  incident_id?: string | null;
+}
+
+// Réponse de POST /api/incidents/{id}/retirer-droit.
+export interface RetraitDroit {
+  incident_id: string;
+  droit: string;
+  libelle?: string;
+  message?: string;
+  incident?: Incident;
 }
 
 export interface TempsSession {
@@ -236,7 +333,7 @@ export interface GestesHumains {
 
 // Message du WebSocket /ws
 export interface MessageWS {
-  type: "evenement" | "session" | "incident";
+  type: "evenement" | "session" | "incident" | "activite";
   donnees: unknown;
 }
 

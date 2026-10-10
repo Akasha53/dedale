@@ -1,6 +1,5 @@
-// Repères OWASP Agentic, MITRE ATLAS et ATT&CK, en badges discrets. Le badge
-// porte l'identifiant ; le nom officiel passe en infobulle quand il est sûr.
-// Ce sont des repères pour situer le risque, pas une certification.
+// Repères OWASP Agentic, MITRE ATLAS et ATT&CK. Ils ne s'affichent qu'en bas
+// d'une étape dépliée, repliés par défaut, pour qui veut les voir.
 
 export type Cadre = "OWASP" | "ATLAS" | "ATT&CK";
 export interface Ref {
@@ -8,6 +7,7 @@ export interface Ref {
   cadre: Cadre;
   // Rapprochement plausible mais pas établi : le backend envoie a_confirmer.
   aConfirmer?: boolean;
+  nom?: string; // nom envoyé par le backend, s'il y en a un
 }
 
 // Noms officiels (anglais) : OWASP Top 10 for Agentic Applications (2026),
@@ -84,25 +84,22 @@ export function fusionnerRefs(...listes: (Ref | null | undefined)[][]): Ref[] {
   return [...vues.values()].sort((a, b) => ordre[a.cadre] - ordre[b.cadre] || a.id.localeCompare(b.id));
 }
 
-export function BadgesRefs({ refs, legende }: { refs: Ref[]; legende?: boolean }) {
+export function nomRef(r: Ref): string | undefined {
+  return NOMS_ATTACK_FR[r.id] ?? NOMS[r.id] ?? r.nom;
+}
+
+export function ListeRefs({ refs }: { refs: Ref[] }) {
   if (refs.length === 0) return null;
   return (
-    <div className="ag-refs" aria-label="Repères de risque">
-      {refs.map((r) => {
-        const nom = NOMS_ATTACK_FR[r.id] ?? NOMS[r.id];
-        return (
-          <span
-            key={r.id}
-            className={`ag-ref ag-ref-${r.cadre === "OWASP" ? "owasp" : r.cadre === "ATLAS" ? "atlas" : "attack"}${r.aConfirmer ? " a-confirmer" : ""}`}
-            title={`${LIB_CADRE[r.cadre]} ${r.id}${nom ? ` · ${nom}` : ""}${r.aConfirmer ? " · rapprochement à confirmer" : ""}`}
-          >
-            <span className="ag-ref-cadre">{r.cadre === "OWASP" ? "OWASP" : r.cadre}</span>
-            {r.id}
-            {r.aConfirmer && <span className="ag-ref-doute">à confirmer</span>}
-          </span>
-        );
-      })}
-      {legende && <span className="ag-refs-note">repères, pas une certification</span>}
-    </div>
+    <ul className="refs-liste">
+      {refs.map((r) => (
+        <li key={r.id}>
+          <span className="refs-cadre">{LIB_CADRE[r.cadre]}</span>
+          <span className="refs-id">{r.id}</span>
+          {nomRef(r) && <span className="refs-nom">{nomRef(r)}</span>}
+          {r.aConfirmer && <span className="refs-doute">à confirmer</span>}
+        </li>
+      ))}
+    </ul>
   );
 }

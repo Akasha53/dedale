@@ -13,7 +13,7 @@ const base = {
   "aria-hidden": true,
 };
 
-const TRACES: Record<CleMaillon | "couper" | "reprendre" | "chrono" | "bouclier", JSX.Element> = {
+const TRACES: Record<CleMaillon | "couper" | "reprendre" | "chrono" | "bouclier" | "fermer" | "oeil", JSX.Element> = {
   source: (
     <>
       <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
@@ -49,6 +49,19 @@ const TRACES: Record<CleMaillon | "couper" | "reprendre" | "chrono" | "bouclier"
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M8 12h8M13 9l3 3-3 3" />
+    </>
+  ),
+  correctif: (
+    <>
+      <circle cx="8" cy="12" r="3.6" />
+      <path d="M11.6 12H20.5M17.5 12v3M20.5 12v2.2" />
+    </>
+  ),
+  fermer: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
+  oeil: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.8" />
     </>
   ),
   couper: (
