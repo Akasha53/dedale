@@ -120,6 +120,10 @@ export type TypeIncident =
   | "interne_chatbot"
   | "interne_inter_agent"
   | "interne_memoire"
+  // Médiation de la passerelle (avenant du 10 octobre).
+  | "interne_outil_inconnu"
+  | "interne_canal_detourne"
+  | "interne_outil_modifie"
   // Réserve externe.
   | "externe_agent_ia"
   | (string & {}); // tolère une valeur non prévue

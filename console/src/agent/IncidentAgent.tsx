@@ -10,6 +10,7 @@ import { dureeCourte, lireBoiteNoire, type Issue, type LectureAgent, type Maillo
 import { Icone, type NomIcone } from "./icones";
 import { sourcePour } from "./sources";
 import { SyntheseBloc, useSynthese } from "./Synthese";
+import { phrasesMediation, REPLI_MEDIATION } from "./mediation";
 import { ModaleSource } from "./ModaleSource";
 import { DetailEtape, Depliant } from "./Depliant";
 import { BadgeIntegrite, MenuExport } from "./OutilsDossier";
@@ -111,6 +112,7 @@ function repliAgent(lecture: LectureAgent, type?: string): string[] {
       "L'agent a voulu envoyer quelque chose à une adresse hors d'Orbis Pay. Dédale retient tout envoi vers l'extérieur avant qu'il parte.",
       `${lecture.enJeu} ${fin}`.trim(),
     ];
+  if (type && REPLI_MEDIATION[type]) return [REPLI_MEDIATION[type], fin].filter(Boolean);
   if (type === "interne_politique")
     return ["Une règle écrite par le SOC s'est appliquée à une action de l'agent.", `${lecture.enJeu} ${fin}`.trim()];
   if (type === "interne_anomalie")
@@ -143,6 +145,9 @@ export function IncidentAgent({
   const lecture = useMemo(() => lireBoiteNoire(incident, leurres), [incident, leurres]);
   const { synthese, prete } = useSynthese(incident);
   const vue = etatVue(incident, lecture.issue);
+  // Outil inconnu, canal détourné, outil modifié : les phrases viennent du
+  // constat de la passerelle (outil, serveur MCP, règle, ce que portait l'appel).
+  const mediation = useMemo(() => phrasesMediation(incident, vue), [incident, vue]);
   // Le compteur ne tourne que si un appel attend vraiment un humain.
   const maintenant = useMaintenant(vue === "attente");
   const [sourceOuverte, setSourceOuverte] = useState(false);
@@ -172,9 +177,9 @@ export function IncidentAgent({
           </p>
           <h2 id="ag-titre" className="ag-titre">{titreIncident(incident)}</h2>
           <SyntheseBloc
-            synthese={synthese}
+            synthese={mediation && synthese ? { ...synthese, phrases: mediation.map((texte) => ({ texte })) } : synthese}
             prete={prete}
-            repli={repliAgent(lecture, incident.type)}
+            repli={mediation ?? repliAgent(lecture, incident.type)}
             libelles={lecture.prevenu && !lecture.appel ? { reprendre: "Remettre l'agent en service" } : undefined}
           />
           <Chrono incident={incident} lecture={lecture} vue={vue} maintenant={maintenant} />
