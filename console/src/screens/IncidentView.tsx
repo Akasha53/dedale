@@ -10,6 +10,7 @@ import type {
   Session,
 } from "../types";
 import { IncidentAgent } from "../agent/IncidentAgent";
+import { nomTechnique } from "../agent/references";
 import {
   appartientPilier,
   BadgeChoixSalarie,
@@ -53,7 +54,6 @@ const PHASE_PIC: Record<string, string> = {
 const VIDE_PILIER: Record<Pilier, string> = {
   humain: "Aucun geste risqué de salarié en incident. Les postes sont calmes.",
   interne: "Aucun incident interne ouvert. Les agents d'Orbis Pay sont calmes.",
-  externe: "Aucun incident externe en réserve.",
 };
 
 const ACTIONS_AGENT: { action: DecisionAction; lib: string; cls: string }[] = [
@@ -85,7 +85,7 @@ export function IncidentView({
     [incidents, pilier]
   );
   const comptes = useMemo(() => {
-    const c = { humain: 0, interne: 0, externe: 0 } as Record<Pilier, number>;
+    const c = { humain: 0, interne: 0 } as Record<Pilier, number>;
     for (const p of PILIERS)
       c[p.id] = incidents.filter((i) => appartientPilier(i.source, p.id)).length;
     return c;
@@ -271,7 +271,9 @@ export function IncidentView({
             </div>
 
             <DroitsPanneau incident={detail} sessions={sessions} />
+          </div>
 
+          <div className="colonne-decision">
             <div className="panneau">
               <div className="titre">Décision de l'analyste</div>
               <div className="corps">
@@ -318,8 +320,6 @@ export function IncidentView({
               </div>
             </div>
           </div>
-
-          <PanneauLateral incident={detail} />
         </div>
       )}
     </>
@@ -340,105 +340,24 @@ function Maillon({ m }: { m: MaillonChaine }) {
         {m.choix && <BadgeChoixSalarie choix={m.choix} />}
         {m.leurre_id && <span className="tag leurre">leurre {m.leurre_id}</span>}
         {m.canari_id && <span className="tag leurre">canari {m.canari_id}</span>}
-        {(m.techniques ?? []).map((t) => (
-          <span
-            key={t.id}
-            className={`tag ${t.cadre === "ATLAS" ? "atlas" : "attack"}`}
-            title={`${t.cadre} · ${t.nom}`}
-          >
-            {t.id} {t.nom}
-          </span>
-        ))}
+        {(m.techniques ?? []).map((t) => {
+          const nom = nomTechnique(t.id, t.nom);
+          return (
+            <span
+              key={t.id}
+              className={`tag ${t.cadre === "ATLAS" ? "atlas" : "attack"}`}
+              title={`${t.cadre} · ${nom}${t.a_confirmer ? " · rapprochement à confirmer" : ""}`}
+            >
+              {t.id} {nom}
+              {t.a_confirmer && <span className="tag-doute">à confirmer</span>}
+            </span>
+          );
+        })}
         {(m.risques ?? []).map((r) => (
           <span key={r.id} className="tag risque" title={r.nom}>
             {r.id.startsWith("OWASP") ? r.id : `OWASP ${r.id}`} · {r.nom}
           </span>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function PanneauLateral({ incident }: { incident: Incident }) {
-  const { nis2, exporter } = useDonnees();
-  const [nis2Texte, setNis2Texte] = useState("");
-  const [format, setFormat] = useState<"ecs" | "sigma">("ecs");
-  const [exportTexte, setExportTexte] = useState("");
-  const [copie, setCopie] = useState<string | null>(null);
-
-  useEffect(() => {
-    let vivant = true;
-    setNis2Texte("Actualisation du brouillon…");
-    nis2(incident.id)
-      .then((t) => vivant && setNis2Texte(t))
-      .catch(() => vivant && setNis2Texte("Brouillon indisponible."));
-    return () => {
-      vivant = false;
-    };
-  }, [incident.id, incident.etat, incident.statut, incident.decisions?.length, nis2]);
-
-  useEffect(() => {
-    let vivant = true;
-    setExportTexte("Actualisation de l'export…");
-    exporter(incident.id, format)
-      .then((t) => vivant && setExportTexte(t))
-      .catch(() => vivant && setExportTexte("Export indisponible."));
-    return () => {
-      vivant = false;
-    };
-  }, [incident.id, incident.statut, incident.decisions?.length, format, exporter]);
-
-  const copier = async (quoi: string, texte: string) => {
-    try {
-      await navigator.clipboard.writeText(texte);
-      setCopie(quoi);
-      setTimeout(() => setCopie(null), 1800);
-    } catch {
-      setCopie(null);
-    }
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18, position: "sticky", top: 90 }}>
-      <div className="panneau">
-        <div className="titre">Notification NIS2 (24 h)</div>
-        <div className="corps">
-          <textarea className="zone-texte" value={nis2Texte} readOnly />
-          <div className="rangee-bouton">
-            <button className="btn fantome" onClick={() => copier("nis2", nis2Texte)}>
-              Copier
-            </button>
-            {copie === "nis2" && <span className="copie-ok">copié ✓</span>}
-          </div>
-        </div>
-      </div>
-
-      <div className="panneau">
-        <div className="titre">
-          Export SIEM
-          <span className="droite">
-            <span className="onglets-mini">
-              <button className={format === "ecs" ? "actif" : ""} onClick={() => setFormat("ecs")}>
-                ECS
-              </button>
-              <button className={format === "sigma" ? "actif" : ""} onClick={() => setFormat("sigma")}>
-                Sigma
-              </button>
-            </span>
-          </span>
-        </div>
-        <div className="corps">
-          <textarea className="zone-texte" value={exportTexte} readOnly />
-          <div className="rangee-bouton">
-            <button
-              className="btn fantome"
-              onClick={() => copier("export", exportTexte)}
-            >
-              Copier ({format.toUpperCase()})
-            </button>
-            {copie === "export" && <span className="copie-ok">copié ✓</span>}
-          </div>
-        </div>
       </div>
     </div>
   );

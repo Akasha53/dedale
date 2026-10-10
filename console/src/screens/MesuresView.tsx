@@ -1,5 +1,5 @@
 import { useDonnees } from "../api/store";
-import type { Classement, PointSerie } from "../types";
+import type { Classement, PointSerie, Session } from "../types";
 import { LIB_CLASSEMENT, Spinner } from "../ui/primitives";
 
 const COULEUR_CLASSEMENT: Record<Classement, string> = {
@@ -10,12 +10,13 @@ const COULEUR_CLASSEMENT: Record<Classement, string> = {
 };
 
 export function MesuresView() {
-  const { mesures, chargement } = useDonnees();
+  const { mesures, chargement, sessions, incidents } = useDonnees();
 
   if (chargement) return <Spinner />;
   if (!mesures)
     return <div className="vide">Mesures indisponibles (backend muet).</div>;
 
+  const repartition = repartitionDe(sessions);
   const pctDet = mesures.taux_detection == null ? null : Math.round(mesures.taux_detection * 100);
   const pctFP = mesures.faux_positifs == null ? null : Math.round(mesures.faux_positifs * 100);
 
@@ -29,10 +30,12 @@ export function MesuresView() {
       </div>
 
       <div className="grille-mesures">
-        <Kpi lib="Sessions observées" val={String(mesures.sessions_total)} />
-        <Kpi lib="Agents IA détectés" val={String(mesures.agents_detectes)} cls="att" />
-        <Kpi lib="Incidents ouverts" val={String(mesures.incidents_ouverts)} cls="att" />
-        <Kpi lib="Incidents clos" val={String(mesures.incidents_clos)} />
+        {/* Totaux comptés ici, sur les deux piliers de la console : ceux du
+            backend incluent la surface externe. */}
+        <Kpi lib="Sessions observées" val={String(sessions.length)} />
+        <Kpi lib="Agents IA détectés" val={String(repartition.agent_ia)} cls="att" />
+        <Kpi lib="Incidents ouverts" val={String(incidents.filter((i) => !i.statut || i.statut === "ouvert").length)} cls="att" />
+        <Kpi lib="Incidents clos" val={String(incidents.filter((i) => i.statut === "clos" || i.statut === "ignore").length)} />
       </div>
 
       <div className="graphes">
@@ -51,12 +54,19 @@ export function MesuresView() {
         <div className="panneau">
           <div className="titre">Répartition des sessions</div>
           <div className="corps">
-            <GrapheBarres repartition={mesures.repartition} />
+            <GrapheBarres repartition={repartition} />
           </div>
         </div>
       </div>
     </>
   );
+}
+
+// Même calcul que backend/app/mesures.py, sur les sessions affichées.
+function repartitionDe(sessions: Session[]): Record<Classement, number> {
+  const r: Record<Classement, number> = { humain: 0, script: 0, agent_ia: 0, inconnu: 0 };
+  for (const s of sessions) if (s.classement in r) r[s.classement] += 1;
+  return r;
 }
 
 function Kpi({ lib, val, cls = "" }: { lib: string; val: string; cls?: string }) {

@@ -35,22 +35,12 @@ const ENTETE_PILIER: Record<
       desc: "Ce que l'agent a lu et tenté, ce que la passerelle a retenu. Vous coupez ou vous reprenez.",
     },
   },
-  externe: {
-    reel: {
-      titre: "Réserve — surface externe",
-      desc: "Attaquants externes gardés en réserve : agents IA reconnus, perdus dans le labyrinthe.",
-    },
-    incident: {
-      titre: "Attaquant externe — boîte noire",
-      desc: "Réserve : chaîne reconstruite d'un agent IA sur la surface exposée.",
-    },
-  },
 };
 
 const ENTETE_FIXE: Record<"leurres" | "mesures", { titre: string; desc: string }> = {
   leurres: {
     titre: "Leurres & canaris",
-    desc: "Canaris internes/physiques et pièges de réserve, avec leur compteur de touches.",
+    desc: "Canaris des agents IA et canaris physiques, avec leur compteur de touches.",
   },
   mesures: {
     titre: "Mesures",
@@ -145,9 +135,8 @@ export function App() {
             Orbis Pay (fictif)
           </div>
           <div className="note-laterale">
-            Dédale protège d'abord le salarié : un garde du corps sur son poste
-            le prévient avant une bêtise de sécurité. Ses agents IA viennent en
-            second, l'attaquant externe en réserve.
+            Dédale prévient le salarié avant un geste risqué sur son poste et
+            surveille les agents IA d'Orbis Pay.
           </div>
         </div>
       </aside>
@@ -189,12 +178,11 @@ export function App() {
           {ecran === "mesures" && <MesuresView />}
 
           <footer className="pied">
-            Dédale — l'humain est le maillon faible. On protège d'abord le
-            salarié contre ses propres gestes risqués (secret collé, envoi
-            externe, upload vers une IA, phishing, intrusion), on protège
-            ensuite ses agents IA, et un humain / SOC voit toute la chaîne.
-            Surface externe conservée en réserve. Orbis Pay est une fintech
-            fictive, données synthétiques.
+            L'humain est le maillon faible. Dédale protège d'abord le salarié
+            contre ses propres gestes risqués (secret collé, envoi externe,
+            upload vers une IA, phishing, intrusion), puis les agents IA
+            d'Orbis Pay, et le SOC voit toute la chaîne. Orbis Pay est une
+            fintech fictive, données synthétiques.
           </footer>
         </div>
       </main>

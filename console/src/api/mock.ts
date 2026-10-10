@@ -11,7 +11,6 @@ import type { SourceDonnees } from "./source";
 // assez de matière pour les quatre écrans et un flux vivant. Remplacé dès que
 // /api/mesures répond (voir DataProvider).
 
-const maintenant = () => new Date();
 const ilYA = (s: number) => new Date(Date.now() - s * 1000).toISOString();
 
 let sessions: Session[] = [
@@ -688,6 +687,8 @@ const incidents: Incident[] = [
           "L'appel de sortie est retenu par la passerelle tant que l'analyste n'a pas tranché (reprendre ou couper).",
         techniques: [
           { id: "AML.T0057", nom: "Fuite de données (LLM)", cadre: "ATLAS" },
+          // Ajoutée par le backend sur une sortie d'agent interne (CONTRATS.md).
+          { id: "T1048", nom: "Exfiltration Over Alternative Protocol", cadre: "ATT&CK", a_confirmer: true },
         ],
         risques: [],
       },
@@ -731,6 +732,8 @@ const incidents: Incident[] = [
         canari_id: "C-0033",
         techniques: [
           { id: "AML.T0053", nom: "Outil d'agent détourné", cadre: "ATLAS" },
+          // Ajoutée par le backend pour un outil MCP piégé (CONTRATS.md).
+          { id: "T1195", nom: "Supply Chain Compromise", cadre: "ATT&CK", a_confirmer: true },
         ],
         risques: [{ id: "ASI02", nom: "Abus d'outil" }],
       },
@@ -922,102 +925,6 @@ function mesuresCourantes(): Mesures {
   };
 }
 
-function nis2(inc: Incident): string {
-  const d = maintenant().toLocaleString("fr-FR");
-  const humain = inc.source === "humain" || inc.source === "physique";
-  const mesures = humain
-    ? `Signal remonté au SOC ; suivi ${inc.statut === "clos" ? "clos" : inc.statut === "ignore" ? "ignoré" : "en cours"}. Aucun poste salarié coupé par Dédale.`
-    : `Session ${inc.session_id} ${inc.etat === "coupee" ? "coupée (jeton révoqué)" : inc.etat === "suspendue" ? "suspendue, appel retenu en attente de la décision humaine" : "active sous surveillance"}.`;
-  return `ALERTE PRÉCOCE NIS2 — notification sous 24 h (brouillon)
-
-Date de rédaction : ${d}
-Entité concernée : Orbis Pay (fintech, entreprise fictive)
-Référence interne : ${inc.id}
-
-1. Nature de l'incident
-${inc.resume}
-
-2. Qualification
-Incident de sécurité touchant un service numérique essentiel (paiement).
-Origine : ${
-    inc.source === "externe"
-      ? "agent IA externe sur la surface exposée"
-      : inc.source === "interne"
-        ? "agent IA interne détourné par un contenu piégé"
-        : inc.source === "physique"
-          ? "accès physique à un actif-leurre (canari physique)"
-          : "geste à risque d'un salarié sur son poste, repéré par le garde du corps"
-  }.
-Gravité estimée : ${inc.gravite}.
-
-3. Impact transfrontalier présumé
-Aucun à ce stade. Données concernées : synthétiques, périmètre de test.
-
-4. Mesures déjà prises
-${mesures}
-Chaîne d'attaque reconstruite et conservée (boîte noire).
-
-5. Suite
-Notification complète sous 72 h. Contact : soc@orbispay.example (fictif).
-
-— Brouillon généré par Dédale, à relire avant envoi.`;
-}
-
-function exportSiem(inc: Incident, format: "ecs" | "sigma"): string {
-  if (format === "sigma") {
-    if (inc.source === "humain" || inc.source === "physique") {
-      return `title: ${inc.titre}
-id: ${inc.id}
-status: experimental
-description: Geste risqué passé outre ou canari physique déclenché (${inc.type}).
-logsource:
-  product: dedale
-  service: console
-detection:
-  selection:
-    incident.type: '${inc.type}'
-    incident.source: '${inc.source}'
-  condition: selection
-level: ${inc.gravite === "critique" ? "critical" : inc.gravite === "haute" ? "high" : "medium"}`;
-    }
-    return `title: ${inc.titre}
-id: ${inc.id}
-status: experimental
-description: Détournement d'agent IA détecté par Dédale (${inc.source}).
-logsource:
-  product: dedale
-  service: console
-detection:
-  sel_consigne:
-    evenement.type: 'entree_agent'
-    leurre.nature: 'consigne_cachee'
-  sel_sortie:
-    evenement.type: 'sortie_agent'
-  condition: sel_consigne and sel_sortie
-level: high
-tags:
-${[...new Set(inc.chaine.flatMap((m) => (m.techniques || []).map((t) => "  - attack." + t.id.toLowerCase())))].join("\n") || "  - attack.t1071"}
-falsepositives:
-  - Test interne du banc d'attaque`;
-  }
-  // ECS (Elastic Common Schema), une ligne JSON par maillon
-  return inc.chaine
-    .map((m) =>
-      JSON.stringify({
-        "@timestamp": m.horodatage,
-        "event.kind": "alert",
-        "event.category": ["intrusion_detection"],
-        "event.action": m.phase,
-        "rule.id": inc.id,
-        "rule.name": inc.titre,
-        "orchestrator.namespace": inc.source,
-        "threat.technique.id": (m.techniques || []).map((t) => t.id),
-        "message": m.detail,
-      })
-    )
-    .join("\n");
-}
-
 function incidentsVisibles(): Incident[] {
   return incidents.filter((i) => i.choix !== "annuler");
 }
@@ -1052,14 +959,6 @@ export function creerSourceMock(): SourceDonnees {
         else if (action === "reprendre") s.etat = "active";
       }
       return { ...i };
-    },
-    getNis2: async (id) => {
-      const i = incidents.find((x) => x.id === id);
-      return i ? nis2(i) : "Incident inconnu.";
-    },
-    getExport: async (id, format) => {
-      const i = incidents.find((x) => x.id === id);
-      return i ? exportSiem(i, format) : "";
     },
     connecter(onMessage, onEtat) {
       onEtat("connecte"); // le mock « émet » tout de suite

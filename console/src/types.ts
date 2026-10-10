@@ -10,8 +10,9 @@ export type Etat = "active" | "suspendue" | "coupee";
 // deux sources IA. La console tolère une source inconnue.
 export type Source = "externe" | "interne" | "humain" | "physique" | (string & {});
 
-// Filtres d'une même console : salariés, agents internes, surface externe.
-export type Pilier = "humain" | "interne" | "externe";
+// Les deux piliers de la console : salariés et agents IA internes. La source
+// `externe` existe encore côté backend, la console ne l'affiche plus.
+export type Pilier = "humain" | "interne";
 
 // Choix du salarié face à l'avertissement du garde du corps : il annule (bien,
 // le geste risqué est arrêté) ou passe outre (incident).
@@ -44,6 +45,9 @@ export interface Technique {
   id: string; // ex. "AML.T0051"
   nom: string;
   cadre: Cadre;
+  // ATT&CK posé par le backend sur un agent interne : true quand le
+  // rapprochement reste à vérifier (CONTRATS.md).
+  a_confirmer?: boolean;
 }
 export interface Risque {
   id: string; // OWASP Agentic, ex. "ASI01"

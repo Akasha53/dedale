@@ -10,8 +10,8 @@ import type {
 
 // Libellé et icône clairs par type d'incident. Table centrale : tout nouveau
 // type passe ici. Les cinq types du pilier salariés (avenant « humain, le
-// maillon faible »), puis les types agents IA internes, puis l'externe. Un
-// type inconnu retombe sur un libellé générique (dégradé propre).
+// maillon faible »), puis les types agents IA internes. Un type inconnu
+// retombe sur un libellé générique (dégradé propre).
 const TYPE_INCIDENT: Record<string, { lib: string; pic: string }> = {
   // Pilier salariés.
   humain_secret: { lib: "Secret exposé", pic: "🔑" },
@@ -27,23 +27,25 @@ const TYPE_INCIDENT: Record<string, { lib: string; pic: string }> = {
   interne_chatbot: { lib: "Chatbot détourné", pic: "💬" },
   interne_inter_agent: { lib: "Usurpation d'agent", pic: "⇄" },
   interne_memoire: { lib: "Mémoire empoisonnée", pic: "❖" },
-  // Réserve externe.
-  externe_agent_ia: { lib: "Agent externe", pic: "☍" },
 };
 
-// Les trois piliers, dans l'ordre d'affichage. Chaque pilier regroupe une ou
+// Les deux piliers, dans l'ordre d'affichage. Chaque pilier regroupe une ou
 // plusieurs sources d'événement. Le pilier salariés inclut `physique` (accès
 // locaux/serveurs) : même histoire « l'humain, le maillon faible ».
 export const PILIERS: { id: Pilier; lib: string; pic: string; sources: Source[] }[] = [
   { id: "humain", lib: "Salariés", pic: "👤", sources: ["humain", "physique"] },
   { id: "interne", lib: "Agents IA", pic: "⌁", sources: ["interne"] },
-  { id: "externe", lib: "Réserve — surface externe", pic: "☍", sources: ["externe"] },
 ];
 
 export function pilierDeSource(source?: Source): Pilier {
   if (source === "interne") return "interne";
-  if (source === "externe") return "externe";
   return "humain"; // humain, physique, ou inconnu : rattachés aux salariés
+}
+
+// La surface externe reste dans le backend ; la console ne l'affiche ni ne la
+// compte (sessions, incidents, leurres L-xxxx).
+export function horsExterne(x: { source?: Source }): boolean {
+  return x.source !== "externe";
 }
 
 export function appartientPilier(source: Source | undefined, pilier: Pilier): boolean {

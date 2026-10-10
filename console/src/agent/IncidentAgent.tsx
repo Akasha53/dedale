@@ -1,6 +1,6 @@
 // Écran « agent IA » d'un incident interne : boîte noire en six maillons,
-// décision Couper / Reprendre, accès accordés vs nécessaires, exports et
-// chrono. Tout texte de preuve passe par preuve.ts avant d'être affiché.
+// décision Couper / Reprendre, accès accordés vs nécessaires et chrono.
+// Tout texte de preuve passe par preuve.ts avant d'être affiché.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDonnees } from "../api/store";
@@ -132,7 +132,6 @@ export function IncidentAgent({
           trancher={trancher}
         />
         <PanneauDroits droits={droits} lecture={lecture} />
-        <PanneauExports incident={incident} />
       </div>
     </div>
   );
@@ -578,134 +577,6 @@ function PanneauDroits({ droits, lecture }: { droits: DroitsAgent | null; lectur
             </span>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
-
-// ---------- exports ----------
-
-type FormatExport = "ecs" | "sigma" | "nis2";
-
-const EXPORTS: { id: FormatExport; lib: string; fmt: string; aide: string; ext: string; type: string }[] = [
-  { id: "ecs", lib: "ECS", fmt: "JSON", aide: "Événements au format Elastic", ext: "ecs.json", type: "application/json" },
-  { id: "sigma", lib: "Sigma", fmt: "YAML", aide: "Règle à convertir pour votre SIEM", ext: "sigma.yml", type: "application/x-yaml" },
-  { id: "nis2", lib: "NIS2", fmt: "brouillon", aide: "À qualifier. Rien n'est envoyé", ext: "nis2-brouillon.txt", type: "text/plain" },
-];
-
-function PanneauExports({ incident }: { incident: Incident }) {
-  const { nis2, exporter } = useDonnees();
-  const [etat, setEtat] = useState<Record<string, string>>({});
-  const [apercu, setApercu] = useState<FormatExport>("ecs");
-  const [ouvert, setOuvert] = useState(false);
-  const [texte, setTexte] = useState("");
-
-  const lire = (f: FormatExport) => (f === "nis2" ? nis2(incident.id) : exporter(incident.id, f));
-  const version = `${incident.etat}|${incident.statut}|${incident.decisions?.length ?? 0}|${incident.chaine?.length ?? 0}`;
-
-  useEffect(() => {
-    if (!ouvert) return;
-    let vivant = true;
-    setTexte("Chargement…");
-    lire(apercu)
-      .then((t) => vivant && setTexte(t))
-      .catch(() => vivant && setTexte("Export indisponible."));
-    return () => {
-      vivant = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ouvert, apercu, incident.id, version]);
-
-  const signaler = (cle: string, valeur: string) => {
-    setEtat((e) => ({ ...e, [cle]: valeur }));
-    setTimeout(() => setEtat((e) => (e[cle] === valeur ? { ...e, [cle]: "" } : e)), 2200);
-  };
-
-  const telecharger = async (e: (typeof EXPORTS)[number]) => {
-    setEtat((s) => ({ ...s, [e.id]: "…" }));
-    try {
-      const t = await lire(e.id);
-      const url = URL.createObjectURL(new Blob([t], { type: `${e.type};charset=utf-8` }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `dedale-${incident.id}-${e.ext}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-      signaler(e.id, "téléchargé");
-    } catch {
-      signaler(e.id, "échec");
-    }
-  };
-
-  const copier = async (e: (typeof EXPORTS)[number]) => {
-    try {
-      await navigator.clipboard.writeText(await lire(e.id));
-      signaler(e.id, "copié");
-    } catch {
-      signaler(e.id, "copie refusée");
-    }
-  };
-
-  return (
-    <section className="ag-coque ag-zone-exports" aria-labelledby="ag-exports-titre">
-      <div className="ag-noyau">
-        <header className="ag-carte-tete">
-          <div>
-            <span className="ag-sourcil">Exports</span>
-            <h3 id="ag-exports-titre">SIEM et brouillon NIS2</h3>
-          </div>
-        </header>
-        <ul className="ag-exports">
-          {EXPORTS.map((e) => (
-            <li key={e.id}>
-              <div className="ag-export-nom">
-                <strong>{e.lib}</strong>
-                <span className="ag-export-fmt">{e.fmt}</span>
-                <span className="ag-export-aide">{etat[e.id] ? <span className="ag-ok">{etat[e.id]}</span> : e.aide}</span>
-              </div>
-              <button
-                type="button"
-                className="ag-icone-btn"
-                onClick={() => void copier(e)}
-                aria-label={`Copier l'export ${e.lib}`}
-                title="Copier"
-              >
-                <Icone nom="copier" taille={15} />
-              </button>
-              <button
-                type="button"
-                className="ag-pilule ag-pilule-mini"
-                onClick={() => void telecharger(e)}
-                aria-label={`Télécharger l'export ${e.lib}`}
-              >
-                <span>Télécharger</span>
-                <span className="ag-rond">
-                  <Icone nom="telecharger" taille={13} />
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <details className="ag-apercu" onToggle={(ev) => setOuvert((ev.target as HTMLDetailsElement).open)}>
-          <summary>Voir le contenu</summary>
-          <div className="onglets-mini" role="tablist">
-            {EXPORTS.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                role="tab"
-                aria-selected={apercu === e.id}
-                className={apercu === e.id ? "actif" : ""}
-                onClick={() => setApercu(e.id)}
-              >
-                {e.lib}
-              </button>
-            ))}
-          </div>
-          <pre className="ag-apercu-texte">{texte}</pre>
-        </details>
       </div>
     </section>
   );

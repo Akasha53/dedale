@@ -49,31 +49,21 @@ function compteursPilier(
   }
   const agents = dansVue.filter((s) => s.classement === "agent_ia").length;
   const leurresTouches = dansVue.reduce((n, s) => n + (s.leurres_touches || 0), 0);
-  if (pilier === "interne") {
-    return [
-      { lib: "Agents internes surveillés", val: dansVue.length, sous: "agents IA d'Orbis Pay" },
-      { lib: "Agents internes détournés", val: agents, sous: "classés agent_ia", alerte: agents > 0 },
-      { lib: "Incidents internes ouverts", val: incidentsOuverts, sous: "riposte à trancher", alerte: incidentsOuverts > 0 },
-      { lib: "Canaris touchés", val: leurresTouches, sous: "cumul sessions", alerte: leurresTouches > 0 },
-    ];
-  }
   return [
-    { lib: "Sessions externes", val: dansVue.length, sous: "surface exposée (réserve)" },
-    { lib: "Agents IA externes", val: agents, sous: "classés agent_ia", alerte: agents > 0 },
-    { lib: "Incidents externes ouverts", val: incidentsOuverts, sous: "riposte à trancher", alerte: incidentsOuverts > 0 },
-    { lib: "Leurres touchés", val: leurresTouches, sous: "cumul sessions" },
+    { lib: "Agents internes surveillés", val: dansVue.length, sous: "agents IA d'Orbis Pay" },
+    { lib: "Agents internes détournés", val: agents, sous: "classés agent_ia", alerte: agents > 0 },
+    { lib: "Incidents internes ouverts", val: incidentsOuverts, sous: "riposte à trancher", alerte: incidentsOuverts > 0 },
+    { lib: "Canaris touchés", val: leurresTouches, sous: "cumul sessions", alerte: leurresTouches > 0 },
   ];
 }
 
 const TITRE_FLUX: Record<Pilier, string> = {
   humain: "Flux des postes salariés",
   interne: "Flux des agents internes",
-  externe: "Flux de la surface externe (réserve)",
 };
 const VIDE_FLUX: Record<Pilier, string> = {
   humain: "Aucun poste salarié surveillé pour l'instant.",
   interne: "Aucun agent interne surveillé pour l'instant.",
-  externe: "Aucune session externe en réserve.",
 };
 
 export function LiveView({
@@ -91,7 +81,7 @@ export function LiveView({
   const incidentsVue = incidents.filter((i) => appartientPilier(i.source, pilier));
 
   const comptes = useMemo(() => {
-    const c = { humain: 0, interne: 0, externe: 0 } as Record<Pilier, number>;
+    const c = { humain: 0, interne: 0 } as Record<Pilier, number>;
     for (const p of PILIERS)
       c[p.id] = sessions.filter((s) => appartientPilier(s.source, p.id)).length;
     return c;

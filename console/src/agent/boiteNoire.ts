@@ -144,7 +144,10 @@ function refsMaillon(m?: MaillonChaine): Ref[] {
   if (!m) return [];
   return [
     ...(m.risques ?? []).map((r) => lireRef(r.id)),
-    ...(m.techniques ?? []).map((t) => lireRef(t.id, t.cadre)),
+    ...(m.techniques ?? []).map((t) => {
+      const r = lireRef(t.id, t.cadre);
+      return r && t.a_confirmer ? { ...r, aConfirmer: true } : r;
+    }),
   ].filter((r): r is Ref => r !== null);
 }
 
@@ -552,7 +555,9 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     detection,
     derniereDecision,
     scopesUtilises,
-    refs: fusionnerRefs(...maillons.map((m) => m.refs)),
+    // Les techniques ATT&CK que le backend pose sur sa chaîne (avec a_confirmer)
+    // rejoignent les repères lus dans le journal.
+    refs: fusionnerRefs(...maillons.map((m) => m.refs), ...(inc.chaine ?? []).map(refsMaillon)),
     depuisJournal: true,
   };
 }

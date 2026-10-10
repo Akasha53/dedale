@@ -24,8 +24,6 @@ export interface SourceDonnees {
     action: DecisionAction,
     analyste: string
   ): Promise<Incident>;
-  getNis2(id: string): Promise<string>;
-  getExport(id: string, format: "ecs" | "sigma"): Promise<string>;
   // S'abonne au flux ; renvoie une fonction de désabonnement.
   connecter(
     onMessage: (m: MessageWS) => void,
@@ -51,19 +49,6 @@ async function liste<T>(chemin: string, cle: string, signal?: AbortSignal): Prom
     if (Array.isArray(v)) return v as T[];
   }
   return [];
-}
-
-async function texte(chemin: string): Promise<string> {
-  const r = await fetch(BASE + chemin);
-  if (!r.ok) throw new Error(`${chemin} → ${r.status}`);
-  const ct = r.headers.get("content-type") || "";
-  if (ct.includes("application/json")) {
-    const data = await r.json();
-    // Tolérance : {texte}, {brouillon}, {export} ou chaîne brute
-    if (typeof data === "string") return data;
-    return data.texte ?? data.brouillon ?? data.export ?? data.contenu ?? JSON.stringify(data, null, 2);
-  }
-  return await r.text();
 }
 
 export const sourceLive: SourceDonnees = {
@@ -121,9 +106,6 @@ export const sourceLive: SourceDonnees = {
       clearTimeout(minuteur);
     }
   },
-  getNis2: (id) => texte(`/api/incidents/${encodeURIComponent(id)}/nis2`),
-  getExport: (id, format) =>
-    texte(`/api/incidents/${encodeURIComponent(id)}/export?format=${format}`),
 
   connecter(onMessage, onEtat) {
     let ws: WebSocket | null = null;

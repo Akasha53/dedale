@@ -1,43 +1,45 @@
 import { useDonnees } from "../api/store";
-import { Spinner, tempsRelatif } from "../ui/primitives";
+import { horsExterne, Spinner, tempsRelatif } from "../ui/primitives";
 
 export function LeurresView() {
-  const { leurres, chargement } = useDonnees();
+  const { leurres: tous, chargement } = useDonnees();
 
   if (chargement) return <Spinner />;
 
-  const externes = leurres.filter((l) => l.source === "externe");
-  // Canaris internes et physiques (tout ce qui n'est pas la réserve externe).
-  const canaris = leurres.filter((l) => l.source !== "externe");
+  // Canaris des agents IA et canaris physiques. Les leurres L-xxxx de la
+  // surface externe restent dans le backend, hors de la console.
+  const leurres = tous.filter(horsExterne);
+  const agents = leurres.filter((l) => l.source === "interne");
+  const physiques = leurres.filter((l) => l.source !== "interne");
   const totalTouches = leurres.reduce((n, l) => n + (l.touches || 0), 0);
 
   return (
     <>
       <div className="grille-compteurs">
         <div className="compteur">
-          <div className="lib">Canaris internes & physiques</div>
-          <div className="val">{canaris.length}</div>
-          <div className="sous">préfixe C- · agents internes, locaux</div>
+          <div className="lib">Canaris des agents IA</div>
+          <div className="val">{agents.length}</div>
+          <div className="sous">préfixe C- · mails, documents, outils</div>
         </div>
         <div className="compteur">
-          <div className="lib">Leurres externes (réserve)</div>
-          <div className="val">{externes.length}</div>
-          <div className="sous">préfixe L- · surface exposée</div>
+          <div className="lib">Canaris physiques</div>
+          <div className="val">{physiques.length}</div>
+          <div className="sous">locaux et serveurs</div>
         </div>
         <div className={`compteur ${totalTouches > 0 ? "alerte" : ""}`}>
           <div className="lib">Touches cumulées</div>
           <div className="val">{totalTouches}</div>
-          <div className="sous">tous pièges confondus</div>
+          <div className="sous">tous canaris confondus</div>
         </div>
       </div>
 
       <div className="panneau">
         <div className="titre">
-          Inventaire des leurres & canaris
-          <span className="droite">{leurres.length} pièges posés</span>
+          Inventaire des canaris
+          <span className="droite">{leurres.length} canaris posés</span>
         </div>
         {leurres.length === 0 ? (
-          <div className="vide">Aucun leurre enregistré.</div>
+          <div className="vide">Aucun canari enregistré.</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table className="grille">

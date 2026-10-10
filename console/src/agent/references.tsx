@@ -6,6 +6,8 @@ export type Cadre = "OWASP" | "ATLAS" | "ATT&CK";
 export interface Ref {
   id: string; // forme courte : ASI01, AML.T0051, T1566
   cadre: Cadre;
+  // Rapprochement plausible mais pas établi : le backend envoie a_confirmer.
+  aConfirmer?: boolean;
 }
 
 // Noms officiels (anglais) : OWASP Top 10 for Agentic Applications (2026),
@@ -25,13 +27,29 @@ const NOMS: Record<string, string> = {
   "AML.T0054": "LLM Jailbreak",
   "AML.T0057": "LLM Data Leakage",
   T1041: "Exfiltration Over C2 Channel",
-  T1048: "Exfiltration Over Alternative Protocol",
   T1119: "Automated Collection",
   T1200: "Hardware Additions",
   T1552: "Unsecured Credentials",
   T1566: "Phishing",
   T1567: "Exfiltration Over Web Service",
 };
+
+// Noms français des techniques ATT&CK que le backend pose sur la chaîne d'un
+// agent interne (CONTRATS.md). Le backend les envoie en anglais ; la console
+// affiche ces noms-ci.
+const NOMS_ATTACK_FR: Record<string, string> = {
+  T1078: "Comptes valides",
+  T1555: "Identifiants dans les coffres à mots de passe",
+  T1657: "Vol financier",
+  T1195: "Compromission de la chaîne d'approvisionnement",
+  T1048: "Exfiltration par un autre protocole",
+};
+
+// Nom affiché d'une technique : le nom français s'il est dans la table, sinon
+// celui reçu du backend.
+export function nomTechnique(id: string, nom?: string): string | undefined {
+  return NOMS_ATTACK_FR[id] ?? nom;
+}
 
 const LIB_CADRE: Record<Cadre, string> = {
   OWASP: "OWASP Agentic",
@@ -52,16 +70,18 @@ export function lireRef(brut: string, cadre?: string): Ref | null {
 }
 
 export function fusionnerRefs(...listes: (Ref | null | undefined)[][]): Ref[] {
-  const vues = new Set<string>();
+  const vues = new Map<string, Ref>();
   const ordre: Record<Cadre, number> = { OWASP: 0, ATLAS: 1, "ATT&CK": 2 };
-  const toutes: Ref[] = [];
   for (const liste of listes)
     for (const r of liste) {
-      if (!r || vues.has(r.id)) continue;
-      vues.add(r.id);
-      toutes.push(r);
+      if (!r) continue;
+      const deja = vues.get(r.id);
+      // Une même technique peut venir du leurre et de la chaîne du backend :
+      // on garde la première, avec la réserve « à confirmer » si l'une la porte.
+      if (!deja) vues.set(r.id, r);
+      else if (r.aConfirmer && !deja.aConfirmer) vues.set(r.id, { ...deja, aConfirmer: true });
     }
-  return toutes.sort((a, b) => ordre[a.cadre] - ordre[b.cadre] || a.id.localeCompare(b.id));
+  return [...vues.values()].sort((a, b) => ordre[a.cadre] - ordre[b.cadre] || a.id.localeCompare(b.id));
 }
 
 export function BadgesRefs({ refs, legende }: { refs: Ref[]; legende?: boolean }) {
@@ -69,15 +89,16 @@ export function BadgesRefs({ refs, legende }: { refs: Ref[]; legende?: boolean }
   return (
     <div className="ag-refs" aria-label="Repères de risque">
       {refs.map((r) => {
-        const nom = NOMS[r.id];
+        const nom = NOMS_ATTACK_FR[r.id] ?? NOMS[r.id];
         return (
           <span
             key={r.id}
-            className={`ag-ref ag-ref-${r.cadre === "OWASP" ? "owasp" : r.cadre === "ATLAS" ? "atlas" : "attack"}`}
-            title={`${LIB_CADRE[r.cadre]} ${r.id}${nom ? ` · ${nom}` : ""}`}
+            className={`ag-ref ag-ref-${r.cadre === "OWASP" ? "owasp" : r.cadre === "ATLAS" ? "atlas" : "attack"}${r.aConfirmer ? " a-confirmer" : ""}`}
+            title={`${LIB_CADRE[r.cadre]} ${r.id}${nom ? ` · ${nom}` : ""}${r.aConfirmer ? " · rapprochement à confirmer" : ""}`}
           >
             <span className="ag-ref-cadre">{r.cadre === "OWASP" ? "OWASP" : r.cadre}</span>
             {r.id}
+            {r.aConfirmer && <span className="ag-ref-doute">à confirmer</span>}
           </span>
         );
       })}

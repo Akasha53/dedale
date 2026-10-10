@@ -18,6 +18,7 @@ import type {
   Session,
 } from "../types";
 import { backendJoignable, sourceLive, type SourceDonnees } from "./source";
+import { horsExterne } from "../ui/primitives";
 import { creerSourceMock } from "./mock";
 
 interface Etat {
@@ -32,8 +33,6 @@ interface Etat {
   rafraichir: () => Promise<void>;
   getIncident: (id: string) => Promise<Incident>;
   decider: (id: string, action: DecisionAction, analyste: string) => Promise<Incident>;
-  nis2: (id: string) => Promise<string>;
-  exporter: (id: string, format: "ecs" | "sigma") => Promise<string>;
 }
 
 const Ctx = createContext<Etat | null>(null);
@@ -56,8 +55,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       src.getSessions(), src.getIncidents(), src.getLeurres(), src.getMesures(),
     ]);
     if (sourceRef.current !== src) return;
-    if (se.status === "fulfilled") setSessions(se.value);
-    if (inc.status === "fulfilled") setIncidents(inc.value);
+    // Deux piliers seulement : les sessions et incidents de la surface externe
+    // ne s'affichent pas et n'entrent dans aucun total.
+    if (se.status === "fulfilled") setSessions(se.value.filter(horsExterne));
+    if (inc.status === "fulfilled") setIncidents(inc.value.filter(horsExterne));
     if (le.status === "fulfilled") setLeurres(le.value);
     if (me.status === "fulfilled") setMesures(me.value);
     setErreur([se, inc, le, me].some((r) => r.status === "rejected")
@@ -78,7 +79,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const onMessage = useCallback((m: MessageWS) => {
     if (m.type === "session") {
       const s = m.donnees as Session;
-      if (!s?.id) return;
+      if (!s?.id || !horsExterne(s)) return;
       setSessions((prev) => {
         const i = prev.findIndex((x) => x.id === s.id);
         if (i === -1) return [{ ...s }, ...prev];
@@ -88,7 +89,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       });
     } else if (m.type === "incident") {
       const inc = m.donnees as Incident;
-      if (!inc?.id) return;
+      if (!inc?.id || !horsExterne(inc)) return;
       setIncidents((prev) => {
         const i = prev.findIndex((x) => x.id === inc.id);
         if (i === -1) return [{ ...inc }, ...prev];
@@ -168,15 +169,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     (id: string) => sourceRef.current!.getIncident(id),
     []
   );
-  const nis2 = useCallback(
-    (id: string) => sourceRef.current!.getNis2(id),
-    []
-  );
-  const exporter = useCallback(
-    (id: string, format: "ecs" | "sigma") =>
-      sourceRef.current!.getExport(id, format),
-    []
-  );
 
   const valeur: Etat = {
     mode,
@@ -190,8 +182,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     rafraichir,
     getIncident,
     decider,
-    nis2,
-    exporter,
   };
 
   return <Ctx.Provider value={valeur}>{children}</Ctx.Provider>;
