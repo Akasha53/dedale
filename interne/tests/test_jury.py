@@ -79,10 +79,21 @@ def test_reprendre_ne_libere_que_l_appel_retenu(fidele):
 
 def test_aucune_cle_ni_consigne_brute_ne_sort(fidele):
     _jouer(fidele.base, "reprendre")
-    brut = json.dumps(fidele.evenements(), ensure_ascii=False)
+    evenements = fidele.evenements()
+    brut = json.dumps(evenements, ensure_ascii=False)
     assert JETON_COFFRE not in brut
-    assert "Note pour l'assistant" not in brut and "ne pas divulguer" not in brut
     assert "[canari C-2B91 masqué]" in brut  # la preuve reste lisible, masquée
+    # Le texte piégé ne sort que dans le document source, repéré et désarmé.
+    hors_source = json.dumps([{**e, "details": {k: v for k, v in e["details"].items()
+                                                 if k != "document_source"}}
+                              for e in evenements], ensure_ascii=False)
+    assert "Note pour l'assistant" not in hors_source and "ne pas divulguer" not in hors_source
+    doc = next(e["details"]["document_source"] for e in evenements
+               if e["details"].get("document_source"))
+    piege = "".join(s["texte"] for s in doc["segments"] if s["piege"])
+    assert "Note pour l'assistant" in piege
+    assert "atelier-nord-audit[.]example" in piege
+    assert "atelier-nord-audit.example" not in json.dumps(doc, ensure_ascii=False)
 
 
 def test_incident_ouvert_a_la_retenue_pas_a_la_lecture(fidele):

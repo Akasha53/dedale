@@ -1,9 +1,10 @@
 """Copilote SOC : GET /api/incidents/{id}/synthese.
 
-La synthèse par règles dit en deux ou trois phrases ce qui s'est passé. Le test d'honnêteté la
-vérifie de l'extérieur, par l'API seule : chaque phrase cite des maillons qui existent, chaque
-preuve se lit dans le maillon cité, et chaque nom cité (canari, outil, droit, document) est
-couvert par une preuve de la phrase. Une tentative retenue n'est jamais décrite comme une fuite.
+La synthèse par règles dit en deux ou trois phrases simples ce qui s'est passé. Le test
+d'honnêteté la vérifie de l'extérieur, par l'API seule : chaque affirmation (`dit`) figure dans
+sa phrase et chacune de ses preuves se lit dans le maillon cité ; hors des affirmations, une
+phrase ne contient que des mots de liaison. Aucun jargon (canari, consigne, jeton, nom d'outil,
+code de droit) n'entre dans le texte. Une action arrêtée n'est jamais décrite comme une fuite.
 """
 
 import re
@@ -14,6 +15,9 @@ from tests import scenario_jury
 from tests.conftest import BASE, evenement, horo
 
 INTERDITS = re.compile(r"fuite|fuité|exfiltr|\bvol(é|ée|és|ées)\b|réussi", re.IGNORECASE)
+JARGON = re.compile(r"\b(?:canaris?|consignes?|jetons?|[CL]-[0-9A-Z]{4}|[a-z]+_[a-z_]+|[a-z]+:[a-z]+)\b",
+                    re.IGNORECASE)
+LIAISONS = re.compile(r"^[\s,.;:]*(?:(?:puis|et|mais|ensuite)[\s,.;:]*)*$", re.IGNORECASE)
 
 
 def _synthese(client, sid: str, **params) -> dict:
@@ -37,29 +41,30 @@ def verifier_honnetete(client, synth: dict) -> None:
     inc = client.get(f"/api/incidents/{synth['incident_id']}").json()
     evenements = {e["id"]: e for e in client.get(f"/api/sessions/{inc['session_id']}").json()["evenements"]}
     chaine = {e["ordre"]: e for e in inc["chaine"]}
-    outils = {e["outil"] for e in evenements.values() if e.get("outil")}
     assert synth["phrases"], "aucune phrase"
     for phrase in synth["phrases"]:
         texte = phrase["texte"]
-        assert phrase["maillons"], texte
-        assert all(m in chaine for m in phrase["maillons"]), texte
+        assert phrase["maillons"] and all(m in chaine for m in phrase["maillons"]), texte
         assert phrase["evenements"] == [chaine[m]["evenement_id"] for m in phrase["maillons"]]
-        valeurs = []
-        for preuve in phrase["preuves"]:
-            assert preuve["maillon"] in phrase["maillons"]
-            vue = {**chaine[preuve["maillon"]], "evenement": evenements[chaine[preuve["maillon"]]["evenement_id"]]}
-            lu = _lire(vue, preuve["champ"])
-            if isinstance(lu, (list, str)) and isinstance(preuve["valeur"], str):
-                assert preuve["valeur"] in lu, (texte, preuve, lu)
-            else:
-                assert lu == preuve["valeur"], (texte, preuve, lu)
-            valeurs.append(str(preuve["valeur"]))
-        cites = set(re.findall(r"\b[CL]-[0-9A-Z]{4}\b", texte))
-        cites |= set(re.findall(r"\b[a-z]+:[a-z]+\b", texte))
-        cites |= {o for o in outils if re.search(rf"\b{re.escape(o)}\b", texte)}
-        cites |= set(re.findall(r"« ([^»]+) »", texte)) - {"couper", "reprendre", "continuer"}
-        for nom in cites:
-            assert any(nom in v for v in valeurs), f"« {nom} » sans preuve dans : {texte}"
+        curseur, liaisons = 0, []
+        for aff in phrase["affirmations"]:
+            assert aff["preuves"], aff
+            position = texte.find(aff["dit"], curseur)
+            assert position >= 0, (aff["dit"], texte)
+            liaisons.append(texte[curseur:position])
+            curseur = position + len(aff["dit"])
+            for preuve in aff["preuves"]:
+                assert preuve["maillon"] in phrase["maillons"]
+                etape = chaine[preuve["maillon"]]
+                lu = _lire({**etape, "evenement": evenements[etape["evenement_id"]]}, preuve["champ"])
+                if isinstance(lu, (list, str)) and isinstance(preuve["valeur"], str):
+                    assert preuve["valeur"] in lu, (aff["dit"], preuve, lu)
+                else:
+                    assert lu == preuve["valeur"], (aff["dit"], preuve, lu)
+        liaisons.append(texte[curseur:])
+        for morceau in liaisons:
+            assert LIAISONS.match(morceau), f"« {morceau} » affirmé sans preuve dans : {texte}"
+        assert not JARGON.search(texte), texte
         assert not INTERDITS.search(texte), texte
 
 
@@ -76,12 +81,17 @@ def test_synthese_jury_reprendre(client):
     scenario_jury.jouer(client, "jury-r", "reprendre")
     synth = _synthese(client, "jury-r")
     textes = [p["texte"] for p in synth["phrases"]]
-    assert "releve_atelier_nord_septembre" in textes[0] and "C-3E58" in textes[0]
-    assert "lire_coffre" in textes[1] and "coffre:lire" in textes[1]
-    # L'envoi qui porte la clé canari reste une tentative retenue.
-    assert "C-2B91" in textes[1] and "retenu les deux appels avant exécution" in textes[1]
-    assert "« reprendre », puis « couper »" in textes[2]
-    assert "envoyer_rapport n’a jamais été exécuté" in textes[2]
+    assert textes[0] == ("L’agent a lu un document venu de l’extérieur, « Relevé fournisseur : Atelier "
+                         "Nord, septembre 2026 ». Il contenait une instruction cachée lui demandant "
+                         "d’ouvrir le coffre à mots de passe et d’envoyer une clé à l’extérieur.")
+    assert textes[1] == ("Il a essayé d’ouvrir le coffre à mots de passe, ce que sa tâche ne lui "
+                         "permettait pas, puis a voulu envoyer son rapport en y glissant une clé : "
+                         "Dédale a arrêté les deux actions avant qu’elles s’exécutent.")
+    assert textes[2].startswith("L’analyste a laissé passer une fois l’ouverture du coffre, puis a "
+                                "coupé l’agent : l’envoi du rapport n’a jamais eu lieu")
+    # Les codes restent dans les preuves.
+    valeurs = {str(pr["valeur"]) for p in synth["phrases"] for pr in p["preuves"]}
+    assert {"lire_coffre", "coffre:lire", "envoyer_rapport", "faux_secret"} <= valeurs
 
 
 def test_synthese_deterministe(client):
@@ -98,10 +108,13 @@ def test_confiance_et_decision_recommandee(client):
     assert {"canari", "consigne", "hors_jeton", "concordance", "maillons"} <= codes
     assert conf["signaux_concordants"] >= 3
     canari = next(r for r in conf["raisons"] if r["code"] == "canari")
-    assert "C-3E58" in canari["texte"] and canari["maillons"]
+    assert "C-3E58" in canari["references"] and canari["maillons"]
+    for raison in conf["raisons"] + conf["manquants"]:
+        assert not JARGON.search(raison["texte"]), raison["texte"]
     dec = synth["decision_recommandee"]
     assert dec["action"] == "couper"
-    assert dec["rappel"].startswith("L’analyste tranche")
+    assert dec["rappel"].startswith("C’est l’analyste qui décide")
+    assert not JARGON.search(dec["justification"])
     assert dec["actions_possibles"] == ["couper", "reprendre", "ignorer"]
     assert dec["deja_appliquee"] is True  # l'analyste a déjà coupé
     assert synth["correctif_suggere"]["droit"] == "coffre:lire"
@@ -125,7 +138,7 @@ def test_confiance_plus_basse_sans_canari(client):
     synth = _synthese(client, sid)
     verifier_honnetete(client, synth)
     assert synth["confiance"]["score"] < 0.75
-    assert synth["phrases"][0]["texte"] == "L’agent travaillait sur la tâche resume_mails."
+    assert synth["phrases"][0]["texte"].startswith("L’agent a essayé de faire un virement")
     manquants = {m["code"] for m in synth["confiance"]["manquants"]}
     assert "decision_absente" in manquants
 
@@ -142,7 +155,7 @@ def test_synthese_geste_humain(client):
     synth = _synthese(client, sid)
     verifier_honnetete(client, synth)
     textes = " ".join(p["texte"] for p in synth["phrases"])
-    assert "phishing" in textes and "« continuer »" in textes
+    assert "lien piégé" in textes and "continuer malgré l’avertissement" in textes
     dec = synth["decision_recommandee"]
     assert dec["action"] == "clore" and dec["actions_possibles"] == ["clore", "ignorer"]
     assert synth["correctif_suggere"] is None
@@ -183,7 +196,9 @@ def test_passerelle_historique_appel_retenu_sans_decision(client):
     synth = _synthese(client, sid)
     verifier_honnetete(client, synth)
     textes = [p["texte"] for p in synth["phrases"]]
-    assert "les canaris" in textes[1] and "retenu l’appel avant exécution" in textes[1]
-    assert textes[2].startswith("L’appel envoyer_rapport reste retenu")
+    assert textes[0] == "L’agent a lu un contenu qui cachait une instruction."
+    assert textes[1] == ("Il a voulu envoyer son rapport en y glissant une image espion et une clé : "
+                         "Dédale a arrêté cette action avant qu’elle s’exécute.")
+    assert textes[2] == "L’action est en attente : aucun analyste n’a encore décidé."
     assert synth["decision_recommandee"]["action"] == "couper"
     assert synth["decision_recommandee"]["deja_appliquee"] is False

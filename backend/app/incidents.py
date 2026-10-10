@@ -11,6 +11,7 @@ et échappait deux fois le HTML (« &amp;amp; » dans la console).
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 # Ordre canonique des étapes de la boîte noire.
@@ -34,6 +35,27 @@ _PHASE = {
     "riposte": "riposte",
     "correctif": "correctif",
 }
+
+
+def instant(horodatage) -> datetime:
+    """Horodatage comparable, quel que soit son fuseau (la passerelle date en heure locale,
+    le backend en UTC). Un horodatage illisible passe en tête plutôt que de casser le tri."""
+    if isinstance(horodatage, str) and horodatage:
+        try:
+            dt = datetime.fromisoformat(horodatage.replace("Z", "+00:00"))
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    return datetime.min.replace(tzinfo=timezone.utc)
+
+
+def cle_chronologique(etape: dict, ordre_etapes: list[str]) -> tuple:
+    """Tri de la boîte noire : l'heure d'abord, puis l'étape logique pour départager un même
+    instant (un avertissement porte action, avertissement et choix à la même heure)."""
+    nom = etape.get("etape")
+    return (instant(etape.get("horodatage")),
+            ordre_etapes.index(nom) if nom in ordre_etapes else 99,
+            etape.get("evenement_id") or 0)
 
 
 def _cadre_technique(ident: str) -> str:
@@ -262,7 +284,11 @@ def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[d
                 "risques": risques,
             }
         )
-    etapes.sort(key=lambda s: (ORDRE_ETAPES.index(s["etape"]) if s["etape"] in ORDRE_ETAPES else 99, s["horodatage"] or ""))
+        # Maillon « source » : le document lu, complet et déjà désarmé à l'ingestion.
+        if isinstance(details.get("document_source"), dict):
+            etapes[-1]["document_source"] = details["document_source"]
+    # Ordre chronologique : la frise se lit dans l'ordre où les choses se sont passées.
+    etapes.sort(key=lambda s: cle_chronologique(s, ORDRE_ETAPES))
     for i, e in enumerate(etapes):
         e["ordre"] = i
     return etapes
@@ -492,7 +518,7 @@ def construire_chaine_humaine(evenements: list[dict], leurres: dict[str, Any]) -
     if a_continuer and not a_consequence and ev_continuer is not None:
         etapes.append(_mk_humain("consequence", "geste abouti malgré l'avertissement — escalade au SOC", ev_continuer))
 
-    etapes.sort(key=lambda s: (_ORDRE_HUMAIN.index(s["etape"]) if s["etape"] in _ORDRE_HUMAIN else 99, s["horodatage"] or ""))
+    etapes.sort(key=lambda s: cle_chronologique(s, _ORDRE_HUMAIN))
     for i, e in enumerate(etapes):
         e["ordre"] = i
     return etapes

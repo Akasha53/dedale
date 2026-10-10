@@ -101,7 +101,10 @@ def test_synthese_mentionne_le_correctif(client):
     iid = _incident(client, "jury-1")["id"]
     _retirer(client, iid, "coffre:lire")
     synth = client.get(f"/api/incidents/{iid}/synthese").json()
-    assert "Le droit coffre:lire a ensuite été retiré à l’agent." in synth["phrases"][-1]["texte"]
+    assert ("L’analyste a ensuite retiré à l’agent l’accès au coffre à mots de passe."
+            in synth["phrases"][-1]["texte"])
+    preuve = next(pr for pr in synth["phrases"][-1]["preuves"] if pr["champ"] == "evenement.details.droit")
+    assert preuve["valeur"] == "coffre:lire"
     assert synth["correctif_suggere"] is None  # déjà appliqué
 
 

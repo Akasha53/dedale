@@ -215,6 +215,16 @@ async def incident_synthese(iid: str, mode: str = "regles"):
     return await synthese.generer(d, sess.get("evenements", []), mode)
 
 
+@app.get("/api/incidents/{iid}/source")
+async def incident_source(iid: str):
+    """Le mail ou le document piégé que l'agent a lu : en entier, partie piégée repérée,
+    liens et domaines cassés, clés masquées. Aussi présent dans `chaine[].document_source`."""
+    d = store.documents_source(iid)
+    if d is None:
+        raise HTTPException(status_code=404, detail=f"Incident inconnu : {iid}")
+    return d
+
+
 @app.post("/api/incidents/{iid}/retirer-droit")
 async def retirer_droit(iid: str, corps: RetraitDroitIn):
     """Correctif en un clic : retire à l'agent un droit en trop pour sa tâche."""

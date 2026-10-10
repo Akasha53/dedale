@@ -62,7 +62,7 @@ uv run python -m orbis.demo          # démo autonome : backend simulé + cervea
 uv run python -m orbis.demo --cerveau cli        # pilote un vrai agent via claude -p
 uv run python -m orbis.demo --backend-reel       # tape le vrai backend sur 8700
 uv run python -m orbis.demo --scenario jury      # agent interne protégé, hors ligne, deux issues
-uv run --extra dev pytest -q          # 52 tests
+uv run --extra dev pytest -q          # 56 tests
 ```
 
 La démo joue six scènes : session normale (aucun canari), session détournée où
@@ -119,6 +119,12 @@ par défaut). Quand l'analyste retire un droit en trop depuis la console, le bac
 et de son jeton, relit la session avant un appel hors jeton, et refuse l'outil qui l'exige avant
 exécution, dans la session en cours comme dans les suivantes du même agent. Le scénario jury le
 signale (« Correctif actif ») et compte le coffre resté fermé comme une garantie tenue.
+
+**Document source.** Quand l'agent lit un mail ou un document qui cache une instruction, la
+passerelle envoie ce contenu en entier (`details.document_source`, `orbis/source.py`) : objet,
+expéditeur, corps découpé en segments, la partie piégée marquée `piege: true`. Tout est désarmé
+avant de partir : liens en `hxxps://`, domaines en `[.]`, paramètres d'URL et clés masqués. En
+mode protégé il voyage sur le maillon « source » ; sinon sur un événement `lecture`.
 
 Le mode protégé est optionnel (`Passerelle(..., retenir_hors_scope=True, decision_fraiche=True)`).
 Sans lui, le comportement historique ne change pas : un appel hors jeton est refusé d'office.

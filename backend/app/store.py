@@ -612,6 +612,9 @@ class Store:
                      "message", "lien", "secret", "url_phishing", "cible"),
                 ),
             }
+            if "document_source" in details:
+                # Mail ou document piégé : montré en entier à l'analyste, mais désarmé.
+                enreg["details"]["document_source"] = securite.desarmer_document(details["document_source"])
             if cadence_s is not None:
                 enreg["details"]["cadence_s"] = cadence_s
             if _enregistre is not None:
@@ -754,10 +757,7 @@ class Store:
                     if sess.source in ("humain", "physique") else incidents.ORDRE_ETAPES
                 )
                 inc.chaine.extend(manquantes)
-                inc.chaine.sort(key=lambda e: (
-                    ordre.index(e["etape"]) if e.get("etape") in ordre else 99,
-                    e.get("horodatage") or "",
-                ))
+                inc.chaine.sort(key=lambda e: incidents.cle_chronologique(e, ordre))
                 for position, etape in enumerate(inc.chaine):
                     etape["ordre"] = position
                 if sess.source in ("humain", "physique"):
@@ -858,6 +858,19 @@ class Store:
     def liste_incidents(self) -> list[dict]:
         with self.lock:
             return [self._incident_dict(i) for i in self.incidents.values()]
+
+    def documents_source(self, iid: str) -> dict | None:
+        """Documents piégés lus par l'agent de l'incident, complets et désarmés."""
+        with self.lock:
+            inc = self.incidents.get(iid)
+            if inc is None:
+                return None
+            documents = [
+                {"maillon": e.get("ordre"), "evenement_id": e.get("evenement_id"),
+                 "horodatage": e.get("horodatage"), **e["document_source"]}
+                for e in inc.chaine if isinstance(e.get("document_source"), dict)
+            ]
+            return {"incident_id": iid, "documents": documents}
 
     def liste_activite(self, limite: int = 50) -> list[dict]:
         """Derniers appels d'outil vus par la passerelle interne, du plus récent au plus ancien."""
@@ -983,7 +996,8 @@ class Store:
                     f"Droits retirables : {retirables}."
                 )
 
-            moment = maintenant()
+            # Le correctif suit le dernier maillon même si l'horloge de la passerelle avance.
+            moment = max(maintenant(), sess.dernier_vu)
             cle = self.cle_agent(sess)
             libelle = next(
                 (s.get("libelle") for s in sess.droits_accordes

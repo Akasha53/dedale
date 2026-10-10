@@ -19,7 +19,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from . import canaris, detection, droits, inter_agent
+from . import canaris, detection, droits, inter_agent, source
 from .boite_noire import BoiteNoire
 from .enregistreur import (Enregistreur, Instant, chrono_dict, empreinte, inerte, masquer,
                            references)
@@ -138,6 +138,8 @@ class Passerelle:
         self._derniere_decision: dict | None = None
         # Document lu porteur d'une consigne cachée : (canari_id, document).
         self._consigne_doc: tuple[str | None, str] | None = None
+        # Documents piégés déjà montrés au backend (contenu complet désarmé, une fois chacun).
+        self._sources_signalees: set[tuple[str, str]] = set()
 
     # --- émission vers le backend -------------------------------------------------
     def _emettre(self, type: str, surface: str, session_id: str, **options) -> dict | None:
@@ -306,6 +308,7 @@ class Passerelle:
                 return self._refuser_droit_retire(nom, scope)
 
         resultat = fonction(**params)
+        self._signaler_source(nom, resultat)
         # Un outil de lecture dont le résultat porte une consigne cachée est mémorisé comme
         # source piégée (attribution d'une exfiltration ultérieure). Jamais exécuté.
         src = SOURCES_LECTURE.get(nom)
@@ -627,6 +630,43 @@ class Passerelle:
         self._inspecter_source(nom, resultat)
         return resultat
 
+    # --- document source piégé, montré en entier mais désarmé ----------------------
+    @staticmethod
+    def _cle_source(nom: str, el) -> tuple[str, str]:
+        if isinstance(el, dict):
+            return nom, str(el.get("nom") or el.get("id") or el.get("chemin") or nom)
+        return nom, nom
+
+    @staticmethod
+    def _origine(nom: str, el) -> str:
+        type_ = source.TYPES.get(nom)
+        if type_ == "mail" and isinstance(el, dict):
+            hote = str(el.get("de") or "").rpartition("@")[2].lower()
+            return "externe" if detection._est_externe(hote) else "interne"
+        return "interne" if type_ == "memoire" else "externe"
+
+    def _document_source(self, nom: str, el, cid: str | None) -> dict:
+        self._sources_signalees.add(self._cle_source(nom, el))
+        return source.document_source(nom, el, self.jetons, canari_id=cid,
+                                      origine=self._origine(nom, el))
+
+    def _signaler_source(self, nom: str, resultat) -> None:
+        """Passerelle historique : un contenu lu qui cache une instruction part au backend en
+        entier, désarmé (événement `lecture`, maillon « source »). Lire n'ouvre aucun incident."""
+        if nom not in source.TYPES:
+            return
+        for el in resultat if isinstance(resultat, list) else [resultat]:
+            cle = self._cle_source(nom, el)
+            if cle in self._sources_signalees:
+                continue
+            if not detection.consigne_cachee_dans(json.dumps(el, ensure_ascii=False, default=str)):
+                continue
+            cid = canaris.CANARI_PAR_DOCUMENT.get(cle[1]) or SOURCES_LECTURE.get(nom, (None,))[0]
+            doc = self._document_source(nom, el, cid)
+            self._tracer("lecture", {"outil": nom, "document": cle[1]})
+            self._emettre("lecture", doc["type"], self.session_id, outil=nom,
+                          details={"maillon": "source", "document_source": doc})
+
     def _inspecter_source(self, nom: str, resultat) -> None:
         """Un outil de lecture a renvoyé un contenu : s'il porte une consigne cachée, on note la
         source et la consigne (empreinte et canari, jamais le texte). Aucun incident ici : lire
@@ -658,7 +698,8 @@ class Passerelle:
             self._emettre(
                 "entree_agent", "document", self.session_id, outil=nom,
                 details={"maillon": "source", "extrait": self._pour_backend(detail_src),
-                         "source": {**preuve, "origine": "externe", "confiance": "non fiable"}},
+                         "source": {**preuve, "origine": "externe", "confiance": "non fiable"},
+                         "document_source": self._document_source(nom, el, cid)},
             )
 
             t_csg = enr.instant()

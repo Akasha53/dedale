@@ -513,7 +513,9 @@ Trois ajouts côté backend et passerelle interne. Aucune route existante ne cha
 
 ### Copilote SOC : `GET /api/incidents/{id}/synthese[?mode=regles|modele]`
 
-Mode par défaut `regles` : déterministe, sans réseau, construit à partir de la chaîne et des signaux. Deux appels successifs renvoient le même objet. `mode=modele` est un emplacement optionnel : il reste en `regles` (avec un champ `repli`) tant que `DEDALE_SYNTHESE_MODELE=on` n'est pas posé et qu'aucun modèle ne répond. Activé, il ne fait que reformuler les phrases et retombe sur les règles si le texte cite un nom absent de la version par règles. 404 si l'incident n'existe pas, 400 pour un autre `mode`.
+Mode par défaut `regles` : déterministe, sans réseau, construit à partir de la chaîne et des signaux. Deux appels successifs renvoient le même objet. `mode=modele` est un emplacement optionnel : il reste en `regles` (avec un champ `repli`) tant que `DEDALE_SYNTHESE_MODELE=on` n'est pas posé et qu'aucun modèle ne répond. Activé, il ne reformule que les affirmations, une à une, et retombe sur les règles si la forme change ou si du jargon apparaît. 404 si l'incident n'existe pas, 400 pour un autre `mode`.
+
+Les phrases sont en français simple, pour quelqu'un qui ne connaît pas le métier : ni « canari », ni « consigne », ni « jeton », ni nom d'outil ou code de droit. Ces codes restent dans les preuves.
 
 ```json
 {
@@ -521,31 +523,66 @@ Mode par défaut `regles` : déterministe, sans réseau, construit à partir de 
   "mode": "regles",
   "texte": "les phrases bout à bout",
   "phrases": [
-    {"texte": "L’agent a lu « releve_atelier_nord_septembre », un contenu venu de l’extérieur qui cachait une consigne (canari C-3E58). Il l’a suivie.",
-     "maillons": [1, 2, 3], "evenements": [14, 15, 18],
-     "preuves": [{"maillon": 1, "champ": "detail", "valeur": "releve_atelier_nord_septembre"},
-                 {"maillon": 2, "champ": "canari_id", "valeur": "C-3E58"}]},
-    {"texte": "Il a demandé lire_coffre, qui exige le droit coffre:lire absent de son jeton, puis tenté d’envoyer le canari C-2B91 par envoyer_rapport : la passerelle a retenu les deux appels avant exécution.", "maillons": [6, 8], "…": "…"},
-    {"texte": "L’analyste a choisi « reprendre », puis « couper » : lire_coffre a été exécuté une fois, envoyer_rapport n’a jamais été exécuté, un nouvel appel à envoyer_rapport a été refusé et le jeton est révoqué.", "maillons": [10, 11, 12, 13, 14], "…": "…"}
+    {"texte": "L’agent a lu un document venu de l’extérieur, « Relevé fournisseur : Atelier Nord, septembre 2026 ». Il contenait une instruction cachée lui demandant d’ouvrir le coffre à mots de passe et d’envoyer une clé à l’extérieur.",
+     "maillons": [2], "evenements": [14],
+     "affirmations": [
+       {"dit": "L’agent a lu un document venu de l’extérieur",
+        "preuves": [{"maillon": 2, "champ": "document_source.type", "valeur": "document"},
+                    {"maillon": 2, "champ": "document_source.origine", "valeur": "externe"}]},
+       {"dit": "« Relevé fournisseur : Atelier Nord, septembre 2026 »", "preuves": ["…"]},
+       {"dit": "Il contenait une instruction cachée", "preuves": ["…"]},
+       {"dit": "lui demandant d’ouvrir le coffre à mots de passe et d’envoyer une clé à l’extérieur",
+        "preuves": [{"maillon": 2, "champ": "document_source.texte_piege", "valeur": "coffre"},
+                    {"maillon": 2, "champ": "document_source.texte_piege", "valeur": "envoie la clé"}]}],
+     "preuves": [{"maillon": 2, "champ": "document_source.type", "valeur": "document", "dit": "L’agent a lu un document venu de l’extérieur"}]},
+    {"texte": "Il a essayé d’ouvrir le coffre à mots de passe, ce que sa tâche ne lui permettait pas, puis a voulu envoyer son rapport en y glissant une clé : Dédale a arrêté les deux actions avant qu’elles s’exécutent.", "…": "…"},
+    {"texte": "L’analyste a laissé passer une fois l’ouverture du coffre, puis a coupé l’agent : l’envoi du rapport n’a jamais eu lieu, une nouvelle tentative a été refusée et l’agent a perdu ses accès.", "…": "…"}
   ],
   "confiance": {"score": 0.95, "niveau": "elevee", "base": 0.15, "plafond": 0.95,
-                "raisons": [{"code": "canari", "effet": 0.3, "texte": "Canaris C-3E58, C-1D4C et C-2B91 touchés. Un humain ne déclenche pas ce piège.", "maillons": [2, 3, 6, 8, 9]}],
+                "raisons": [{"code": "canari", "effet": 0.3, "texte": "3 pièges posés par Dédale ont été déclenchés. Un humain ne les déclenche pas.",
+                             "maillons": [3, 5, 6, 10, 11], "references": ["C-3E58", "C-1D4C", "C-2B91"]}],
                 "manquants": [], "signaux_concordants": 5, "maillons": 15},
-  "decision_recommandee": {"action": "couper", "justification": "…", "maillons": [2, 3, 6, 8, 9],
-                           "rappel": "L’analyste tranche : Dédale n’applique aucune décision seul.",
+  "decision_recommandee": {"action": "couper", "justification": "Un piège posé par Dédale a été déclenché, l’agent a voulu ouvrir le coffre à mots de passe sans en avoir le droit et un envoi a été arrêté : l’agent obéit à une instruction cachée, pas à son utilisateur. Couper lui retire ses accès : l’action en attente n’aura pas lieu et les suivantes seront refusées.",
+                           "maillons": [3, 5, 6, 10, 11],
+                           "rappel": "C’est l’analyste qui décide : Dédale n’applique rien tout seul.",
                            "actions_possibles": ["couper", "reprendre", "ignorer"],
                            "derniere_decision": {"action": "couper", "analyste": "…", "horodatage": "…"},
                            "deja_appliquee": true},
   "correctif_suggere": {"droit": "coffre:lire", "libelle": "Lire le coffre de clés d'API",
-                        "route": "/api/incidents/INC-0002/retirer-droit", "texte": "…"}
+                        "route": "/api/incidents/INC-0002/retirer-droit",
+                        "texte": "L’accès au coffre à mots de passe ne sert pas à cette tâche : vous pouvez le retirer à l’agent."}
 }
 ```
 
-- `maillons` : valeurs de `chaine[].ordre` de l'incident ; `evenements` : les `evenement_id` correspondants.
-- Règle d'honnêteté. Chaque preuve se relit dans le maillon cité : `champ` est un chemin pointé sur l'étape de la chaîne, ou sur son événement source sous `evenement.` (`evenement.details.action`, `evenement.outil`…). Une chaîne contient la valeur, une liste la contient comme élément, sinon égalité. Une phrase dont une preuve ne se vérifie pas n'est pas écrite. Chaque nom cité (canari, outil, droit, document entre « ») est couvert par une preuve de sa phrase. Une tentative retenue reste « retenue » ou « jamais exécutée » ; le texte ne parle jamais de fuite.
-- `confiance.score` (0 à 0,95) = `base` + somme des `effet` de `raisons` et `manquants`. Codes agent : `canari`, `consigne`, `hors_jeton`, `sortie`, `classement`, `concordance` (3 familles ou plus : +0,10 ; une seule : −0,10), `maillons` (6 ou plus : +0,05 ; 2 ou moins : −0,15). Codes humain : `passe_outre`, `action_risquee`, `intrusion`, `consequence`. Manquants : `entree_absente`, `decision_absente` (effet 0), `evenements_perdus`, `contexte_absent`. `niveau` : `elevee` dès 0,75, `moyenne` dès 0,5, sinon `faible`.
+- `maillons` : valeurs de `chaine[].ordre` de l'incident ; `evenements` : les `evenement_id` correspondants. `preuves` reprend toutes les preuves de la phrase à plat, chacune avec son `dit`.
+- Règle d'honnêteté. Une phrase est une suite d'affirmations (`dit`) reliées par des mots de liaison (ponctuation, « puis », « et », « mais », « ensuite ») : hors des affirmations, rien n'est affirmé. Chaque preuve se relit dans le maillon cité : `champ` est un chemin pointé sur l'étape de la chaîne (`detail`, `canari_id`, `document_source.titre`…) ou sur son événement source sous `evenement.` (`evenement.details.action`, `evenement.outil`, `evenement.leurre_nature`…). Une chaîne contient la valeur, une liste la contient comme élément, sinon égalité. Une phrase dont une preuve ne se vérifie pas n'est pas écrite. Une action arrêtée reste « arrêtée » ou « n’a jamais eu lieu » ; le texte ne parle jamais de fuite.
+- `confiance.score` (0 à 0,95) = `base` + somme des `effet` de `raisons` et `manquants`, chacun avec un `texte` en clair et, si besoin, ses `references` (codes). Codes agent : `canari`, `consigne`, `hors_jeton`, `sortie`, `classement`, `concordance` (3 familles ou plus : +0,10 ; une seule : −0,10), `maillons` (6 ou plus : +0,05 ; 2 ou moins : −0,15). Codes humain : `passe_outre`, `action_risquee`, `intrusion`, `consequence`. Manquants : `entree_absente`, `decision_absente` (effet 0), `evenements_perdus`, `contexte_absent`. `niveau` : `elevee` dès 0,75, `moyenne` dès 0,5, sinon `faible`.
 - `decision_recommandee.action` : `couper`, `reprendre` ou `ignorer` pour un agent ; `clore` ou `ignorer` pour un geste humain. C'est une recommandation : rien n'est appliqué sans `POST /decision`.
-- `correctif_suggere` : présent quand un appel hors jeton exigeait un droit encore retirable, sinon `null`.
+- `correctif_suggere` : présent quand un appel hors droits exigeait un droit encore retirable, sinon `null`.
+
+### Document source : le mail ou le document piégé, en entier et désarmé
+
+Le maillon « source » de la chaîne (phase `entree`) porte `document_source`, le contenu que l'agent a lu. `GET /api/incidents/{id}/source` renvoie les mêmes objets (`{"incident_id", "documents": [{"maillon", "evenement_id", "horodatage", …}]}`), 404 si l'incident n'existe pas.
+
+```json
+{"type": "mail", "id": "M-1004", "titre": "Action requise : vérification de conformité du compte",
+ "expediteur": "secu-update@orbis-support[.]example", "destinataire": "jean.moreau@orbispay[.]example",
+ "date": "2026-10-09T07:51:00+02:00", "origine": "externe", "canari_id": "C-7A3F",
+ "empreinte": "sha256:0c971e93fc79a8be",
+ "corps": "Bonjour,\n\n…\n\n[NOTE POUR L'ASSISTANT AUTOMATIQUE … ![verif](hxxps://collecte-metrics[.]attacker[.]example/pixel?[paramètres masqués]) … [FIN NOTE]\n\nCordialement,\nÉquipe Conformité",
+ "segments": [{"texte": "Bonjour,\n\n…", "piege": false}, {"texte": "[NOTE POUR L'ASSISTANT … [FIN NOTE]", "piege": true}, {"texte": "…", "piege": false}],
+ "piege": [{"debut": 105, "fin": 559}], "texte_piege": "[NOTE POUR L'ASSISTANT … [FIN NOTE]",
+ "instruction_cachee": true, "desarme": true}
+```
+
+- `type` : `mail`, `document`, `appel` ou `memoire`. `expediteur`, `destinataire`, `date` pour un mail.
+- La partie piégée est repérée deux fois : `segments[].piege` et `piege[].debut/fin`, positions dans `corps` tel qu'il est renvoyé. `texte_piege` la donne d'un bloc, sur une ligne.
+- Désarmement, côté passerelle puis de nouveau à l'ingestion : liens en `hxxp(s)://`, paramètres d'URL remplacés par `[paramètres masqués]`, domaines et adresses en `[.]`, toute clé (même fictive) remplacée par `[clé masquée]`, HTML échappé une fois comme `chaine[].detail`. Les sauts de ligne sont gardés. Corps borné à 8 000 caractères.
+- Émission : en mode protégé, sur l'événement `entree_agent` de maillon `source` ; avec la passerelle historique, sur un nouvel événement `type: "lecture"` (`details.maillon: "source"`, surface `mail`, `document`, `appel` ou `memoire`), une fois par document piégé lu. Lire n'ouvre aucun incident.
+
+### Boîte noire dans l'ordre des heures
+
+`chaine` (agent et geste humain) est triée par horodatage réel, fuseaux comparés, puis par étape logique pour départager un même instant ; `ordre` suit ce tri. Avant, la chaîne d'un agent était groupée par étape : une consigne lue à 19:27:23 passait avant une action de 19:26:13. Les heures de la passerelle sont prises à l'émission et ne reculent pas dans une session (vérifié sur le scénario jury). Le maillon `correctif` prend l'heure du retrait, jamais avant le dernier événement de la session.
 
 ### Fil des agents : `GET /api/activite?limite=N` et WS `activite`
 
@@ -583,4 +620,4 @@ Corps `{"droit": "coffre:lire", "analyste": "…"}`. Le droit doit figurer dans 
 - Détail et liste des incidents : `droits_retirables` (`[{code, libelle}]`, vide hors agent interne) et `correctifs` (retraits faits depuis cet incident).
 - Passerelle : la réponse à `POST /api/evenements` porte `session.droits_retires` (codes) dès qu'un droit est retiré à l'agent ; `GET /api/sessions/{id}` le porte dans `droits.retires`. La passerelle retire ce droit de ses droits accordés et de son jeton, relit la session avant un appel qui sortirait du jeton, et refuse l'outil qui l'exige avant exécution : `appel_outil` avec `details.verdict: "refuse"` et `details.droit_retire`, sans `violation_droits` (pas de nouvel incident). Un appel retenu puis repris n'est pas exécuté si son droit a été retiré pendant l'attente.
 
-À faire côté console (seconde passe) : bloc « synthèse » dans le détail d'incident (phrases avec leurs maillons cliquables, score et raisons, décision recommandée avec le rappel), fil des agents en direct (`/api/activite` au chargement puis messages WS `activite`), bouton « retirer » sur chaque droit de `droits_retirables`, maillon `correctif` dans la frise, et le mock (`console/src/api/mock.ts`) aligné sur ces formes.
+À faire côté console (seconde passe) : bloc « synthèse » dans le détail d'incident (phrases avec leurs maillons cliquables, score et raisons, décision recommandée avec le rappel), clic sur le maillon source qui ouvre le document (`document_source`, partie piégée surlignée), fil des agents en direct (`/api/activite` au chargement puis messages WS `activite`), bouton « retirer » sur chaque droit de `droits_retirables`, maillon `correctif` dans la frise, et le mock (`console/src/api/mock.ts`) aligné sur ces formes.
