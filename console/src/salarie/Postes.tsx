@@ -2,9 +2,12 @@
 // salarié, il ne le note pas. Un poste compte une fois, qu'il remonte par son
 // poste, sa boîte mail ou son navigateur.
 //
-// Trois groupes, dans cet ordre : les postes qui ont un dossier à traiter (seule
-// couleur du bloc), ceux dont le geste risqué est déjà traité (gris, avec leur
-// dossier), puis les postes calmes, repliés en une ligne.
+// Seuls les postes qui ont un dossier à traiter s'affichent en ligne : c'est la
+// seule couleur du bloc. Tous les autres, dossier traité ou rien à signaler, se
+// replient en une ligne (« 7 postes sans rien à traiter », « dont 1 dossier
+// traité aujourd'hui »). Dépliés, les postes traités viennent d'abord, en gris,
+// avec leur dossier. Un élément déjà traité ne passe jamais au-dessus de ce qui
+// demande un geste.
 
 import { useMemo, useState } from "react";
 import type { Incident, Session } from "../types";
@@ -34,6 +37,17 @@ interface Poste {
 
 const plusRecent = (a?: string, b?: string) => (b ?? "").localeCompare(a ?? "");
 
+// Quand le dossier a été traité : la décision, sinon son ouverture.
+function dateTraitement(i: Incident): string | undefined {
+  return i.decide_a ?? i.decisions?.[i.decisions.length - 1]?.horodatage ?? i.ouvert_le;
+}
+
+function estAujourdhui(iso?: string | null): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  return !Number.isNaN(d.getTime()) && d.toDateString() === new Date().toDateString();
+}
+
 export function ListePostes({
   sessions,
   incidents,
@@ -43,7 +57,7 @@ export function ListePostes({
   incidents: Incident[];
   ouvrirIncident: (id: string) => void;
 }) {
-  const [calmesOuverts, setCalmesOuverts] = useState(false);
+  const [reposOuverts, setReposOuverts] = useState(false);
 
   const { actifs, traites, calmes } = useMemo(() => {
     const parCle = new Map<string, Poste>();
@@ -83,49 +97,69 @@ export function ListePostes({
   const total = actifs.length + traites.length + calmes.length;
   if (total === 0) return <div className="vide">Aucun poste protégé pour l'instant.</div>;
 
-  const visibles = actifs.length + traites.length > 0 || calmesOuverts;
+  const repos = traites.length + calmes.length;
+  const dossiersTraites = traites.flatMap((p) => p.incidents);
+  const duJour = dossiersTraites.filter((i) => estAujourdhui(dateTraitement(i))).length;
+  const nTraites = duJour || dossiersTraites.length;
+  const sousRepos =
+    nTraites > 0
+      ? `dont ${nTraites} dossier${nTraites > 1 ? "s" : ""} traité${nTraites > 1 ? "s" : ""}${duJour ? " aujourd'hui" : ""}`
+      : null;
 
   return (
     <div className="postes" role="table" aria-label="Postes des salariés">
-      {visibles && (
-        <div className="poste-ligne poste-tete" role="row">
-          <span role="columnheader">Poste</span>
-          <span role="columnheader">Sources</span>
-          <span role="columnheader">Activité</span>
-          <span role="columnheader">État</span>
-          <span role="columnheader">Dernier geste</span>
-          <span role="columnheader" className="poste-action">
-            <span className="sr-seul">Dossier</span>
-          </span>
-        </div>
+      {actifs.length === 0 && (
+        <p className="postes-vide" role="status">
+          Rien à traiter sur les postes
+        </p>
       )}
+      {actifs.length > 0 && <EntetePostes />}
       {actifs.map((p) => (
         <LignePoste key={p.cle} p={p} ton="actif" ouvrirIncident={ouvrirIncident} />
       ))}
-      {traites.map((p) => (
-        <LignePoste key={p.cle} p={p} ton="traite" ouvrirIncident={ouvrirIncident} />
-      ))}
-      {calmes.length > 0 && (
+      {repos > 0 && (
         <div className="postes-calmes" role="rowgroup">
           <div role="row">
             <button
               type="button"
-              className={`postes-calmes-btn ${calmesOuverts ? "ouvert" : ""}`}
-              aria-expanded={calmesOuverts}
+              className={`postes-calmes-btn ${reposOuverts ? "ouvert" : ""}`}
+              aria-expanded={reposOuverts}
               aria-controls="postes-calmes-liste"
-              onClick={() => setCalmesOuverts((v) => !v)}
+              onClick={() => setReposOuverts((v) => !v)}
             >
-              {calmes.length} poste{calmes.length > 1 ? "s" : ""} sans rien à signaler
+              <span className="postes-calmes-lib">
+                {repos} poste{repos > 1 ? "s" : ""} sans rien à traiter
+                {sousRepos && <span className="postes-calmes-sous">{sousRepos}</span>}
+              </span>
               <span className="postes-chevron" aria-hidden="true" />
             </button>
           </div>
-          <Depliant ouvert={calmesOuverts} id="postes-calmes-liste">
+          <Depliant ouvert={reposOuverts} id="postes-calmes-liste">
+            {actifs.length === 0 && <EntetePostes />}
+            {traites.map((p) => (
+              <LignePoste key={p.cle} p={p} ton="traite" ouvrirIncident={ouvrirIncident} />
+            ))}
             {calmes.map((p) => (
               <LignePoste key={p.cle} p={p} ton="calme" ouvrirIncident={ouvrirIncident} />
             ))}
           </Depliant>
         </div>
       )}
+    </div>
+  );
+}
+
+function EntetePostes() {
+  return (
+    <div className="poste-ligne poste-tete" role="row">
+      <span role="columnheader">Poste</span>
+      <span role="columnheader">Sources</span>
+      <span role="columnheader">Activité</span>
+      <span role="columnheader">État</span>
+      <span role="columnheader">Dernier geste</span>
+      <span role="columnheader" className="poste-action">
+        <span className="sr-seul">Dossier</span>
+      </span>
     </div>
   );
 }
