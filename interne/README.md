@@ -62,7 +62,7 @@ uv run python -m orbis.demo          # démo autonome : backend simulé + cervea
 uv run python -m orbis.demo --cerveau cli        # pilote un vrai agent via claude -p
 uv run python -m orbis.demo --backend-reel       # tape le vrai backend sur 8700
 uv run python -m orbis.demo --scenario jury      # agent interne protégé, hors ligne, deux issues
-uv run --extra dev pytest -q          # 56 tests
+uv run --extra dev pytest -q          # 162 tests
 ```
 
 La démo joue six scènes : session normale (aucun canari), session détournée où
@@ -125,6 +125,51 @@ passerelle envoie ce contenu en entier (`details.document_source`, `orbis/source
 expéditeur, corps découpé en segments, la partie piégée marquée `piege: true`. Tout est désarmé
 avant de partir : liens en `hxxps://`, domaines en `[.]`, paramètres d'URL et clés masqués. En
 mode protégé il voyage sur le maillon « source » ; sinon sur un événement `lecture`.
+
+## Désarmeur : la consigne retirée avant lecture
+
+Le désarmeur (`orbis/desarmeur.py`) nettoie ce que l'agent lit avant qu'il le lise : mails,
+documents, transcriptions, mémoire, résultats et descriptions d'outils MCP, pages. Il est coupé
+par défaut ; `Passerelle(..., desarmeur=True)` l'active.
+
+Il retire ce qu'un humain ne voit pas : commentaires HTML, CSS et Markdown, éléments masqués en
+CSS ou par l'attribut `hidden`, texte blanc ou de la couleur du fond, texte de taille nulle,
+attributs `alt` ou `title` porteurs d'une consigne, caractères invisibles et contrôles bidi,
+balises Unicode et sélecteurs de variation (dont il décode le texte caché). Il retire aussi un
+passage visible qui s'adresse à l'agent : « ignore les instructions précédentes », « note pour
+l'assistant », « ne le dis pas à l'utilisateur », « tu es maintenant… », « si tu es une IA… »,
+fausses balises système, en français, anglais, espagnol, allemand, italien et portugais.
+
+L'agent reçoit la version propre. Le backend reçoit le document d'origine (désarmé) puis un
+événement `desarmement` : ce qui a été retiré, par quelle technique, en quelle langue. Le texte
+retiré n'y figure que désarmé. La boîte noire montre un maillon « désarmé avant lecture ».
+
+```bash
+uv run python -m orbis.demo --scenario jury --desarmeur                 # prévention, hors ligne
+uv run python -m orbis.demo --scenario jury --desarmeur --backend URL   # incident interne_desarme
+uv run python -m orbis.demo --scenario jury                             # détection, inchangé
+```
+
+Avec le désarmeur, le commentaire invisible du relevé Atelier Nord disparaît de ce que lit
+l'agent : il ne demande jamais le coffre et envoie son rapport à Jean Moreau. Sans lui, le
+scénario jury reste celui de la détection (appel retenu, décision de l'analyste).
+
+**Envois vers l'extérieur.** Un outil sortant dont le destinataire, l'URL ou le domaine sort de
+`config.HOTES_INTERNES` est retenu même sans lien ni canari (règle `C-4E6B`), avec la même
+suspension et la même décision que les autres retenues. La raison nomme l'adresse. Une règle du
+SOC qui vient de trancher l'appel prime. Scène 7 de la démo complète.
+
+Limites connues :
+
+- c'est une heuristique : une injection écrite en clair sans aucune formule connue (paraphrase,
+  autre langue, texte encodé, image) passe ; la retenue des envois externes reste derrière ;
+- un passage visible est retiré par paragraphe entier, et une consigne citée (un mail qui parle
+  d'injection) est retirée comme une vraie ;
+- le texte blanc est jugé sur le fond déclaré par l'élément ou ses parents ; une feuille de
+  style externe n'est pas lue ;
+- un destinataire écrit sans adresse (« Jean Moreau ») n'est pas résolu ;
+- les cerveaux réels (`cli`, `api`) gardent leurs descriptions d'outils fixes : `presenter_outils`
+  est prêt, ils ne l'appellent pas encore.
 
 Le mode protégé est optionnel (`Passerelle(..., retenir_hors_scope=True, decision_fraiche=True)`).
 Sans lui, le comportement historique ne change pas : un appel hors jeton est refusé d'office.
