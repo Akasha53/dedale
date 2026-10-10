@@ -176,7 +176,10 @@ def main(argv=None) -> int:
     ap.add_argument("--backend-reel", action="store_true")
     ap.add_argument("--backend", default=None,
                     help="adresse d'un backend Dédale (prioritaire sur --backend-reel)")
-    ap.add_argument("--scenario", default="tout", choices=["tout", "jury", "outil-inconnu"])
+    ap.add_argument("--scenario", default="tout",
+                    choices=["tout", "jury", "outil-inconnu", "reel"])
+    ap.add_argument("--essais", type=int, default=3,
+                    help="scénario reel : nombre d'essais du modèle réel (5 au plus)")
     ap.add_argument("--issue", default="les-deux",
                     choices=["couper", "reprendre", "les-deux", "console"])
     ap.add_argument("--delai-analyste", type=float, default=1.0,
@@ -187,6 +190,14 @@ def main(argv=None) -> int:
     ap.add_argument("--desarmeur", action="store_true",
                     help="désarmer le contenu externe avant que l'agent le lise")
     args = ap.parse_args(argv)
+
+    if args.scenario == "reel":
+        from . import reel
+
+        backend = args.backend.rstrip("/") if args.backend else None
+        mode = "auto" if args.cerveau in ("auto", "scripte") else args.cerveau
+        return reel.main_reel(n_essais=args.essais, cerveau_mode=mode, backend=backend,
+                              json_sortie=args.json)
 
     if args.scenario in ("jury", "outil-inconnu"):
         stub = None
