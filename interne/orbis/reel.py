@@ -217,7 +217,11 @@ def executer_protege(base: str, cerveau, outils: OutilsReels, session_id: str,
 # --- cerveau réel : CLI (Haiku) ou API --------------------------------------------
 def cerveau_reel(mode: str = "auto"):
     """`api` si une clé est présente, sinon la CLI locale `claude -p --model claude-haiku-5-5`.
-    `auto` choisit seul ; `cli`/`api` forcent."""
+    `auto` choisit seul ; `cli`/`api` forcent le vrai modèle. `faux` : agent naïf déterministe
+    (CerveauFauxReel) qui suit la consigne piégée — pour démontrer le vrai pipeline (vrais
+    services) contre un attaquant sûr, sans dépendre de ce que le modèle veut bien faire."""
+    if mode == "faux":
+        return CerveauFauxReel()
     if mode == "api" or (mode == "auto" and config.CLE_API):
         return CerveauApi(modele=MODELE_REEL)
     return CerveauCli(modele=MODELE_REEL)

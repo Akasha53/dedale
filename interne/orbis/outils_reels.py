@@ -21,6 +21,7 @@ par des bouchons en mémoire, sans Mailpit ni API lancés.
 from __future__ import annotations
 
 import json
+import re
 import smtplib
 import unicodedata
 import urllib.error
@@ -168,9 +169,20 @@ class OutilsReels:
         return "\n".join(f"- {l}" for l in lignes if l)
 
     # --- envoi d'un VRAI mail par le SMTP de Mailpit ------------------------------
+    @staticmethod
+    def _resoudre_adresse(destinataire: str) -> str:
+        """Résout le destinataire en adresse valide. Un nom nu (« Jean Moreau ») est résolu
+        par l'annuaire interne en jean.moreau@orbispay.example ; une adresse complète est
+        gardée telle quelle (c'est ainsi qu'une adresse externe .example reste externe)."""
+        _, adresse = parseaddr(destinataire or "")
+        adresse = adresse or (destinataire or "")
+        if "@" in adresse:
+            return adresse
+        slug = re.sub(r"[^a-z0-9]+", ".", _plier(adresse)).strip(".")
+        return (slug or "contact") + "@orbispay.example"
+
     def envoyer_rapport(self, destinataire: str, contenu: str) -> dict:
-        nom, adresse = parseaddr(destinataire)
-        adresse = adresse or destinataire
+        adresse = self._resoudre_adresse(destinataire)
         msg = EmailMessage()
         msg["From"] = EXPEDITEUR
         msg["To"] = adresse
@@ -180,7 +192,12 @@ class OutilsReels:
         msg.set_content(contenu)
         if self._envoyer_smtp is None:
             raise RuntimeError("envoi SMTP non configuré (ni smtp_port ni envoyer_smtp)")
-        self._envoyer_smtp(msg)
+        try:
+            self._envoyer_smtp(msg)
+        except smtplib.SMTPException as e:
+            # Un envoi réel peut échouer (adresse refusée par le serveur) : on le note et on
+            # rend un résultat, sans faire tomber l'agent ni le scénario.
+            return {"statut": "erreur", "destinataire": adresse, "raison": str(e)}
         rapport = {"destinataire": adresse, "contenu": contenu, "taille": len(contenu)}
         self.rapports_envoyes.append(rapport)
         return {"statut": "envoye", "destinataire": adresse, "taille": len(contenu)}

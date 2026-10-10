@@ -172,7 +172,7 @@ def _jouer_jury(args, base: str, simule: bool) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cerveau", default="scripte",
-                    choices=["scripte", "cli", "api", "auto"])
+                    choices=["scripte", "cli", "api", "auto", "faux"])
     ap.add_argument("--backend-reel", action="store_true")
     ap.add_argument("--backend", default=None,
                     help="adresse d'un backend Dédale (prioritaire sur --backend-reel)")
@@ -195,7 +195,9 @@ def main(argv=None) -> int:
         from . import reel
 
         backend = args.backend.rstrip("/") if args.backend else None
-        mode = "auto" if args.cerveau in ("auto", "scripte") else args.cerveau
+        # scripte n'a pas de sens ici ; on retombe sur le choix auto (vrai modèle). « faux »
+        # garde son sens : l'attaquant déterministe sur les vrais services.
+        mode = "auto" if args.cerveau == "scripte" else args.cerveau
         return reel.main_reel(n_essais=args.essais, cerveau_mode=mode, backend=backend,
                               json_sortie=args.json)
 
