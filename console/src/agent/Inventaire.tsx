@@ -3,7 +3,7 @@
 // trop, son niveau de risque expliqué et sa résistance mesurée sur le banc.
 // Les agents qui attendent une décision passent en tête.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { AgentInventaire, Incident, Session, Signal } from "../types";
 import { Pourquoi, type Force, type LignePourquoi } from "../ui/Pourquoi";
 import { attendDecision, decoder, estATraiter, libelleDroit, sansCodes } from "../ui/mots";
@@ -110,6 +110,37 @@ export function InventaireAgents({
   );
 }
 
+// Droits en trop : les trois premiers, puis une puce « +N » qui déplie la liste complète.
+// Un second clic la replie. C'est un vrai bouton : Entrée et Espace marchent au clavier.
+const DROITS_VISIBLES = 3;
+
+function PucesDroitsEnTrop({ codes, idListe }: { codes: string[]; idListe: string }) {
+  const [deplie, setDeplie] = useState(false);
+  const caches = codes.length - DROITS_VISIBLES;
+  const visibles = deplie || caches <= 0 ? codes : codes.slice(0, DROITS_VISIBLES);
+  return (
+    <span className="inv-puces" id={idListe}>
+      {visibles.map((c) => (
+        <span key={c} className="inv-puce" title={c}>
+          {libelleDroit(c)}
+        </span>
+      ))}
+      {caches > 0 && (
+        <button
+          type="button"
+          className="inv-puce inv-puce-plus"
+          aria-expanded={deplie}
+          aria-controls={idListe}
+          aria-label={deplie ? "Replier la liste des droits en trop" : `Voir les ${caches} autres droits en trop`}
+          onClick={() => setDeplie((d) => !d)}
+        >
+          {deplie ? "Replier" : `+${caches}`}
+        </button>
+      )}
+    </span>
+  );
+}
+
 function CarteAgent({
   v,
   ouvrirIncident,
@@ -162,21 +193,7 @@ function CarteAgent({
             {a.droits.surplus.length === 0 ? (
               <span className="inv-doux">aucun</span>
             ) : (
-              <span className="inv-puces">
-                {a.droits.surplus.slice(0, 3).map((c) => (
-                  <span key={c} className="inv-puce" title={c}>
-                    {libelleDroit(c)}
-                  </span>
-                ))}
-                {a.droits.surplus.length > 3 && (
-                  <span
-                    className="inv-puce inv-puce-plus"
-                    title={a.droits.surplus.slice(3).map((c) => libelleDroit(c)).join(", ")}
-                  >
-                    +{a.droits.surplus.length - 3}
-                  </span>
-                )}
-              </span>
+              <PucesDroitsEnTrop codes={a.droits.surplus} idListe={`inv-droits-${a.id}`} />
             )}
           </dd>
         </div>

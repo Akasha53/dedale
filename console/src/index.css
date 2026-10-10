@@ -5796,10 +5796,25 @@ abbr.canary:focus::after {
 .inv-faits > div {
   grid-template-columns: 96px 1fr;
 }
+/* « +N » : un bouton qui déplie les droits en trop cachés, puis les replie. */
 .inv-puce-plus {
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  line-height: inherit;
   background: #f4f4f4;
   color: var(--texte-doux);
-  cursor: help;
+  cursor: pointer;
+  transition: background 0.3s var(--courbe), color 0.3s var(--courbe);
+}
+.inv-puce-plus:hover,
+.inv-puce-plus[aria-expanded="true"] {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--texte);
+}
+.inv-puce-plus:focus-visible {
+  outline: 2px solid #0d0d0d;
+  outline-offset: 2px;
 }
 
 /* « Pourquoi ? » d'une carte d'agent : s'ouvre sous le bouton, vers la droite,
