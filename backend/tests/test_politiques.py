@@ -385,3 +385,103 @@ def test_droits_retires_retrouves_apres_redemarrage(client):
     client.get("/api/politiques")
     assert set(client.get("/api/agents/orbis-support").json()["droits"]["retires"]) == {
         "contact:exporter", "memoire:ecrire"}
+
+
+# ------------------------------------------------------------------ conditions sans perte
+MARDI_NUIT, MARDI_JOUR, SAMEDI_JOUR = ("2026-10-13T23:30:00+02:00", "2026-10-13T10:00:00+02:00",
+                                       "2026-10-10T10:00:00+02:00")
+VIREMENT = {"agent": "orbis-rapprochement", "outil": "executer_paiement", "scope": "paiement:executer"}
+
+
+def _verdict(client, quand, **params):
+    return client.post("/api/politiques/evaluer", json={**VIREMENT, "horodatage": quand,
+                                                        "parametres": params}).json()["verdict"]
+
+
+@pytest.mark.parametrize("phrase", ["Aucun agent ne fait de virement entre 19 h et 7 h, ni le week-end",
+                                    "Bloque les virements entre 19 h et 7 h, ni le week-end"])
+def test_plage_qui_passe_minuit_ni_le_week_end(client, phrase):
+    a = politiques.analyser(phrase)
+    assert a["comprise"] and a["non_traduit"] == []
+    r = a["regle"]
+    assert (r["agent"], r["action"], r["condition"], r["autres"], r["lien"]) == (
+        "*", "virement", {"type": "plage", "debut": 19, "fin": 7}, [{"type": "week_end"}], "ou")
+    assert "faire de virement entre 19 h et 7 h, ni le week-end" in a["texte"]
+    _activer(client, phrase)
+    assert _verdict(client, MARDI_NUIT, montant=10) == "bloquer"
+    assert _verdict(client, SAMEDI_JOUR, montant=10) == "bloquer"
+    assert _verdict(client, MARDI_JOUR, montant=10) == "aucune"
+    mail = client.post("/api/politiques/evaluer", json={
+        "agent": "orbis-assistant", "outil": "envoyer_rapport", "scope": "rapport:envoyer",
+        "horodatage": MARDI_NUIT}).json()
+    assert mail["verdict"] == "aucune"  # des virements restent des virements
+
+
+def test_le_week_end_seul(client):
+    _activer(client, "Aucun agent ne fait de virement le week-end.")
+    assert _verdict(client, SAMEDI_JOUR, montant=10) == "bloquer"
+    assert _verdict(client, MARDI_NUIT, montant=10) == "aucune"
+
+
+def test_au_dessus_de_10_000_euros(client):
+    a = politiques.analyser("Aucun agent ne fait de virement au-dessus de 10 000 €")
+    assert a["regle"]["condition"] == {"type": "montant_max", "max": 10000.0} and a["non_traduit"] == []
+    _activer(client, "Aucun agent ne fait de virement au-dessus de 10 000 €")
+    assert _verdict(client, MARDI_JOUR, montant=12000) == "bloquer"
+    assert _verdict(client, MARDI_JOUR, montant=9000) == "aucune"
+
+
+def test_montant_et_week_end_cumules(client):
+    phrase = "L'agent de rapprochement ne fait jamais de virement de plus de 1 000 € le week-end"
+    a = politiques.analyser(phrase)
+    assert a["regle"]["lien"] == "et" and a["regle"]["autres"] == [{"type": "week_end"}]
+    _activer(client, phrase)
+    assert _verdict(client, SAMEDI_JOUR, montant=2000) == "bloquer"
+    assert _verdict(client, SAMEDI_JOUR, montant=500) == "aucune"
+    assert _verdict(client, MARDI_JOUR, montant=2000) == "aucune"
+
+
+def test_iban_change_dit_qu_il_n_est_pas_traduit():
+    a = politiques.analyser("Aucun agent ne fait de virement si l'IBAN a changé")
+    assert a["non_traduit"] == ["si l'IBAN a changé"]
+    assert "Je n'ai pas su traduire : « si l'IBAN a changé »" in a["texte"]
+    assert a["texte"].endswith("La règle n'en tiendra pas compte. Activer quand même ?")
+
+
+def test_couverture_repere_une_inversion():
+    phrase = "Bloque les virements entre 19 h et 7 h"
+    inversee = politiques.valider({"agent": "*", "action": "envoyer", "effet": "bloquer",
+                                   "condition": {"type": "plage", "debut": 7, "fin": 19}})
+    cov = politiques.couverture(phrase, inversee)
+    assert "entre 19 h et 7 h" in cov["contradictions"]
+    assert cov["contradictions"][0] == "faire un virement"
+
+
+# ------------------------------------------------------------------ tentative bloquée visible
+def test_droit_retire_ouvre_un_incident_avec_sa_chaine(client):
+    _activer_mp(client)
+    client.post("/api/evenements", json=evenement(
+        session_id="S-att", source="interne", surface="mail", type="entree_agent",
+        horodatage=horo(BASE, 0), details={"agent": "orbis-assistant", "texte": "rapport fournisseurs"}))
+    client.post("/api/evenements", json=evenement(
+        session_id="S-att", source="interne", surface="outil", type="appel_outil", outil="chercher_document",
+        horodatage=horo(BASE, 1), details={"agent": "orbis-assistant", "verdict": "autorise",
+                                           "scope_requis": "document:lire"}))
+    rep = client.post("/api/evenements", json=evenement(
+        session_id="S-att", source="interne", surface="outil", type="appel_outil", outil="lire_coffre",
+        horodatage=horo(BASE, 2), details={"agent": "orbis-assistant", "verdict": "refuse",
+                                           "droit_retire": "coffre:lire",
+                                           "raison": "droit coffre:lire retiré par l’analyste"})).json()
+    assert rep["consigne"] == "aucune"  # l'agent n'est pas suspendu, sa tâche continue
+    inc = client.get("/api/incidents").json()["incidents"][0]
+    assert inc["type"] == "interne_politique" and inc["gravite"] == "moyenne"
+    assert inc["titre"] == ("Tentative bloquée : l'agent de tri des mails a voulu ouvrir le coffre, "
+                            "droit retiré par la règle n°1")
+    assert "L'agent poursuit sa tâche" in inc["resume"]
+    detail = client.get(f"/api/incidents/{inc['id']}").json()
+    etapes = [e.get("etape") for e in detail["chaine"]]
+    assert "regle" in etapes and len(detail["chaine"]) >= 2
+    m = next(e for e in detail["chaine"] if e.get("etape") == "regle")
+    assert m["titre"] == "Tentative bloquée : ouvrir le coffre, droit retiré par la règle n°1"
+    assert "droit coffre:lire retiré par la règle n°1" in m["detail"]
+    assert client.get("/api/politiques").json()["politiques"][0]["declenchements"] == 1

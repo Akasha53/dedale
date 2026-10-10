@@ -1375,3 +1375,27 @@ Chaque incident d'un salarié porte `relecteur` (`null` si aucun geste n'a été
 - Boîte noire : l'étape `action_risquee` d'un virement ou d'un export dit « le salarié demande un virement, geste critique soumis à double validation » (ou « un mail jugé frauduleux réclame un virement »), plus « lien de phishing ». La relecture ajoute une étape `consequence` : « relu par Dédale : refusé, le geste n'a pas eu lieu » (ou accordé, ou retenu).
 - `GET /api/incidents/{id}/synthese` suit le geste et son état : « Un salarié a demandé un virement, puis Dédale l'a suspendu pour une double validation. Le relecteur de Dédale l'a refusé : le geste n'a pas eu lieu. » Le conseil suit le relecteur et le suivi de l'analyste.
 - Console (`salarie/lecture.ts`) : genres `virement` et `export` tirés de `details.geste` ; la dernière étape « Suite » reprend l'état du backend au lieu de « le geste a abouti malgré l'alerte ».
+
+## Avenant du 10 octobre 2026 : règles fidèles à la phrase, tentatives bloquées visibles
+
+Retours d'un testeur RSSI sur le commit 7738d40. Fichiers : `backend/app/politiques.py`, `agent_regles.py`, `gouvernance.py`.
+
+### Plusieurs conditions dans une règle
+
+- Une règle porte, en plus de `condition`, jusqu'à trois conditions dans `autres` et un `lien` : `"ou"` (chacune suffit) ou `"et"` (toutes doivent être vraies). Les règles existantes valent `autres: []`, `lien: "et"`.
+- « Bloque les virements entre 19 h et 7 h, ni le week-end » : `plage` 19-7 (une plage qui passe minuit est vraie de 19 h à 7 h), `autres: [week_end]`, `lien: "ou"`. Énoncé : « aucun agent ne doit faire de virement entre 19 h et 7 h, ni le week-end ». « plus de 1 000 € le week-end » : `montant_max` et `week_end`, `lien: "et"`.
+- Les motifs lisent ces combinaisons : une quantité (montant, plafond) ou un destinataire externe, plus une condition de temps (`et`) ; deux conditions de temps (`ou`). Une phrase sans agent nommé, mais avec une action et un effet clairs (« Bloque les virements… »), vise tous les agents.
+- `evaluer` combine les conditions selon `lien` ; le constat cite celle qui a joué (`ou`) ou toutes (`et`).
+
+### Rien de perdu sans le dire
+
+- `politiques.couverture(phrase, regle)` relit la phrase : plage horaire, « après/avant N h », nuit, heures ouvrées, week-end, jour précis, montant, volume, destinataire externe, IBAN, bénéficiaire, et l'action. Elle rend `non_traduit` (absent de la règle), `contradictions` (la règle dit autre chose : heures ou montant différents, virements devenus des mails) et `couverts`.
+- Le moteur n'applique pas l'IBAN qui change, le bénéficiaire ni un jour précis : ils sont toujours dans `non_traduit`. La reformulation le dit : « Je n'ai pas su traduire : « si l'IBAN a changé ». La règle n'en tiendra pas compte. Activer quand même ? » (« Appliquer quand même ? » par l'agent des règles). La réponse porte `non_traduit`.
+- Agent des règles : une proposition qui contredit la phrase, ou qui laisse tomber une partie que le moteur sait appliquer sans l'avoir mise dans `non_traduit`, est refusée par l'outil avec la raison ; l'agent corrige dans son budget. Le schéma de chaque appel ajoute `autres` (conditions), `lien` et `non_traduit`. Une note du modèle sur une partie déjà traduite est écartée.
+- Si aucune règle fidèle n'est trouvée : `comprise: false`, `regle: null`, texte « Je n'ai pas su traduire cette phrase sans en perdre ou en changer une partie : « faire un virement », « entre 19 h et 7 h ». Rien n'est proposé. Reformulez, ou découpez la règle en plusieurs phrases. » Les motifs suivent la même règle.
+
+### Tentative bloquée pour droit retiré
+
+- Un appel refusé pour droit retiré (`details.droit_retire`, posé par la passerelle) reçoit à l'ingestion `details.politique = {id, numero, effet: "droit_retire", droit, texte, enonce, constat}` : la règle de moindre privilège qui a retiré le droit, ou à défaut le correctif d'incident (`id` vide, `constat` « … depuis l'incident INC-… »). Fait avant le scellement de l'événement.
+- Il ouvre un incident `interne_politique` de gravité `moyenne`, sans suspendre l'agent : « Tentative bloquée : l'agent de tri des mails a voulu ouvrir le coffre, droit retiré par la règle n°2 ». Résumé : « Tentative bloquée (1) : ouvrir le coffre, droit retiré par la règle n°2. L'agent poursuit sa tâche. » La boîte noire garde toute la session, document source compris, et ajoute le maillon « Tentative bloquée : ouvrir le coffre, droit retiré par la règle n°2 ». Ces refus comptent dans `declenchements` de la règle.
+- Les canaris et le désarmeur remontent toujours ce qu'ils voient. Vérifié sur backend isolé : `orbis.demo --scenario jury` après le retrait des droits ouvre INC-0001 (`interne_politique`, 7 étapes : entrée, document source, consigne cachée C-3E58, tentative bloquée, envoi du rapport), et avec `--desarmeur` INC-0002 (`interne_desarme`).

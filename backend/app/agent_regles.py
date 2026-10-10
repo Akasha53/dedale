@@ -250,10 +250,13 @@ def _id_regle(valeur) -> str:
 
 
 def _appliquer(texte: str) -> str:
-    return texte[:-len("Activer ?")] + "Appliquer ?" if texte.endswith("Activer ?") else texte
+    for fin, nouvelle in (("Activer quand même ?", "Appliquer quand même ?"), ("Activer ?", "Appliquer ?")):
+        if texte.endswith(fin):
+            return texte[:-len(fin)] + nouvelle
+    return texte
 
 
-_COEUR = ("agent", "sauf", "action", "condition", "effet")
+_COEUR = ("agent", "sauf", "action", "condition", "effet", "autres", "lien")
 
 
 class Outils:
@@ -262,6 +265,31 @@ class Outils:
     def __init__(self, store, phrase: str) -> None:
         self.store = store
         self.phrase = phrase
+        # Parties de la phrase que la dernière proposition refusée contredisait.
+        self.contradictions: list[str] = []
+
+    def _verifier(self, regle: dict, champs: dict) -> list[str]:
+        """Parties non traduites (dites dans la reformulation). Lève ValueError si la règle
+        contredit la phrase : l'agent reçoit la raison et peut corriger dans son budget."""
+        cov = politiques.couverture(self.phrase, regle)
+        # Ce que le modèle dit ne pas avoir traduit, moins ce que la règle porte bel et bien.
+        declares = [d for d in politiques.non_traduit_du_modele(champs)
+                    if not any(politiques._aligne(c) in politiques._aligne(d) for c in cov["couverts"])]
+        dit = " | ".join(politiques._aligne(d) for d in declares)
+        oublis = [f for f in cov["applicables"] if politiques._aligne(f) not in dit]
+        if cov["contradictions"]:
+            self.contradictions = cov["contradictions"]
+            raise ValueError("La proposition ne dit pas ce que dit la phrase : "
+                             + politiques._liste(cov["contradictions"])
+                             + ". Corrige l'action, les heures ou le montant, ou recopie cette "
+                               "partie dans non_traduit si le moteur ne sait pas l'appliquer.")
+        if oublis:
+            self.contradictions = oublis
+            raise ValueError("La proposition laisse tomber : " + politiques._liste(oublis)
+                             + ". Ajoute-les (condition, ou autres avec lien), ou recopie-les "
+                               "dans non_traduit.")
+        self.contradictions = []
+        return list(dict.fromkeys(cov["non_traduit"] + declares))
 
     def _base(self, intention: str) -> dict:
         return {"phrase": politiques._court(self.phrase), "mode": "modele", "compris_par": "modèle",
@@ -292,10 +320,12 @@ class Outils:
 
     def proposer_regle(self, **champs) -> dict:
         regle = politiques.regle_depuis_champs(champs)
+        manque = self._verifier(regle, champs)
         return {"proposition": {
             **self._base("regle"), "regle": politiques.decrire(regle),
-            "forme": politiques._forme(regle),
-            "texte": _appliquer(politiques.reformulation(regle)),
+            "forme": politiques._forme(regle), "non_traduit": manque,
+            "texte": _appliquer(politiques.reformulation(regle, manque)),
+            "question": "Appliquer quand même ?" if manque else "Appliquer ?",
             "changement": {"type": "creation"}}}
 
     def proposer_modification(self, id=None, **champs) -> dict:
@@ -303,14 +333,20 @@ class Outils:
         if ancienne.get("intention") == politiques.MOINDRE:
             raise ValueError("Une règle de retrait des droits ne se modifie pas : propose son retrait.")
         regle = politiques.regle_depuis_champs(champs)
-        if all(regle.get(k) == ancienne.get(k) for k in _COEUR):
+        if all(regle.get(k) == ancienne.get(k, [] if k == "autres" else "et" if k == "lien" else None)
+               for k in _COEUR):
             raise ValueError(f"La règle proposée est identique à la règle n°{ancienne['numero']}.")
+        manque = self._verifier(regle, champs)
         effet = politiques._EFFET_TEXTE[regle["effet"]]
+        note = (f" Je n'ai pas su traduire : {politiques._liste(manque)}. La règle n'en tiendra pas compte."
+                if manque else "")
         texte = (f"Voilà ce que j'ai compris : la règle n°{ancienne['numero']} "
-                 f"({ancienne.get('enonce')}) devient : {politiques.enonce(regle)}. {effet} Appliquer ?")
+                 f"({ancienne.get('enonce')}) devient : {politiques.enonce(regle)}. {effet}{note} "
+                 + ("Appliquer quand même ?" if manque else "Appliquer ?"))
         return {"proposition": {
             **self._base("regle"), "regle": {**politiques.decrire(regle), "remplace": ancienne["id"]},
-            "forme": politiques._forme(regle), "texte": texte,
+            "forme": politiques._forme(regle), "texte": texte, "non_traduit": manque,
+            "question": "Appliquer quand même ?" if manque else "Appliquer ?",
             "changement": {"type": "modification", "id": ancienne["id"], "numero": ancienne["numero"],
                            "avant": ancienne.get("enonce")}}}
 
@@ -345,6 +381,7 @@ class Outils:
 
 
 def _parametres(nom, appel: dict) -> dict:
+    """Champs utiles à chaque outil, pris dans l'appel plat du modèle."""
     if nom == "proposer_regle":
         return {k: appel.get(k) for k in politiques.CHAMPS_REGLE}
     if nom == "proposer_modification":
@@ -362,6 +399,16 @@ def _parametres(nom, appel: dict) -> dict:
 # ------------------------------------------------------------------ modèle
 def schema() -> dict:
     ids = politiques.agents_cibles()
+    condition = {
+        "type": "object",
+        "properties": {
+            "condition": {"type": "string", "enum": list(politiques.CONDITIONS)},
+            "debut": {"type": "integer"}, "fin": {"type": "integer"},
+            "jours_ouvres": {"type": "boolean"}, "max": {"type": "number"}, "unite": {"type": "string"},
+        },
+        "required": list(politiques.CHAMPS_CONDITION),
+        "additionalProperties": False,
+    }
     appel = {
         "type": "object",
         "properties": {
@@ -377,6 +424,9 @@ def schema() -> dict:
             "max": {"type": "number"},
             "unite": {"type": "string"},
             "effet": {"type": "string", "enum": [*politiques.EFFETS, "aucun"]},
+            "autres": {"type": "array", "items": condition},
+            "lien": {"type": "string", "enum": ["et", "ou"]},
+            "non_traduit": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["outil", "id", *politiques.CHAMPS_REGLE],
         "additionalProperties": False,
@@ -405,8 +455,10 @@ Réponds par la liste des appels d'outils à faire maintenant. Outils :
 - proposer_retrait : id de la règle à retirer.
 - proposer_retrait_droits : agents visés (["*"] pour tous). Retire les droits dont leur tâche n'a pas besoin. Tu ne choisis pas les droits : Dédale les lit dans son inventaire.
 - {FIN} : la phrase ne demande aucun changement de règle.
-effet : "bloquer" (interdire), "retenir" (attendre la validation du SOC) ou "alerter" (prévenir sans bloquer). condition : "toujours", "destinataire_externe" (hors du domaine orbispay.example), "hors_heures" (debut, fin, jours_ouvres), "plage" (debut, fin), "week_end", "plafond" (max, unite au pluriel en minuscules sans accent) ou "montant_max" (max en euros).
-Remplis tous les champs de chaque appel ; ceux qui ne servent pas valent "", "aucun", "aucune", "toujours", 0, false ou [].
+effet : "bloquer" (interdire), "retenir" (attendre la validation du SOC) ou "alerter" (prévenir sans bloquer). condition : "toujours", "destinataire_externe" (hors du domaine orbispay.example), "plage" (l'action est visée de debut à fin ; une plage peut passer minuit : « entre 19 h et 7 h » donne debut 19, fin 7), "hors_heures" (l'action est visée en dehors de debut-fin ; jours_ouvres vrai ajoute le week-end : « que pendant les heures ouvrées » donne debut 9, fin 18), "week_end", "plafond" (max, unite au pluriel en minuscules sans accent) ou "montant_max" (max en euros : « au-dessus de 10 000 € » donne 10000).
+Une règle peut porter jusqu'à trois conditions de plus dans "autres", reliées à la première par "lien" : "ou" quand chacune suffit (« entre 19 h et 7 h, ni le week-end » : plage 19-7, autres [week_end], lien "ou"), "et" quand elles doivent toutes être vraies (« plus de 10 000 € le week-end » : montant_max, autres [week_end], lien "et").
+Ne laisse jamais tomber une partie de la phrase. Ce que le moteur ne sait pas appliquer (un IBAN qui change, un bénéficiaire, un jour précis comme le lundi, une combinaison impossible) se recopie mot pour mot dans "non_traduit", sans commentaire : Dédale le dira à l'analyste. Ce que tu as traduit n'y va pas. Garde l'action de la phrase : des virements restent des virements, jamais des mails.
+Remplis tous les champs de chaque appel ; ceux qui ne servent pas valent "", "aucun", "aucune", "toujours", "et", 0, false ou [].
 
 Budget : {MAX_APPELS} appels et {duree_max():g} secondes en tout, puis ta session se ferme. Pour une nouvelle règle, appelle directement proposer_regle. Le premier proposer_* accepté termine la session ; s'il est refusé, le résultat dit pourquoi.
 
@@ -505,4 +557,5 @@ async def traiter(phrase: str, store, moteur: str) -> dict:
                           else "réponse du modèle absente ou hors format")
     finally:
         passerelle.fermer(etat["raison"])
-    return {"analyse": etat["analyse"], "session": passerelle.resume()}
+    return {"analyse": etat["analyse"], "session": passerelle.resume(),
+            "contradictions": [] if etat["analyse"] else list(outils.contradictions)}

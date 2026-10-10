@@ -102,7 +102,7 @@ _SAUF = re.compile(r"\b(?:sauf|excepte|hormis|a part|a l'exception de)\b(.*)")
 
 _ACTIONS_MOTIFS = [
     ("lire_coffre", r"\bcoffre|\bcles? d'api\b|\bmots? de passe\b|\bsecrets?\b"),
-    ("virement", r"\bvirements?\b|\bpaiements?\b|\bpayer\b|\bpaye\b|\bvirer\b"),
+    ("virement", r"\bvirements?\b|\bpaiements?\b|\bpayer\b|\bpaye\b|\bvirer\b|\btransferts? d'argent\b"),
     ("exporter", r"\bexport"),
     ("outil_mcp", r"\bmcp\b|\boutils? externes?\b"),
     ("ecrire_memoire", r"\bmemoire\b"),
@@ -226,6 +226,39 @@ def _trouver_condition(t: str, action: str | None) -> dict:
     return {"type": "toujours"}
 
 
+_TEMPORELLES = ("hors_heures", "plage", "week_end")
+
+
+def _trouver_conditions(t: str, action: str | None) -> tuple[list[dict], str]:
+    """Toutes les conditions que les motifs savent lire, et leur lien.
+
+    Une quantité (montant, plafond) et un destinataire externe se cumulent (« et ») ; deux
+    conditions de temps s'additionnent (« la nuit, ni le week-end » : « ou »). Une quantité et
+    deux conditions de temps à la fois ne s'écrivent pas : la seconde reste hors de la règle, et
+    `couverture` le dira dans la reformulation."""
+    principale = _trouver_condition(t, action)
+    t_sans_mcp = re.sub(r"\boutils? (?:mcp )?externes?\b|\bmcp externes?\b", " ", t) if action == "outil_mcp" else t
+    autres: list[dict] = []
+    vus = {principale["type"]}
+    if principale["type"] in ("montant_max", "plafond") and _EXTERNE.search(t_sans_mcp):
+        autres.append({"type": "destinataire_externe", "domaine": DOMAINE})
+        vus.add("destinataire_externe")
+    if principale["type"] not in _TEMPORELLES:
+        temps = _trouver_condition(re.sub(_MONTANT.pattern + "|" + _PLAFOND.pattern + "|" + _EXTERNE.pattern,
+                                          " ", t_sans_mcp), None)
+        if temps["type"] in _TEMPORELLES:
+            autres.append(temps)
+            vus.add(temps["type"])
+    temporelles = [c for c in [principale, *autres] if c["type"] in _TEMPORELLES]
+    deja_ouvres = any(c["type"] == "hors_heures" and c.get("jours_ouvres") for c in temporelles)
+    if "week_end" not in vus and _WEEK_END.search(t) and not deja_ouvres and len(temporelles) == 1 \
+            and len([principale, *autres]) == 1:
+        autres.append({"type": "week_end"})
+    conds = [c for c in [principale, *autres] if c["type"] != "toujours"] or [{"type": "toujours"}]
+    lien = "ou" if conds and all(c["type"] in _TEMPORELLES for c in conds) and len(conds) > 1 else "et"
+    return conds, lien
+
+
 def _trouver_effet(t: str) -> str | None:
     t = re.sub(r"sans (?:le |la |l'|les )?bloquer", " ", t)
     if _BLOQUER.search(t):
@@ -279,10 +312,29 @@ def _condition_texte(cond: dict) -> str:
     return ""
 
 
+def conditions_de(regle: dict) -> list[dict]:
+    return [regle["condition"], *(regle.get("autres") or [])]
+
+
+def texte_conditions(regle: dict, negatif: bool = False) -> str:
+    """« entre 19 h et 7 h, ni le samedi ou le dimanche » (ou), « de plus de 10 000 € le samedi
+    ou le dimanche » (et)."""
+    ou = regle.get("lien") == "ou" and len(conditions_de(regle)) > 1
+    morceaux = [" le week-end" if (ou and c["type"] == "week_end") else _condition_texte(c)
+                for c in conditions_de(regle)]
+    morceaux = [m for m in morceaux if m]
+    if not morceaux:
+        return ""
+    if ou and len(morceaux) > 1:
+        sep = ", ni" if negatif else " ou"
+        return morceaux[0] + "".join(sep + m for m in morceaux[1:])
+    return "".join(morceaux)
+
+
 def enonce(regle: dict) -> str:
     """La règle dite en une phrase simple, sans le texte libre de l'analyste."""
     action = ACTIONS[regle["action"]]
-    cond = _condition_texte(regle["condition"])
+    cond = texte_conditions(regle, negatif=regle["effet"] == "bloquer")
     agent, sauf, effet = regle["agent"], regle.get("sauf"), regle["effet"]
     if effet == "bloquer":
         if agent == "*" and sauf:
@@ -314,8 +366,17 @@ def _majuscule(texte: str) -> str:
     return texte[:1].upper() + texte[1:]
 
 
-def reformulation(regle: dict) -> str:
-    return f"Voilà ce que j'ai compris : {enonce(regle)}. {_EFFET_TEXTE[regle['effet']]} Activer ?"
+def _liste(fragments: list[str]) -> str:
+    return ", ".join(f"« {f} »" for f in fragments)
+
+
+def reformulation(regle: dict, non_traduit: list[str] | None = None) -> str:
+    """Ce que Dédale a compris. Ce qu'il n'a pas su traduire est dit, jamais tu."""
+    texte = f"Voilà ce que j'ai compris : {enonce(regle)}. {_EFFET_TEXTE[regle['effet']]}"
+    if non_traduit:
+        return (f"{texte} Je n'ai pas su traduire : {_liste(non_traduit)}. La règle n'en tiendra pas "
+                "compte. Activer quand même ?")
+    return f"{texte} Activer ?"
 
 
 def _court(texte: object, limite: int = 300) -> str:
@@ -553,6 +614,132 @@ def analyser_moindre(agents: list[str], phrase: str, store=None, par: str = "mot
             "rien_a_retirer": False}
 
 
+# ------------------------------------------------------------------ couverture
+# Ce que la phrase demande et que la règle doit porter. Lu sur un texte de même longueur que la
+# phrase (minuscules, accents ôtés lettre à lettre) pour citer la phrase telle qu'écrite.
+_H = r"(\d{1,2})\s?h(?:\s?\d{2})?"
+_C_ENTRE = re.compile(rf"\b(?:entre|de)\s+{_H}\s+(?:et|a|jusqu'a)\s+{_H}")
+_C_APRES = re.compile(rf"\b(?:apres|a partir de|des)\s+{_H}")
+_C_AVANT = re.compile(rf"\bavant\s+{_H}")
+_C_NUIT = re.compile(r"\b(?:la|de)\s+nuit\b|\ble\s+soir\b")
+_C_OUVREES = re.compile(r"heures\s+(?:ouvrees|ouvrables|de\s+bureau|de\s+travail)|horaires\s+de\s+bureau|"
+                        r"\ben\s+semaine\b|\bdu\s+lundi\s+au\s+vendredi\b")
+_C_WEEK_END = re.compile(r"\bweek-?\s?ends?\b|\bsamedis?\b|\bdimanches?\b")
+_C_JOUR = re.compile(r"\b(?:le|les|chaque)\s+(?:lundi|mardi|mercredi|jeudi|vendredi)s?\b|\bjours?\s+feries?\b")
+_C_MONTANT = re.compile(r"(\d[\d\s.,]*\d|\d)\s?(k\s?€|k\s?euros?|€|euros?\b|eur\b)")
+_C_VOLUME = re.compile(r"(\d[\d\s.]*\d|\d)\s?(lignes?|contacts?|enregistrements?|elements?|clients?|"
+                       r"mails?|fichiers?|documents?|releves?)\b")
+_C_SI = r"(?:\b(?:si|quand|lorsque|des que)\s+(?:l'|le\s+|la\s+|les\s+|un\s+|une\s+)?)?"
+_C_IBAN = re.compile(_C_SI + r"(?:\biban\b|\brib\b|\bcoordonnees\s+bancaires\b)[^,.;]*")
+_C_BENEF = re.compile(_C_SI + r"(?:\bbeneficiaires?\b[^,.;]*|\bnouveaux?\s+fournisseurs?\b|"
+                      r"\bfournisseurs?\s+(?:inconnus?|nouveaux?)\b)")
+
+
+def _aligne(phrase: str) -> str:
+    """Minuscules, apostrophes droites, accents ôtés lettre à lettre : même longueur."""
+    sortie = []
+    for c in phrase or "":
+        c = "'" if c in "’‘" else " " if c in "\u00a0\u202f" else c
+        base = "".join(x for x in unicodedata.normalize("NFKD", c.lower()) if not unicodedata.combining(x))
+        sortie.append(base if len(base) == 1 else c.lower())
+    return "".join(sortie)
+
+
+def couverture(phrase: str, regle: dict) -> dict:
+    """Parties de la phrase que la règle ne porte pas (`non_traduit`) ou contredit
+    (`contradictions`) : plage horaire, jour, montant, volume, destinataire, IBAN, bénéficiaire,
+    action. Une partie que le moteur ne sait pas appliquer (IBAN, bénéficiaire, jour précis) est
+    toujours non traduite."""
+    t = _aligne(phrase)
+    conds = conditions_de(regle) if regle.get("condition") else []
+    par_type = {typ: [c for c in conds if c["type"] == typ] for typ in CONDITIONS}
+    horaires = par_type["plage"] + par_type["hors_heures"]
+    manques: list[str] = []
+    couverts: list[str] = []
+    applicables: list[str] = []
+    contradictions: list[str] = []
+    pris: list[tuple[int, int]] = []
+
+    def frag(m) -> str:
+        return " ".join(phrase[m.start():m.end()].split()).strip(" ,.;")
+
+    def libre(m) -> bool:
+        return not any(a < m.end() and m.start() < b for a, b in pris)
+
+    def noter(m, ok: bool, contredit: bool, applicable: bool = True) -> None:
+        pris.append((m.start(), m.end()))
+        if ok:
+            couverts.append((m.start(), frag(m)))
+        if contredit:
+            contradictions.append((m.start(), frag(m)))
+        elif not ok:
+            manques.append((m.start(), frag(m)))
+            if applicable:
+                applicables.append((m.start(), frag(m)))
+
+    def accord(m, debut=None, fin=None) -> None:
+        bons = [c for c in horaires
+                if (debut is None or c["debut"] == debut % 24) and (fin is None or c["fin"] == fin % 24)]
+        noter(m, bool(bons), bool(horaires) and not bons)
+
+    for m in _C_ENTRE.finditer(t):
+        accord(m, int(m.group(1)), int(m.group(2)))
+    for m in _C_APRES.finditer(t):
+        if libre(m):
+            h = int(m.group(1)) % 24
+            noter(m, any((c["type"] == "plage" and c["debut"] == h) or
+                         (c["type"] == "hors_heures" and c["fin"] == h) for c in horaires),
+                  bool(horaires) and not any(c["debut"] == h or c["fin"] == h for c in horaires))
+    for m in _C_AVANT.finditer(t):
+        if libre(m):
+            h = int(m.group(1)) % 24
+            noter(m, any((c["type"] == "plage" and c["fin"] == h) or
+                         (c["type"] == "hors_heures" and c["debut"] == h) for c in horaires),
+                  bool(horaires) and not any(c["debut"] == h or c["fin"] == h for c in horaires))
+    for m in _C_NUIT.finditer(t):
+        noter(m, bool(horaires), False)
+    for m in _C_OUVREES.finditer(t):
+        noter(m, bool(par_type["hors_heures"]) or bool(par_type["plage"]), False)
+    for m in _C_WEEK_END.finditer(t):
+        if libre(m):
+            noter(m, bool(par_type["week_end"]) or any(c.get("jours_ouvres") for c in par_type["hors_heures"]), False)
+    for m in _C_JOUR.finditer(t):
+        if libre(m):
+            noter(m, False, False, applicable=False)
+    for m in _C_MONTANT.finditer(t):
+        valeur = _nombre(m.group(1)) or 0
+        if m.group(2).startswith("k"):
+            valeur *= 1000
+        bons = [c for c in par_type["montant_max"] if abs(c["max"] - valeur) <= max(1.0, valeur * 0.005)]
+        noter(m, bool(bons), bool(par_type["montant_max"]) and not bons)
+    for m in _C_VOLUME.finditer(t):
+        n = int(_nombre(m.group(1)) or 0)
+        bons = [c for c in par_type["plafond"] if c["max"] == n]
+        noter(m, bool(bons), bool(par_type["plafond"]) and not bons)
+    m = _EXTERNE.search(t)
+    if m and regle.get("action") != "outil_mcp":
+        noter(m, bool(par_type["destinataire_externe"]), False)
+    for motif in (_C_IBAN, _C_BENEF):
+        for m in motif.finditer(t):
+            if libre(m):
+                noter(m, False, False, applicable=False)
+    attendue = _trouver_action(_normaliser(phrase))
+    if attendue and attendue != "tout" and regle.get("action") not in (attendue, None):
+        contradictions.append((-1, ACTIONS[attendue]["libelle"]))
+
+    def ranger(liste: list[tuple[int, str]]) -> list[str]:  # dans l'ordre de la phrase
+        return list(dict.fromkeys(f for _i, f in sorted(liste)))
+
+    return {"non_traduit": ranger(manques), "applicables": ranger(applicables),
+            "contradictions": ranger(contradictions), "couverts": ranger(couverts)}
+
+
+def texte_intraduisible(fragments: list[str]) -> str:
+    return (f"Je n'ai pas su traduire cette phrase sans en perdre ou en changer une partie : "
+            f"{_liste(fragments)}. Rien n'est proposé. Reformulez, ou découpez la règle en "
+            "plusieurs phrases.")
+
+
 # --------------------------------------------------------------------- analyse
 def valider(regle: dict) -> dict:
     """Valide une règle structurée (venue de l'analyseur, du modèle ou de la console) et la
@@ -573,7 +760,22 @@ def valider(regle: dict) -> dict:
     effet = regle.get("effet")
     if effet not in EFFETS:
         raise ValueError("L'effet doit valoir bloquer, retenir ou alerter.")
-    cond = regle.get("condition") or {"type": "toujours"}
+    propre = _valider_condition(regle.get("condition") or {"type": "toujours"})
+    autres = regle.get("autres") or []
+    if not isinstance(autres, list) or len(autres) > 3:
+        raise ValueError("Trois conditions supplémentaires au plus.")
+    autres = [_valider_condition(c) for c in autres]
+    autres = [c for c in autres if c["type"] != "toujours"]
+    if propre["type"] == "toujours" and autres:
+        propre, autres = autres[0], autres[1:]
+    lien = regle.get("lien") or "et"
+    if lien not in ("et", "ou"):
+        raise ValueError("Le lien entre conditions vaut « et » ou « ou ».")
+    return {"agent": agent, "sauf": sauf, "action": action, "condition": propre, "effet": effet,
+            "autres": autres, "lien": lien if autres else "et"}
+
+
+def _valider_condition(cond) -> dict:
     if not isinstance(cond, dict) or cond.get("type") not in CONDITIONS:
         raise ValueError("Condition inconnue.")
     propre: dict = {"type": cond["type"]}
@@ -596,7 +798,7 @@ def valider(regle: dict) -> dict:
             raise ValueError
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("Condition mal formée.") from exc
-    return {"agent": agent, "sauf": sauf, "action": action, "condition": propre, "effet": effet}
+    return propre
 
 
 def _exemples() -> list[str]:
@@ -611,6 +813,8 @@ def analyser(phrase: str, store=None) -> dict:
     agent, sauf = _trouver_agent(t)
     action = _trouver_action(t)
     effet = _trouver_effet(t)
+    if agent is None and action is not None and effet is not None:
+        agent = "*"  # « Bloque les virements la nuit » : aucun agent nommé, la règle vaut pour tous
     manques = []
     if agent is None:
         manques.append("agent")
@@ -627,10 +831,18 @@ def analyser(phrase: str, store=None) -> dict:
                 "manques": manques,
                 "texte": ("Je n'ai pas compris " + " ni ".join(quoi[m] for m in manques) +
                           ". Exemple de phrase comprise : « " + FORMES["hors_entreprise"] + " »")}
-    regle = valider({"agent": agent, "sauf": sauf, "action": action,
-                     "condition": _trouver_condition(t, action), "effet": effet})
+    conds, lien = _trouver_conditions(t, action)
+    regle = valider({"agent": agent, "sauf": sauf, "action": action, "condition": conds[0],
+                     "autres": conds[1:], "lien": lien, "effet": effet})
+    cov = couverture(phrase, regle)
+    if cov["contradictions"]:
+        return {**base, "comprise": False, "compris_par": None, "regle": None, "forme": None,
+                "manques": ["traduction"], "non_traduit": cov["contradictions"],
+                "texte": texte_intraduisible(cov["contradictions"])}
     return {**base, "comprise": True, "regle": decrire(regle), "forme": _forme(regle),
-            "manques": [], "texte": reformulation(regle), "question": "Activer ?"}
+            "manques": [], "non_traduit": cov["non_traduit"],
+            "texte": reformulation(regle, cov["non_traduit"]),
+            "question": "Activer quand même ?" if cov["non_traduit"] else "Activer ?"}
 
 
 def decrire(regle: dict) -> dict:
@@ -643,7 +855,7 @@ def decrire(regle: dict) -> dict:
         "action_libelle": action["libelle"],
         "droits": list(action["droits"]),
         "outils": list(action["outils"]),
-        "condition_libelle": _condition_texte(regle["condition"]).strip() or "toujours",
+        "condition_libelle": texte_conditions(regle).strip() or "toujours",
         "enonce": enonce(regle),
     }
 
@@ -693,7 +905,30 @@ def _nom_modele() -> str:
 
 # Champs d'une règle tels que le modèle les remplit (schéma plat, voir agent_regles.py).
 CHAMPS_REGLE = ("agents", "sauf", "action", "condition", "debut", "fin", "jours_ouvres", "max",
-                "unite", "effet")
+                "unite", "effet", "autres", "lien", "non_traduit")
+CHAMPS_CONDITION = ("condition", "debut", "fin", "jours_ouvres", "max", "unite")
+
+
+def _condition_depuis_champs(obj: dict) -> dict:
+    typ = obj.get("condition")
+    cond: dict = {"type": typ}
+    if typ in ("hors_heures", "plage"):
+        cond.update(debut=obj.get("debut"), fin=obj.get("fin"))
+        if typ == "hors_heures":
+            cond["jours_ouvres"] = obj.get("jours_ouvres")
+    elif typ == "plafond":
+        cond.update(max=obj.get("max"), unite=_normaliser(str(obj.get("unite") or "lignes")))
+    elif typ == "montant_max":
+        cond["max"] = obj.get("max")
+    return cond
+
+
+def non_traduit_du_modele(obj: dict) -> list[str]:
+    """Ce que le modèle dit ne pas avoir su traduire : du texte de la phrase, borné."""
+    brut = obj.get("non_traduit") if isinstance(obj, dict) else None
+    if not isinstance(brut, list):
+        return []
+    return [_court(x, 120) for x in brut[:5] if isinstance(x, str) and x.strip()]
 
 
 def regle_depuis_champs(obj: dict) -> dict:
@@ -705,19 +940,15 @@ def regle_depuis_champs(obj: dict) -> dict:
     agents = obj.get("agents")
     if not isinstance(agents, list) or len(agents) != 1:
         raise ValueError("Une règle vise un agent, ou tous les agents (« * »).")
-    typ = obj.get("condition")
-    cond: dict = {"type": typ}
-    if typ in ("hors_heures", "plage"):
-        cond.update(debut=obj.get("debut"), fin=obj.get("fin"))
-        if typ == "hors_heures":
-            cond["jours_ouvres"] = obj.get("jours_ouvres")
-    elif typ == "plafond":
-        cond.update(max=obj.get("max"), unite=_normaliser(str(obj.get("unite") or "lignes")))
-    elif typ == "montant_max":
-        cond["max"] = obj.get("max")
+    autres = obj.get("autres") or []
+    if not isinstance(autres, list) or not all(isinstance(a, dict) for a in autres):
+        raise ValueError("« autres » doit être une liste de conditions.")
+    lien = obj.get("lien")
     sauf = obj.get("sauf")
     return valider({"agent": agents[0], "sauf": None if sauf in (None, "", "aucun") else sauf,
-                    "action": obj.get("action"), "condition": cond, "effet": obj.get("effet")})
+                    "action": obj.get("action"), "condition": _condition_depuis_champs(obj),
+                    "autres": [_condition_depuis_champs(a) for a in autres],
+                    "lien": lien if lien in ("et", "ou") else "et", "effet": obj.get("effet")})
 
 
 def motifs_gardent_la_main(phrase: str, motifs: dict) -> bool:
@@ -745,6 +976,11 @@ async def analyser_avec_modele(phrase: str, store=None) -> dict:
         prop, repli = None, "l'agent a lu une autre règle que le retrait des droits en trop"
     if prop is None:
         repli = repli or res["session"]["raison_fin"]
+        if not motifs["comprise"] and res.get("contradictions"):
+            # L'agent n'a pas su écrire une règle fidèle à la phrase : on le dit, sans rien proposer.
+            return {**motifs, "texte": texte_intraduisible(res["contradictions"]),
+                    "non_traduit": res["contradictions"], "repli": repli, "lecteur": lecteur,
+                    "agent_regles": res["session"]}
         suite = " : lecture par motifs" if motifs["comprise"] else ""
         return {**motifs, "repli": repli + suite, "lecteur": lecteur, "agent_regles": res["session"]}
     return {**prop, "repli": None, "lecteur": lecteur, "agent_regles": res["session"]}
@@ -1049,7 +1285,13 @@ def evaluer(ctx: dict, regles: list[dict] | None = None) -> dict:
             continue
         if not _action_couvre(r["action"], outil, scope):
             continue
-        vraie, constat = _condition(r["condition"], ctx)
+        resultats = [_condition(c, ctx) for c in conditions_de(r)]
+        if r.get("lien") == "ou":
+            vraie = any(v for v, _c in resultats)
+            constat = next((c for v, c in resultats if v), "")
+        else:
+            vraie = all(v for v, _c in resultats)
+            constat = " ; ".join(c for _v, c in resultats if c)
         if not vraie:
             continue
         touchees.append({"id": r["id"], "numero": r["numero"], "effet": r["effet"],
@@ -1143,10 +1385,67 @@ def synchroniser(store) -> list:
     return modifiees
 
 
+# Ce que l'agent a voulu faire, à l'infinitif, pour le titre d'une tentative bloquée.
+VERBES_OUTILS = {
+    "lire_coffre": "ouvrir le coffre",
+    "executer_paiement": "faire un virement",
+    "emettre_virement": "faire un virement",
+    "exporter_contacts": "exporter les contacts",
+    "exporter_lignes": "exporter des lignes bancaires",
+    "envoyer_rapport": "envoyer un rapport",
+    "envoyer_mail": "envoyer un mail",
+    "repondre_client": "répondre à un client",
+    "memoriser": "écrire dans sa mémoire",
+    "lire_memoire": "lire sa mémoire",
+    "chercher_appel": "lire une transcription d'appel",
+    "convertir_montant": "appeler un outil MCP externe",
+    "verifier_conformite": "appeler un outil MCP externe",
+    "lire_mail": "lire la boîte mail",
+}
+
+
+def verbe_outil(outil) -> str:
+    return VERBES_OUTILS.get(outil) or f"appeler {_court(outil or 'un outil', 40)}"
+
+
+def politique_du_retrait(sess, code: str) -> dict | None:
+    """Un appel refusé pour droit retiré devient un déclenchement de règle : celle qui a retiré
+    le droit, ou, à défaut, le correctif d'incident. Le SOC voit ainsi la tentative."""
+    regle = retraits_actifs().get(getattr(sess, "agent", None) or "", {}).get(code)
+    if regle is not None:
+        return {"id": regle["id"], "numero": regle["numero"], "effet": "droit_retire",
+                "texte": regle["texte"], "enonce": regle["enonce"], "droit": code,
+                "constat": f"droit {code} retiré par la règle n°{regle['numero']}"}
+    retrait = next((r for r in getattr(sess, "droits_retires", None) or []
+                    if r.get("code") == code and r.get("incident_id")), None)
+    if retrait is not None:
+        iid = _court(retrait["incident_id"], 20)
+        return {"id": "", "numero": None, "effet": "droit_retire", "droit": code,
+                "texte": f"droit {code} retiré par l'analyste (incident {iid})",
+                "enonce": f"droit {code} retiré par l'analyste (incident {iid})",
+                "constat": f"droit {code} retiré par l'analyste depuis l'incident {iid}"}
+    return None
+
+
+def origine_du_retrait(pol: dict) -> str:
+    """« la règle n°2 » ou « l'analyste (incident INC-0001) »."""
+    if pol.get("numero") is not None:
+        return f"la règle n°{pol['numero']}"
+    m = re.search(r"incident ([\w-]+)", str(pol.get("constat") or ""))
+    return f"l'analyste (incident {m.group(1)})" if m else "l'analyste"
+
+
 def maillon(ev: dict) -> dict:
     """Titre et détail du maillon « règle » dans la boîte noire."""
     details = ev.get("details") or {}
     pol = details.get("politique") or {}
+    if pol.get("effet") == "droit_retire":
+        outil = _court(ev.get("outil") or "", 60)
+        titre = f"Tentative bloquée : {verbe_outil(ev.get('outil'))}, droit retiré par {origine_du_retrait(pol)}"
+        detail = f"Appel {outil} refusé avant de partir : {_court(pol.get('constat') or '', 200)}."
+        return {"titre": titre[:200], "libelle": titre[:200], "detail": detail, "resume": detail,
+                "regle_id": pol.get("id") or None, "regle_numero": pol.get("numero"),
+                "regle_effet": "droit_retire"}
     connue = registre.par_id(pol.get("id"))
     numero = connue["numero"] if connue else pol.get("numero")
     texte = connue["enonce"] if connue else _court(pol.get("enonce") or pol.get("texte") or "", 200)

@@ -304,3 +304,64 @@ def test_suivi_en_direct(client, modele):
     assert [e["libelle"] for e in fin["etapes"]] == ["lit les règles", "prépare le retrait de la règle"]
     assert r["agent_regles"]["etapes"] == fin["etapes"]
     assert client.get(f"/api/politiques/agent?apres={fin['numero']}").json()["session"] is None
+
+
+# ------------------------------------------------------------------ rien de perdu sans le dire
+NUIT_FAUSSE = appel("proposer_regle", agents=["*"], action="envoyer", condition="plage", debut=7, fin=19,
+                    effet="bloquer")
+NUIT_JUSTE = appel("proposer_regle", agents=["*"], action="virement", condition="plage", debut=19, fin=7,
+                   autres=[{"condition": "week_end", "debut": 0, "fin": 0, "jours_ouvres": False, "max": 0,
+                            "unite": ""}], lien="ou", effet="bloquer")
+
+
+def test_une_inversion_est_renvoyee_a_l_agent(client, modele):
+    modele(tour(NUIT_FAUSSE), tour(NUIT_JUSTE))
+    r = _analyser(client, "Je veux qu'on arrête les paiements entre 19 h et 7 h, ni le week-end")
+    assert r["compris_par"] == "modèle" and r["agent_regles"]["appels"] == 2
+    erreur = modele.appels[1]["utilisateur"]
+    assert "entre 19 h et 7 h" in erreur and "faire un virement" in erreur
+    assert "aucun agent ne doit faire de virement entre 19 h et 7 h, ni le week-end" in r["texte"]
+    assert r["regle"]["condition"] == {"type": "plage", "debut": 19, "fin": 7}
+
+
+def test_une_regle_infidele_n_est_jamais_proposee(client, modele):
+    modele(tour(NUIT_FAUSSE))
+    r = _analyser(client, "Je veux qu'on arrête les paiements entre 19 h et 7 h")
+    assert r["comprise"] is False and r["regle"] is None
+    assert r["texte"].startswith("Je n'ai pas su traduire cette phrase sans en perdre ou en changer une "
+                                 "partie : « faire un virement », « entre 19 h et 7 h ». Rien n'est proposé.")
+    assert client.get("/api/politiques").json()["politiques"] == []
+
+
+def test_iban_signale_par_l_agent(client, modele):
+    modele(tour(appel("proposer_regle", agents=["*"], action="virement", effet="bloquer",
+                      non_traduit=["si l'IBAN a changé"])))
+    r = _analyser(client, "Bloque tout virement si l'IBAN a changé")
+    assert r["non_traduit"] == ["si l'IBAN a changé"] and r["question"] == "Appliquer quand même ?"
+    assert "Je n'ai pas su traduire : « si l'IBAN a changé »" in r["texte"]
+    assert r["texte"].endswith("Appliquer quand même ?")
+
+
+def test_l_agent_ne_peut_pas_taire_une_partie(client, modele):
+    phrase = "Stoppe les paiements au-dessus de 10 000 € la nuit"
+    oubli = appel("proposer_regle", agents=["*"], action="virement", effet="bloquer")
+    # Le modèle oublie le montant et la nuit sans le dire : refusé, il doit corriger.
+    modele(tour(oubli))
+    r = _analyser(client, phrase)
+    assert r["comprise"] is False and r["regle"] is None
+    assert "« 10 000 € », « la nuit »" in r["texte"]
+    # Il corrige le montant et dit qu'il ne sait pas écrire la nuit : accepté, et dit à l'analyste.
+    modele(tour(oubli), tour(appel("proposer_regle", agents=["*"], action="virement", effet="bloquer",
+                                   condition="montant_max", max=10000, non_traduit=["la nuit"])))
+    r = _analyser(client, phrase)
+    assert r["comprise"] and r["non_traduit"] == ["la nuit"]
+    assert "laisse tomber : « 10 000 € », « la nuit »" in modele.appels[-1]["utilisateur"]
+    assert "de plus de 10\u202f000 €" in r["texte"] and "Je n'ai pas su traduire : « la nuit »" in r["texte"]
+
+
+def test_un_commentaire_du_modele_sur_une_partie_traduite_est_ecarte(client, modele):
+    modele(tour(appel("proposer_regle", agents=["*"], action="virement", effet="bloquer",
+                      condition="plage", debut=19, fin=7,
+                      non_traduit=["la nuit (plage retenue : 19 h à 7 h, à vérifier)"])))
+    r = _analyser(client, "Stoppe les paiements la nuit")
+    assert r["non_traduit"] == [] and r["question"] == "Appliquer ?"
