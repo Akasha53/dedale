@@ -16,6 +16,10 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // Les jetons communs à la console et à la landing vivent dans ../design.
+    fs: {
+      allow: [".", "../design"],
+    },
     proxy: {
       "/api": {
         target: BACKEND,

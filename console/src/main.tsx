@@ -1,6 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "../../design/jetons.css";
 import "./index.css";
+import "./finitions.css";
 import { App } from "./App";
 import { DataProvider } from "./api/store";
 

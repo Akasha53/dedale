@@ -1,0 +1,269 @@
+/* Finitions de la relecture design du 10 octobre (docs/DESIGN_AUDIT.md).
+
+   Chargé après index.css par main.tsx : les variables historiques de la
+   console (--texte, --accent, --rayon…) pointent ici vers les jetons communs
+   de design/jetons.css, puis quelques composants sont corrigés. Les cartes
+   d'agent, les listes et le panneau des règles ont leurs propres agents ce
+   soir : ce fichier ne les touche pas, sauf par les jetons. */
+
+:root {
+  --fond: var(--gris-0);
+  --fond-2: var(--gris-50);
+  --fond-3: var(--gris-0);
+  --puits: var(--gris-50);
+  --panneau: var(--gris-0);
+  --panneau-2: var(--gris-50);
+  --bord: var(--voile-bord);
+  --bord-fort: var(--voile-bord-fort);
+  --survol: var(--voile-survol);
+  --actif: var(--voile-actif);
+
+  --texte: var(--gris-950);
+  --texte-doux: var(--gris-700);
+  --texte-faible: var(--gris-600);
+  --encre: var(--gris-950);
+  --accent: var(--gris-950);
+  --accent-fonce: var(--gris-950);
+
+  --ok: var(--regle);
+  --humain: var(--regle);
+  --script: var(--attente);
+  --orange: var(--attente);
+  --agent: var(--danger);
+  --alerte: var(--danger);
+
+  /* --rayon-btn habille aussi des blocs pleine largeur (synthèse, étapes) :
+     il prend le rayon intérieur, pas la pilule. */
+  --rayon: var(--rayon-carte);
+  --rayon-btn: var(--rayon-interieur);
+  --pilule: var(--rayon-controle);
+
+  --ombre: var(--ombre-carte);
+  --ombre-haute: var(--ombre-flottante);
+
+  /* Plus de monospace décoratif : les heures, les compteurs et les petits
+     libellés qui le lisaient passent à la police du système, en chiffres
+     tabulaires. Le code, les URL et les adresses gardent --police-code. */
+  --titre: var(--police);
+  --sans: var(--police);
+  --mono: var(--police);
+}
+
+body {
+  font-family: var(--police);
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: rgba(13, 13, 13, 0.12);
+}
+
+/* Le vrai code reste en monospace. */
+code,
+kbd,
+pre,
+samp,
+.mono,
+.ag-preuve code,
+.ag-appel code,
+.dp-brut dd.mono,
+.sal-message-lien,
+.barre-url {
+  font-family: var(--police-code);
+  font-variant-numeric: normal;
+}
+
+/* Un appui se sent : léger retrait de tous les boutons. */
+button:not(:disabled) {
+  transition-property: transform, background-color, border-color, color, box-shadow;
+  transition-duration: var(--duree-appui);
+  transition-timing-function: var(--courbe-sortie);
+}
+button:not(:disabled):active {
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled):active {
+    transform: none;
+  }
+}
+
+/* ---- Références MITRE et OWASP : ni monospace, ni lettres espacées ---- */
+.refs-cadre {
+  font-size: var(--texte-12);
+  letter-spacing: 0;
+  font-weight: 500;
+  text-transform: none;
+}
+.refs-id {
+  font-size: var(--texte-13);
+  font-weight: 500;
+  color: var(--texte);
+}
+.refs-doute {
+  font-size: var(--texte-12);
+}
+
+/* ---- En-tête d'un incident : la couleur tient dans un point ---- */
+.ag-entete-haut .gravite,
+.ag-entete-haut .ag-etat,
+.ag-entete-haut .integrite.i-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: var(--gris-100);
+  color: var(--texte-doux);
+  font-size: var(--texte-13);
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: var(--rayon-controle);
+  box-shadow: none;
+  animation: none;
+}
+.ag-entete-haut .gravite::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gris-500);
+  flex: none;
+}
+.ag-entete-haut .gravite.critique::before,
+.ag-entete-haut .gravite.haute::before {
+  background: var(--danger);
+}
+.ag-entete-haut .gravite.moyenne::before {
+  background: var(--attente);
+}
+.ag-entete-haut .ag-etat .ag-etat-point {
+  width: 6px;
+  height: 6px;
+  background: var(--gris-500);
+}
+.ag-entete-haut .ag-etat-attente .ag-etat-point {
+  background: var(--attente);
+}
+.ag-entete-haut .ag-etat-coupee .ag-etat-point,
+.ag-entete-haut .ag-etat-bloquee .ag-etat-point {
+  background: var(--regle);
+}
+.ag-entete-haut .integrite.i-ok svg {
+  color: var(--texte-faible);
+}
+
+/* ---- Panneau « Votre décision » ----
+   Le titre reste noir ; seul le point dit l'état. Le point s'aligne sur la
+   première ligne du titre, même quand il passe sur deux lignes. */
+.ag-zone-decision .ag-etat-long {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  margin: 4px 0 0;
+  font-size: var(--texte-17) !important;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--texte) !important;
+  text-wrap: balance;
+}
+.ag-zone-decision .ag-etat-long .ag-etat-point {
+  width: 6px;
+  height: 6px;
+  margin-top: calc((1.35em - 6px) / 2);
+  border-radius: 50%;
+  background: var(--gris-500);
+}
+.ag-zone-decision.issue-attente .ag-etat-point,
+.ag-zone-decision.issue-salarie-attente .ag-etat-point {
+  background: var(--attente);
+}
+.ag-zone-decision.issue-coupee .ag-etat-point,
+.ag-zone-decision.issue-refusee .ag-etat-point,
+.ag-zone-decision.issue-bloquee .ag-etat-point {
+  background: var(--regle);
+}
+.ag-zone-decision .ag-depuis,
+.ag-zone-decision.issue-attente .ag-depuis {
+  margin: 4px 0 0 16px;
+  font-size: var(--texte-13);
+  color: var(--texte-faible);
+}
+
+/* ---- Boîte noire : « en attente depuis… » sans monospace orange ---- */
+.ag-attente {
+  font-family: var(--police);
+  font-size: var(--texte-13);
+  color: var(--texte-faible);
+  letter-spacing: 0;
+}
+.ag-attente .ag-etat-point {
+  background: var(--attente);
+}
+
+/* ---- Temps de réaction : une rangée calme, sans filets, à toute largeur ---- */
+.ag-chrono-etape,
+.ag-chrono-etape + .ag-chrono-etape {
+  border: 0;
+}
+@media (max-width: 760px) {
+  .ag-chrono {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+  }
+  .ag-chrono-etape {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+  }
+  .ag-chrono-sous {
+    white-space: normal;
+  }
+}
+
+/* ---- « Pourquoi ce niveau de certitude » : un chevron, pas le triangle natif ---- */
+.syn-raisons > summary,
+.dp-refs > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: var(--rayon-controle);
+}
+.syn-raisons > summary::-webkit-details-marker,
+.dp-refs > summary::-webkit-details-marker {
+  display: none;
+}
+.syn-raisons > summary::before,
+.dp-refs > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin: 0 2px 0 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--duree-survol) var(--courbe-sortie);
+  flex: none;
+}
+.syn-raisons[open] > summary::before,
+.dp-refs[open] > summary::before {
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+.syn-raisons > summary:hover,
+.dp-refs > summary:hover {
+  color: var(--texte);
+}
+
+/* ---- Incident salarié : plus de filet sur le bord d'une carte arrondie ---- */
+.sal-message {
+  border: 1px solid var(--bord);
+  border-left: 1px solid var(--bord);
+  border-radius: var(--rayon-interieur);
+  background: var(--gris-50);
+  padding: 14px 16px;
+}

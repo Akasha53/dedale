@@ -1,0 +1,88 @@
+/* Jetons de Dédale, communs à la console et à la landing.
+
+   La console les importe depuis src/main.tsx, la landing les charge par un
+   <link>. L'app Mac reprend les mêmes valeurs à la main dans
+   app-mac/Sources/Dedale/Theme.swift : une valeur changée ici se change
+   aussi là-bas.
+
+   Règle de couleur : tout est en gris, et l'accent de la marque est l'encre
+   noire du logo. Trois couleurs seulement, et chacune porte un sens : rouge
+   pour le risque, orange pour ce qui attend une décision humaine, vert pour
+   ce qui est réglé. Une couleur de sens tient dans un point de 6 px ou dans
+   un mot, rarement dans un aplat.
+
+   Échelle de gris lue sur Vercel Geist (fonds, bords, texte en marches
+   séparées) et valeurs de chatgpt.com déjà reprises dans la console. */
+
+:root {
+  /* Gris neutres, sans teinte. */
+  --gris-0: #ffffff;
+  --gris-50: #f9f9f9;
+  --gris-100: #f4f4f4;
+  --gris-150: #ececec;
+  --gris-200: #e5e5e5;
+  --gris-300: #d4d4d4;
+  --gris-500: #8f8f8f;
+  --gris-600: #6b6b6b; /* texte faible, 5,3:1 sur blanc */
+  --gris-700: #5d5d5d; /* texte secondaire, 6,5:1 */
+  --gris-950: #0d0d0d; /* texte, bouton principal, logo */
+
+  /* Filets et voiles en transparence, pour poser sur un fond gris. */
+  --voile-bord: rgba(0, 0, 0, 0.08);
+  --voile-bord-fort: rgba(0, 0, 0, 0.14);
+  --voile-survol: rgba(0, 0, 0, 0.04);
+  --voile-actif: rgba(0, 0, 0, 0.06);
+
+  /* Couleurs de sens. Chacune passe AA sur blanc. */
+  --danger: #c4262e;
+  --danger-fond: #fdf3f3;
+  --attente: #c2410c;
+  --attente-fond: #fdf5f0;
+  --regle: #0f7b55;
+  --regle-fond: #f1f8f5;
+
+  /* Rayons : cartes larges, puits plus serrés, contrôles en pilule. */
+  --rayon-carte: 20px;
+  --rayon-carte-mobile: 16px;
+  --rayon-interieur: 16px;
+  --rayon-controle: 9999px;
+
+  /* Espacements, base 4. */
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 20px;
+  --esp-6: 24px;
+  --esp-8: 32px;
+  --esp-12: 48px;
+  --esp-18: 72px;
+
+  /* Typographie : police du système, monospace réservé au code, aux URL et
+     aux empreintes. Les heures et les compteurs prennent les chiffres
+     tabulaires de la police du système. */
+  --police: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --police-code: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --texte-12: 12px;
+  --texte-13: 13px;
+  --texte-14: 14px;
+  --texte-15: 15px;
+  --texte-17: 17px;
+  --texte-20: 20px;
+  --texte-24: 24px;
+  --texte-32: 32px;
+  --titre-48: 48px;
+  --titre-64: 64px;
+  --titre-88: 88px;
+  --serre: -0.02em;
+  --serre-fort: -0.035em;
+
+  /* Ombres : à peine visibles, pour détacher un menu ou une fenêtre. */
+  --ombre-carte: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --ombre-flottante: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 12px 40px -12px rgba(0, 0, 0, 0.18);
+
+  /* Mouvement : une courbe de sortie franche, appui court, survol bref. */
+  --courbe-sortie: cubic-bezier(0.23, 1, 0.32, 1);
+  --duree-appui: 160ms;
+  --duree-survol: 200ms;
+}

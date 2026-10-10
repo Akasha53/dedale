@@ -146,7 +146,7 @@ Couleurs. Une échelle de gris neutre, sans teinte bleue, et trois couleurs de s
 
 La couleur de sens ne remplit jamais une pastille entière quand un point de 6 px suffit. Un écran ne montre la même couleur qu'à un endroit par bloc.
 
-Rayons : `--rayon-carte` 20 px (16 px à 390), `--rayon-interieur` 14 px pour un puits dans une carte, `--rayon-controle` 9999 px pour boutons, champs, pastilles et onglets. Rien en dessous de 10 px sauf les points.
+Rayons : `--rayon-carte` 20 px (16 px à 390), `--rayon-interieur` 16 px pour un puits dans une carte, `--rayon-controle` 9999 px pour boutons, champs, pastilles et onglets. Rien en dessous de 10 px sauf les points.
 
 Espacements, sur une base de 4 : 4, 8, 12, 16, 20, 24, 32, 48, 72.
 
