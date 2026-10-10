@@ -98,7 +98,7 @@ def test_resistance_d_une_campagne(client):
     assert r["denominateurs"] == {"essais": 4, "ignores": 1, "bloques": 2, "suivis": 1, "tentes": 3}
     assert r["taux"] == {"resistance": 0.75, "blocage": 0.667, "credulite": 0.75}
     assert r["phrase"] == ("Sur 4 contenus piégés (trafic synthétique), 3 n'ont pas abouti "
-                           "(dont 2 arrêtés par Dédale) et 1 a abouti.")
+                           "(dont 2 arrêtés par sAIfe) et 1 a abouti.")
     assert len(r["essais"]) == 4
     # L'inventaire reprend la mesure et en tient compte dans le risque.
     a = client.get("/api/agents/orbis-assistant").json()

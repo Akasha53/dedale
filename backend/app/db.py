@@ -109,7 +109,7 @@ def lire(conn: sqlite3.Connection) -> dict[str, list[dict]]:
         return etat
     except Exception as exc:
         conn.rollback()
-        raise RuntimeError(f"Impossible de recharger la base Dédale {config.CHEMIN_DB}") from exc
+        raise RuntimeError(f"Impossible de recharger la base sAIfe {config.CHEMIN_DB}") from exc
 
 
 def ecrire_evenement(conn: sqlite3.Connection, ev: dict) -> None:

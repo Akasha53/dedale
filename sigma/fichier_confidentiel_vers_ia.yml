@@ -8,7 +8,7 @@ description: >
 references:
   - https://attack.mitre.org/techniques/T1567/
   - https://genai.owasp.org/ (LLM02 Sensitive Information Disclosure)
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 logsource:
   product: dedale
 detection:

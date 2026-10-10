@@ -9,7 +9,7 @@ description: >
 references:
   - https://atlas.mitre.org/techniques/AML.T0053
   - https://genai.owasp.org/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 logsource:
   product: dedale
 detection:

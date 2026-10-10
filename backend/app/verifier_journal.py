@@ -34,7 +34,7 @@ def _suite(nom: str, res: dict, genre: str) -> str:
 
 
 def rendre(chemin: Path, res: dict) -> str:
-    lignes = [f"Journal Dédale : {chemin}", _suite("Événements", res["evenements"], ""),
+    lignes = [f"Journal sAIfe : {chemin}", _suite("Événements", res["evenements"], ""),
               _suite("Décisions", res["decisions"], "e")]
     incidents = [i for i in res["incidents"] if i]
     compte = {"intacte": 0, "alteree": 0, "anterieure_au_scellement": 0}
@@ -101,7 +101,7 @@ def _lignes_ancrage(res: dict) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parseur = argparse.ArgumentParser(description="Vérifie le journal scellé d'une base Dédale.")
+    parseur = argparse.ArgumentParser(description="Vérifie le journal scellé d'une base sAIfe.")
     parseur.add_argument("--db", default=str(config.CHEMIN_DB), help="base SQLite (défaut : DEDALE_DB)")
     parseur.add_argument("--json", action="store_true", help="sortie JSON")
     parseur.add_argument("--sans-reseau", action="store_true",

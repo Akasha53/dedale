@@ -124,7 +124,7 @@ def _bloc_etat(detail: dict) -> str:
     statut = _STATUTS.get(detail.get("statut"), detail.get("statut"))
     lignes = [f'<p class="valeur">{_e(statut)}</p>']
     if detail.get("source") in ("humain", "physique"):
-        lignes.append('<p class="note">Poste du salarié : jamais bloqué par Dédale.</p>')
+        lignes.append('<p class="note">Poste du salarié : jamais bloqué par sAIfe.</p>')
     elif detail.get("etat"):
         lignes.append(f'<p class="note">Agent : {_e(_ETATS_AGENT.get(detail["etat"], detail["etat"]))}.</p>')
     for c in detail.get("correctifs") or []:
@@ -359,8 +359,8 @@ def rendre(detail: dict, synthese: dict | None, verification: dict) -> str:
   <p>Trafic de démonstration. Orbis Pay est une entreprise fictive ; les sessions viennent du banc
   de mesure ou du scénario de démonstration, sans donnée réelle.</p>
   <p>La synthèse est écrite par des règles à partir des maillons ci-dessus, sans modèle de langage.
-  Elle ne décrit que ce que Dédale a observé.</p>
-  <p>Le sceau prouve que le journal n'a pas changé depuis son écriture par Dédale. Une nouvelle
+  Elle ne décrit que ce que sAIfe a observé.</p>
+  <p>Le sceau prouve que le journal n'a pas changé depuis son écriture par sAIfe. Une nouvelle
   décision ou un nouvel événement le fait évoluer. Une base entièrement réécrite, sceaux recalculés
   compris, ne se repère qu'en comparant avec un sceau imprimé avant, comme celui de ce rapport.</p>
 </section>

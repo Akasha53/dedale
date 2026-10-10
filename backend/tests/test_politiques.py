@@ -63,7 +63,7 @@ def test_reformulation_en_francais_simple():
     a = politiques.analyser(PHRASE_TRI)
     assert a["texte"] == (
         "Voilà ce que j'ai compris : l'agent de tri des mails ne doit pas envoyer de mail ni de "
-        "message vers une adresse hors d'Orbis Pay. Si cela arrive, Dédale bloque l'action "
+        "message vers une adresse hors d'Orbis Pay. Si cela arrive, sAIfe bloque l'action "
         "avant qu'elle parte. Activer ?")
 
 

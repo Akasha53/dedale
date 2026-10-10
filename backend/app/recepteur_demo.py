@@ -99,7 +99,7 @@ def url_de(serveur: ThreadingHTTPServer) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parseur = argparse.ArgumentParser(description="Faux récepteur Slack/Teams pour la démo Dédale.")
+    parseur = argparse.ArgumentParser(description="Faux récepteur Slack/Teams pour la démo sAIfe.")
     parseur.add_argument("--port", type=int, default=0, help="port d'écoute (défaut : un port libre)")
     args = parseur.parse_args(argv)
     serveur = creer_serveur(args.port)

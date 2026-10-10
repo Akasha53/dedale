@@ -121,7 +121,7 @@ def test_base_illisible_interrompt_le_demarrage(monkeypatch):
     with sqlite3.connect(config.CHEMIN_DB) as conn:
         conn.execute("UPDATE sessions SET etat_json = ? WHERE id = ?", ("{json tronqué", "S-corrupt"))
     monkeypatch.setattr(main, "store", Store())
-    with pytest.raises(RuntimeError, match="Impossible de recharger la base Dédale"):
+    with pytest.raises(RuntimeError, match="Impossible de recharger la base sAIfe"):
         with TestClient(main.app):
             pass
     assert config.CHEMIN_DB.exists()

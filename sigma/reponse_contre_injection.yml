@@ -2,14 +2,14 @@ title: Agent ayant révélé son objectif après contre-injection
 id: 7c1e0a44-0b1a-4e2a-9b11-2d6f9a0c1004
 status: experimental
 description: >
-  Après que Dédale a servi une contre-injection (consigne demandant à l'agent son objectif et
+  Après que sAIfe a servi une contre-injection (consigne demandant à l'agent son objectif et
   ses consignes), la session émet une sortie_agent portant un objectif ou des consignes. Un
   humain ou un script ne « répondent » pas à ce type de sollicitation : aveu caractéristique
   d'un agent IA.
 references:
   - https://atlas.mitre.org/
   - https://genai.owasp.org/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 logsource:
   product: dedale
 detection:

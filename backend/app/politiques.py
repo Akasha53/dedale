@@ -356,9 +356,9 @@ def enonce(regle: dict) -> str:
 
 
 _EFFET_TEXTE = {
-    "bloquer": "Si cela arrive, Dédale bloque l'action avant qu'elle parte.",
-    "retenir": "Dédale met l'action en attente jusqu'à votre décision.",
-    "alerter": "Dédale laisse passer l'action et ouvre une alerte.",
+    "bloquer": "Si cela arrive, sAIfe bloque l'action avant qu'elle parte.",
+    "retenir": "sAIfe met l'action en attente jusqu'à votre décision.",
+    "alerter": "sAIfe laisse passer l'action et ouvre une alerte.",
 }
 
 
@@ -584,7 +584,7 @@ def valider_moindre(regle: dict, store=None) -> dict:
                 raise ValueError("Retrait mal formé.")
             if code in d["necessaires"]:
                 raise ValueError(f"{_court(code, 40)} sert à la tâche de {inventaire.libelle_agent(aid)} : "
-                                 "Dédale ne le retire pas.")
+                                 "sAIfe ne le retire pas.")
             if code in d["retires"]:
                 continue
             if code not in d["accordes"]:

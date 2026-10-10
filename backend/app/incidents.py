@@ -416,9 +416,9 @@ _NIVEAUX = ("faible", "moyenne", "haute", "critique")
 # réclamé par mail est rangé en « phishing », mais personne n'a cliqué sur un lien.
 _GESTES_CRITIQUES = {"virement": "un virement", "export_clients": "un export de données clients"}
 _RELECTURE_HUMAIN = {
-    "refuse": "relu par Dédale : refusé, le geste n'a pas eu lieu",
-    "accorde": "relu par Dédale : accordé, le geste a pu avoir lieu",
-    "retenu": "relu par Dédale : retenu, le geste attend la décision d'un analyste",
+    "refuse": "relu par sAIfe : refusé, le geste n'a pas eu lieu",
+    "accorde": "relu par sAIfe : accordé, le geste a pu avoir lieu",
+    "retenu": "relu par sAIfe : retenu, le geste attend la décision d'un analyste",
 }
 
 

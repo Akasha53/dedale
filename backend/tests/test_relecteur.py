@@ -125,7 +125,7 @@ def test_geste_accorde_par_le_modele_et_lu_par_l_app(client):
     inc = next(i for i in client.get("/api/incidents").json()["incidents"]
                if i["session_id"] == "poste-mac-camille-4y-d1")
     assert inc["decisions"][-1]["action"] == "accorder"
-    assert inc["decisions"][-1]["analyste"] == "relecteur Dédale (Haiku)"
+    assert inc["decisions"][-1]["analyste"] == "relecteur sAIfe (Haiku)"
     assert inc["statut"] == "ouvert"  # l'analyste garde son recours
     # Faits pseudonymisés : ni le nom du poste ni l'identifiant de session ne partent au modèle.
     assert "camille" not in faux.appels[0]["utilisateur"]
@@ -608,7 +608,7 @@ def test_recit_virement_refuse(client):
     _relecture(client, "v1")
     phrases, chaine = _recit(client)
     assert "virement" in phrases and "refusé" in phrases and "n’a pas eu lieu" in phrases
-    assert "réclame un virement" in chaine and "relu par Dédale : refusé" in chaine
+    assert "réclame un virement" in chaine and "relu par sAIfe : refusé" in chaine
     _sans_faux_recit(phrases, chaine.replace("un mail jugé frauduleux réclame", ""))
 
 

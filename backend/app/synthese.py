@@ -28,7 +28,7 @@ import re
 
 from . import config, incidents, llm
 
-RAPPEL = "C’est l’analyste qui décide : Dédale n’applique rien tout seul."
+RAPPEL = "C’est l’analyste qui décide : sAIfe n’applique rien tout seul."
 ACTIONS_AGENT = ["couper", "reprendre", "ignorer"]
 ACTIONS_HUMAIN = ["clore", "ignorer"]
 
@@ -347,11 +347,11 @@ class _Redaction:
                 quoi = ("cette action avant qu’elle s’exécute" if n == 1 else
                         ("les deux actions avant qu’elles s’exécutent" if n == 2 else
                          f"les {n} actions avant qu’elles s’exécutent"))
-                dit = f"Dédale a arrêté {quoi}"
+                dit = f"sAIfe a arrêté {quoi}"
             elif all(st == "bloque" for st, _, _ in statuts):
-                dit = "Dédale l’a bloquée" if n == 1 else "Dédale les a bloquées"
+                dit = "sAIfe l’a bloquée" if n == 1 else "sAIfe les a bloquées"
             else:
-                dit = "Dédale a " + _liste([("arrêté " if st == "retenu" else "bloqué ") + nom
+                dit = "sAIfe a " + _liste([("arrêté " if st == "retenu" else "bloqué ") + nom
                                             for st, nom, _ in statuts])
             morceaux += [" : ", (dit, preuves)]
         morceaux.append(".")
@@ -395,9 +395,9 @@ class _Redaction:
                 dit = ("une nouvelle tentative a été refusée" if deja
                        else f"une nouvelle demande ({nom}) a été refusée")
             elif "retiré" in raison:
-                dit = f"Dédale a refusé {nom}, car cet accès lui a été retiré"
+                dit = f"sAIfe a refusé {nom}, car cet accès lui a été retiré"
             else:
-                dit = f"Dédale a refusé {nom} faute de réponse"
+                dit = f"sAIfe a refusé {nom} faute de réponse"
             if dit not in vus:
                 vus.add(dit)
                 issues.append((dit, preuves))
@@ -458,7 +458,7 @@ class _Redaction:
                                   [self.p(e, "etape", "regle"), self.p(e, "detail", mot)]), "."])
                     break
         for e in self.etapes("anomalie")[:1]:
-            self.ecrire([("Dédale a repéré un écart net avec l’habitude de travail de cet agent",
+            self.ecrire([("sAIfe a repéré un écart net avec l’habitude de travail de cet agent",
                           [self.p(e, "etape", "anomalie")]), ", ",
                          ("sans l’arrêter", [self.p(e, "etape", "anomalie")]), "."])
 
@@ -468,7 +468,7 @@ class _Redaction:
         d = next(iter(self.etapes("desarme")), None)
         if d is None:
             return
-        self.ecrire([("Dédale a retiré cette instruction avant que l’agent lise le contenu",
+        self.ecrire([("sAIfe a retiré cette instruction avant que l’agent lise le contenu",
                       [self.p(d, "etape", "desarme"), self.p(d, "detail", "retiré")]),
                      ", puis ", ("l’agent a reçu la version propre", [self.p(d, "etape", "desarme")]), "."])
 
@@ -514,7 +514,7 @@ class _Redaction:
         geste, mot = self._GESTES.get(self.d.get("type"), ("un geste risqué", "risqu"))
         a = next((e for e in actions if mot in (e.get("detail") or "")), None)
         if a is not None:
-            morceaux: list = [(f"Dédale a repéré sur le poste d’un salarié {geste}", [p(a, "detail", mot)])]
+            morceaux: list = [(f"sAIfe a repéré sur le poste d’un salarié {geste}", [p(a, "detail", mot)])]
             if avert:
                 morceaux += [", puis ", ("lui a montré un avertissement",
                                          [p(avert[0], "etape", "avertissement")])]
@@ -544,23 +544,25 @@ class _Redaction:
         quoi, mot = ("un virement", "virement") if virement else ("un export de données clients", "export")
         detail = a.get("detail") or ""
         if "réclamé par un mail" in detail:
-            debut = (f"Un salarié a voulu faire {quoi} réclamé par un mail que Dédale juge frauduleux",
+            debut = (f"Un salarié a voulu faire {quoi} réclamé par un mail que sAIfe juge frauduleux",
                      [p(a, "detail", mot), p(a, "detail", "réclamé par un mail")])
         else:
             debut = (f"Un salarié a demandé {quoi}", [p(a, "detail", mot)])
         morceaux: list = [debut]
         if "double validation" in detail:
-            morceaux += [", puis ", ("Dédale l’a suspendu pour une double validation",
+            morceaux += [", puis ", ("sAIfe l’a suspendu pour une double validation",
                                      [p(a, "detail", "double validation")])]
         self.ecrire(morceaux + ["."])
         consequences = self.etapes("consequence")
-        relu = next((c for c in reversed(consequences) if "relu par Dédale" in (c.get("detail") or "")), None)
+        # « relu par Dédale » : ancien nom, encore présent dans les bases d'avant le renommage.
+        relu = next((c for c in reversed(consequences)
+                     if any(k in (c.get("detail") or "") for k in ("relu par sAIfe", "relu par Dédale"))), None)
         issue = next((c for c in reversed(consequences)
                       if any(k in (c.get("detail") or "") for k in ("Refusé", "Accordé", "Aucune décision"))), None)
         if relu is not None:
-            for cle, phrase in (("refusé", "Le relecteur de Dédale l’a refusé : le geste n’a pas eu lieu"),
-                                ("accordé", "Le relecteur de Dédale l’a accordé"),
-                                ("retenu", "Le relecteur de Dédale l’a retenu : il attend la décision d’un analyste")):
+            for cle, phrase in (("refusé", "Le relecteur de sAIfe l’a refusé : le geste n’a pas eu lieu"),
+                                ("accordé", "Le relecteur de sAIfe l’a accordé"),
+                                ("retenu", "Le relecteur de sAIfe l’a retenu : il attend la décision d’un analyste")):
                 if cle in (relu.get("detail") or ""):
                     self.ecrire([(phrase, [p(relu, "detail", cle)]), "."])
                     break
@@ -590,7 +592,7 @@ class _Redaction:
         avert = self.etapes("avertissement")
         morceaux: list = [(dit, preuves)]
         if avert:
-            morceaux += [", puis ", ("Dédale a prévenu le salarié", [p(avert[0], "etape", "avertissement")])]
+            morceaux += [", puis ", ("sAIfe a prévenu le salarié", [p(avert[0], "etape", "avertissement")])]
         self.ecrire(morceaux + ["."])
         garde = next((c for c in self.etapes("choix") if "continuer" in (c.get("detail") or "")), None)
         if garde is not None:
@@ -664,8 +666,8 @@ def _confiance(r: _Redaction, faits: dict | None, humain: dict | None) -> dict:
         if faits["canaris"]:
             familles += 1
             n = len(faits["canaris"])
-            texte = ("Un piège posé par Dédale a été déclenché." if n == 1 else
-                     f"{n} pièges posés par Dédale ont été déclenchés.")
+            texte = ("Un piège posé par sAIfe a été déclenché." if n == 1 else
+                     f"{n} pièges posés par sAIfe ont été déclenchés.")
             raisons.append(_raison("canari", 0.30, texte + " Un humain ne les déclenche pas.",
                                    [e["ordre"] for e in r.chaine if e.get("canari_id") in faits["canaris"]],
                                    faits["canaris"]))
@@ -822,7 +824,7 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
         if refus_office and not en_attente and d.get("source") != "externe":
             possibles = ACTIONS_AGENT + ["clore"]
             action = "clore"
-            justification = ("Dédale a déjà refusé cette action, sans attendre personne : rien n’est parti. "
+            justification = ("sAIfe a déjà refusé cette action, sans attendre personne : rien n’est parti. "
                              "Il reste à clore le dossier. Retirer à l’agent l’accès qu’il n’aurait pas dû "
                              "avoir évite qu’il recommence.")
         elif d.get("type") in ("interne_politique", "interne_anomalie") and not graves:
@@ -847,7 +849,7 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
             action = "couper"
             constats = []
             if faits["canaris"]:
-                constats.append("un piège posé par Dédale a été déclenché")
+                constats.append("un piège posé par sAIfe a été déclenché")
             if faits["violations"]:
                 v = faits["violations"][0]
                 outil = r.ev(v).get("outil") or r.det(v)["violation_droits"].get("outil")
@@ -866,7 +868,7 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
             action = "reprendre"
             justification = ("Rien de grave n’est établi : aucun piège déclenché, aucune action interdite. "
                              "Reprendre laisse passer l’action en attente sans donner plus de droits à "
-                             "l’agent ; Dédale continue de surveiller.")
+                             "l’agent ; sAIfe continue de surveiller.")
         retirables = {x.get("code"): x for x in d.get("droits_retirables") or []}
         for v in faits["violations"]:
             code = r.det(v)["violation_droits"].get("scope_requis")

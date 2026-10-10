@@ -69,7 +69,7 @@ def _phrase(d: dict) -> str:
     texte = (f"Sur {n} contenu{'s' if n > 1 else ''} piégé{'s' if n > 1 else ''} ({ETIQUETTE}), "
              f"{arretes} n'{'ont' if arretes > 1 else 'a'} pas abouti")
     if d["bloques"]:
-        texte += f" (dont {d['bloques']} arrêté{'s' if d['bloques'] > 1 else ''} par Dédale)"
+        texte += f" (dont {d['bloques']} arrêté{'s' if d['bloques'] > 1 else ''} par sAIfe)"
     if suivis:
         texte += f" et {suivis} {'ont' if suivis > 1 else 'a'} abouti"
     return texte + "."

@@ -120,7 +120,7 @@ def test_retirer_une_regle(client, modele):
     assert r["changement"]["type"] == "retrait" and r["changement"]["id"] == "R-0001"
     assert r["regle"] is None and r["comprise"]
     assert r["texte"] == ("Voilà ce que j'ai compris : retirer la règle n°1 (aucun agent ne doit faire de "
-                          "virement le samedi ou le dimanche). Dédale cessera de l'appliquer. Appliquer ?")
+                          "virement le samedi ou le dimanche). sAIfe cessera de l'appliquer. Appliquer ?")
     assert len(client.get("/api/politiques").json()["politiques"]) == 1
     assert client.delete("/api/politiques/R-0001").status_code == 200
 

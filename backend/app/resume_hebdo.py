@@ -327,8 +327,8 @@ def rendre(r: dict, lien_console: str) -> str:
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
 <tr><td style="padding:0 4px 20px 4px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-<td style="font-size:15px;font-weight:600;letter-spacing:-0.02em">
-<span style="display:inline-block;width:22px;height:22px;border-radius:6px;background:{C['texte']};vertical-align:middle;margin-right:8px"></span>sAIfe</td>
+<td style="font-size:15px;font-weight:400;letter-spacing:-0.01em">
+<span style="display:inline-block;width:22px;height:22px;border-radius:6px;background:{C['texte']};vertical-align:middle;margin-right:8px"></span>s<b style="font-weight:700">AI</b>fe</td>
 <td align="right" style="font-size:12px;color:{C['faible']}">Résumé du lundi</td>
 </tr></table></td></tr>
 <tr><td style="padding:0 4px 20px 4px">

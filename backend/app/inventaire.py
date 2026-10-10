@@ -135,7 +135,7 @@ AGENTS: list[dict] = [
         "role": ("Lit une phrase de l'analyste et prépare un changement de règle, que l'analyste "
                  "applique ou non. Une session par phrase, fermée aussitôt après."),
         "service": "SOC",
-        "proprietaire": "SOC Dédale",
+        "proprietaire": "SOC sAIfe",
         "dedale": True,
         "outils": [
             _outil("lire_regles", "politique:proposer", "Lire les règles actives"),

@@ -358,7 +358,7 @@ class Outils:
                      f"({r.get('enonce')}). Les agents pourront de nouveau appeler ces outils. Appliquer ?")
         else:
             texte = (f"Voilà ce que j'ai compris : retirer la règle n°{r['numero']} ({r.get('enonce')}). "
-                     "Dédale cessera de l'appliquer. Appliquer ?")
+                     "sAIfe cessera de l'appliquer. Appliquer ?")
         return {"proposition": {
             **self._base(r.get("intention", "regle")), "regle": None, "forme": None, "texte": texte,
             "changement": {"type": "retrait", "id": r["id"], "numero": r["numero"],
@@ -439,7 +439,7 @@ def systeme() -> str:
     agents = "\n".join(f"- {aid} : {inventaire.nom(aid)}. {inventaire.PAR_ID[aid]['role']}"
                        for aid in politiques.agents_cibles())
     actions = "\n".join(f"- {code} : {a['libelle']}" for code, a in politiques.ACTIONS.items())
-    return f"""Tu es l'agent des règles de Dédale, au SOC d'Orbis Pay (entreprise fictive). Un analyste a écrit une phrase dans la barre « Écrire une règle ». Ton seul travail : préparer UN changement de règle, que l'analyste relira et appliquera lui-même. Tu n'appliques rien.
+    return f"""Tu es l'agent des règles de sAIfe, au SOC d'Orbis Pay (entreprise fictive). Un analyste a écrit une phrase dans la barre « Écrire une règle ». Ton seul travail : préparer UN changement de règle, que l'analyste relira et appliquera lui-même. Tu n'appliques rien.
 
 Agents qu'une règle peut viser :
 {agents}
@@ -453,11 +453,11 @@ Réponds par la liste des appels d'outils à faire maintenant. Outils :
 - proposer_regle : une nouvelle règle. Champs : agents (un seul identifiant, ou ["*"] pour tous), sauf (l'agent exclu d'une règle sur tous, sinon "aucun"), action, condition, debut, fin, jours_ouvres, max, unite, effet.
 - proposer_modification : id de la règle (par exemple R-0001), puis tous les champs de la règle complète après modification.
 - proposer_retrait : id de la règle à retirer.
-- proposer_retrait_droits : agents visés (["*"] pour tous). Retire les droits dont leur tâche n'a pas besoin. Tu ne choisis pas les droits : Dédale les lit dans son inventaire.
+- proposer_retrait_droits : agents visés (["*"] pour tous). Retire les droits dont leur tâche n'a pas besoin. Tu ne choisis pas les droits : sAIfe les lit dans son inventaire.
 - {FIN} : la phrase ne demande aucun changement de règle.
 effet : "bloquer" (interdire), "retenir" (attendre la validation du SOC) ou "alerter" (prévenir sans bloquer). condition : "toujours", "destinataire_externe" (hors du domaine orbispay.example), "plage" (l'action est visée de debut à fin ; une plage peut passer minuit : « entre 19 h et 7 h » donne debut 19, fin 7), "hors_heures" (l'action est visée en dehors de debut-fin ; jours_ouvres vrai ajoute le week-end : « que pendant les heures ouvrées » donne debut 9, fin 18), "week_end", "plafond" (max, unite au pluriel en minuscules sans accent) ou "montant_max" (max en euros : « au-dessus de 10 000 € » donne 10000).
 Une règle peut porter jusqu'à trois conditions de plus dans "autres", reliées à la première par "lien" : "ou" quand chacune suffit (« entre 19 h et 7 h, ni le week-end » : plage 19-7, autres [week_end], lien "ou"), "et" quand elles doivent toutes être vraies (« plus de 10 000 € le week-end » : montant_max, autres [week_end], lien "et").
-Ne laisse jamais tomber une partie de la phrase. Ce que le moteur ne sait pas appliquer (un IBAN qui change, un bénéficiaire, un jour précis comme le lundi, une combinaison impossible) se recopie mot pour mot dans "non_traduit", sans commentaire : Dédale le dira à l'analyste. Ce que tu as traduit n'y va pas. Garde l'action de la phrase : des virements restent des virements, jamais des mails.
+Ne laisse jamais tomber une partie de la phrase. Ce que le moteur ne sait pas appliquer (un IBAN qui change, un bénéficiaire, un jour précis comme le lundi, une combinaison impossible) se recopie mot pour mot dans "non_traduit", sans commentaire : sAIfe le dira à l'analyste. Ce que tu as traduit n'y va pas. Garde l'action de la phrase : des virements restent des virements, jamais des mails.
 Remplis tous les champs de chaque appel ; ceux qui ne servent pas valent "", "aucun", "aucune", "toujours", "et", 0, false ou [].
 
 Budget : {MAX_APPELS} appels et {duree_max():g} secondes en tout, puis ta session se ferme. Pour une nouvelle règle, appelle directement proposer_regle. Le premier proposer_* accepté termine la session ; s'il est refusé, le résultat dit pourquoi.

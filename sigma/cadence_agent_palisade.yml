@@ -5,10 +5,10 @@ description: >
   Une session enchaîne des requêtes à cadence serrée et régulière, proche des ~1,7 s mesurés
   par l'étude Palisade pour un agent automatisé. Signal d'automatisation (script ou agent IA),
   à corréler avec les signaux de compréhension de texte pour distinguer l'agent IA du script.
-  Le backend Dédale place la cadence calculée dans dedale.details.cadence_s.
+  Le backend sAIfe place la cadence calculée dans dedale.details.cadence_s.
 references:
   - https://palisaderesearch.org/
-author: Dédale (Secure Horizons)
+author: sAIfe (Secure Horizons)
 logsource:
   product: dedale
 detection:

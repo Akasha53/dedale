@@ -1090,7 +1090,7 @@ def _afficher_etat(rpc, adresse: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parseur = argparse.ArgumentParser(prog="python -m app.ancrage",
-                                      description="Ancrage du journal Dédale sur Avalanche Fuji.")
+                                      description="Ancrage du journal sAIfe sur Avalanche Fuji.")
     parseur.add_argument("commande", choices=("adresse", "etat", "ancrer"),
                          help="adresse : adresse à alimenter ; etat : lecture sur Fuji ; "
                               "ancrer : met en file les entrées nouvelles et publie ce qui attend")

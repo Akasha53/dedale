@@ -92,7 +92,7 @@ def construire_message(detail: dict, texte_synthese: str | None = None) -> dict:
             {"type": "button", "text": {"type": "plain_text", "text": "Ouvrir l'incident"}, "url": lien},
         ]},
         {"type": "context", "elements": [
-            {"type": "mrkdwn", "text": "Dédale · Orbis Pay, entreprise fictive · trafic de démonstration"},
+            {"type": "mrkdwn", "text": "sAIfe · Orbis Pay, entreprise fictive · trafic de démonstration"},
         ]},
     ]
     return {"text": texte, "blocks": blocs}

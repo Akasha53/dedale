@@ -54,7 +54,7 @@ async def _ecrivain(file: asyncio.Queue, conn) -> None:
                 # La surface appelante ne tombe pas, mais le défaut reste visible au SOC.
                 conn.rollback()
                 _etat["erreur_ecriture"] = str(exc)
-                _journal.exception("Échec de persistance Dédale")
+                _journal.exception("Échec de persistance sAIfe")
             finally:
                 file.task_done()
     finally:
@@ -91,7 +91,7 @@ async def cycle_de_vie(app: FastAPI):
         _etat["file"] = None
 
 
-app = FastAPI(title="Dédale — Console API", version=__version__, lifespan=cycle_de_vie)
+app = FastAPI(title="sAIfe — Console API", version=__version__, lifespan=cycle_de_vie)
 
 
 async def _vider_file(delai: float = 2.0) -> None:
@@ -392,7 +392,7 @@ else:
     @app.get("/")
     async def racine():
         return {
-            "service": "Dédale — Console API",
+            "service": "sAIfe — Console API",
             "version": __version__,
             "note": "Console web non construite (console/dist absent). API sous /api, flux sous /ws.",
         }

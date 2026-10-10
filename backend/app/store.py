@@ -376,7 +376,7 @@ class Store:
             nouveau._incident_seq = max(
                 (int(i.removeprefix("INC-")) for i in nouveau.incidents), default=0)
         except Exception as exc:
-            raise RuntimeError("État Dédale incohérent : démarrage interrompu, base conservée") from exc
+            raise RuntimeError("État sAIfe incohérent : démarrage interrompu, base conservée") from exc
 
         with self.lock:
             for nom, valeur in vars(nouveau).items():

@@ -47,9 +47,9 @@ def _faits(incident: dict) -> dict:
     elif est_humain:
         mesure = "Avertissement affiché et signal transmis au SOC ; décision de l'analyste en attente."
     elif etat == "suspendue":
-        mesure = "La session de l'agent est suspendue dans Dédale ; décision de l'analyste en attente."
+        mesure = "La session de l'agent est suspendue dans sAIfe ; décision de l'analyste en attente."
     elif etat == "coupee":
-        mesure = "La session de l'agent est coupée dans Dédale."
+        mesure = "La session de l'agent est coupée dans sAIfe."
     else:
         mesure = "Mesures de confinement et décision de l'analyste à confirmer."
 
@@ -57,7 +57,7 @@ def _faits(incident: dict) -> dict:
         nature = _GESTES.get(typ, "Un geste à risque sur le poste a été signalé au SOC.")
         impact = "Conséquences du geste et éventuelle fuite de données : à confirmer."
     else:
-        nature = "Une activité suspecte impliquant un agent IA a été signalée par Dédale."
+        nature = "Une activité suspecte impliquant un agent IA a été signalée par sAIfe."
         impact = (
             "Tentative de sortie de données observée ; aboutissement et données concernées à confirmer."
             if "tentative_sortie" in etapes
@@ -91,11 +91,11 @@ Destinataire envisagé : CSIRT ou autorité compétente
 Entité concernée : {config.ENTITE} (entité fictive, exercice Secure Horizons)
 Date de rédaction : {maintenant}
 Référence interne : {f['reference']}
-Création de l'incident dans Dédale : {f['cree_a']}
+Création de l'incident dans sAIfe : {f['cree_a']}
 
 1. Nature de l'incident
    {f['nature']}
-   Type Dédale : {f['type_incident']}. Classement de la session : {f['classement']}.
+   Type sAIfe : {f['type_incident']}. Classement de la session : {f['classement']}.
 
 2. Chronologie observée
    {etapes}
@@ -106,7 +106,7 @@ Création de l'incident dans Dédale : {f['cree_a']}
    Services affectés, données concernées et personnes touchées : à confirmer.
 
 4. Caractère transfrontalier
-   À confirmer ; le journal Dédale ne suffit pas à le déterminer.
+   À confirmer ; le journal sAIfe ne suffit pas à le déterminer.
 
 5. Mesures et suivi
    {f['mesure']}
@@ -114,7 +114,7 @@ Création de l'incident dans Dédale : {f['cree_a']}
 
 Si l'incident est significatif et soumis à NIS2, vérifier les échéances applicables : alerte précoce sous 24 h après prise de connaissance, notification sous 72 h et rapport final dans le mois suivant la notification.
 
-Brouillon généré par Dédale. L'analyste doit vérifier les faits et la qualification avant tout envoi.
+Brouillon généré par sAIfe. L'analyste doit vérifier les faits et la qualification avant tout envoi.
 """
 
 

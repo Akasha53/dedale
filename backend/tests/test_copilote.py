@@ -86,7 +86,7 @@ def test_synthese_jury_reprendre(client):
                          "d’ouvrir le coffre à mots de passe et d’envoyer une clé à l’extérieur.")
     assert textes[1] == ("Il a essayé d’ouvrir le coffre à mots de passe, ce que sa tâche ne lui "
                          "permettait pas, puis a voulu envoyer son rapport en y glissant une clé : "
-                         "Dédale a arrêté les deux actions avant qu’elles s’exécutent.")
+                         "sAIfe a arrêté les deux actions avant qu’elles s’exécutent.")
     assert textes[2].startswith("L’analyste a laissé passer une fois l’ouverture du coffre, puis a "
                                 "coupé l’agent : l’envoi du rapport n’a jamais eu lieu")
     # Les codes restent dans les preuves.
@@ -198,7 +198,7 @@ def test_passerelle_historique_appel_retenu_sans_decision(client):
     textes = [p["texte"] for p in synth["phrases"]]
     assert textes[0] == "L’agent a lu un contenu qui cachait une instruction."
     assert textes[1] == ("Il a voulu envoyer son rapport en y glissant une image espion et une clé : "
-                         "Dédale a arrêté cette action avant qu’elle s’exécute.")
+                         "sAIfe a arrêté cette action avant qu’elle s’exécute.")
     assert textes[2] == "L’action est en attente : aucun analyste n’a encore décidé."
     assert synth["decision_recommandee"]["action"] == "couper"
     assert synth["decision_recommandee"]["deja_appliquee"] is False
