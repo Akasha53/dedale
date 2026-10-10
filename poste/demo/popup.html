@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Dédale : poste du salarié</title>
+<title>sAIfe : poste du salarié</title>
 <style>
   /* Même palette que l'extension et la console : clair, police du système,
      arrondis larges, peu de couleurs. Le rouge signale le risque ; le bon réflexe est la pilule noire, comme dans l'app Mac. */
@@ -67,7 +67,8 @@
   .alerte-tete { display:flex; align-items:center; gap:10px; }
   .alerte-ico { width:28px; height:28px; flex:none; display:grid; place-items:center; color:var(--texte); }
   .alerte-ico svg { width:28px; height:28px; }
-  .alerte-nom { font-weight:600; font-size:14px; }
+  .alerte-nom { font-weight:400; font-size:14px; letter-spacing:-0.01em; }
+  .alerte-nom b { font-weight:700; color:inherit; }
   .alerte-cat { margin-left:auto; padding:3px 10px; border-radius:8px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); font-size:12px; font-weight:500; color:var(--doux); }
   .alerte-titre { font-size:19px; font-weight:650; letter-spacing:-.015em; line-height:1.25; margin-top:4px; }
   .alerte-meta { font-size:13px; color:var(--doux); overflow-wrap:anywhere; }
@@ -158,12 +159,12 @@
 <body>
   <div class="enveloppe">
     <header class="tete">
-      <span class="pastille">Dédale · poste du salarié</span>
+      <span class="pastille">sAIfe · poste du salarié</span>
       <h1>Camille est prévenue avant le clic de trop.</h1>
-      <p>Dédale est une app visible : son icône reste dans la barre de menus du Mac. Elle prévient le salarié avant un geste risqué et lui laisse le choix. Elle ne bloque jamais le poste.</p>
+      <p>sAIfe est une app visible : son icône reste dans la barre de menus du Mac. Elle prévient le salarié avant un geste risqué et lui laisse le choix. Elle ne bloque jamais le poste.</p>
       <div class="perimetre">
-        <strong>Ce que Dédale regarde</strong>
-        <p>Quatre choses, chacune dans un module qu'on peut couper : les mails qui arrivent, l'adresse de l'onglet actif, les nouveaux téléchargements et les agents IA installés sur le poste. Dédale ne lit jamais le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique. Orbis Pay et Camille sont fictifs, tout tourne en local.</p>
+        <strong>Ce que sAIfe regarde</strong>
+        <p>Quatre choses, chacune dans un module qu'on peut couper : les mails qui arrivent, l'adresse de l'onglet actif, les nouveaux téléchargements et les agents IA installés sur le poste. sAIfe ne lit jamais le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique. Orbis Pay et Camille sont fictifs, tout tourne en local.</p>
       </div>
     </header>
 
@@ -193,16 +194,16 @@
           </div>
         </div>
         <div class="voile">
-          <div class="alerte" role="group" aria-label="Alerte de Dédale sur le mail">
+          <div class="alerte" role="group" aria-label="Alerte de sAIfe sur le mail">
             <div class="alerte-tete">
               <span class="alerte-ico"><svg viewBox="0 0 750 750" fill="currentColor" aria-hidden="true"><path d="M251.18 0.24L505.20 0.24A13.4 13.4 0 0 1 518.60 13.64L518.60 29.28A37.3 37.3 0 0 1 501.32 60.76L182.60 263.48A28.5 28.5 0 0 0 169.40 287.53L169.40 383.35A9.0 9.0 0 0 1 166.05 390.35L60.42 475.65A37.1 37.1 0 0 1 0.01 446.79L0.01 201.22A57.2 57.2 0 0 1 23.05 155.35L215.34 12.12A60.0 60.0 0 0 1 251.18 0.24Z"/><path d="M749.98 315.89L749.98 527.88A76.1 76.1 0 0 1 717.54 590.22L513.07 733.41A90.5 90.5 0 0 1 461.15 749.78L327.98 749.78A18.3 18.3 0 0 1 309.68 731.48L309.68 655.58A42.2 42.2 0 0 1 331.34 618.71L534.24 505.66A33.0 33.0 0 0 0 551.18 476.84L551.18 403.96A12.0 12.0 0 0 1 555.66 394.61L689.46 286.91A37.2 37.2 0 0 1 749.98 315.89Z"/><circle cx="368.44" cy="374.17" r="124.55"/></svg></span>
-              <span class="alerte-nom">Dédale</span>
+              <span class="alerte-nom">s<b>AI</b>fe</span>
               <span class="alerte-cat">Hameçonnage</span>
             </div>
             <p class="alerte-titre">Ce mail est sûrement frauduleux.</p>
             <p class="alerte-meta">« Votre accès Orbis Pay expire » · alerte@orbispay-verification[.]net</p>
             <p class="alerte-raison">Il se présente comme Orbis Pay, mais il vient d'un domaine déjà connu comme piège. Ne clique sur rien et ne réponds pas.</p>
-            <a class="alerte-lien" href="#ce-qui-part">Ce que Dédale envoie</a>
+            <a class="alerte-lien" href="#ce-qui-part">Ce que sAIfe envoie</a>
             <div class="alerte-boutons">
               <button type="button" class="b-continuer" tabindex="-1">Continuer</button>
               <button type="button" class="b-annuler" tabindex="-1">Annuler</button>
@@ -234,7 +235,7 @@
           <div class="chrome"><span class="feu"></span><span class="feu"></span><span class="feu"></span>
             <span class="barre-url"><span>login-orbispay.help/connexion</span></span></div>
           <div class="page-ext">
-            <div class="ext" role="group" aria-label="Avertissement de l'extension Dédale">
+            <div class="ext" role="group" aria-label="Avertissement de l'extension sAIfe">
               <span class="ext-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
               <h3>Ce site imite Orbis Pay.<span>Ce n'est pas le vrai site.</span></h3>
               <dl>
@@ -276,7 +277,7 @@
         <article class="carte">
           <span class="carte-ctx">Agents IA du poste</span>
           <p class="carte-geste">Un assistant IA vient d'être installé sur le poste de Camille.</p>
-          <p class="carte-titre">Dédale l'ajoute à l'inventaire.</p>
+          <p class="carte-titre">sAIfe l'ajoute à l'inventaire.</p>
           <p class="carte-part"><b>Part au SOC :</b> son nom et les types d'outils qu'il peut utiliser. Jamais un secret ni une clé.</p>
         </article>
         <article class="carte">
@@ -303,10 +304,10 @@
         </tbody>
       </table>
       <p class="part-note">Jamais lus : le presse-papiers, les frappes, l'écran, le contenu des pages, l'historique. Jamais envoyés : le contenu d'un fichier, la valeur d'un secret, tes autres mails. Un mail que tu signales toi-même part aussi, désarmé.</p>
-      <p class="part-note">Dédale ne bloque jamais ton poste : il prévient, tu décides. Seul un geste critique, comme un virement, attend un second avis.</p>
+      <p class="part-note">sAIfe ne bloque jamais ton poste : il prévient, tu décides. Seul un geste critique, comme un virement, attend un second avis.</p>
     </section>
 
-    <footer>Dédale · démo du poste du salarié. Orbis Pay, Camille et tous les mails sont fictifs ; tout tourne en local.</footer>
+    <footer>sAIfe · démo du poste du salarié. Orbis Pay, Camille et tous les mails sont fictifs ; tout tourne en local.</footer>
   </div>
 </body>
 </html>

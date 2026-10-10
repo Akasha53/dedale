@@ -66,7 +66,7 @@ def rendu_terminal(verdict: Verdict, largeur: int = 68) -> str:
     def ligne(txt: str) -> str:
         return "│ " + txt.ljust(largeur - 4) + " │"
 
-    corps = [haut, ligne("DÉDALE — garde du corps du poste"),
+    corps = [haut, ligne("sAIfe — garde du corps du poste"),
              ligne("gravité : " + verdict.gravite + "   règle : " + verdict.regle), sep]
     for l in lignes(verdict.titre):
         corps.append(ligne(l))
@@ -146,7 +146,8 @@ _CSS = """  /* Même palette que l'extension et la console : clair, police du sy
   .alerte-tete { display:flex; align-items:center; gap:10px; }
   .alerte-ico { width:28px; height:28px; flex:none; display:grid; place-items:center; color:var(--texte); }
   .alerte-ico svg { width:28px; height:28px; }
-  .alerte-nom { font-weight:600; font-size:14px; }
+  .alerte-nom { font-weight:400; font-size:14px; letter-spacing:-0.01em; }
+  .alerte-nom b { font-weight:700; color:inherit; }
   .alerte-cat { margin-left:auto; padding:3px 10px; border-radius:8px; background:var(--fond); box-shadow:0 0 0 1px var(--bord); font-size:12px; font-weight:500; color:var(--doux); }
   .alerte-titre { font-size:19px; font-weight:650; letter-spacing:-.015em; line-height:1.25; margin-top:4px; }
   .alerte-meta { font-size:13px; color:var(--doux); overflow-wrap:anywhere; }
@@ -280,16 +281,16 @@ def _scene_mail(geste: actions.Geste, verdict: Verdict) -> str:
           </div>
         </div>
         <div class="voile">
-          <div class="alerte" role="group" aria-label="Alerte de Dédale sur le mail">
+          <div class="alerte" role="group" aria-label="Alerte de sAIfe sur le mail">
             <div class="alerte-tete">
               <span class="alerte-ico">{_LOGO_DEDALE}</span>
-              <span class="alerte-nom">Dédale</span>
+              <span class="alerte-nom">s<b>AI</b>fe</span>
               <span class="alerte-cat">Hameçonnage</span>
             </div>
             <p class="alerte-titre">{_esc(verdict.titre)}</p>
             <p class="alerte-meta">« {_esc(objet_court)} » · {_esc(_desarmer_adresse(de_adr))}</p>
             <p class="alerte-raison">Il se présente comme Orbis Pay, mais il vient d'un domaine déjà connu comme piège. Ne clique sur rien et ne réponds pas.</p>
-            <a class="alerte-lien" href="#ce-qui-part">Ce que Dédale envoie</a>
+            <a class="alerte-lien" href="#ce-qui-part">Ce que sAIfe envoie</a>
             <div class="alerte-boutons">
               <button type="button" class="b-continuer" tabindex="-1">Continuer</button>
               <button type="button" class="b-annuler" tabindex="-1">Annuler</button>
@@ -326,7 +327,7 @@ def _scene_web(geste: actions.Geste, verdict: Verdict) -> str:
           <div class="chrome"><span class="feu"></span><span class="feu"></span><span class="feu"></span>
             <span class="barre-url"><span>{hote}/connexion</span></span></div>
           <div class="page-ext">
-            <div class="ext" role="group" aria-label="Avertissement de l'extension Dédale">
+            <div class="ext" role="group" aria-label="Avertissement de l'extension sAIfe">
               <span class="ext-ico">{_ICONE_ALERTE}</span>
               <h3>Ce site imite Orbis Pay.<span>Ce n'est pas le vrai site.</span></h3>
               <dl>
@@ -371,7 +372,7 @@ _AUTRES_MODULES = """
         <article class="carte">
           <span class="carte-ctx">Agents IA du poste</span>
           <p class="carte-geste">Un assistant IA vient d'être installé sur le poste de Camille.</p>
-          <p class="carte-titre">Dédale l'ajoute à l'inventaire.</p>
+          <p class="carte-titre">sAIfe l'ajoute à l'inventaire.</p>
           <p class="carte-part"><b>Part au SOC :</b> son nom et les types d'outils qu'il peut utiliser. Jamais un secret ni une clé.</p>
         </article>
         <article class="carte">
@@ -400,14 +401,14 @@ _CE_QUI_PART = """
         </tbody>
       </table>
       <p class="part-note">Jamais lus : le presse-papiers, les frappes, l'écran, le contenu des pages, l'historique. Jamais envoyés : le contenu d'un fichier, la valeur d'un secret, tes autres mails. Un mail que tu signales toi-même part aussi, désarmé.</p>
-      <p class="part-note">Dédale ne bloque jamais ton poste : il prévient, tu décides. Seul un geste critique, comme un virement, attend un second avis.</p>
+      <p class="part-note">sAIfe ne bloque jamais ton poste : il prévient, tu décides. Seul un geste critique, comme un virement, attend un second avis.</p>
     </section>
 """
 
 
 # --- page complète -------------------------------------------------------------
 
-def page_html(cartes, titre: str = "Dédale : poste du salarié") -> str:
+def page_html(cartes, titre: str = "sAIfe : poste du salarié") -> str:
     """Page autonome : la scène du mail, celle du site sosie, les autres modules, ce qui part.
 
     `cartes` : liste de (geste, verdict, choix) pour chaque geste averti. Seuls le mail reçu et
@@ -434,16 +435,16 @@ def page_html(cartes, titre: str = "Dédale : poste du salarié") -> str:
 <body>
   <div class="enveloppe">
     <header class="tete">
-      <span class="pastille">Dédale · poste du salarié</span>
+      <span class="pastille">sAIfe · poste du salarié</span>
       <h1>Camille est prévenue avant le clic de trop.</h1>
-      <p>Dédale est une app visible : son icône reste dans la barre de menus du Mac. Elle prévient le salarié avant un geste risqué et lui laisse le choix. Elle ne bloque jamais le poste.</p>
+      <p>sAIfe est une app visible : son icône reste dans la barre de menus du Mac. Elle prévient le salarié avant un geste risqué et lui laisse le choix. Elle ne bloque jamais le poste.</p>
       <div class="perimetre">
-        <strong>Ce que Dédale regarde</strong>
-        <p>Quatre choses, chacune dans un module qu'on peut couper : les mails qui arrivent, l'adresse de l'onglet actif, les nouveaux téléchargements et les agents IA installés sur le poste. Dédale ne lit jamais le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique. Orbis Pay et Camille sont fictifs, tout tourne en local.</p>
+        <strong>Ce que sAIfe regarde</strong>
+        <p>Quatre choses, chacune dans un module qu'on peut couper : les mails qui arrivent, l'adresse de l'onglet actif, les nouveaux téléchargements et les agents IA installés sur le poste. sAIfe ne lit jamais le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique. Orbis Pay et Camille sont fictifs, tout tourne en local.</p>
       </div>
     </header>
 {scenes}{_AUTRES_MODULES}{_CE_QUI_PART}
-    <footer>Dédale · démo du poste du salarié. Orbis Pay, Camille et tous les mails sont fictifs ; tout tourne en local.</footer>
+    <footer>sAIfe · démo du poste du salarié. Orbis Pay, Camille et tous les mails sont fictifs ; tout tourne en local.</footer>
   </div>
 </body>
 </html>
