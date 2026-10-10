@@ -625,3 +625,86 @@ Corps `{"droit": "coffre:lire", "analyste": "…"}`. Le droit doit figurer dans 
 ### `clore` sur un incident d'agent (10 octobre)
 
 `POST /api/incidents/{id}/decision` accepte maintenant `clore` sur un incident d'agent. Le dossier passe en `statut: "clos"` et la session garde son état. C'est la suite d'une action que la passerelle a déjà refusée d'office (droit absent du jeton, faux collègue) : il ne reste rien à couper ni à laisser passer. Un appel encore retenu reste retenu. La console ne propose `clore` que pour un refus d'office.
+
+## Avenant du 10 octobre 2026 : garde-mail (`messagerie/`)
+
+De vrais mails arrivent dans une boîte de démo locale, et un analyseur dit pour chacun s'il est sûrement frauduleux, et pourquoi. Tout tourne sur 127.0.0.1, tous les domaines sont en `.example`.
+
+| Service | Adresse | Lancement |
+|---|---|---|
+| Mailpit, API et interface web | `127.0.0.1:8716` | `messagerie/demarrer.sh` |
+| Mailpit, SMTP | `127.0.0.1:8717` | jeu de démo : `uv run python envoyer_demo.py` |
+| Service de verdicts (FastAPI) | `127.0.0.1:8715` | `messagerie/demarrer.sh --service` |
+
+Variables : `MESSAGERIE_MAILPIT` (URL de l'API Mailpit), `DEDALE_BACKEND` (défaut `http://127.0.0.1:8700`), `MESSAGERIE_SIGNALER=0` coupe l'envoi au backend, `MESSAGERIE_INTERVALLE` (relève, 1 s par défaut). `demarrer.sh` accepte aussi `MESSAGERIE_PORT_WEB`, `MESSAGERIE_PORT_SMTP` et `MESSAGERIE_PORT`.
+
+### Routes du service (8715)
+
+- `GET /verdicts?limite=50&verdict=sur|suspect|frauduleux` : `{"verdicts": [...], "total": n, "repartition": {"sur": n, "suspect": n, "frauduleux": n}}`, du plus récent au plus ancien. `limite` de 1 à 500.
+- `GET /mails?limite=50` : `{"mails": [{"id", "recu_a", "de", "objet", "verdict", "score"}], "total": n}`.
+- `GET /mails/{id}` : le mail complet, désarmé, avec son verdict. 404 si le mail est inconnu, 503 si Mailpit ne répond pas.
+- `GET /flux?derniers=N&max=M` : flux SSE. Chaque nouveau verdict part en `event: verdict`, `id: <id du mail>`, `data: <verdict JSON>`. `derniers` rejoue d'abord les N derniers verdicts, `max` ferme le flux après M verdicts. Un commentaire `: ping` part toutes les 15 s.
+- `WS /ws?derniers=N` : `{"type": "bonjour", "donnees": {"mails_analyses", "repartition"}}`, puis `{"type": "verdict", "donnees": <verdict>}` à chaque nouveau mail.
+- `POST /relever` : relève la boîte tout de suite, `{"nouveaux": n, "verdicts": [...]}`.
+- `GET /sante` : état de la boîte et du backend (`joignable`, `erreur`, `en_attente`), nombre de mails analysés.
+
+CORS accepté pour `localhost` et `127.0.0.1`, tous ports.
+
+### Verdict
+
+```json
+{"id": "4ODLupcsXbXB5X9cZlSqGI", "message_id": "<…@direction-groupe.example>", "recu_a": "2026-10-10T21:00:05+02:00",
+ "de": {"nom": "Claire Vasseur", "adresse": "claire.vasseur@direction-groupe.example", "domaine": "direction-groupe.example"},
+ "a": ["camille.martin@orbispay.example"], "objet": "Urgent et confidentiel",
+ "verdict": "frauduleux", "frauduleux": true, "score": 0.75, "gravite": "haute",
+ "titre_alerte": "Mail frauduleux : fraude au président",
+ "conseil": "Sûrement frauduleux. Ne cliquez sur aucun lien, n'ouvrez pas les pièces jointes et ne répondez pas.",
+ "geste": "virement", "lien_reel": null,
+ "raison_principale": "Le mail presse (« urgent », « aujourd'hui ») et demande de l'argent (« 48 500 € », « virement »). C'est le schéma de la fraude au président.",
+ "raisons": ["Le mail presse (…). C'est le schéma de la fraude au président.",
+             "Le nom affiché est celui de Claire Vasseur, PDG d'Orbis Pay, mais l'adresse réelle est claire.vasseur@direction-groupe.example, hors du domaine orbispay.example.",
+             "Les réponses partent vers c.vasseur@cabinet-fusion.example, pas vers l'adresse de l'expéditeur (claire.vasseur@direction-groupe.example)."],
+ "signaux": [{"code": "urgence_argent", "poids": 0.45, "raison": "…", "preuve": "urgent, aujourd'hui, …"}, "…"],
+ "pieces_jointes": [],
+ "signalement": {"session_id": "mail-4ODLupcsXbXB5X9cZlSqGI", "statut": "envoye", "a": "2026-10-10T21:00:06.564+02:00"}}
+```
+
+- `score` = 1 - produit des (1 - `poids`) des signaux. `verdict` vaut `sur` sous 0,25, `suspect` sous 0,6, `frauduleux` au-delà. `frauduleux` est le booléen correspondant.
+- `raisons` : une phrase par signal, la plus forte d'abord. `raison_principale` est la première, `null` pour un mail sûr. `signaux[].preuve` donne ce qui a déclenché le signal.
+- `signaux[].code` : `sosie_domaine`, `nom_affiche_trompeur`, `reponse_detournee`, `lien_menteur`, `piece_jointe_dangereuse`, `urgence_argent`, `urgence_identifiants`, `changement_bancaire`, `instruction_cachee`, `caracteres_invisibles`, `texte_cache`, `authentification_echec`.
+- `gravite` : `critique` (frauduleux, score de 0,9 ou plus), `haute` (frauduleux), `moyenne` (suspect), `faible` (sûr). `titre_alerte` est `null` pour un mail sûr. `geste` vaut `virement` quand le mail réclame de l'argent ou un changement de RIB, sinon `null`.
+- `lien_reel` : la vraie destination du premier lien trompeur, désarmée (`hxxps://orbispay-verification[.]example/connexion`), sinon `null`.
+- `signalement` : `null` sauf pour un mail frauduleux. `statut` vaut `en_attente`, `envoye`, `deja_present` (le backend connaissait déjà la session) ou `desactive`.
+- Les raisons citent des domaines en clair, sans schéma, pour qu'un salarié les lise. Une URL complète ne sort que désarmée. Tout se lit comme du texte, jamais comme du HTML.
+- `Authentication-Results` n'est lu que s'il est posé par `mx.orbispay.example`. Le même en-tête écrit par l'expéditeur est ignoré.
+
+### Mail complet : `GET /mails/{id}`
+
+`{"id", "message_id", "recu_a", "date", "de": {"nom", "adresse", "domaine"}, "a": [...], "repondre_a": [...], "objet", "texte", "texte_cache": [{"technique", "texte"}], "liens": [{"texte", "destination", "domaine", "suspect"}], "pieces_jointes": [{"nom", "type", "taille"}], "authentification": [...], "verdict": <verdict>}`. Tout est désarmé : `hxxp(s)://`, domaines et adresses en `[.]`, caractères invisibles retirés. Aucun HTML n'est renvoyé. `texte` est la partie texte du mail, sinon le texte visible du HTML. `texte_cache` donne ce qu'un humain ne voit pas, avec la technique (`écrit en blanc sur fond blanc`, `masqué par display:none`…).
+
+### Événement envoyé au backend pour un mail frauduleux
+
+Une seule fois par mail : le service lit d'abord `GET /api/sessions/mail-<id>` et n'envoie rien si la session existe. Backend absent : le mail reste en attente et le service réessaie toutes les 10 s, sans jamais tomber.
+
+```json
+{"horodatage": "2026-10-10T21:00:06.564+02:00", "source": "humain", "surface": "poste", "type": "avertissement",
+ "session_id": "mail-4ODLupcsXbXB5X9cZlSqGI", "leurre_id": null, "ip": null, "user_agent": "dedale-messagerie/0.1",
+ "methode": null, "chemin": null, "outil": null,
+ "details": {"categorie": "phishing", "contexte": "mail reçu", "gravite": "haute",
+             "verdict": "frauduleux", "score": 0.75, "raisons": ["…"], "signaux": ["urgence_argent", "…"],
+             "message": "<raisons mises bout à bout>", "cible": "claire.vasseur@direction-groupe.example",
+             "mail_id": "4ODLupcsXbXB5X9cZlSqGI", "objet": "Urgent et confidentiel",
+             "lien": "hxxps://… (si un lien trompe)", "extrait": "<texte caché, s'il y en a>",
+             "document_source": {"type": "mail", "id": "…", "titre": "…", "expediteur": "…", "destinataire": "…",
+                                 "date": "…", "origine": "externe",
+                                 "segments": [{"texte": "<texte visible>", "piege": false}, {"texte": "<texte caché>", "piege": true}]}}}
+```
+
+- Il n'y a pas de `choix` : le salarié n'a encore rien décidé. Selon l'avenant « humain », cet avertissement n'ouvre donc pas d'incident. La session `mail-<id>` apparaît dans `GET /api/sessions` avec son événement et le mail désarmé.
+- Pour qu'un geste ouvre l'incident `humain_phishing` avec le mail en contexte, l'app Mac envoie le choix du salarié dans la même session : `avertissement` `{"categorie": "phishing", "choix": "continuer" | "annuler"}` avec `session_id: "mail-<id>"`.
+- `message`, `cible`, `lien` et `extrait` sont neutralisés par le backend, `document_source` est désarmé à l'ingestion. Le service nettoie lui-même `raisons` et `objet` (caractères invisibles retirés, chevrons remplacés, 400 caractères au plus) : ces deux champs ne figurent pas dans la liste de neutralisation du backend.
+
+### Ce que lisent l'app Mac et la console
+
+- App Mac (`app-mac/Sources/Dedale/Messagerie.swift`) : `GET /verdicts` toutes les 3 s, ou `WS /ws`. La pop-up s'ouvre sur `frauduleux: true` et affiche `titre_alerte`, `raisons`, `conseil`, `gravite`, `lien_reel` et `geste`. `GET /mails/{id}` sert l'aperçu désarmé (`texte`, `de`, `a`).
+- Console : `GET /verdicts` puis `GET /flux` ou `WS /ws` pour le direct. Les mails frauduleux sont aussi dans le backend, sous les sessions `mail-*`, sans appel au port 8715.
