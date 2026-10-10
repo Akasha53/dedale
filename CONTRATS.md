@@ -784,3 +784,51 @@ Quand un événement ouvre un incident (`incident_nouveau: true` dans le retour 
 Nouveaux objets `temps_detection` et `temps_confinement`, chacun `{"mediane_ms": int|null, "moyenne_ms": int|null, "echantillons": int}`. `temps_detection_s` et `temps_confinement_s` ne changent pas : ce sont des moyennes en secondes.
 
 À faire côté console : le libellé « méd. » lit aujourd'hui une moyenne ; afficher `temps_detection.mediane_ms` et `temps_confinement.mediane_ms`, ou écrire « moy. ». Ajouter un lien « Rapport » vers `/api/incidents/{id}/rapport`, une pastille d'intégrité tirée de `/verification`, et aligner le mock.
+
+## Avenant du 10 octobre 2026 : app Mac, signalement et quatre yeux
+
+L'app de barre de menus (`app-mac/`) envoie deux nouveaux usages de `POST /api/evenements`. Le schéma d'événement ne change pas et aucune route n'est ajoutée.
+
+### Événement `signalement`
+
+Le salarié choisit un mail dans « Signaler un mail suspect… ». Un clic envoie :
+
+```json
+{"horodatage": "2026-10-10T21:04:23.966+02:00", "source": "humain", "surface": "poste", "type": "signalement",
+ "session_id": "poste-mac-signalement-<id du mail>", "leurre_id": null, "ip": "127.0.0.1",
+ "user_agent": "dedale-mac/0.2", "methode": null, "chemin": null, "outil": null,
+ "details": {"origine": "app-mac", "mail_id": "<id du mail dans messagerie/>",
+             "message": "Mail signalé par le salarié : « <objet> »",
+             "cible": "<expéditeur>",
+             "verdict_analyseur": "sur | suspect | frauduleux | inconnu",
+             "document_source": {"type": "mail", "id": "…", "titre": "<objet>", "expediteur": "…",
+                                 "destinataire": "…", "date": "…", "origine": "externe",
+                                 "corps": "<texte désarmé de GET /mails/{id}>"}}}
+```
+
+- `mail_id` reprend l'identifiant de `messagerie/`, réduit à `[A-Za-z0-9-_.:]` et à 40 caractères. La boîte noire du même mail, quand l'analyseur l'a jugé frauduleux, est dans la session `mail-<id>`.
+- Le texte libre ne passe que par `message` et `cible`, que le backend neutralise, et par `document_source`, qu'il désarme. L'objet n'a pas de champ à lui.
+- `verdict_analyseur` dit ce que l'analyseur pensait du mail. Un signalement sur un mail `sur` est le plus utile : l'analyseur l'avait laissé passer.
+- Le backend actuel range l'événement dans la session sans ouvrir d'incident. À décider côté backend : compter les signalements, et ouvrir ou enrichir un incident quand le mail signalé était `sur` ou `suspect`.
+- L'app affiche « Merci, la SOC est prévenue. » sur une réponse 2xx, sinon « La SOC est injoignable. Réessayez dans un moment. ». Il n'y a pas de file de renvoi.
+
+### Quatre yeux sur un geste critique
+
+Une alerte de gravité `critique` ne passe pas sur le seul « Continuer » du salarié. C'est le cas d'un `POST 127.0.0.1:8712/avertir` avec `"gravite": "critique"` (par exemple `"geste": "virement"` ou `"export_clients"`), et d'un verdict de `messagerie/` qui porte `geste` ou `"gravite": "critique"`.
+
+1. L'app relève le nombre de décisions déjà prises sur l'incident de la session (`GET /api/incidents`, champ `decisions`).
+2. Elle envoie l'avertissement `"choix": "continuer"` avec quatre champs de plus dans `details` : `"quatre_yeux": "demande"`, `demande_id`, `delai_s` et `"consequence": "Geste suspendu : il attend la validation d'un analyste du SOC."`. La session est `mail-<id>` pour un mail, pour que l'incident porte le mail reçu. Sinon c'est `<session>-4y-<demande_id>`, neuve à chaque demande.
+3. Elle relit `GET /api/incidents` chaque seconde. Seule une décision prise après la demande compte : `ignorer` accorde le geste, `clore` le refuse. L'app lit aussi `accorder`, `autoriser`, `valider`, `reprendre` (accord) et `refuser`, `couper`, `valider_riposte`, `bloquer` (refus), si le backend propose un jour ces mots.
+4. Sans décision dans `delai_s` (90 s par défaut, `DEDALE_QUATRE_YEUX_DELAI` côté app), le geste est refusé. Un backend injoignable à l'envoi vaut aussi un refus. Une décision qui arrive après le délai ne change plus rien sur le poste.
+5. L'issue part dans la même session en `"type": "riposte"`, `details` : `{"origine": "app-mac", "quatre_yeux": "accorde | refuse | expire", "demande_id", "categorie", "consequence": "<phrase>"}`. Le backend en fait une étape `consequence` de la boîte noire, après « Geste suspendu ».
+
+Dans `GET /api/mesures`, la demande compte comme un geste passé outre, même refusée.
+
+À faire côté console : sur un incident `humain_*` dont un événement porte `details.quatre_yeux: "demande"`, nommer les boutons « Accorder » (`ignorer`) et « Refuser » (`clore`) et afficher le temps restant (`delai_s` depuis l'horodatage de cet événement). « Classer sans suite » et « Clore le dossier » marchent déjà, mais ne disent pas ce qui se passe sur le poste.
+
+### Ce que l'app Mac lit du garde-mail
+
+- `GET /verdicts` au démarrage, puis `GET /flux` (SSE, `event: verdict`). Le relevé de `GET /verdicts` continue toutes les 3 s en secours. `GET /mails` remplit le sous-menu « Signaler » (8 derniers mails), `GET /mails/{id}` sert l'aperçu « Voir le mail » et le `document_source` du signalement.
+- Champs lus : `frauduleux` (ou `verdict == "frauduleux"`), `verdict`, `titre_alerte`, `raisons` (deux au plus à l'écran), `signaux[].code`, `gravite`, `geste`, `lien_reel`, `signalement.session_id`, `de`, `a`, `objet`, `recu_a`, et pour l'aperçu `texte`, `liens`, `pieces_jointes`, `texte_cache`. `conseil` n'est pas affiché : le coach tire son repère du code du signal le plus lourd.
+- Un mail `suspect` n'ouvre pas de pop-up. Les mails frauduleux déjà là au démarrage non plus, sauf avec `DEDALE_MAILS_AU_DEMARRAGE=alerter`.
+- Le choix du salarié (`annuler` ou `continuer`) part dans la session `signalement.session_id`, sinon `mail-<id>`.
