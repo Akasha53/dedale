@@ -40,7 +40,7 @@ from pathlib import Path
 from statistics import mean, median
 from typing import Any, Awaitable, Callable
 
-from . import config, incidents, journal_scelle, memoire_relecteur as memoire, montants, paiements, securite
+from . import besoin_d_en_connaitre, config, incidents, journal_scelle, memoire_relecteur as memoire, montants, paiements, securite
 from .store import store
 
 _journal = logging.getLogger(__name__)
@@ -1700,6 +1700,8 @@ async def verifier_geste(corps: dict) -> dict:
             "quatre_yeux": "demande", "demande_id": did, "origine": "relecteur",
             "montant_tranche": memoire.tranche(faits.get("geste"), faits.get("montant_eur"), faits.get("volume")),
             "beneficiaire_masque": (b.get("nom") if b.get("connu") else _masquer_nom(details.get("beneficiaire"))),
+            # Lu en clair par la SOC seulement sur ce signal de fraude, consultation journalisée.
+            "confidentiel": besoin_d_en_connaitre.detail_confidentiel(faits, details),
             "signaux": [x["code"] for x in signaux],
             "consequence": "Geste suspendu : Dédale a repéré un signal de fraude.",
             **({"mail_id": details["mail_id"]} if details.get("mail_id") else {}),
@@ -1714,7 +1716,8 @@ async def verifier_geste(corps: dict) -> dict:
     if resultat["decision"] != "refuse":
         # Un signal de fraude ne laisse jamais passer le geste en silence : il est retenu.
         resultat = {**resultat, "decision": "retenu", "action": None, "decision_proposee": "refuser",
-                    "motif_salarie": " ".join(x["raison"] for x in signaux if x["fraude"])[:220] or resultat["motif_salarie"]}
+                    "motif_salarie": " ".join(x["raison"] for x in sorted(signaux, key=lambda x: not x["fraude"])[:2])[:220]
+                    or resultat["motif_salarie"]}
     with store.lock:
         sess = store.sessions.get(sid_inc)
         inc = _incident_de(sess) if sess else None

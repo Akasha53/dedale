@@ -33,6 +33,8 @@ final class DemandeQuatreYeux {
         let motifSalarie: String
         let tranchePar: String
         let dureeMs: Int
+        /// Signal de fraude : l'équipe sécurité est prévenue.
+        var fraude = false
 
         var accorde: Bool { etat == "accorde" }
         var retenu: Bool { etat == "retenu" }
@@ -93,7 +95,8 @@ final class DemandeQuatreYeux {
         case .accorde:
             lignes = r == nil ? ["L'équipe sécurité a validé ce geste. Tu peux continuer."] : [r?.motifSalarie, verifie]
         case .retenu:
-            lignes = [r?.motifSalarie ?? "Dédale n'a pas pu vérifier ce geste.", conseilRetenu, verifie]
+            lignes = [r?.motifSalarie ?? "Dédale n'a pas pu vérifier ce geste.", conseilRetenu,
+                      r?.fraude == true ? "L'équipe sécurité est prévenue." : nil, verifie]
         case .expire:
             lignes = ["Dédale n'a pas pu vérifier ce geste à temps.", conseilRetenu]
         case .injoignable:
@@ -224,7 +227,8 @@ final class DemandeQuatreYeux {
                 case "retenu", "refuse":
                     Self.relectures[self.avertissement.id] = Relecture(
                         etat: issue!, motifSalarie: motif ?? "Ce geste présente un signal inhabituel.",
-                        tranchePar: json?["tranche_par"] as? String ?? "règles", dureeMs: duree)
+                        tranchePar: json?["tranche_par"] as? String ?? "règles", dureeMs: duree,
+                        fraude: json?["fraude"] as? Bool ?? false)
                     if !montree { f.montrer() }
                     f.montrerIssue(issue == "refuse" ? .refuse : .retenu)
                 default:
