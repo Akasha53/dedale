@@ -282,3 +282,57 @@ qu'ils ne sont pas renvoyés, elle affiche l'existant et masque la vue droits.
 Pas d'endpoint `GET /api/agents` requis : les droits voyagent sur l'incident (ou la
 session). Si le backend préfère plus tard un endpoint dédié, le signaler ici et la
 console l'ajoutera.
+
+### V2 interne (agents C/A, 10 octobre 2026) — outils MCP piégés et moindre privilège
+
+Deux fonctions sur le même moteur (passerelle + canaris + boîte noire + décision humaine).
+Nouveaux champs et types, pour que la console s'aligne. Tout reste neutralisé : une consigne
+cachée n'est jamais réexécutée, elle est inspectée puis échappée comme les autres leurres.
+
+**Fonction 1 — outil/serveur MCP piégé (tool poisoning).** L'agent interne utilise des
+outils, dont des outils MCP. Un outil MCP d'apparence utile cache une consigne dans sa
+DESCRIPTION (`conformite-express-mcp/verifier_conformite`). L'agent qui lit la description
+et la suit se fait piéger ; un humain ne voit pas la consigne.
+
+- **Nouvelle nature de leurre** : `outil_mcp_piege`. Canari interne `C-9F2E`, enregistré au
+  démarrage par `POST /api/leurres` (`source: interne`, `surface: outil`). Description publiée
+  propre (le texte piégé ne sort pas du module). Risques `OWASP ASI02` (abus d'outil) et
+  `ASI06` ; techniques ATLAS `AML.T0053` (compromission de plugin/outil LLM) et `AML.T0051`
+  (prompt injection) — plausibles, à confirmer sur atlas.mitre.org avant la fiche.
+- **Événements** : la passerelle journalise l'appel de l'outil MCP suspect
+  (`appel_outil` avec `details.outil_mcp_suspect=true`, `details.serveur_mcp`,
+  `details.consigne_outil` neutralisé), puis la consigne suivie via l'exfiltration de sortie
+  (`leurre_touche` portant `leurre_id=C-9F2E`).
+- **Nouveau type d'incident** : `interne_outil_mcp`. La chaîne (boîte noire) place l'outil MCP
+  piégé en phase `consigne`, l'exfiltration en phase `sortie`.
+
+**Fonction 2 — droits trop larges (moindre privilège, OWASP ASI03).** L'agent a un jeu de
+droits (scopes) LARGE ; chaque tâche n'en exige qu'un sous-ensemble. À la demande d'une tâche,
+un jeton ne portant que les scopes utiles est émis ; une action hors de ce jeton est bloquée,
+le jeton révoqué (révocation existante réutilisée), et une alerte émise.
+
+- **Nouveau type d'incident** : `interne_droits`.
+- **`details` lus par le backend** (posés par la passerelle interne) :
+  - `entree_agent` → `details.droits = {tache, accordes: [{code,libelle}], necessaires:
+    [{code,libelle}], jeton: [codes]}` ;
+  - `appel_outil` exécuté → `details.scope_requis` (code) [, `details.scope_dans_jeton`] ;
+  - `appel_outil` refusé → `details.violation_droits = {outil, scope_requis, scopes_jeton,
+    tache}` ; puis `riposte` avec `details.action = "bloquer_hors_scope"`.
+- **Nouveau champ sur la session** (`GET /api/sessions`, `/{id}`) : `droits` (ou `null`),
+  au format console `{accordes, utilises, necessaires}` augmenté de champs tolérés `{jeton,
+  tache, surplus, tentatives_hors_scope}`. `surplus = accordés − nécessaires` : « l'agent
+  avait accès à X, sa tâche n'en avait pas besoin ». `utilises` ne compte que les appels
+  d'outil réellement exécutés.
+- **Nouvel endpoint** : `GET /api/agents` → `{"agents": [{id, nom, session_id, tache,
+  droits}]}`, une entrée par session interne portant des droits. `droits` identique au champ
+  de session. Toléré absent par la console (repli liste vide).
+- **Incident** : `GET /api/incidents[/{id}]` porte aussi `droits` (surtout pour
+  `interne_droits`), même format.
+
+**Prouvé le 10 octobre sur le vrai backend (8700), `interne/orbis/demo.py --backend-reel`.**
+Six scènes : mail propre, mail détourné (couper / reprendre), outil MCP sain (rien ne se
+déclenche), outil MCP piégé (incident `interne_outil_mcp`, canari `C-9F2E`, l'analyste coupe),
+droits trop larges (virement hors jeton bloqué, incident `interne_droits`). `GET /api/agents`
+expose le surplus de droits par session ; `GET /api/mesures` reste cohérent
+(`taux_detection` 1.0, `faux_positifs` 0.0 : les sessions internes V2 n'ont pas de vérité
+terrain, elles n'altèrent pas le taux).

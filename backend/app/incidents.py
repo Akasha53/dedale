@@ -68,7 +68,7 @@ def resume(chaine: list[dict], classement: str, source: str) -> str:
     )
 
 # Champs de details susceptibles de contenir du texte piégé (à neutraliser avant exposition).
-_CHAMPS_PIEGES = ("consigne", "consigne_lue", "contenu", "extrait", "objectif", "charge_utile", "payload")
+_CHAMPS_PIEGES = ("consigne", "consigne_lue", "contenu", "extrait", "objectif", "charge_utile", "payload", "consigne_outil")
 
 
 def _etape_pour(ev: dict, leurres: dict[str, Any]) -> str | None:
@@ -84,6 +84,14 @@ def _etape_pour(ev: dict, leurres: dict[str, Any]) -> str | None:
         return "riposte"
     if typ == "sortie_agent" or details.get("exfiltration"):
         return "tentative_sortie"
+    # Outil MCP piégé : la consigne vit dans la DESCRIPTION de l'outil. Qu'elle soit portée par
+    # le canari touché (nature outil_mcp_piege) ou par l'appel qui découvre l'outil, c'est l'étape
+    # « consigne lue ».
+    if nature == "outil_mcp_piege" or details.get("outil_mcp_suspect"):
+        return "consigne_lue"
+    # Tentative d'action hors du périmètre de droits : une action refusée (moindre privilège).
+    if details.get("violation_droits"):
+        return "action"
     # La consigne lue prime : un leurre peut être l'appât ET porter l'instruction cachée.
     if nature == "consigne_cachee" or details.get("consigne") or details.get("consigne_lue"):
         return "consigne_lue"
@@ -106,8 +114,20 @@ def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[d
             continue
         details = ev.get("details") or {}
         leurre = leurres.get(ev.get("leurre_id")) if ev.get("leurre_id") else None
+        violation = details.get("violation_droits") if isinstance(details.get("violation_droits"), dict) else None
         texte_source = next((details[c] for c in _CHAMPS_PIEGES if details.get(c)), None)
-        if texte_source is None:
+        if violation is not None:
+            # Action hors périmètre : on décrit le droit manquant, jamais de texte piégé.
+            detail = (
+                f"action hors périmètre : {violation.get('outil')} exige le droit "
+                f"{violation.get('scope_requis')}, absent du jeton de tâche"
+            )
+        elif details.get("outil_mcp_suspect"):
+            detail = (
+                f"outil MCP {ev.get('outil')} (serveur {details.get('serveur_mcp')}) : "
+                "description porteuse d'une consigne cachée (tool poisoning)"
+            )
+        elif texte_source is None:
             morceaux = [ev.get("type")]
             if ev.get("methode") or ev.get("chemin"):
                 morceaux.append(f"{ev.get('methode') or ''} {ev.get('chemin') or ''}".strip())

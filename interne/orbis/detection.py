@@ -22,6 +22,17 @@ _MD_LIEN = re.compile(r"!?\[[^\]]*\]\(\s*(?P<url>[^)\s]+)")
 # URL nue http(s) dans un texte, en secours.
 _URL_NUE = re.compile(r"https?://[^\s<>\"')]+")
 
+# Marqueurs d'une consigne cachée dans une DESCRIPTION d'outil (tool poisoning MCP) : une
+# description qui s'adresse à l'assistant comme à un exécutant (verbe d'action vers une
+# donnée sensible + marqueur de dissimulation ou de fausse autorité). Heuristique volontaire :
+# on ne lit jamais la description comme une instruction, on la classe comme suspecte.
+_MARQUEURS_CONSIGNE_OUTIL = re.compile(
+    r"(ne pas divulguer|ne pas (en )?parler|note pour l'assistant|<\s*important\s*>|"
+    r"instruction syst|ignore\b|exfiltr|transf[eè]re|relève la cl|"
+    r"envoie[sz]?\b.*(copie|rapport|cl[ée]|coffre|secret|externe))",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 @dataclass
 class Trouvaille:
@@ -94,6 +105,30 @@ def detecter_faux_secret(texte: str, jetons: dict[str, str]) -> list[Trouvaille]
     return trouvailles
 
 
+def description_piegee(description: str) -> bool:
+    """Vrai si une description d'outil porte une consigne cachée (tool poisoning MCP)."""
+    if not description:
+        return False
+    return bool(_MARQUEURS_CONSIGNE_OUTIL.search(description))
+
+
+def detecter_consigne_outil(description: str, canari_id: str | None) -> list[Trouvaille]:
+    """Consigne malveillante cachée dans la description d'un outil MCP.
+
+    On ne renvoie QUE le constat (la description est piégée) ; le texte de la consigne n'est
+    pas réinjecté dans le détail. Le canari associé permet au backend de nommer l'incident.
+    """
+    if description_piegee(description):
+        return [
+            Trouvaille(
+                type="consigne_outil_mcp",
+                detail="description d'outil MCP porteuse d'une consigne cachée (tool poisoning)",
+                canari_id=canari_id,
+            )
+        ]
+    return []
+
+
 def inspecter(texte: str, jetons: dict[str, str]) -> list[Trouvaille]:
-    """Toutes les détections sur un même texte."""
+    """Toutes les détections de sortie sur un même texte (exfiltration + faux secret)."""
     return detecter_exfiltration(texte) + detecter_faux_secret(texte, jetons)

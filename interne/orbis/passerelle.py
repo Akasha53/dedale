@@ -19,18 +19,22 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from . import detection
+from . import detection, droits
 from .boite_noire import BoiteNoire
 
 
 # Outils « sortants » : ceux qui font quitter une donnée de l'agent. Eux seuls déclenchent
 # la détection de canari. Lire un mail ou un document qui *contient* le payload n'est pas un
 # signal — un humain le lit aussi ; le signal, c'est que l'agent le *ressorte*.
-OUTILS_SORTANTS = {"envoyer_rapport"}
+OUTILS_SORTANTS = {"envoyer_rapport", "exporter_contacts"}
 
 
 class AgentCoupe(Exception):
     """Levée quand l'analyste coupe la session : l'agent doit s'arrêter."""
+
+
+class AgentHorsScope(Exception):
+    """Levée quand l'agent tente une action hors de son jeton de tâche (moindre privilège)."""
 
 
 @dataclass
@@ -60,12 +64,24 @@ class Passerelle:
         *,
         intervalle_poll: float = 1.0,
         poll_max_s: float = 60.0,
+        jeton_tache: "droits.Jeton | None" = None,
+        scopes_accordes: list[str] | None = None,
     ):
         self.session_id = session_id
         self.jetons = jetons
         self.boite = boite or BoiteNoire()
         self.intervalle_poll = intervalle_poll
         self.poll_max_s = poll_max_s
+
+        # Moindre privilège : jeton limité à la tâche. Absent → aucune vérification de scope
+        # (comportement historique préservé pour les appelants qui n'en passent pas).
+        self.jeton_tache = jeton_tache
+        self.scopes_accordes = list(scopes_accordes) if scopes_accordes is not None else []
+        self.scopes_utilises: list[str] = []
+        self.tentatives_hors_scope: list[dict] = []
+        self.hors_scope = False
+        # Mémoire d'une description d'outil MCP piégée consultée dans la session (attribution).
+        self._consigne_mcp: tuple[str, str, str] | None = None
 
         self.jeton_revoque = False
         self.etat = "active"
@@ -75,14 +91,22 @@ class Passerelle:
 
     # --- entrée / sortie de l'agent ----------------------------------------------
     def entree_agent(self, texte: str) -> None:
-        self._tracer("entree_agent", {"texte": texte})
-        self.boite.evenement(
-            "entree_agent", "mail", self.session_id, details={"texte": texte}
-        )
+        details: dict = {"texte": texte}
+        if self.jeton_tache is not None:
+            # On annonce au backend les droits : accordés (larges), jeton de tâche (restreint),
+            # nécessaires (= jeton). L'écart accordés/nécessaires porte le pitch moindre privilège.
+            details["droits"] = {
+                "tache": self.jeton_tache.tache,
+                "accordes": droits.avec_libelles(self.scopes_accordes),
+                "necessaires": droits.avec_libelles(list(self.jeton_tache.scopes)),
+                "jeton": list(self.jeton_tache.scopes),
+            }
+        self._tracer("entree_agent", details)
+        self.boite.evenement("entree_agent", "mail", self.session_id, details=details)
 
     def sortie_agent(self, texte: str) -> str:
         """Inspecte la sortie finale. Peut retenir et faire décider l'analyste."""
-        trouvailles = detection.inspecter(texte, self.jetons)
+        trouvailles = self._attribuer_mcp(detection.inspecter(texte, self.jetons))
         if trouvailles:
             decision = self._gerer_touche(trouvailles, surface="outil", outil=None)
             if decision.verdict == "couper":
@@ -96,21 +120,44 @@ class Passerelle:
         return texte
 
     # --- appel d'outil ------------------------------------------------------------
-    def appel_outil(self, nom: str, params: dict, fonction) -> dict | list | str:
-        """Enveloppe un appel d'outil : journalise, inspecte les paramètres, contrôle."""
-        self._tracer("appel_outil", {"outil": nom, "parametres": params})
-        self.boite.evenement(
-            "appel_outil",
-            "outil",
-            self.session_id,
-            outil=nom,
-            details={"parametres": params},
-        )
+    def appel_outil(self, nom: str, params: dict, fonction, descripteur=None) -> dict | list | str:
+        """Enveloppe un appel d'outil : contrôle le scope, journalise, inspecte, contrôle.
 
-        trouvailles = []
-        if nom in OUTILS_SORTANTS:
+        `descripteur` (OutilMCP) est fourni pour un outil MCP : la passerelle inspecte alors sa
+        description à la recherche d'une consigne cachée (tool poisoning), sans jamais l'exécuter.
+        """
+        scope = droits.scope_outil(nom)
+
+        # --- Moindre privilège : le jeton de tâche doit porter le scope requis. ---
+        if self.jeton_tache is not None and scope is not None and not self.jeton_tache.porte(scope):
+            self._refuser_hors_scope(nom, scope)  # journalise, révoque, lève AgentHorsScope
+
+        # Inspection de la description d'un outil MCP (tool poisoning). Le résultat est un
+        # constat inerte : on retient le canari et on journalise, on n'exécute aucune consigne.
+        det: dict = {"parametres": params}
+        if scope:
+            det["scope_requis"] = scope
+            det["scope_dans_jeton"] = True  # on n'arrive ici que si le scope est porté (ou libre)
+        if descripteur is not None and getattr(descripteur, "canari_id", None):
+            if detection.detecter_consigne_outil(descripteur.description, descripteur.canari_id):
+                self._consigne_mcp = (descripteur.canari_id, descripteur.serveur, descripteur.nom)
+                det["outil_mcp_suspect"] = True
+                det["serveur_mcp"] = descripteur.serveur
+                # Marqueur neutralisé : le texte de la consigne n'est jamais recopié.
+                det["consigne_outil"] = "[description d'outil MCP : consigne cachée détectée]"
+
+        self._tracer("appel_outil", {"outil": nom, **det})
+        self.boite.evenement("appel_outil", "outil", self.session_id, outil=nom, details=det)
+
+        if scope and scope not in self.scopes_utilises:
+            self.scopes_utilises.append(scope)
+
+        # --- Détection sortante (exfiltration / faux secret), attribuée au MCP si pertinent. ---
+        trouvailles: list = []
+        sortant = nom in OUTILS_SORTANTS or (descripteur is not None and getattr(descripteur, "sortant", False))
+        if sortant:
             charge = json.dumps(params, ensure_ascii=False, default=str)
-            trouvailles = detection.inspecter(charge, self.jetons)
+            trouvailles = self._attribuer_mcp(detection.inspecter(charge, self.jetons))
 
         if trouvailles:
             decision = self._gerer_touche(trouvailles, surface="outil", outil=nom)
@@ -124,6 +171,50 @@ class Passerelle:
             # verdict "reprendre" : l'analyste a validé, l'appel retenu s'exécute.
 
         return fonction(**params)
+
+    def _attribuer_mcp(self, trouvailles: list) -> list:
+        """Si un outil MCP piégé a été consulté dans la session et qu'une exfiltration est
+        détectée, on l'attribue en tête à ce canari MCP : l'incident sera `interne_outil_mcp`."""
+        if trouvailles and self._consigne_mcp is not None:
+            cid, serveur, outil = self._consigne_mcp
+            tete = detection.Trouvaille(
+                type="consigne_outil_mcp",
+                detail=f"a suivi la consigne cachée de l'outil MCP {serveur}/{outil}",
+                canari_id=cid,
+            )
+            return [tete] + trouvailles
+        return trouvailles
+
+    def _refuser_hors_scope(self, nom: str, scope: str) -> None:
+        """Action hors du jeton de tâche : on bloque, on révoque le jeton (réutilise la
+        révocation existante), on alerte, et on arrête l'agent. Jamais exécutée."""
+        self.hors_scope = True
+        self.incident = True
+        self.tentatives_hors_scope.append({"outil": nom, "scope_requis": scope})
+        violation = {
+            "outil": nom,
+            "scope_requis": scope,
+            "scopes_jeton": list(self.jeton_tache.scopes),
+            "tache": self.jeton_tache.tache,
+        }
+        self._tracer("appel_outil", {"outil": nom, "hors_scope": True, "scope_requis": scope})
+        self.boite.evenement(
+            "appel_outil", "outil", self.session_id, outil=nom,
+            details={"parametres": {}, "violation_droits": violation},
+        )
+        # Riposte préventive, locale : le jeton de tâche est révoqué immédiatement.
+        self.jeton_tache.revoquer()
+        self.jeton_revoque = True
+        self.etat = "suspendue"
+        self._tracer(
+            "riposte",
+            {"action": "bloquer_hors_scope", "scope_requis": scope, "jeton_revoque": True},
+        )
+        self.boite.evenement(
+            "riposte", "outil", self.session_id, outil=nom,
+            details={"action": "bloquer_hors_scope", "scope_requis": scope, "jeton_revoque": True},
+        )
+        raise AgentHorsScope(f"action hors scope refusée : {nom} requiert {scope}")
 
     # --- cœur du contrôle humain --------------------------------------------------
     def _gerer_touche(

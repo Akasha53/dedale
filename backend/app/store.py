@@ -92,6 +92,16 @@ class Session:
     flag_lecture_action: bool = False
     flag_canari: bool = False
     canari_id: str | None = None
+    canari_nature: str | None = None
+    flag_outil_mcp: bool = False
+    # Moindre privilège (V2) : droits accordés / jeton de tâche / utilisés / tentatives hors scope.
+    tache: str | None = None
+    droits_accordes: list = field(default_factory=list)
+    droits_necessaires: list = field(default_factory=list)
+    droits_jeton: list = field(default_factory=list)
+    scopes_utilises: list = field(default_factory=list)
+    tentatives_hors_scope: list = field(default_factory=list)
+    flag_droits: bool = False
 
     def abrege(self) -> dict:
         # Noms alignés sur ce que lit la console (premiere_vue/derniere_vue, leurres_touches int),
@@ -113,6 +123,36 @@ class Session:
             "leurres_touches_ids": sorted(self.leurres_touches),
             "verite_terrain": self.verite_terrain,
             "signaux": self.signaux,
+            "droits": self.droits_console(),
+        }
+
+    @staticmethod
+    def _code(scope) -> str:
+        """Code d'un scope, qu'il soit une chaîne ou un objet {code, libelle}."""
+        return scope.get("code") if isinstance(scope, dict) else scope
+
+    def droits_console(self) -> dict | None:
+        """Vue des droits au format lu par la console : {accordes, utilises, necessaires}.
+
+        Augmentée de champs tolérés (jeton, tache, surplus, tentatives_hors_scope) qui portent
+        l'argument moindre privilège : « l'agent avait accès à X, sa tâche n'en avait pas besoin ».
+        Renvoie None quand la session ne porte aucune donnée de droits (externe, ou interne hérité).
+        """
+        if self.source != "interne":
+            return None
+        if not (self.droits_accordes or self.droits_jeton or self.flag_droits or self.tache):
+            return None
+        necessaires = self.droits_necessaires or self.droits_jeton
+        codes_necessaires = {self._code(s) for s in necessaires}
+        surplus = [self._code(s) for s in self.droits_accordes if self._code(s) not in codes_necessaires]
+        return {
+            "accordes": self.droits_accordes,
+            "utilises": list(self.scopes_utilises),
+            "necessaires": necessaires,
+            "jeton": list(self.droits_jeton),
+            "tache": self.tache,
+            "surplus": surplus,
+            "tentatives_hors_scope": list(self.tentatives_hors_scope),
         }
 
     def detail(self, evenements: list[dict]) -> dict:
@@ -230,6 +270,41 @@ class Store:
             if isinstance(vt, str):
                 sess.verite_terrain = vt
 
+            # Droits de l'agent (moindre privilège) : annoncés à l'entrée, complétés au fil des appels.
+            droits_in = details.get("droits")
+            if isinstance(droits_in, dict):
+                if droits_in.get("tache"):
+                    sess.tache = droits_in["tache"]
+                if droits_in.get("accordes"):
+                    sess.droits_accordes = list(droits_in["accordes"])
+                if droits_in.get("necessaires") is not None:
+                    sess.droits_necessaires = list(droits_in["necessaires"])
+                if droits_in.get("jeton") is not None:
+                    sess.droits_jeton = list(droits_in["jeton"])
+            # « Utilisé » = scope d'un appel d'outil réellement exécuté (ni refusé hors scope,
+            # ni une riposte qui mentionne le scope en cause).
+            scope_requis = details.get("scope_requis")
+            if (
+                ev.type == "appel_outil"
+                and isinstance(scope_requis, str)
+                and not details.get("violation_droits")
+                and scope_requis not in sess.scopes_utilises
+            ):
+                sess.scopes_utilises.append(scope_requis)
+            violation = details.get("violation_droits")
+            if isinstance(violation, dict):
+                sess.flag_droits = True
+                sess.tentatives_hors_scope.append(
+                    {
+                        "outil": violation.get("outil"),
+                        "scope_requis": violation.get("scope_requis"),
+                        "horodatage": horo.isoformat(),
+                    }
+                )
+                sess.tache = sess.tache or violation.get("tache")
+                if violation.get("scopes_jeton") is not None and not sess.droits_jeton:
+                    sess.droits_jeton = list(violation["scopes_jeton"])
+
             # Résolution des drapeaux de signaux.
             leurre = self.leurres.get(ev.leurre_id) if ev.leurre_id else None
             if ev.type == "leurre_touche" and leurre is not None:
@@ -251,6 +326,13 @@ class Store:
                 if est_canari:
                     sess.flag_canari = True
                     sess.canari_id = sess.canari_id or leurre.id
+                    sess.canari_nature = sess.canari_nature or leurre.nature
+                    # Outil MCP piégé (tool poisoning) : sa description EST une consigne cachée,
+                    # d'où le signal IA, et il spécialise l'incident en interne_outil_mcp.
+                    if leurre.nature == "outil_mcp_piege":
+                        sess.flag_outil_mcp = True
+                        sess.flag_consigne_cachee = True
+                        sess.consigne_leurre_id = sess.consigne_leurre_id or leurre.id
 
             if details.get("consigne") or details.get("consigne_lue"):
                 sess.flag_consigne_cachee = True
@@ -287,7 +369,9 @@ class Store:
                 "outil": ev.outil,
                 # Les champs piégés sont neutralisés avant stockage et exposition.
                 "details": securite.neutraliser_details(
-                    details, ("consigne", "consigne_lue", "contenu", "extrait", "objectif", "charge_utile", "payload")
+                    details,
+                    ("consigne", "consigne_lue", "contenu", "extrait", "objectif",
+                     "charge_utile", "payload", "consigne_outil"),
                 ),
             }
             if cadence_s is not None:
@@ -328,22 +412,32 @@ class Store:
                 "diffusions": diffusions,
             }
 
+    @staticmethod
+    def _type_titre(sess: Session) -> tuple[str, str]:
+        """Type d'incident et titre, spécialisés par source et par nature du piège (V2)."""
+        if sess.source != "interne":
+            return "externe_agent_ia", f"Agent IA attaquant sur la surface exposée ({sess.id})"
+        if sess.flag_outil_mcp:
+            return "interne_outil_mcp", f"Agent interne piégé par un outil MCP (canari {sess.canari_id or '—'})"
+        if sess.flag_droits and not sess.flag_canari:
+            scope = sess.tentatives_hors_scope[-1]["scope_requis"] if sess.tentatives_hors_scope else "—"
+            return "interne_droits", f"Agent interne hors de son périmètre de droits (droit {scope})"
+        return "interne_canari", f"Agent IA piégé en interne (canari {sess.canari_id or '—'})"
+
     def _maj_incident(self, sess: Session) -> Incident | None:
         est_incident = (
             (sess.source == "externe" and sess.classement == "agent_ia")
-            or (sess.source == "interne" and (sess.flag_canari or sess.classement == "agent_ia"))
+            or (
+                sess.source == "interne"
+                and (sess.flag_canari or sess.flag_droits or sess.classement == "agent_ia")
+            )
         )
         if not est_incident:
             return None
+        typ, titre = self._type_titre(sess)
         inc = next((i for i in self.incidents.values() if i.session_id == sess.id), None)
         if inc is None:
             self._incident_seq += 1
-            typ = "interne_canari" if sess.source == "interne" else "externe_agent_ia"
-            titre = (
-                f"Agent IA piégé en interne (canari {sess.canari_id})"
-                if sess.source == "interne"
-                else f"Agent IA attaquant sur la surface exposée ({sess.id})"
-            )
             inc = Incident(
                 id=f"INC-{self._incident_seq:04d}",
                 session_id=sess.id,
@@ -352,14 +446,13 @@ class Store:
                 titre=titre,
             )
             self.incidents[inc.id] = inc
-            # Un agent interne détourné est suspendu d'office, en attente de l'analyste.
+            # Un agent interne détourné (ou hors scope) est suspendu d'office, en attente de l'analyste.
             if sess.source == "interne" and sess.etat == "active":
                 sess.etat = "suspendue"
-        # Le titre d'un incident interne nomme le canari réellement touché. On le
-        # rafraîchit à chaque passage : l'incident peut avoir été ouvert (classement
-        # agent_ia) avant que le canari ne tombe, auquel cas canari_id valait None.
-        if inc.type == "interne_canari":
-            inc.titre = f"Agent IA piégé en interne (canari {sess.canari_id or '—'})"
+        # Type et titre se rafraîchissent à chaque passage : les drapeaux évoluent (le canari MCP
+        # peut tomber après l'ouverture, et un incident droits peut se préciser).
+        if inc.type != "externe_agent_ia":
+            inc.type, inc.titre = typ, titre
         evs = [self.evenements[i] for i in sess.evenement_ids]
         inc.chaine = incidents.construire_chaine(evs, self.leurres)
         inc.gravite = incidents.gravite(inc.chaine, sess.source)
@@ -395,6 +488,8 @@ class Store:
             "n_etapes": len(inc.chaine),
             "decisions": decisions,
             "chaine": inc.chaine,
+            # Droits de l'agent interne (surtout utile pour type "interne_droits" ; None sinon).
+            "droits": sess.droits_console() if sess else None,
         }
 
     def _consigne(self, sess: Session, incident: Incident | None) -> str:
@@ -436,6 +531,25 @@ class Store:
     def liste_incidents(self) -> list[dict]:
         with self.lock:
             return [self._incident_dict(i) for i in self.incidents.values()]
+
+    def liste_agents(self) -> list[dict]:
+        """Vue des agents internes (GET /api/agents) : droits accordés vs utilisés vs nécessaires."""
+        with self.lock:
+            agents = []
+            for sess in self.sessions.values():
+                droits_vue = sess.droits_console()
+                if droits_vue is None:
+                    continue
+                agents.append(
+                    {
+                        "id": f"orbis-{sess.id}",
+                        "nom": "Agent interne Orbis Pay",
+                        "session_id": sess.id,
+                        "tache": sess.tache,
+                        "droits": droits_vue,
+                    }
+                )
+            return agents
 
     def incident_detail(self, iid: str) -> dict | None:
         with self.lock:

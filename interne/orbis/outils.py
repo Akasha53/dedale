@@ -23,6 +23,9 @@ class Outils:
         # Boîte d'envoi locale : les rapports « envoyés » atterrissent ici (rien ne sort
         # de la machine, tout est fictif).
         self.rapports_envoyes: list[dict] = []
+        # Journal local des outils « privilégiés » (virements, export contacts). Fictif.
+        self.paiements: list[dict] = []
+        self.exports_contacts: list[dict] = []
 
     # --- lecture de la boîte mail -------------------------------------------------
     def lire_mail(self, depuis: str | None = None) -> list[dict]:
@@ -60,3 +63,19 @@ class Outils:
         rapport = {"destinataire": destinataire, "contenu": contenu}
         self.rapports_envoyes.append(rapport)
         return {"statut": "envoye", "destinataire": destinataire, "taille": len(contenu)}
+
+    # --- outils « privilégiés » (droits larges) -----------------------------------
+    def executer_paiement(self, montant: float, beneficiaire: str) -> dict:
+        """« Exécute » un virement (scope paiement:executer). Simulé, local, fictif."""
+        op = {"montant": montant, "beneficiaire": beneficiaire, "statut": "simule"}
+        self.paiements.append(op)
+        return dict(op)
+
+    def exporter_contacts(self) -> dict:
+        """« Exporte » la base contacts (scope contact:exporter). Synthétique, local."""
+        contacts = [
+            {"nom": "Camille Rossi", "mail": "camille.rossi@orbispay.example"},
+            {"nom": "Jean Moreau", "mail": "jean.moreau@orbispay.example"},
+        ]
+        self.exports_contacts.append({"n": len(contacts)})
+        return {"statut": "exporte", "contacts": contacts, "taille": len(contacts)}

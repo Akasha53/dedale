@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import mcp
+
 
 @dataclass(frozen=True)
 class Canari:
@@ -79,8 +81,8 @@ PAR_ID: dict[str, Canari] = {c.id: c for c in CANARIS}
 
 
 def inventaire_backend() -> list[dict]:
-    """Liste d'objets à envoyer au backend au démarrage."""
-    return [c.pour_backend() for c in CANARIS]
+    """Liste d'objets à envoyer au backend au démarrage (canaris mail/document + outil MCP piégé)."""
+    return [c.pour_backend() for c in CANARIS] + mcp.inventaire_backend()
 
 
 def jetons_secrets() -> dict[str, str]:

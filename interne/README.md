@@ -24,6 +24,23 @@ et quatre outils : `lire_mail`, `chercher_document`, `resumer`, `envoyer_rapport
 Les canaris (`orbis/canaris.py`) portent un identifiant unique `C-xxxx` par mail ou
 document, enregistré au démarrage via `POST /api/leurres`. Un humain ne les déclenche pas.
 
+## V2 : outils MCP piégés et moindre privilège
+
+**Outils / serveurs MCP piégés (tool poisoning, `orbis/mcp.py`).** L'agent utilise des outils
+MCP. Un outil d'apparence utile (`conformite-express-mcp/verifier_conformite`) cache une
+consigne dans sa DESCRIPTION. L'agent qui la suit déclenche un nouveau canari `outil_mcp_piege`
+(`C-9F2E`) → incident backend `interne_outil_mcp`. La description piégée est une donnée inerte :
+la passerelle l'inspecte (`detection.detecter_consigne_outil`) et la neutralise, jamais ne
+l'exécute. Un outil MCP sain (`banque-centrale-mcp/convertir_montant`) ne déclenche rien.
+
+**Moindre privilège (`orbis/droits.py`).** L'agent détient des droits larges ; chaque tâche
+reçoit un jeton limité à ses scopes utiles. Un appel hors du jeton est bloqué, le jeton révoqué,
+et le backend ouvre un incident `interne_droits` (OWASP ASI03). Le backend expose l'écart
+accordés / utilisés / nécessaires par `GET /api/agents` et par le champ `droits` des sessions.
+
+Sans jeton de tâche (appelant historique, ex. le banc), aucun contrôle de scope : le
+comportement d'origine est préservé.
+
 ## Cerveau de l'agent
 
 Interface unique `prochaine_action(demande, historique)`. Trois implémentations
@@ -44,11 +61,13 @@ uv venv --python 3.12 && uv pip install pytest
 uv run python -m orbis.demo          # démo autonome : backend simulé + cerveau scripté
 uv run python -m orbis.demo --cerveau cli        # pilote un vrai agent via claude -p
 uv run python -m orbis.demo --backend-reel       # tape le vrai backend sur 8700
-uv run pytest -q                      # 14 tests
+uv run pytest -q                      # 24 tests
 ```
 
-La démo joue trois scènes : session normale (aucun canari), session détournée où
+La démo joue six scènes : session normale (aucun canari), session détournée où
 l'analyste **coupe** (jeton révoqué, rien n'est exfiltré), session détournée où l'analyste
-**valide** (reprise).
+**valide** (reprise), outil MCP **sain** (rien ne se déclenche), outil MCP **piégé**
+(`interne_outil_mcp`, l'analyste coupe), **droits trop larges** (action hors jeton bloquée,
+`interne_droits`).
 
 Tout est fictif et local : aucun système réel, aucune donnée réelle, aucun secret réel.

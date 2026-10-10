@@ -140,6 +140,13 @@ async def lister_incidents():
     return {"incidents": store.liste_incidents()}
 
 
+# ---------------------------------------------------------------- Agents internes (V2)
+@app.get("/api/agents")
+async def lister_agents():
+    """Droits des agents internes : accordés vs utilisés vs nécessaires (moindre privilège)."""
+    return {"agents": store.liste_agents()}
+
+
 @app.get("/api/incidents/{iid}")
 async def incident_detail(iid: str):
     d = store.incident_detail(iid)
