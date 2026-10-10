@@ -1,11 +1,13 @@
 // Outils du dossier, en haut à droite d'un incident : l'état du journal scellé
 // (« Journal intact » ou « altéré à l'étape N ») et un seul menu d'export
-// (rapport à imprimer, document ECS pour le SIEM, règle Sigma).
+// (rapport à imprimer, document ECS pour le SIEM, règles Sigma, lignes CEF,
+// aperçu des alertes et du SMS qui partiraient).
 
 import { useEffect, useRef, useState } from "react";
 import { useDonnees } from "../api/store";
 import type { Incident, Verification } from "../types";
 import { Icone } from "./icones";
+import { ModaleAlertes } from "../integrations/Integrations";
 
 // Signatures ajoutées par le backend (CONTRATS.md, « journal signé, en ajout
 // seul, ancrage Avalanche en exploration »). Absentes du mock : le badge s'en passe.
@@ -88,6 +90,7 @@ export function MenuExport({ incident }: { incident: Incident }) {
   const { mode } = useDonnees();
   const [ouvert, setOuvert] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [alertes, setAlertes] = useState(false);
   const zone = useRef<HTMLDivElement>(null);
   const bouton = useRef<HTMLButtonElement>(null);
   const id = encodeURIComponent(incident.id);
@@ -161,15 +164,34 @@ export function MenuExport({ incident }: { incident: Incident }) {
             type="button"
             role="menuitem"
             disabled={horsLigne}
-            onClick={lancer(() => telecharger(`/api/incidents/${id}/export?format=sigma`, `${incident.id}.yml`, "application/x-yaml"))}
+            onClick={lancer(() => telecharger(`/api/incidents/${id}/export?format=sigma`, `dedale-${incident.id}-sigma.yml`, "application/x-yaml"))}
           >
-            <span className="export-lib">Règle Sigma</span>
+            <span className="export-lib">Règles Sigma</span>
             <span className="export-aide">pour repérer le même schéma dans vos journaux</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={horsLigne}
+            onClick={lancer(() => telecharger(`/api/incidents/${id}/export?format=cef`, `dedale-${incident.id}.cef`, "text/plain"))}
+          >
+            <span className="export-lib">Lignes CEF</span>
+            <span className="export-aide">pour un SIEM qui lit le syslog</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={horsLigne}
+            onClick={lancer(() => setAlertes(true))}
+          >
+            <span className="export-lib">Alertes et SMS</span>
+            <span className="export-aide">qui est prévenu, et le texte qui partirait</span>
           </button>
           {horsLigne && <p className="export-note">Disponible quand le backend répond.</p>}
           {erreur && <p className="decision-erreur">{erreur}</p>}
         </div>
       )}
+      {alertes && <ModaleAlertes incidentId={incident.id} fermer={() => setAlertes(false)} />}
     </div>
   );
 }

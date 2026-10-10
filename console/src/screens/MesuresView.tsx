@@ -3,6 +3,7 @@ import { useDonnees } from "../api/store";
 import type { DureeMesuree, PointSerie } from "../types";
 import { compter } from "../ui/compteurs";
 import { Spinner } from "../ui/primitives";
+import { ResumeLundi } from "../integrations/Integrations";
 
 // Durée lisible, avec la virgule française : « 120 ms », « 2,4 s », « 1 h 33 min ».
 function duree(ms: number | null | undefined): string {
@@ -216,6 +217,8 @@ export function MesuresView() {
           </div>
         </section>
       </div>
+
+      <ResumeLundi />
 
       {pctDet != null && mesures.serie_detection.length >= 2 && (
         <section className="panneau">
