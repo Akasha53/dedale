@@ -839,3 +839,155 @@ table.grille .idc {
   color: var(--texte-doux);
   border: 1px solid var(--bord-fort);
 }
+
+/* ---- Recentrage agents internes : segments, badges de type, droits ---- */
+.segments {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--fond);
+  border: 1px solid var(--bord);
+  border-radius: var(--rayon-s);
+  padding: 3px;
+  margin-bottom: 18px;
+}
+.segments button {
+  border: none;
+  background: transparent;
+  color: var(--texte-doux);
+  padding: 7px 15px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.segments button:hover {
+  color: var(--texte);
+}
+.segments button.actif {
+  background: var(--panneau-2);
+  color: var(--texte);
+  box-shadow: inset 0 0 0 1px var(--bord-fort);
+}
+.pastille-compte {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--fond-2);
+  border: 1px solid var(--bord);
+  border-radius: 10px;
+  padding: 0 7px;
+  color: var(--texte-doux);
+}
+.segments button.actif .pastille-compte {
+  color: var(--texte);
+  border-color: var(--bord-fort);
+}
+
+.note-laterale {
+  padding: 10px 14px 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--texte-faible);
+}
+
+.pied {
+  margin-top: 28px;
+  padding: 16px 2px 8px;
+  border-top: 1px solid var(--bord);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--texte-faible);
+}
+
+/* Badge de type d'incident (libellé + icône clairs) */
+.type-inc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--bord-fort);
+  background: var(--panneau-2);
+  color: var(--texte-doux);
+  white-space: nowrap;
+}
+.type-inc .pic {
+  font-size: 12px;
+  line-height: 1;
+}
+.type-inc.interne_droits {
+  border-color: color-mix(in srgb, var(--orange) 55%, var(--bord));
+  color: var(--orange);
+}
+.type-inc.interne_outil_mcp {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--bord));
+  color: var(--accent);
+}
+.type-inc.interne_canari {
+  border-color: color-mix(in srgb, var(--agent) 55%, var(--bord));
+  color: var(--agent);
+}
+.type-inc.externe_agent_ia,
+.type-inc.generique {
+  color: var(--texte-doux);
+}
+
+/* Vue « accès accordés vs nécessaires » */
+.droits-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.droit-ligne {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--rayon-s);
+  border: 1px solid var(--bord);
+  background: var(--fond);
+}
+.droit-ligne.excedent {
+  border-color: color-mix(in srgb, var(--orange) 45%, var(--bord));
+  background: color-mix(in srgb, var(--orange) 8%, var(--fond));
+}
+.droit-lib {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--texte);
+}
+.droit-tags {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.dtag {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--bord);
+  color: var(--texte-doux);
+  white-space: nowrap;
+}
+.dtag.ok {
+  color: var(--humain);
+  border-color: color-mix(in srgb, var(--humain) 45%, var(--bord));
+}
+.dtag.excedent {
+  color: var(--orange);
+  border-color: color-mix(in srgb, var(--orange) 50%, var(--bord));
+}
+.dtag.util {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--bord));
+}
+.dtag.inutilise {
+  color: var(--texte-faible);
+}

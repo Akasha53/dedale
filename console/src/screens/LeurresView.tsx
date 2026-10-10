@@ -14,14 +14,14 @@ export function LeurresView() {
     <>
       <div className="grille-compteurs">
         <div className="compteur">
-          <div className="lib">Leurres externes</div>
-          <div className="val">{externes.length}</div>
-          <div className="sous">préfixe L-</div>
-        </div>
-        <div className="compteur">
           <div className="lib">Canaris internes</div>
           <div className="val">{canaris.length}</div>
-          <div className="sous">préfixe C-</div>
+          <div className="sous">préfixe C- · agents internes</div>
+        </div>
+        <div className="compteur">
+          <div className="lib">Leurres externes (réserve)</div>
+          <div className="val">{externes.length}</div>
+          <div className="sous">préfixe L- · surface exposée</div>
         </div>
         <div className={`compteur ${totalTouches > 0 ? "alerte" : ""}`}>
           <div className="lib">Touches cumulées</div>

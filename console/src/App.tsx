@@ -9,16 +9,16 @@ type Ecran = "temps-reel" | "incident" | "leurres" | "mesures";
 
 const ENTETES: Record<Ecran, { titre: string; desc: string }> = {
   "temps-reel": {
-    titre: "Vue temps réel",
-    desc: "Sessions en cours sur la surface d'Orbis Pay, classées et expliquées.",
+    titre: "Agents internes — temps réel",
+    desc: "Les agents IA d'Orbis Pay surveillés en continu. La surface externe passe en réserve.",
   },
   incident: {
     titre: "Incident — boîte noire",
-    desc: "Chaîne d'attaque reconstruite, décision de l'analyste, exports.",
+    desc: "Un agent interne détourné : chaîne reconstruite, décision de l'analyste, exports.",
   },
   leurres: {
     titre: "Leurres & canaris",
-    desc: "Inventaire des pièges et compteur de touches.",
+    desc: "Canaris internes et pièges de réserve, avec leur compteur de touches.",
   },
   mesures: {
     titre: "Mesures",
@@ -50,7 +50,7 @@ export function App() {
           <div className="pastille-logo">D</div>
           <div>
             <div className="marque">Dédale</div>
-            <div className="sous">Console SOC</div>
+            <div className="sous">Le garde du corps de vos agents internes</div>
           </div>
         </div>
         {nav.map((n) => (
@@ -68,6 +68,10 @@ export function App() {
           <div className="nav-item" style={{ cursor: "default" }}>
             <span className="pic">⌁</span>
             Orbis Pay (fictif)
+          </div>
+          <div className="note-laterale">
+            SOC qui protège les agents IA internes d'Orbis Pay — ceux qui lisent
+            les mails, les documents et appellent des outils.
           </div>
         </div>
       </aside>
@@ -99,6 +103,13 @@ export function App() {
           )}
           {ecran === "leurres" && <LeurresView />}
           {ecran === "mesures" && <MesuresView />}
+
+          <footer className="pied">
+            Dédale — le garde du corps des agents internes d'Orbis Pay (fintech
+            fictive). Détecte quand un mail, un document ou un outil piégé
+            détourne un agent IA de l'entreprise, et laisse un humain trancher la
+            riposte. Surface externe conservée en réserve. Données synthétiques.
+          </footer>
         </div>
       </main>
     </div>

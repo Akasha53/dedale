@@ -14,50 +14,89 @@ export function LiveView({
 }: {
   ouvrirIncident: (id: string) => void;
 }) {
-  const { sessions, incidents, mesures, chargement } = useDonnees();
+  const { sessions, incidents, chargement } = useDonnees();
+  // Vue principale = agents internes ; l'externe passe en réserve.
+  const [vue, setVue] = useState<"interne" | "externe">("interne");
 
-  const agents = sessions.filter((s) => s.classement === "agent_ia").length;
-  const incidentsOuverts =
-    mesures?.incidents_ouverts ??
-    incidents.filter((i) => i.etat !== "coupee").length;
+  const interne = vue === "interne";
+  const dansVue = sessions.filter((s) => s.source === (interne ? "interne" : "externe"));
+  const incidentsVue = incidents.filter(
+    (i) => i.source === (interne ? "interne" : "externe")
+  );
+
+  const agents = dansVue.filter((s) => s.classement === "agent_ia").length;
+  const incidentsOuverts = incidentsVue.filter((i) => i.etat !== "coupee").length;
+  const leurresTouches = dansVue.reduce((n, s) => n + (s.leurres_touches || 0), 0);
+
+  const nbInterne = sessions.filter((s) => s.source === "interne").length;
+  const nbExterne = sessions.filter((s) => s.source === "externe").length;
 
   const incidentParSession = new Map(incidents.map((i) => [i.session_id, i.id]));
 
   // Les plus suspects d'abord.
-  const triees = [...sessions].sort((a, b) => b.score - a.score);
+  const triees = [...dansVue].sort((a, b) => b.score - a.score);
 
   return (
     <>
+      <div className="segments" role="tablist">
+        <button
+          role="tab"
+          aria-selected={interne}
+          className={interne ? "actif" : ""}
+          onClick={() => setVue("interne")}
+        >
+          Agents internes <span className="pastille-compte">{nbInterne}</span>
+        </button>
+        <button
+          role="tab"
+          aria-selected={!interne}
+          className={!interne ? "actif" : ""}
+          onClick={() => setVue("externe")}
+        >
+          Réserve — surface externe{" "}
+          <span className="pastille-compte">{nbExterne}</span>
+        </button>
+      </div>
+
       <div className="grille-compteurs">
-        <Compteur lib="Sessions actives" val={sessions.length} sous="sur la surface" />
         <Compteur
-          lib="Agents IA détectés"
+          lib={interne ? "Agents internes surveillés" : "Sessions externes"}
+          val={dansVue.length}
+          sous={interne ? "agents IA d'Orbis Pay" : "surface exposée (réserve)"}
+        />
+        <Compteur
+          lib={interne ? "Agents internes détournés" : "Agents IA externes"}
           val={agents}
           sous="classés agent_ia"
           alerte={agents > 0}
         />
         <Compteur
-          lib="Incidents ouverts"
+          lib={interne ? "Incidents internes ouverts" : "Incidents externes ouverts"}
           val={incidentsOuverts}
           sous="riposte à trancher"
           alerte={incidentsOuverts > 0}
         />
         <Compteur
-          lib="Leurres touchés"
-          val={sessions.reduce((n, s) => n + (s.leurres_touches || 0), 0)}
+          lib={interne ? "Canaris touchés" : "Leurres touchés"}
+          val={leurresTouches}
           sous="cumul sessions"
+          alerte={interne && leurresTouches > 0}
         />
       </div>
 
       <div className="panneau">
         <div className="titre">
-          Flux des sessions
+          {interne ? "Flux des agents internes" : "Flux de la surface externe (réserve)"}
           <span className="droite">score décroissant · survoler « signaux »</span>
         </div>
         {chargement ? (
           <Spinner texte="Connexion au flux…" />
         ) : triees.length === 0 ? (
-          <div className="vide">Aucune session pour l'instant.</div>
+          <div className="vide">
+            {interne
+              ? "Aucun agent interne surveillé pour l'instant."
+              : "Aucune session externe en réserve."}
+          </div>
         ) : (
           <div className="liste-sessions">
             {triees.map((s) => (

@@ -1,4 +1,40 @@
-import type { Classement, Etat } from "../types";
+import type { Classement, Droit, Etat, TypeIncident } from "../types";
+
+// Libellé et icône clairs par type d'incident. Les types internes V2
+// (outil/MCP piégé, droits trop larges) ont leur entrée ; un type inconnu
+// retombe sur un libellé générique (dégradé propre).
+const TYPE_INCIDENT: Record<string, { lib: string; pic: string }> = {
+  interne_canari: { lib: "Canari déclenché", pic: "✉" },
+  interne_outil_mcp: { lib: "Outil / MCP piégé", pic: "⚙" },
+  interne_droits: { lib: "Droits trop larges", pic: "🔑" },
+  externe_agent_ia: { lib: "Agent externe", pic: "☍" },
+};
+
+export function libelleType(type?: TypeIncident): string {
+  if (!type) return "Incident";
+  return TYPE_INCIDENT[type]?.lib ?? type.replace(/_/g, " ");
+}
+
+export function BadgeTypeIncident({ type }: { type?: TypeIncident }) {
+  if (!type) return null;
+  const t = TYPE_INCIDENT[type];
+  const cls = t ? type : "generique";
+  return (
+    <span className={`type-inc ${cls}`} title={type}>
+      <span className="pic">{t?.pic ?? "⬡"}</span>
+      {libelleType(type)}
+    </span>
+  );
+}
+
+// Normalise un droit (chaîne « code » ou objet {code, libelle}).
+export function codeDroit(d: Droit): string {
+  return typeof d === "string" ? d : d.code;
+}
+export function libDroit(d: Droit): string {
+  if (typeof d === "string") return d;
+  return d.libelle ? `${d.libelle} (${d.code})` : d.code;
+}
 
 export const LIB_CLASSEMENT: Record<Classement, string> = {
   humain: "Humain",

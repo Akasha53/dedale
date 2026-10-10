@@ -84,6 +84,67 @@ let sessions: Session[] = [
     ],
   },
   {
+    id: "sess-int-4420",
+    classement: "agent_ia",
+    score: 0.84,
+    etat: "suspendue",
+    source: "interne",
+    leurres_touches: 1,
+    premiere_vue: ilYA(260),
+    derniere_vue: ilYA(7),
+    ip: null,
+    user_agent: "orbis-agent/1.4 (interne)",
+    signaux: [
+      {
+        code: "outil_mcp_piege",
+        libelle:
+          "A appelé un faux outil exposé par un serveur MCP piégé : outil qui n'existe que pour détourner l'agent.",
+        poids: 0.42,
+        valeur: "serveur MCP C-0033",
+      },
+      {
+        code: "appel_outil_anormal",
+        libelle:
+          "Enchaînement d'appels d'outils hors de la tâche de rapprochement bancaire confiée à l'agent.",
+        poids: 0.28,
+      },
+    ],
+  },
+  {
+    id: "sess-int-5109",
+    classement: "agent_ia",
+    score: 0.71,
+    etat: "active",
+    source: "interne",
+    leurres_touches: 0,
+    premiere_vue: ilYA(190),
+    derniere_vue: ilYA(14),
+    ip: null,
+    user_agent: "orbis-agent/1.4 (interne)",
+    droits: {
+      accordes: [
+        { code: "clients:lire", libelle: "Lire la base clients" },
+        { code: "clients:export", libelle: "Exporter la base clients" },
+        { code: "factures:lire", libelle: "Lire les factures" },
+        { code: "virements:emettre", libelle: "Émettre des virements" },
+        { code: "mail:envoyer", libelle: "Envoyer des mails" },
+      ],
+      utilises: ["factures:lire", "clients:export", "mail:envoyer"],
+      necessaires: [
+        { code: "factures:lire", libelle: "Lire les factures" },
+      ],
+    },
+    signaux: [
+      {
+        code: "droits_trop_larges",
+        libelle:
+          "Agent de rapprochement de factures doté de droits d'export clients et d'émission de virements : bien au-delà de sa tâche.",
+        poids: 0.35,
+        valeur: "5 accordés / 1 nécessaire",
+      },
+    ],
+  },
+  {
     id: "sess-ext-7120",
     classement: "script",
     score: 0.55,
@@ -165,6 +226,7 @@ const incidents: Incident[] = [
     classement: "agent_ia",
     score: 0.93,
     etat: "suspendue",
+    type: "externe_agent_ia",
     titre: "Agent IA sur la surface exposée — exfiltration de comptes PME",
     gravite: "haute",
     ouvert_le: ilYA(300),
@@ -245,6 +307,7 @@ const incidents: Incident[] = [
     classement: "agent_ia",
     score: 0.88,
     etat: "active",
+    type: "interne_canari",
     titre: "Agent interne détourné par un mail piégé (canari C-0021)",
     gravite: "critique",
     ouvert_le: ilYA(200),
@@ -300,6 +363,98 @@ const incidents: Incident[] = [
           { id: "T1041", nom: "Exfiltration via canal C2", cadre: "ATT&CK" },
         ],
         risques: [{ id: "ASI08", nom: "Exfiltration de données" }],
+      },
+    ],
+    decisions: [],
+  },
+  {
+    id: "INC-2026-0009",
+    session_id: "sess-int-4420",
+    source: "interne",
+    classement: "agent_ia",
+    score: 0.84,
+    etat: "suspendue",
+    type: "interne_outil_mcp",
+    titre: "Agent interne attiré par un serveur MCP piégé (C-0033)",
+    gravite: "haute",
+    ouvert_le: ilYA(180),
+    resume:
+      "L'agent interne de rapprochement bancaire a découvert un faux outil exposé par un serveur MCP piégé et l'a appelé hors de sa tâche. Appel retenu par la passerelle.",
+    chaine: [
+      {
+        ordre: 1,
+        phase: "entree",
+        horodatage: ilYA(260),
+        titre: "Outil annoncé par un serveur MCP piégé",
+        detail:
+          "Un serveur MCP interne (canari C-0033) annonce un outil « reconcilier_tout » doté de droits étendus. Seul un agent qui lit le catalogue d'outils le voit.",
+        canari_id: "C-0033",
+        techniques: [
+          { id: "AML.T0053", nom: "Usage d'outil LLM détourné", cadre: "ATLAS" },
+        ],
+        risques: [{ id: "ASI05", nom: "Usurpation d'outil / de route" }],
+      },
+      {
+        ordre: 2,
+        phase: "outil",
+        horodatage: ilYA(230),
+        titre: "Faux outil MCP appelé",
+        detail:
+          "L'agent appelle reconcilier_tout() au lieu des outils de sa tâche. La passerelle reçoit « suspendre » et retient l'appel.",
+        canari_id: "C-0033",
+        techniques: [
+          { id: "AML.T0054", nom: "Contournement des garde-fous (LLM)", cadre: "ATLAS" },
+        ],
+        risques: [{ id: "ASI04", nom: "Abus / explosion d'appels d'outils" }],
+      },
+    ],
+    decisions: [],
+  },
+  {
+    id: "INC-2026-0010",
+    session_id: "sess-int-5109",
+    source: "interne",
+    classement: "agent_ia",
+    score: 0.71,
+    etat: "active",
+    type: "interne_droits",
+    titre: "Agent interne doté de droits bien au-delà de sa tâche",
+    gravite: "moyenne",
+    ouvert_le: ilYA(150),
+    resume:
+      "L'agent de rapprochement de factures dispose de droits d'export clients et d'émission de virements, sans rapport avec sa mission. Surface d'abus large en cas de détournement.",
+    droits: {
+      accordes: [
+        { code: "clients:lire", libelle: "Lire la base clients" },
+        { code: "clients:export", libelle: "Exporter la base clients" },
+        { code: "factures:lire", libelle: "Lire les factures" },
+        { code: "virements:emettre", libelle: "Émettre des virements" },
+        { code: "mail:envoyer", libelle: "Envoyer des mails" },
+      ],
+      utilises: ["factures:lire", "clients:export", "mail:envoyer"],
+      necessaires: [{ code: "factures:lire", libelle: "Lire les factures" }],
+    },
+    chaine: [
+      {
+        ordre: 1,
+        phase: "entree",
+        horodatage: ilYA(190),
+        titre: "Jeton de l'agent inspecté",
+        detail:
+          "La passerelle compare les droits portés par le jeton de l'agent aux droits que sa tâche de rapprochement réclame.",
+        risques: [{ id: "ASI03", nom: "Gestion de privilèges excessive" }],
+      },
+      {
+        ordre: 2,
+        phase: "outil",
+        horodatage: ilYA(165),
+        titre: "Écart accordé / nécessaire",
+        detail:
+          "5 droits accordés pour 1 seul nécessaire. clients:export et virements:emettre sont hors tâche : autant de leviers pour un détournement.",
+        techniques: [
+          { id: "AML.T0053", nom: "Usage d'outil LLM détourné", cadre: "ATLAS" },
+        ],
+        risques: [{ id: "ASI03", nom: "Gestion de privilèges excessive" }],
       },
     ],
     decisions: [],

@@ -247,3 +247,38 @@ qui ne portent pas de signal « IA » côté backend. Résultat : `taux_detectio
 positifs internes (6/6), les `agent_ia` externes restent des faux négatifs. À aligner
 entre agent E (banc) et agent B (surface) avant la fiche défense. Sans incidence sur
 les faux positifs (humain/script jamais classés `agent_ia`).
+
+### Agent D (console) — recentrage agents internes + signaux V2 (10 octobre 2026)
+
+La console met les agents internes au premier plan. La vue temps réel et la liste
+d'incidents montrent par défaut la source `interne` ; `externe` reste accessible
+sous un onglet « Réserve — surface externe ». Les quatre écrans et le déballage des
+listes (`liste()`) sont inchangés. Rien de neuf à faire côté backend pour ça.
+
+Champs lus pour les deux types internes V2. La console tolère leur absence : tant
+qu'ils ne sont pas renvoyés, elle affiche l'existant et masque la vue droits.
+
+- **`incident.type`** : déjà présent (`interne_canari` observé). La console
+  reconnaît aussi `interne_outil_mcp` (outil ou serveur MCP piégé) et
+  `interne_droits` (droits trop larges / moindre privilège), et retombe sur un
+  libellé générique pour toute autre valeur. Un badge (libellé + icône) l'affiche
+  dans la liste d'incidents et dans la boîte noire.
+- **Droits d'un agent**, pour la vue « accès accordés vs nécessaires » : lus sur
+  `incident.droits`, et à défaut sur la session liée (`session.droits`). Forme :
+
+  ```json
+  "droits": {
+    "accordes":    [{"code": "clients:export", "libelle": "Exporter la base clients"}],
+    "utilises":    ["factures:lire"],
+    "necessaires": [{"code": "factures:lire", "libelle": "Lire les factures"}]
+  }
+  ```
+
+  Chaque entrée est un `code` nu ou un objet `{code, libelle}`. `utilises` est
+  facultatif. La console classe chaque droit accordé en « nécessaire » ou « hors
+  tâche » et compte l'écart, pour rendre visible qu'un agent avait accès bien
+  au-delà de sa tâche.
+
+Pas d'endpoint `GET /api/agents` requis : les droits voyagent sur l'incident (ou la
+session). Si le backend préfère plus tard un endpoint dédié, le signaler ici et la
+console l'ajoutera.
