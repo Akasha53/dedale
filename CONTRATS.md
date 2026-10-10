@@ -1238,3 +1238,27 @@ Phrases ajoutées, chacune prouvée par son maillon : « Dédale a retiré cette
 ### Ce que lit la console
 
 `GET /api/agents` (`inventaire`) pour les noms et propriétaires, `GET/POST/DELETE /api/politiques` et `/api/politiques/analyser` pour les règles, `GET /api/incidents/{id}/verification` (badge « Journal intact »), `/rapport`, `/export?format=ecs|sigma` (menu « Exporter »), et les routes ci-dessus. Les compteurs (badge, onglets, temps réel, Mesures) viennent d'un seul calcul, `console/src/ui/compteurs.ts`.
+
+## Avenant du 10 octobre 2026 : sites louches, règles communes et app Mac
+
+L'extension Chrome et l'app Mac jugent les adresses avec les mêmes règles : `partage/regles-sites.json` (marques, mots d'appât, extensions à risque, raccourcisseurs, textes), et deux moteurs qui rendent les mêmes résultats, `extension/comparateur.js` et `app-mac/Sources/Dedale/SitesRegles.swift`. `partage/verifier.sh` le vérifie sur le corpus partagé (`partage/corpus-sites.json`). L'extension ne protège plus seulement les sosies d'Orbis Pay : tout site louche ouvre l'avertissement (détail dans `partage/README.md`).
+
+**Aucun nouveau type d'événement ni d'incident.** L'app Mac envoie, sur « Continuer quand même » devant un site louche, exactement l'événement de l'extension (section « Extension Chrome » ci-dessus) :
+
+```json
+{
+  "horodatage": "2026-10-10T22:14:20.718+02:00",
+  "source": "humain",
+  "surface": "poste",
+  "type": "avertissement",
+  "session_id": "navigateur-e71fca30",
+  "user_agent": "dedale-mac/0.2",
+  "details": { "categorie": "phishing", "choix": "continuer", "contexte": "navigation", "cible": "paypal.com.verif-compte.example" }
+}
+```
+
+- `details` porte ces quatre clés et aucune autre ; `cible` est le nom d'hôte seul, en ASCII. Ni chemin, ni paramètres, ni contenu de page, ni historique, ni `ip`.
+- `session_id` : `navigateur-` et 8 caractères tirés une fois sur ce Mac (`sites-session.txt` dans le dossier d'état de l'app), distinct de celui de l'extension. `user_agent` `dedale-mac/0.2` distingue l'app de l'extension.
+- « Revenir en arrière » n'envoie rien, dans l'app comme dans l'extension. C'est une exception aux autres pop-ups de l'app, où Annuler part aussi à la SOC.
+- Pas de doublon : dans Chrome, l'app laisse l'onglet à l'extension quand celle-ci a affiché son avertissement, y compris quand le salarié continue depuis la page de l'extension.
+- Effet côté backend, vérifié le 10 octobre sur un backend isolé : incident `humain_phishing`, gravité `haute`, `cible` neutralisée, comme pour l'extension.

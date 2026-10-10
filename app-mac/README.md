@@ -2,7 +2,7 @@
 
 Une application de barre de menus. Elle affiche une pop-up quand un geste à risque se présente : un mail frauduleux arrivé dans la boîte de démo, un fichier à risque qui arrive dans Téléchargements, ou un geste signalé sur le port local. Le salarié choisit Annuler ou Continuer (Mettre de côté ou Garder pour un fichier). Après Annuler, un court coach explique le piège. Un geste critique (virement, export de données clients) attend l'accord d'un analyste du SOC. L'app fait aussi l'inventaire des assistants IA configurés sur le poste et l'envoie à la SOC.
 
-Ce que l'app regarde sur le Mac se limite à deux choses : les nouveaux fichiers du dossier Téléchargements, et les fichiers de configuration MCP des assistants connus (une configuration factice par défaut). Elle ne lit ni la messagerie du Mac, ni le presse-papiers, ni le clavier, ni l'écran, ni l'historique. Les mails viennent de la boîte de démo locale (`messagerie/`), les autres gestes du simulateur `poste/` ou d'un `curl`. La seule autorisation demandée est l'accès au dossier Téléchargements. Le panneau « Ce que Dédale regarde sur ce poste » dit tout cela dans l'app, module par module.
+Ce que l'app regarde sur le Mac se limite à trois choses : l'adresse de l'onglet actif de Safari ou de Chrome quand l'un d'eux est au premier plan, les nouveaux fichiers du dossier Téléchargements, et les fichiers de configuration MCP des assistants connus (une configuration factice par défaut). Elle ne lit ni la messagerie du Mac, ni le presse-papiers, ni le clavier, ni l'écran, ni l'historique. Les mails viennent de la boîte de démo locale (`messagerie/`), les autres gestes du simulateur `poste/` ou d'un `curl`. Les autorisations demandées sont l'accès au dossier Téléchargements et le contrôle de Safari et de Chrome, limité à la lecture de l'adresse. Le panneau « Ce que Dédale regarde sur ce poste » dit tout cela dans l'app, module par module.
 
 ![Mail frauduleux](captures/mail.png)
 
@@ -101,6 +101,32 @@ L'app lit les fichiers de configuration MCP des assistants connus : Claude Deskt
 
 Par défaut l'app lit la configuration factice de `demo/agents-factices` (copiée dans `Dedale.app` par `construire.sh`) : sept serveurs sur un poste fictif de la Finance. `DEDALE_DEMO_AGENTS_DIR` pointe vers un autre dossier factice. La vraie configuration du Mac n'est lue qu'avec `DEDALE_AGENTS_REEL=1`, et aucun bouton de l'app ne l'active : un clic pendant une démo ne peut pas l'afficher.
 
+## Sites louches
+
+Quand Safari ou Chrome est au premier plan, et seulement à ce moment-là, l'app lit par AppleScript l'adresse de l'onglet actif, environ chaque seconde. Elle la juge sur le poste avec les règles communes à l'extension Chrome (`partage/regles-sites.json`, détail dans `partage/README.md`) : sosie d'Orbis Pay ou d'une des 33 marques visées en France, marque glissée dans un autre domaine, astuce « @ », adresse IP publique, alphabets mêlés, sous-domaines en chaîne. Un lien raccourci donne une bulle discrète, sans alarme.
+
+Une adresse louche ouvre la pop-up habituelle, avec « Revenir en arrière » et « Continuer quand même ». Revenir en arrière ramène Chrome à la page précédente (l'onglet se ferme s'il n'a pas d'historique). Safari n'a pas de commande de retour : l'app recharge la dernière page sûre vue dans l'onglet, ou ferme l'onglet. Le coach suit, et le compteur de pièges évités monte. Rien ne part à la SOC. Continuer quand même envoie le domaine et la catégorie, sous la forme de l'extension (`contexte: "navigation"`, session `navigateur-` et 8 caractères), et l'app ne réavertit plus pour ce domaine jusqu'à sa fermeture. Ni le chemin, ni les paramètres, ni le contenu des pages, ni l'historique.
+
+| Sosie en punycode | Marque en sous-domaine | Après Continuer | Coach après un retour |
+|---|---|---|---|
+| ![](../captures/sites-louches/site-punycode-etranger.png) | ![](../captures/sites-louches/site-marque-sous-domaine.png) | ![](../captures/sites-louches/site-marque-sous-domaine-continuer.png) | ![](../captures/sites-louches/site-ip-brute-coach.png) |
+
+Dans Chrome, l'app laisse la main à l'extension : une adresse louche n'y alerte qu'au second relevé, et si l'onglet est passé entre-temps sur la page d'avertissement de l'extension, l'app ne fait rien, même quand le salarié continue depuis cette page.
+
+La première lecture fait poser une question par macOS : « Dédale souhaite contrôler Safari » (ou Chrome), avec la phrase de `NSAppleEventsUsageDescription`. Un refus se voit dans le menu (« Sites : autorisez Dédale pour Safari ») et se corrige dans Réglages Système, Confidentialité et sécurité, Automatisation. L'app est signée ad hoc : une reconstruction peut faire reposer la question.
+
+Le moteur Swift (`Sources/Dedale/SitesRegles.swift`) rend les mêmes résultats que celui de l'extension sur le corpus partagé : `../partage/verifier.sh` le compile à part avec `swiftc` et compare les deux, adresse par adresse.
+
+Essai réel, contre un backend isolé : `DEDALE_SITES_ESSAI` ouvre une nouvelle fenêtre Safari, y charge chaque adresse de la liste à son tour, puis la referme. Les autres fenêtres ne sont pas touchées.
+
+```bash
+open -n -a Dedale.app --env DEDALE_BACKEND=http://127.0.0.1:8781 --env DEDALE_PORT_LOCAL=8792 \
+  --env DEDALE_ETAT=/tmp/dedale-etat --env DEDALE_CAPTURE=/tmp/captures --env DEDALE_CLIC_AUTO=annuler,compris \
+  --env "DEDALE_SITES_ESSAI=https://www.service-public.fr/ http://orbispay-verification.example/ http://203.0.113.5/login"
+```
+
+`open` plutôt que le binaire seul : lancé depuis un terminal, le binaire ferait demander l'autorisation au nom du terminal. Une seule instance de `Dedale.app` tourne à la fois : quitter celle de la démo avant.
+
 ## Ce que Dédale regarde sur ce poste
 
 Le panneau liste les quatre modules (Mails, Sites, Téléchargements, Agents IA), ce que chacun lit, ce qui part à la SOC, avec un interrupteur par module. Un module coupé ne lit plus rien et n'envoie plus rien ; le réglage reste sur le Mac (`modules.json`). En bas, ce que l'app ne lit jamais : le presse-papiers, les frappes au clavier, les captures d'écran, le contenu des pages, l'historique de navigation. Les textes viennent de `Sources/Dedale/ModulesPoste.swift`, et la section « Vie privée » de la landing les reprend.
@@ -165,6 +191,9 @@ L'événement envoyé suit `CONTRATS.md`, avenant « humain » : `source: humain
 | `DEDALE_REMETTRE_AUTO` | secondes avant de remettre seul à sa place le premier fichier mis de côté, par le sous-menu |
 | `DEDALE_OUVRIR` | panneaux à ouvrir au lancement, quatre secondes chacun : `transparence`, `agents` |
 | `DEDALE_BASCULER_AUTO` | module dont l'interrupteur est basculé dans le panneau de transparence ouvert par `DEDALE_OUVRIR` |
+| `DEDALE_SITES` | `off` coupe la veille des sites (sinon, l'interrupteur « Sites » du panneau) |
+| `DEDALE_REGLES_SITES` | fichier de règles des sites à la place de celui rangé dans `Dedale.app` |
+| `DEDALE_SITES_ESSAI` | adresses à ouvrir dans une nouvelle fenêtre Safari, séparées par des espaces (essai réel) |
 
 Elles se passent au binaire : `DEDALE_CLIC_AUTO=voir,annuler,compris ./Dedale.app/Contents/MacOS/Dedale`.
 
@@ -203,7 +232,7 @@ Lancé depuis `.build/release/`, le binaire n'a pas d'identifiant de paquet : il
 
 ## Limites
 
-- C'est une démo. Hors Téléchargements et configuration MCP, rien n'est observé sur le Mac, et Annuler ou un refus du SOC ne bloquent rien, puisque le geste est simulé. Un fichier gardé reste ouvrable : l'app prévient, elle ne bloque pas.
+- C'est une démo. Hors adresse de l'onglet actif, Téléchargements et configuration MCP, rien n'est observé sur le Mac, et Annuler ou un refus du SOC ne bloquent rien, puisque le geste est simulé. Un fichier gardé reste ouvrable : l'app prévient, elle ne bloque pas.
 - La règle des téléchargements juge le nom, la provenance et la structure. Elle ne reconnaît pas un programme malveillant caché dans un PDF ordinaire ni une archive 7z ou RAR chiffrée.
 - Le port local n'écoute que sur 127.0.0.1. Il refuse les requêtes qui portent un en-tête `Origin` ou `Sec-Fetch-*`, ainsi que tout hôte autre que 127.0.0.1 ou localhost : une page web ne peut pas afficher de fausse alerte. Un programme local le peut, faute d'authentification.
 - Sans backend, la pop-up s'affiche quand même et l'app tient, mais l'événement est perdu : il n'y a pas de file de renvoi. Un geste critique est alors refusé.
@@ -211,3 +240,5 @@ Lancé depuis `.build/release/`, le binaire n'a pas d'identifiant de paquet : il
 - Entrée et Échap valent Annuler, une seconde après l'apparition seulement, pour qu'une frappe en cours dans une autre fenêtre ne ferme pas l'alerte. Dans le coach, ils valent Compris.
 - Les PNG sont rendus par l'app : le flou du verre n'y apparaît pas, seulement le voile blanc. Le menu est redessiné à partir de ses lignes, ce n'est pas une capture d'écran du système.
 - L'app est signée ad hoc. Copiée sur un autre Mac, elle s'ouvre par clic droit, Ouvrir.
+- Sites : l'app réagit après coup, jusqu'à une seconde après l'arrivée de l'adresse dans l'onglet (deux relevés dans Chrome). La page a le temps de commencer à se charger, contrairement aux sosies d'Orbis Pay que l'extension bloque avant la requête. Seuls Safari et Chrome sont lus, et seulement la fenêtre de devant.
+- Sites : le retour arrière de Safari recharge la dernière page sûre vue dans l'onglet, ce n'est pas un vrai retour dans l'historique. Sans page connue, l'onglet se ferme.
