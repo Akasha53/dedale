@@ -12,13 +12,13 @@ import contextlib
 import logging
 from copy import deepcopy
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, config, db, exports, nis2
-from .models import DecisionIn, EvenementIn, LeurreIn
+from . import __version__, config, db, exports, nis2, synthese
+from .models import DecisionIn, EvenementIn, LeurreIn, RetraitDroitIn
 from .store import store
 from .ws import diffuseur
 
@@ -202,6 +202,38 @@ async def incident_nis2(iid: str):
     return {"incident_id": iid, **brouillon}
 
 
+@app.get("/api/incidents/{iid}/synthese")
+async def incident_synthese(iid: str, mode: str = "regles"):
+    """Copilote SOC : 2-3 phrases vérifiables, confiance expliquée, décision recommandée.
+    `mode=regles` (défaut) est déterministe et sans réseau ; `mode=modele` est optionnel."""
+    d = store.incident_detail(iid)
+    if d is None:
+        raise HTTPException(status_code=404, detail=f"Incident inconnu : {iid}")
+    if mode not in ("regles", "modele"):
+        raise HTTPException(status_code=400, detail="mode doit valoir 'regles' ou 'modele'")
+    sess = store.session_detail(d["session_id"]) or {}
+    return await synthese.generer(d, sess.get("evenements", []), mode)
+
+
+@app.post("/api/incidents/{iid}/retirer-droit")
+async def retirer_droit(iid: str, corps: RetraitDroitIn):
+    """Correctif en un clic : retire à l'agent un droit en trop pour sa tâche."""
+    try:
+        res = store.retirer_droit(iid, corps.droit, corps.analyste)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if res is None:
+        raise HTTPException(status_code=404, detail=f"Incident inconnu : {iid}")
+    # Le maillon correctif, les sessions de l'agent et leurs incidents : une seule transaction.
+    _enfiler({
+        "evenements": [res["evenement"]],
+        "sessions": res["sessions"],
+        "incidents": res["incidents"],
+        "diffusions": res["diffusions"],
+    })
+    return res["reponse"]
+
+
 @app.get("/api/incidents/{iid}/export")
 async def incident_export(iid: str, format: str = "ecs"):
     d = store.incident_detail(iid)
@@ -214,6 +246,14 @@ async def incident_export(iid: str, format: str = "ecs"):
     if fmt == "sigma":
         return PlainTextResponse(exports.vers_sigma(d), media_type="application/x-yaml")
     raise HTTPException(status_code=400, detail="format doit valoir 'ecs' ou 'sigma'")
+
+
+# ---------------------------------------------------------------- Fil des agents
+@app.get("/api/activite")
+async def activite(limite: int = Query(50, ge=1, le=500)):
+    """Derniers appels d'outil vus par la passerelle interne, du plus récent au plus ancien.
+    Le même objet part sur le WS avec `type: "activite"`."""
+    return {"activite": store.liste_activite(limite)}
 
 
 # ---------------------------------------------------------------- Mesures

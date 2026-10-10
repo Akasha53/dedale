@@ -38,6 +38,13 @@ SOURCES_LECTURE = {
     "lire_memoire": ("C-6A05", "memoire"),
 }
 
+# Identité de l'agent fictif annoncée au backend. Un droit retiré par l'analyste vaut pour
+# toutes les sessions de cet agent, présentes et à venir.
+AGENT_DEFAUT = "orbis-assistant"
+
+# Verdict de la passerelle sur un appel d'outil, posé dans `details.verdict` (fil des agents).
+AUTORISE, RETENU, REFUSE = "autorise", "retenu", "refuse"
+
 
 class AgentCoupe(Exception):
     """Levée quand l'analyste coupe la session : l'agent doit s'arrêter."""
@@ -83,8 +90,13 @@ class Passerelle:
         retenir_hors_scope: bool = False,
         decision_fraiche: bool = False,
         enregistreur: Enregistreur | None = None,
+        agent: str = AGENT_DEFAUT,
     ):
         self.session_id = session_id
+        self.agent = agent
+        # Droits retirés à l'agent par l'analyste (correctif en un clic). Appris dans les
+        # réponses du backend ; un outil qui exige l'un d'eux est refusé sans être exécuté.
+        self.droits_retires: set[str] = set()
         self.jetons = jetons
         self.boite = boite or BoiteNoire()
         self.intervalle_poll = intervalle_poll
@@ -133,11 +145,63 @@ class Passerelle:
         d'URL sont masqués. La détection, elle, travaille sur les valeurs brutes, en local."""
         if options.get("details") is not None:
             options["details"] = masquer(options["details"], self.jetons)
-        return self.boite.evenement(type, surface, session_id, **options)
+        rep = self.boite.evenement(type, surface, session_id, **options)
+        self._noter_retraits(rep)
+        return rep
+
+    # --- droits retirés par l'analyste --------------------------------------------
+    def _noter_retraits(self, rep) -> None:
+        """Lit les droits retirés dans une réponse du backend : `session.droits_retires`
+        (réponse à un événement) ou `droits.retires` (détail de session). Un droit retiré
+        sort aussi des droits accordés et du jeton de tâche : la portée ne fait que réduire."""
+        if not isinstance(rep, dict):
+            return
+        codes: list = []
+        sess = rep.get("session")
+        if isinstance(sess, dict) and isinstance(sess.get("droits_retires"), list):
+            codes += sess["droits_retires"]
+        if isinstance(rep.get("droits_retires"), list):
+            codes += rep["droits_retires"]
+        vue = rep.get("droits")
+        if isinstance(vue, dict) and isinstance(vue.get("retires"), list):
+            codes += [r.get("code") if isinstance(r, dict) else r for r in vue["retires"]]
+        for code in codes:
+            if not isinstance(code, str) or not code or code in self.droits_retires:
+                continue
+            self.droits_retires.add(code)
+            self.scopes_accordes = [s for s in self.scopes_accordes if s != code]
+            if self.jeton_tache is not None and code in self.jeton_tache.scopes:
+                self.jeton_tache.scopes = tuple(s for s in self.jeton_tache.scopes if s != code)
+
+    def _droit_retire(self, scope: str | None) -> bool:
+        """Vrai si l'outil exige un droit retiré. Avant un appel qui sortirait du jeton, la
+        passerelle relit la session : un retrait fait pendant que l'agent tournait compte."""
+        if scope is None:
+            return False
+        if scope in self.droits_retires:
+            return True
+        if self.jeton_tache is not None and not self.jeton_tache.porte(scope):
+            self._noter_retraits(self.boite.lire_session(self.session_id))
+        return scope in self.droits_retires
+
+    def _refuser_droit_retire(self, nom: str, scope: str) -> dict:
+        """Outil dont le droit a été retiré : refusé avant exécution, sans attendre l'analyste
+        (il a déjà tranché en retirant le droit). Aucun incident n'est ouvert pour ça."""
+        self.appels_refuses.append({"outil": nom, "raison": "droit retiré"})
+        raison = f"droit {scope} retiré par l’analyste"
+        if self.enregistreur is not None:
+            self.enregistreur.noter("resultat", "Appel refusé : droit retiré",
+                                    f"{nom} refusé : {raison}", outil=nom)
+        self._tracer("appel_outil", {"outil": nom, "refuse": True, "droit_retire": scope})
+        self._emettre("appel_outil", "outil", self.session_id, outil=nom,
+                      details={"parametres": {}, "verdict": REFUSE, "raison": raison,
+                               "droit_retire": scope})
+        return {"erreur": "outil refusé : droit retiré par l’analyste", "outil": nom,
+                "droit": scope}
 
     # --- entrée / sortie de l'agent ----------------------------------------------
     def entree_agent(self, texte: str, surface: str = "mail") -> None:
-        details: dict = {"texte": texte}
+        details: dict = {"texte": texte, "agent": self.agent}
         # Chatbot (V3a) : l'entrée vient de l'extérieur. Si elle porte une injection de prompt,
         # on la mémorise pour attribuer une exfiltration ultérieure au canari chatbot. On ne
         # suit jamais l'injection : on la classe suspecte.
@@ -183,10 +247,12 @@ class Passerelle:
         # Session coupée par l'analyste : plus aucun appel ne s'exécute.
         if self.etat == "coupee":
             self._refuser_apres_coupure(nom)
+        scope = droits.scope_outil(nom)
+        # Droit retiré par l'analyste (correctif) : refusé avant tout le reste.
+        if self._droit_retire(scope):
+            return self._refuser_droit_retire(nom, scope)
         if self.enregistreur is not None:
             return self._appel_protege(nom, params, fonction, descripteur, intention)
-
-        scope = droits.scope_outil(nom)
 
         # --- Moindre privilège : le jeton de tâche doit porter le scope requis. ---
         if self.jeton_tache is not None and scope is not None and not self.jeton_tache.porte(scope):
@@ -206,18 +272,25 @@ class Passerelle:
                 # Marqueur neutralisé : le texte de la consigne n'est jamais recopié.
                 det["consigne_outil"] = "[description d'outil MCP : consigne cachée détectée]"
 
-        self._tracer("appel_outil", {"outil": nom, **det})
-        self._emettre("appel_outil", "outil", self.session_id, outil=nom, details=det)
-
-        if scope and scope not in self.scopes_utilises:
-            self.scopes_utilises.append(scope)
-
         # --- Détection sortante (exfiltration / faux secret), attribuée au MCP si pertinent. ---
+        # Faite avant l'émission pour que l'événement porte le bon verdict (fil des agents).
         trouvailles: list = []
         sortant = nom in OUTILS_SORTANTS or (descripteur is not None and getattr(descripteur, "sortant", False))
         if sortant:
             charge = json.dumps(params, ensure_ascii=False, default=str)
             trouvailles = self._attribuer(detection.inspecter(charge, self.jetons))
+        if trouvailles:
+            det["verdict"] = RETENU
+            det["raison"] = self._raison_canaris(trouvailles)
+        else:
+            det["verdict"] = AUTORISE
+            det["raison"] = self._raison_autorise(scope, det.get("outil_mcp_suspect", False))
+
+        self._tracer("appel_outil", {"outil": nom, **det})
+        self._emettre("appel_outil", "outil", self.session_id, outil=nom, details=det)
+
+        if scope and scope not in self.scopes_utilises:
+            self.scopes_utilises.append(scope)
 
         if trouvailles:
             decision = self._gerer_touche(trouvailles, surface="outil", outil=nom)
@@ -229,6 +302,8 @@ class Passerelle:
                     "raison": "canari touché, pas de validation analyste",
                 }
             # verdict "reprendre" : l'analyste a validé, l'appel retenu s'exécute.
+            if scope in self.droits_retires:
+                return self._refuser_droit_retire(nom, scope)
 
         resultat = fonction(**params)
         # Un outil de lecture dont le résultat porte une consigne cachée est mémorisé comme
@@ -242,6 +317,24 @@ class Passerelle:
             if detection.consigne_cachee_dans(texte_lu):
                 self._source_piegee = (src[0], src[1], f"a lu une source {src[1]} porteuse d'une consigne cachée")
         return resultat
+
+    # --- raisons courtes du fil des agents ----------------------------------------
+    def _raison_autorise(self, scope: str | None, mcp_suspect: bool = False) -> str:
+        if mcp_suspect:
+            return "description d’outil MCP suspecte, appel journalisé"
+        if scope is None:
+            return "aucun droit requis"
+        if self.jeton_tache is None:
+            return f"droit {scope}, sans jeton de tâche"
+        return f"droit {scope} dans le jeton"
+
+    @staticmethod
+    def _raison_canaris(trouvailles: list) -> str:
+        ids = [t.canari_id for t in trouvailles if t.canari_id]
+        ids = list(dict.fromkeys(ids))
+        if not ids:
+            return "contenu sortant suspect"
+        return "paramètres porteurs du canari " + ", ".join(ids)
 
     def _attribuer_mcp(self, trouvailles: list) -> list:
         """Si un outil MCP piégé a été consulté dans la session et qu'une exfiltration est
@@ -329,7 +422,8 @@ class Passerelle:
         self._tracer("appel_outil", {"outil": nom, "hors_scope": True, "scope_requis": scope})
         self._emettre(
             "appel_outil", "outil", self.session_id, outil=nom,
-            details={"parametres": {}, "violation_droits": violation},
+            details={"parametres": {}, "violation_droits": violation, "verdict": REFUSE,
+                     "raison": f"droit {scope} absent du jeton, appel bloqué"},
         )
         # Riposte préventive, locale : le jeton de tâche est révoqué immédiatement.
         self.jeton_tache.revoquer()
@@ -378,14 +472,26 @@ class Passerelle:
                 surface,
                 self.session_id,
                 outil=outil,
-                details={"action": "couper", "jeton_revoque": True},
+                details={"action": "couper", "jeton_revoque": True, "verdict": REFUSE,
+                         "raison": "annulé : l’analyste a coupé la session"},
             )
         elif verdict == "reprendre":
             self.etat = "active"
             self._tracer("riposte", {"action": "reprendre"})
+            # L'issue de l'appel retenu devient visible au backend (fil des agents).
+            self._emettre(
+                "riposte", surface, self.session_id, outil=outil,
+                details={"action": "appel_libere", "verdict": AUTORISE,
+                         "raison": "libéré par l’analyste"},
+            )
         else:  # bloquer : containment faible, jeton intact
             self.etat = "suspendue"
             self._tracer("riposte", {"action": "bloquer", "raison": "backend muet"})
+            self._emettre(
+                "riposte", surface, self.session_id, outil=outil,
+                details={"action": "appel_refuse", "verdict": REFUSE,
+                         "raison": "aucune décision dans le délai, jeton intact"},
+            )
         return Decision(verdict=verdict, trouvailles=trouvailles)
 
     def _attendre_decision(self) -> str:
@@ -399,6 +505,7 @@ class Passerelle:
         debut = time.monotonic()
         while time.monotonic() - debut < self.poll_max_s:
             rep = self.boite.lire_session(self.session_id)
+            self._noter_retraits(rep)
             etat = _etat_depuis(rep)
             if etat == "active":
                 return "reprendre"
@@ -437,7 +544,9 @@ class Passerelle:
                 cible = self._CORRESPONDANCE.get(derniere.get("action"))
                 if cible is not None:
                     verdict, etat_attendu = cible
-                    if _etat_depuis(self.boite.lire_session(self.session_id)) == etat_attendu:
+                    rep = self.boite.lire_session(self.session_id)
+                    self._noter_retraits(rep)
+                    if _etat_depuis(rep) == etat_attendu:
                         self._derniere_decision = dict(derniere)
                         return verdict
             time.sleep(self.intervalle_poll)
@@ -507,6 +616,8 @@ class Passerelle:
                 det["outil_mcp_suspect"] = True
                 det["serveur_mcp"] = descripteur.serveur
                 det["consigne_outil"] = "[description d'outil MCP : consigne cachée détectée]"
+        det["verdict"] = AUTORISE
+        det["raison"] = self._raison_autorise(scope, det.get("outil_mcp_suspect", False))
         self._tracer("appel_outil", {"outil": nom, **det})
         self._emettre("appel_outil", "outil", self.session_id, outil=nom, details=det)
         if scope and scope not in self.scopes_utilises:
@@ -621,7 +732,9 @@ class Passerelle:
                   preuve=preuve, refs=refs_appel)
         points = {"demande": demande, "detection": detection_t}
         details: dict = {"maillon": "appel_outil", "retenu": True, "motif": motif,
-                         "parametres": params}
+                         "parametres": params, "verdict": RETENU,
+                         "raison": (f"droit {scope} absent du jeton" if motif == "droits"
+                                    else "paramètres porteurs du canari " + ", ".join(releves))}
         if motif == "droits":
             details["violation_droits"] = {"outil": nom, "scope_requis": scope,
                                            "scopes_jeton": list(self.jeton_tache.scopes),
@@ -680,6 +793,14 @@ class Passerelle:
 
         if verdict == "reprendre":
             self.etat = "active"
+            if scope is not None and scope in self.droits_retires:
+                # Le droit a été retiré pendant l'attente : la reprise ne l'exécute pas.
+                self.appels_refuses.append({"outil": nom, "raison": "droit retiré"})
+                self._resultat(nom, "appel_refuse",
+                               f"{nom} non exécuté : le droit {scope} a été retiré par l’analyste.",
+                               points, extra={"raison": f"droit {scope} retiré par l’analyste"})
+                return {"erreur": "outil refusé : droit retiré par l’analyste", "outil": nom,
+                        "droit": scope}
             resultat = fonction(**params)
             self.appels_liberes.append({"outil": nom, "scope_requis": scope, "motif": motif})
             if motif == "droits":
@@ -710,17 +831,24 @@ class Passerelle:
         enr.noter("resultat", "Résultat appliqué", texte, moment=points["resultat"], outil=nom,
                   preuve=preuve)
         self._tracer("riposte", {"action": action, "outil": nom})
-        self._emettre("riposte", "outil", self.session_id, outil=nom,
-                      details={"maillon": "resultat", "action": action, "resultat": texte,
-                               "chrono": chrono, **(extra or {}), **self._snapshot()})
+        verdict, raison = {
+            "appel_annule": (REFUSE, "annulé : l’analyste a coupé la session"),
+            "appel_libere": (AUTORISE, "libéré une fois par l’analyste"),
+            "appel_refuse": (REFUSE, "aucune décision dans le délai, jeton intact"),
+        }.get(action, (None, None))
+        details = {"maillon": "resultat", "action": action, "resultat": texte,
+                   "chrono": chrono, "verdict": verdict, "raison": raison}
+        details.update(extra or {})
+        details.update(self._snapshot())
+        self._emettre("riposte", "outil", self.session_id, outil=nom, details=details)
 
     def _refuser_apres_coupure(self, nom: str) -> None:
         """Après « couper », la passerelle refuse tout appel, sans l'exécuter."""
         self.appels_refuses.append({"outil": nom, "raison": "session coupée"})
         texte = f"nouvel appel {nom} refusé : session coupée, jeton révoqué"
         self._tracer("riposte", {"action": "appel_refuse", "outil": nom})
-        details = {"action": "appel_refuse", "raison": "session coupée par l'analyste",
-                   "resultat": texte}
+        details = {"action": "appel_refuse", "raison": "nouvel appel refusé : session coupée par l’analyste",
+                   "resultat": texte, "verdict": REFUSE}
         if self.enregistreur is not None:
             self.enregistreur.noter("resultat", "Appel suivant refusé", texte, outil=nom)
             details.update({"maillon": "resultat", **self._snapshot()})

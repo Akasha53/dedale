@@ -164,6 +164,8 @@ def jouer(base: str, issue: str = "couper", *, session_id: str | None = None,
         "rapports_envoyes": len(outils.rapports_envoyes),
         "appels_liberes": list(passerelle.appels_liberes),
         "appels_refuses": list(passerelle.appels_refuses),
+        # Correctif appliqué plus tôt par l'analyste : droits retirés à l'agent fictif.
+        "droits_retires": sorted(passerelle.droits_retires),
         "relance_apres_coupure": relance,
         "decisions_jouees": list(robot.decisions) if robot else [],
         "boite_noire": list(enregistreur.maillons),
@@ -202,6 +204,9 @@ def raconter(c: dict, afficher=print) -> None:
                  f"tard, accusé backend {_ms(ch.get('accuse_console_ms'))}, {attente}, appliquée en "
                  f"{_ms(ch.get('application_ms'))}.")
     afficher("Références : " + _refs_courtes(c["references"]))
+    if c.get("droits_retires"):
+        afficher(f"Correctif actif : droits retirés à l’agent {c['droits_retires']}. Les outils qui "
+                 "les exigent sont refusés sans attendre l’analyste.")
     afficher(f"Issue : coffre lu {len(c['coffre_lectures'])} fois, rapports envoyés "
              f"{c['rapports_envoyes']}, jeton révoqué {'oui' if c['jeton_revoque'] else 'non'}, "
              f"état {c['etat']}, relance après coupure {c['relance_apres_coupure'] or 'sans objet'}.")

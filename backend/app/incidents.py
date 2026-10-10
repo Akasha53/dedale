@@ -14,7 +14,7 @@ import re
 from typing import Any
 
 # Ordre canonique des étapes de la boîte noire.
-ORDRE_ETAPES = ["appat", "consigne_lue", "action", "tentative_sortie", "riposte"]
+ORDRE_ETAPES = ["appat", "consigne_lue", "action", "tentative_sortie", "riposte", "correctif"]
 
 _LIBELLES = {
     "appat": "Document/mail piégé rencontré",
@@ -22,6 +22,7 @@ _LIBELLES = {
     "action": "Action sur une route ou un outil découvert",
     "tentative_sortie": "Tentative de sortie de données",
     "riposte": "Riposte appliquée",
+    "correctif": "Correctif : droit retiré",
 }
 
 # Correspondance étape interne -> phase lue par la console.
@@ -31,6 +32,7 @@ _PHASE = {
     "action": "outil",
     "tentative_sortie": "sortie",
     "riposte": "riposte",
+    "correctif": "correctif",
 }
 
 
@@ -169,6 +171,9 @@ def _etape_pour(ev: dict, leurres: dict[str, Any]) -> str | None:
 
     if typ == "riposte":
         return "riposte"
+    # Correctif appliqué par l'analyste depuis la console (droit retiré à l'agent).
+    if typ == "correctif":
+        return "correctif"
     if typ == "sortie_agent" or details.get("exfiltration"):
         return "tentative_sortie"
     # Outil MCP piégé : la consigne vit dans la DESCRIPTION de l'outil. Qu'elle soit portée par
@@ -210,7 +215,9 @@ def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[d
         leurre = leurres.get(ev.get("leurre_id")) if ev.get("leurre_id") else None
         violation = details.get("violation_droits") if isinstance(details.get("violation_droits"), dict) else None
         texte_source = next((details[c] for c in _CHAMPS_PIEGES if details.get(c)), None)
-        if violation is not None:
+        if etape == "correctif":
+            detail = detail_correctif(details)
+        elif violation is not None:
             # Action hors périmètre : on décrit le droit manquant, jamais de texte piégé.
             detail = (
                 f"action hors périmètre : {violation.get('outil')} exige le droit "
@@ -259,6 +266,18 @@ def construire_chaine(evenements: list[dict], leurres: dict[str, Any]) -> list[d
     for i, e in enumerate(etapes):
         e["ordre"] = i
     return etapes
+
+
+def detail_correctif(details: dict) -> str:
+    """Texte du maillon « correctif » : quel droit, à quel agent, par qui, quels outils."""
+    droit = details.get("droit")
+    texte = f"droit {droit} ({details.get('libelle') or droit}) retiré à l’agent {details.get('agent')}"
+    if details.get("analyste"):
+        texte += f" par {details['analyste']}"
+    outils = details.get("outils") or []
+    if outils:
+        texte += f". La passerelle refusera {', '.join(outils)}"
+    return texte + "."
 
 
 def chaine_complete(etapes: list[dict]) -> bool:

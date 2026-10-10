@@ -12,7 +12,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from . import classement, config, incidents, securite
+from . import activite, classement, config, incidents, securite
 
 
 def maintenant() -> datetime:
@@ -117,6 +117,10 @@ class Session:
     scopes_utilises: list = field(default_factory=list)
     tentatives_hors_scope: list = field(default_factory=list)
     flag_droits: bool = False
+    # Agent fictif annoncé par la passerelle (details.agent) et droits que l'analyste lui a
+    # retirés : {code, libelle, agent, incident_id, session_id, analyste, horodatage}.
+    agent: str | None = None
+    droits_retires: list = field(default_factory=list)
 
     def abrege(self) -> dict:
         # Noms alignés sur ce que lit la console (premiere_vue/derniere_vue, leurres_touches int),
@@ -138,6 +142,7 @@ class Session:
             "leurres_touches_ids": sorted(self.leurres_touches),
             "verite_terrain": self.verite_terrain,
             "signaux": self.signaux,
+            "agent": self.agent,
             "droits": self.droits_console(),
         }
 
@@ -157,17 +162,22 @@ class Session:
             return None
         if not (self.droits_accordes or self.droits_jeton or self.flag_droits or self.tache):
             return None
+        # Un droit retiré par l'analyste n'est plus accordé : il sort des accordés, du jeton
+        # et du surplus, et reste visible dans « retires ».
+        retires = {r.get("code") for r in self.droits_retires}
+        accordes = [s for s in self.droits_accordes if self._code(s) not in retires]
         necessaires = self.droits_necessaires or self.droits_jeton
         codes_necessaires = {self._code(s) for s in necessaires}
-        surplus = [self._code(s) for s in self.droits_accordes if self._code(s) not in codes_necessaires]
+        surplus = [self._code(s) for s in accordes if self._code(s) not in codes_necessaires]
         return {
-            "accordes": self.droits_accordes,
+            "accordes": accordes,
             "utilises": list(self.scopes_utilises),
             "necessaires": necessaires,
-            "jeton": list(self.droits_jeton),
+            "jeton": [c for c in self.droits_jeton if c not in retires],
             "tache": self.tache,
             "surplus": surplus,
             "tentatives_hors_scope": list(self.tentatives_hors_scope),
+            "retires": [dict(r) for r in self.droits_retires],
         }
 
     def detail(self, evenements: list[dict]) -> dict:
@@ -210,6 +220,14 @@ class Store:
         # Index de résolution route/outil -> leurre (pour l'enchaînement lecture->action).
         self.routes_leurres: dict[str, str] = {}
         self.outils_leurres: dict[str, str] = {}
+        # Droits retirés par agent fictif (clé : `cle_agent`). Reconstruit au démarrage à
+        # partir des sessions, qui portent chacune les retraits qui les concernent.
+        self.retraits: dict[str, list[dict]] = {}
+
+    @staticmethod
+    def cle_agent(sess: Session) -> str:
+        """Identité de l'agent : celle annoncée par la passerelle, sinon une par session."""
+        return sess.agent or f"orbis-{sess.id}"
 
     def restaurer(self, donnees: dict) -> None:
         """Prépare un état complet avant de remplacer la mémoire courante.
@@ -293,6 +311,12 @@ class Store:
                     leurre.premier_touche = touches[0]["horodatage"]
                     leurre.dernier_touche = touches[-1]["horodatage"]
                 nouveau.leurres[leurre.id] = leurre
+
+            for sess in nouveau.sessions.values():
+                for retrait in sess.droits_retires:
+                    liste = nouveau.retraits.setdefault(nouveau.cle_agent(sess), [])
+                    if retrait.get("code") not in {r.get("code") for r in liste}:
+                        liste.append(dict(retrait))
 
             nouveau.incidents.clear()
             for ligne in donnees["incidents"]:
@@ -456,6 +480,14 @@ class Store:
                 sess.tache = sess.tache or violation.get("tache")
                 if violation.get("scopes_jeton") is not None and not sess.droits_jeton:
                     sess.droits_jeton = list(violation["scopes_jeton"])
+            # Agent fictif : une nouvelle session hérite des droits déjà retirés à cet agent.
+            agent = details.get("agent")
+            if sess.source == "interne" and sess.agent is None and isinstance(agent, str) and agent.strip():
+                sess.agent = activite._court(agent, 80)
+                deja = {r.get("code") for r in sess.droits_retires}
+                for retrait in self.retraits.get(sess.agent, []):
+                    if retrait.get("code") not in deja:
+                        sess.droits_retires.append(dict(retrait))
 
             # Résolution des drapeaux de signaux.
             leurre = self.leurres.get(ev.leurre_id) if ev.leurre_id else None
@@ -604,15 +636,25 @@ class Store:
             diffusions = [("evenement", enreg), ("session", sess.abrege())]
             if incident is not None:
                 diffusions.append(("incident", self._incident_dict(incident)))
+            # Fil des agents : l'appel d'outil et son verdict, poussés sur le WS.
+            act = activite.entree(enreg, agent=sess.agent,
+                                  incident_id=incident.id if incident is not None else None)
+            if act is not None:
+                diffusions.append(("activite", act))
+
+            session_rep = {
+                "id": sess.id,
+                "classement": sess.classement,
+                "score": sess.score,
+                "etat": sess.etat,
+            }
+            if sess.droits_retires:
+                # La passerelle lit ici les droits retirés et refuse les outils qui les exigent.
+                session_rep["droits_retires"] = [r.get("code") for r in sess.droits_retires]
 
             return {
                 "reponse": {
-                    "session": {
-                        "id": sess.id,
-                        "classement": sess.classement,
-                        "score": sess.score,
-                        "etat": sess.etat,
-                    },
+                    "session": session_rep,
                     "consigne": consigne,
                 },
                 "evenement": enreg,
@@ -734,6 +776,7 @@ class Store:
             for d in self.decisions
             if d["incident_id"] == inc.id
         ]
+        vue_droits = sess.droits_console() if sess else None
         return {
             "id": inc.id,
             "session_id": inc.session_id,
@@ -756,8 +799,22 @@ class Store:
             "decisions": decisions,
             "chaine": inc.chaine,
             # Droits de l'agent interne (surtout utile pour type "interne_droits" ; None sinon).
-            "droits": sess.droits_console() if sess else None,
+            "droits": vue_droits,
+            # Correctif en un clic : droits en trop que l'analyste peut retirer à l'agent.
+            "droits_retirables": self._retirables(vue_droits),
+            "correctifs": [dict(r) for r in (sess.droits_retires if sess else [])
+                           if r.get("incident_id") == inc.id],
         }
+
+    @staticmethod
+    def _retirables(vue: dict | None) -> list[dict]:
+        if not vue:
+            return []
+        libelles = {
+            Session._code(s): (s.get("libelle") if isinstance(s, dict) else None)
+            for s in vue["accordes"]
+        }
+        return [{"code": c, "libelle": libelles.get(c) or c} for c in vue["surplus"]]
 
     def _consigne(self, sess: Session, incident: Incident | None) -> str:
         if sess.etat == "coupee":
@@ -802,6 +859,23 @@ class Store:
         with self.lock:
             return [self._incident_dict(i) for i in self.incidents.values()]
 
+    def liste_activite(self, limite: int = 50) -> list[dict]:
+        """Derniers appels d'outil vus par la passerelle interne, du plus récent au plus ancien."""
+        with self.lock:
+            incident_par_session: dict[str, str] = {}
+            for inc in self.incidents.values():
+                incident_par_session.setdefault(inc.session_id, inc.id)
+            sortie: list[dict] = []
+            for ev in reversed(self.evenements.values()):
+                if len(sortie) >= limite:
+                    break
+                sess = self.sessions.get(ev.get("session_id"))
+                act = activite.entree(ev, agent=sess.agent if sess else None,
+                                      incident_id=incident_par_session.get(ev.get("session_id")))
+                if act is not None:
+                    sortie.append(act)
+            return sortie
+
     def liste_agents(self) -> list[dict]:
         """Vue des agents internes (GET /api/agents) : droits accordés vs utilisés vs nécessaires."""
         with self.lock:
@@ -814,6 +888,7 @@ class Store:
                     {
                         "id": f"orbis-{sess.id}",
                         "nom": "Agent interne Orbis Pay",
+                        "agent": sess.agent,
                         "session_id": sess.id,
                         "tache": sess.tache,
                         "droits": droits_vue,
@@ -881,6 +956,117 @@ class Store:
             if sess:
                 diffusions.append(("session", sess.abrege()))
             return {"incident": self.incident_detail(iid), "diffusions": diffusions, "journal": journal}
+
+
+    # ----- Correctif en un clic : moindre privilège -----
+    def retirer_droit(self, iid: str, droit: str, analyste: str) -> dict | None:
+        """Retire à l'agent un droit en trop pour sa tâche. Le retrait vaut pour cette session et
+        pour les sessions à venir du même agent fictif ; il entre dans la boîte noire comme un
+        maillon « correctif ». Lève ValueError si le droit n'est pas retirable."""
+        with self.lock:
+            inc = self.incidents.get(iid)
+            if inc is None:
+                return None
+            sess = self.sessions.get(inc.session_id)
+            if sess is None or sess.source != "interne":
+                raise ValueError("Cet incident ne concerne pas un agent interne : aucun droit à retirer.")
+            avant = sess.droits_console()
+            if avant is None:
+                raise ValueError("Aucun droit connu pour l’agent de cet incident.")
+            nom = activite._court(droit, 60)
+            if droit in {r.get("code") for r in sess.droits_retires}:
+                raise ValueError(f"Le droit {nom} est déjà retiré à cet agent.")
+            if droit not in avant["surplus"]:
+                retirables = ", ".join(avant["surplus"]) or "aucun"
+                raise ValueError(
+                    f"{nom} n’est pas un droit en trop pour la tâche {avant['tache'] or 'en cours'}. "
+                    f"Droits retirables : {retirables}."
+                )
+
+            moment = maintenant()
+            cle = self.cle_agent(sess)
+            libelle = next(
+                (s.get("libelle") for s in sess.droits_accordes
+                 if isinstance(s, dict) and s.get("code") == droit and s.get("libelle")),
+                droit,
+            )
+            # Outils vus dans la session qui exigeaient ce droit (refusés désormais).
+            outils = {t.get("outil") for t in sess.tentatives_hors_scope if t.get("scope_requis") == droit}
+            for i in sess.evenement_ids:
+                ev = self.evenements[i]
+                d = ev.get("details") or {}
+                if ev.get("outil") and d.get("scope_requis") == droit:
+                    outils.add(ev["outil"])
+            outils_tries = sorted(o for o in outils if o)
+            retrait = {
+                "code": droit, "libelle": libelle, "agent": cle, "incident_id": iid,
+                "session_id": sess.id, "analyste": activite._court(analyste or "inconnu", 60),
+                "horodatage": moment.isoformat(),
+            }
+            self.retraits.setdefault(cle, []).append(retrait)
+            touchees = [s for s in self.sessions.values()
+                        if s.source == "interne" and self.cle_agent(s) == cle]
+            for s in touchees:
+                if droit not in {r.get("code") for r in s.droits_retires}:
+                    s.droits_retires.append(dict(retrait))
+
+            # Maillon « correctif » : un événement de la session, sans passer par le tri
+            # (il ne dit rien du comportement de l'agent).
+            eid = self._nouvel_id()
+            enreg = {
+                "id": eid,
+                "horodatage": moment.isoformat(),
+                "recu_a": moment.isoformat(),
+                "source": sess.source,
+                "surface": "console",
+                "type": "correctif",
+                "session_id": sess.id,
+                "leurre_id": None,
+                "leurre_nature": None,
+                "ip": None,
+                "user_agent": None,
+                "methode": None,
+                "chemin": None,
+                "outil": None,
+                "details": {
+                    "maillon": "correctif", "action": "retirer_droit", "droit": droit,
+                    "libelle": libelle, "agent": cle, "analyste": retrait["analyste"],
+                    "incident_id": iid, "outils": outils_tries,
+                    "accordes_avant": [Session._code(s) for s in avant["accordes"]],
+                },
+            }
+            self.evenements[eid] = enreg
+            sess.evenement_ids.append(eid)
+            self._maj_incident(sess)
+            apres = sess.droits_console()
+            enreg["details"]["accordes_apres"] = [Session._code(s) for s in apres["accordes"]]
+            maillon = next((e for e in inc.chaine if e.get("evenement_id") == eid), None)
+
+            incidents_maj = [inc]
+            for s in touchees:
+                autre = next((i for i in self.incidents.values() if i.session_id == s.id), None)
+                if autre is not None and autre not in incidents_maj:
+                    incidents_maj.append(autre)
+            diffusions = [("evenement", enreg)]
+            diffusions += [("session", s.abrege()) for s in touchees]
+            diffusions += [("incident", self._incident_dict(i)) for i in incidents_maj]
+
+            refuses = ", ".join(outils_tries) if outils_tries else "tout outil qui l’exige"
+            reponse = {
+                "incident_id": iid,
+                "droit": droit,
+                "libelle": libelle,
+                "agent": cle,
+                "avant": avant,
+                "apres": apres,
+                "maillon": maillon,
+                "sessions_concernees": [s.id for s in touchees],
+                "message": (f"Droit {droit} retiré à l’agent {cle}. La passerelle refusera "
+                            f"{refuses} dans cette session et dans ses prochaines sessions."),
+                "incident": self.incident_detail(iid),
+            }
+            return {"reponse": reponse, "evenement": enreg, "sessions": touchees,
+                    "incidents": incidents_maj, "diffusions": diffusions}
 
 
 store = Store()

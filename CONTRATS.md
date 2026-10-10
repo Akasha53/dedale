@@ -506,3 +506,81 @@ Pour un événement de source `interne`, `chaine[].techniques` reçoit des techn
 Une technique déjà posée par le leurre garde sa place et prend le nom officiel. Les techniques venues des seuls leurres n'ont pas de champ `a_confirmer`. Un appel hors jeton qui ne porte pas `OWASP ASI03` le reçoit dans `risques`. Les sources `externe`, `humain` et `physique` ne changent pas.
 
 Banc (`attaque/`) : le canari `C-0001` de la surface de remplacement est de nature `consigne_cachee`, comme le canari mail `C-7A3F` de `interne/`. Le banc le touche quand l'agent suit la consigne du mail ; déclaré `canari_mail`, il ouvrait l'incident sans signal IA et la session restait `inconnu`.
+
+## Avenant du 10 octobre 2026 : copilote SOC, fil des agents, correctif en un clic
+
+Trois ajouts côté backend et passerelle interne. Aucune route existante ne change de forme ; les champs nouveaux s'ajoutent et la console peut les ignorer.
+
+### Copilote SOC : `GET /api/incidents/{id}/synthese[?mode=regles|modele]`
+
+Mode par défaut `regles` : déterministe, sans réseau, construit à partir de la chaîne et des signaux. Deux appels successifs renvoient le même objet. `mode=modele` est un emplacement optionnel : il reste en `regles` (avec un champ `repli`) tant que `DEDALE_SYNTHESE_MODELE=on` n'est pas posé et qu'aucun modèle ne répond. Activé, il ne fait que reformuler les phrases et retombe sur les règles si le texte cite un nom absent de la version par règles. 404 si l'incident n'existe pas, 400 pour un autre `mode`.
+
+```json
+{
+  "incident_id": "INC-0002",
+  "mode": "regles",
+  "texte": "les phrases bout à bout",
+  "phrases": [
+    {"texte": "L’agent a lu « releve_atelier_nord_septembre », un contenu venu de l’extérieur qui cachait une consigne (canari C-3E58). Il l’a suivie.",
+     "maillons": [1, 2, 3], "evenements": [14, 15, 18],
+     "preuves": [{"maillon": 1, "champ": "detail", "valeur": "releve_atelier_nord_septembre"},
+                 {"maillon": 2, "champ": "canari_id", "valeur": "C-3E58"}]},
+    {"texte": "Il a demandé lire_coffre, qui exige le droit coffre:lire absent de son jeton, puis tenté d’envoyer le canari C-2B91 par envoyer_rapport : la passerelle a retenu les deux appels avant exécution.", "maillons": [6, 8], "…": "…"},
+    {"texte": "L’analyste a choisi « reprendre », puis « couper » : lire_coffre a été exécuté une fois, envoyer_rapport n’a jamais été exécuté, un nouvel appel à envoyer_rapport a été refusé et le jeton est révoqué.", "maillons": [10, 11, 12, 13, 14], "…": "…"}
+  ],
+  "confiance": {"score": 0.95, "niveau": "elevee", "base": 0.15, "plafond": 0.95,
+                "raisons": [{"code": "canari", "effet": 0.3, "texte": "Canaris C-3E58, C-1D4C et C-2B91 touchés. Un humain ne déclenche pas ce piège.", "maillons": [2, 3, 6, 8, 9]}],
+                "manquants": [], "signaux_concordants": 5, "maillons": 15},
+  "decision_recommandee": {"action": "couper", "justification": "…", "maillons": [2, 3, 6, 8, 9],
+                           "rappel": "L’analyste tranche : Dédale n’applique aucune décision seul.",
+                           "actions_possibles": ["couper", "reprendre", "ignorer"],
+                           "derniere_decision": {"action": "couper", "analyste": "…", "horodatage": "…"},
+                           "deja_appliquee": true},
+  "correctif_suggere": {"droit": "coffre:lire", "libelle": "Lire le coffre de clés d'API",
+                        "route": "/api/incidents/INC-0002/retirer-droit", "texte": "…"}
+}
+```
+
+- `maillons` : valeurs de `chaine[].ordre` de l'incident ; `evenements` : les `evenement_id` correspondants.
+- Règle d'honnêteté. Chaque preuve se relit dans le maillon cité : `champ` est un chemin pointé sur l'étape de la chaîne, ou sur son événement source sous `evenement.` (`evenement.details.action`, `evenement.outil`…). Une chaîne contient la valeur, une liste la contient comme élément, sinon égalité. Une phrase dont une preuve ne se vérifie pas n'est pas écrite. Chaque nom cité (canari, outil, droit, document entre « ») est couvert par une preuve de sa phrase. Une tentative retenue reste « retenue » ou « jamais exécutée » ; le texte ne parle jamais de fuite.
+- `confiance.score` (0 à 0,95) = `base` + somme des `effet` de `raisons` et `manquants`. Codes agent : `canari`, `consigne`, `hors_jeton`, `sortie`, `classement`, `concordance` (3 familles ou plus : +0,10 ; une seule : −0,10), `maillons` (6 ou plus : +0,05 ; 2 ou moins : −0,15). Codes humain : `passe_outre`, `action_risquee`, `intrusion`, `consequence`. Manquants : `entree_absente`, `decision_absente` (effet 0), `evenements_perdus`, `contexte_absent`. `niveau` : `elevee` dès 0,75, `moyenne` dès 0,5, sinon `faible`.
+- `decision_recommandee.action` : `couper`, `reprendre` ou `ignorer` pour un agent ; `clore` ou `ignorer` pour un geste humain. C'est une recommandation : rien n'est appliqué sans `POST /decision`.
+- `correctif_suggere` : présent quand un appel hors jeton exigeait un droit encore retirable, sinon `null`.
+
+### Fil des agents : `GET /api/activite?limite=N` et WS `activite`
+
+`limite` de 1 à 500 (défaut 50, 422 au-delà). Réponse `{"activite": [...]}`, du plus récent au plus ancien. Le même objet part sur `/ws` à l'ingestion : `{"type": "activite", "donnees": {…}}`.
+
+```json
+{"id": 17, "heure": "2026-10-10T19:55:34.685+02:00", "session_id": "jury-reprendre-195534-777b",
+ "agent": "orbis-assistant", "outil": "lire_coffre", "verdict": "retenu",
+ "raison": "droit coffre:lire absent du jeton", "droit": "coffre:lire",
+ "etape": "appel", "incident_id": "INC-0002"}
+```
+
+- Seuls les événements de source `interne` entrent dans le fil : un `appel_outil` (sauf l'annonce `maillon: intention`) donne `etape: "appel"` ; un `riposte` qui dit ce qu'est devenu un appel retenu (`appel_libere`, `appel_annule`, `appel_refuse`, `couper`) donne `etape: "issue"`.
+- `verdict` vaut `autorise`, `retenu` ou `refuse` (codes sans accent, comme `coupee`). `raison` est courte et HTML-échappée. `incident_id` est celui de la session au moment de la lecture ; sur le WS il peut être `null` si l'incident s'ouvre à l'événement suivant. `agent` vaut `null` pour une session qui ne l'annonce pas.
+- La passerelle (`interne/`) pose désormais `details.verdict` et `details.raison` sur chaque appel d'outil et sur chaque issue, et `details.agent` sur `entree_agent`. Pour un ancien événement sans ces champs, le backend déduit le verdict (`retenu`, `violation_droits`, `droit_retire`).
+- Nouveaux événements émis par la passerelle historique (sans mode protégé) : `riposte` `{action: "appel_libere"}` quand l'analyste reprend un appel retenu, `riposte` `{action: "appel_refuse"}` quand aucune décision n'arrive dans le délai. Ils entrent dans la chaîne en phase `riposte`.
+
+### Correctif en un clic : `POST /api/incidents/{id}/retirer-droit`
+
+Corps `{"droit": "coffre:lire", "analyste": "…"}`. Le droit doit figurer dans les droits en trop de la vue « accès accordés vs nécessaires » (`droits.surplus`) ; sinon 400 avec la liste des droits retirables (aussi 400 : droit vide, déjà retiré, incident sans droits d'agent ou geste humain). 404 si l'incident n'existe pas.
+
+```json
+{"incident_id": "INC-0002", "droit": "coffre:lire", "libelle": "Lire le coffre de clés d'API",
+ "agent": "orbis-assistant", "avant": {"accordes": ["…"], "surplus": ["…", "coffre:lire"], "retires": []},
+ "apres": {"accordes": ["… sans coffre:lire"], "surplus": ["…"], "retires": [{"code": "coffre:lire", "…": "…"}]},
+ "maillon": {"ordre": 15, "etape": "correctif", "phase": "correctif", "titre": "Correctif : droit retiré",
+             "detail": "droit coffre:lire (Lire le coffre de clés d'API) retiré à l’agent orbis-assistant par guilhem. La passerelle refusera lire_coffre."},
+ "sessions_concernees": ["…"], "message": "Droit coffre:lire retiré à l’agent orbis-assistant. …",
+ "incident": {"…": "détail complet, à jour"}}
+```
+
+- Le retrait vaut pour l'agent fictif (`details.agent` annoncé par la passerelle, sinon un agent par session) : la session de l'incident, ses autres sessions déjà vues et toutes ses sessions à venir. Il se persiste avec la session et survit à un redémarrage.
+- Boîte noire : un événement `type: "correctif"`, `surface: "console"`, ajouté à la session sans passer par le tri, devient le dernier maillon de la chaîne en phase `correctif` (nouvelle phase, la console la tolère en colonne générique).
+- Vue des droits (`droits` de la session et de l'incident) : un droit retiré sort de `accordes`, `jeton` et `surplus`, et figure dans `retires` (`{code, libelle, agent, incident_id, session_id, analyste, horodatage}`).
+- Détail et liste des incidents : `droits_retirables` (`[{code, libelle}]`, vide hors agent interne) et `correctifs` (retraits faits depuis cet incident).
+- Passerelle : la réponse à `POST /api/evenements` porte `session.droits_retires` (codes) dès qu'un droit est retiré à l'agent ; `GET /api/sessions/{id}` le porte dans `droits.retires`. La passerelle retire ce droit de ses droits accordés et de son jeton, relit la session avant un appel qui sortirait du jeton, et refuse l'outil qui l'exige avant exécution : `appel_outil` avec `details.verdict: "refuse"` et `details.droit_retire`, sans `violation_droits` (pas de nouvel incident). Un appel retenu puis repris n'est pas exécuté si son droit a été retiré pendant l'attente.
+
+À faire côté console (seconde passe) : bloc « synthèse » dans le détail d'incident (phrases avec leurs maillons cliquables, score et raisons, décision recommandée avec le rappel), fil des agents en direct (`/api/activite` au chargement puis messages WS `activite`), bouton « retirer » sur chaque droit de `droits_retirables`, maillon `correctif` dans la frise, et le mock (`console/src/api/mock.ts`) aligné sur ces formes.

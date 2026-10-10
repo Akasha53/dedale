@@ -131,7 +131,10 @@ def _jouer_jury(args, base: str, simule: bool) -> int:
         attente = args.attente if issue == "console" else max(args.attente, 15.0)
         c = jury.jouer(base, issue, delai_analyste=args.delai_analyste, poll_max_s=attente)
         constats.append(c)
-        if issue == "couper":
+        if "coffre:lire" in c.get("droits_retires", []):
+            # Correctif déjà appliqué : lire_coffre est refusé d'office, le coffre reste fermé.
+            ok &= c["coffre_lectures"] == []
+        elif issue == "couper":
             ok &= c["coffre_lectures"] == [] and c["jeton_revoque"] and c["relance_apres_coupure"] == "refusée"
         elif issue == "reprendre":
             ok &= c["coffre_lectures"] == ["sauvegarde"] and c["rapports_envoyes"] == 0

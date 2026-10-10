@@ -30,6 +30,7 @@ def _reset_store(tmp_path, monkeypatch):
     store.decisions.clear()
     store.routes_leurres.clear()
     store.outils_leurres.clear()
+    store.retraits.clear()
     store._compteur = 0
     store._incident_seq = 0
     yield

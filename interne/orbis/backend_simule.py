@@ -3,6 +3,8 @@
 Il n'implémente QUE les routes dont le module interne a besoin :
   POST /api/leurres, POST /api/evenements, GET /api/sessions/{id},
   GET /api/incidents et POST /api/incidents/{id}/decision (journal des décisions).
+Les droits retirés par l'analyste se posent par `retirer_droit(agent, code)` et reviennent,
+comme sur le vrai backend, dans `session.droits_retires` et `droits.retires`.
 
 Le vrai backend (agent A, port 8700) est la source de vérité en démo réelle ; ce stub
 permet de jouer la chaîne complète, décision d'analyste comprise, sans dépendre de lui.
@@ -39,12 +41,18 @@ class _Etat:
         # Fidèle au vrai backend : l'ouverture d'un incident suspend la session. Désactivé par
         # défaut pour les tests historiques, qui fixent l'état à la main.
         self.suspendre_a_l_incident = suspendre_a_l_incident
+        # Correctif en un clic : droits retirés par agent fictif, comme le vrai backend.
+        self.agents: dict[str, str] = {}  # session_id -> agent annoncé (details.agent)
+        self.droits_retires: dict[str, list[str]] = {}  # agent -> codes retirés
         self.verrou = threading.Lock()
 
     def noter_evenement(self, ev: dict) -> None:
         with self.verrou:
             self.evenements.append(ev)
             sid = ev.get("session_id", "")
+            agent = (ev.get("details") or {}).get("agent")
+            if sid and isinstance(agent, str) and sid not in self.agents:
+                self.agents[sid] = agent
             if sid and sid not in self.incidents and _ouvre_incident(ev):
                 self.incidents[sid] = {
                     "id": f"INC-S{len(self.incidents) + 1:04d}", "session_id": sid,
@@ -66,6 +74,16 @@ class _Etat:
     def incident_publie(self, inc: dict) -> dict:
         sid = inc["session_id"]
         return {**inc, "decisions": list(inc["decisions"]), "etat": self.etats.get(sid, "active")}
+
+    def retires(self, sid: str) -> list[str]:
+        with self.verrou:
+            return list(self.droits_retires.get(self.agents.get(sid, f"orbis-{sid}"), []))
+
+    def retirer_droit(self, agent: str, code: str) -> None:
+        with self.verrou:
+            liste = self.droits_retires.setdefault(agent, [])
+            if code not in liste:
+                liste.append(code)
 
     def etat_session(self, sid: str) -> str:
         with self.verrou:
@@ -100,14 +118,11 @@ def _fabriquer_handler(etat: _Etat):
             elif self.path == "/api/evenements":
                 etat.noter_evenement(corps)
                 sid = corps.get("session_id", "")
-                self._repondre(
-                    200,
-                    {
-                        "session": {"id": sid, "classement": "agent_ia", "score": 0.9,
-                                    "etat": etat.etat_session(sid)},
-                        "consigne": "aucune",
-                    },
-                )
+                session = {"id": sid, "classement": "agent_ia", "score": 0.9,
+                           "etat": etat.etat_session(sid)}
+                if etat.retires(sid):
+                    session["droits_retires"] = etat.retires(sid)
+                self._repondre(200, {"session": session, "consigne": "aucune"})
             elif self.path.startswith("/api/incidents/") and self.path.endswith("/decision"):
                 iid = unquote(self.path.split("/")[3])
                 inc = etat.decider(iid, corps.get("action", ""), corps.get("analyste", "inconnu"))
@@ -122,11 +137,11 @@ def _fabriquer_handler(etat: _Etat):
             chemin = urlsplit(self.path).path
             if chemin.startswith("/api/sessions/"):
                 sid = unquote(chemin.rsplit("/", 1)[-1])
-                self._repondre(
-                    200,
-                    {"id": sid, "etat": etat.etat_session(sid),
-                     "evenements": [e for e in etat.evenements if e.get("session_id") == sid]},
-                )
+                detail = {"id": sid, "etat": etat.etat_session(sid),
+                          "evenements": [e for e in etat.evenements if e.get("session_id") == sid]}
+                if etat.retires(sid):
+                    detail["droits"] = {"retires": [{"code": c} for c in etat.retires(sid)]}
+                self._repondre(200, detail)
             elif chemin == "/api/incidents":
                 with etat.verrou:
                     liste = [etat.incident_publie(i) for i in etat.incidents.values()]
@@ -161,6 +176,10 @@ class BackendSimule:
 
     def fixer_etat(self, sid: str, etat: str) -> None:
         self.etat.fixer_etat(sid, etat)
+
+    def retirer_droit(self, agent: str, code: str) -> None:
+        """Simule POST /api/incidents/{id}/retirer-droit pour un agent fictif."""
+        self.etat.retirer_droit(agent, code)
 
     def evenements(self, type: str | None = None) -> list[dict]:
         evs = list(self.etat.evenements)

@@ -45,3 +45,13 @@ class DecisionIn(BaseModel):
 
     action: Literal["valider_riposte", "couper", "reprendre", "ignorer", "clore"]
     analyste: str = "inconnu"
+
+
+class RetraitDroitIn(BaseModel):
+    """Correctif en un clic : le droit en trop à retirer à l'agent de l'incident."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    # Un droit vide ou inconnu est refusé par le store (400), pas par la validation (422).
+    droit: str = Field(default="", max_length=200)
+    analyste: str = "inconnu"

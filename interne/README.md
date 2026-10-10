@@ -62,7 +62,7 @@ uv run python -m orbis.demo          # démo autonome : backend simulé + cervea
 uv run python -m orbis.demo --cerveau cli        # pilote un vrai agent via claude -p
 uv run python -m orbis.demo --backend-reel       # tape le vrai backend sur 8700
 uv run python -m orbis.demo --scenario jury      # agent interne protégé, hors ligne, deux issues
-uv run --extra dev pytest -q          # 45 tests
+uv run --extra dev pytest -q          # 52 tests
 ```
 
 La démo joue six scènes : session normale (aucun canari), session détournée où
@@ -106,6 +106,19 @@ Champs ajoutés aux événements (le backend les tolère) : `details.maillon`, `
 et sur l'événement de résultat `details.boite_noire`, `details.references`, `details.contexte`.
 Tout ce qui part de la passerelle passe par `masquer` : un faux secret devient
 `[canari C-xxxx masqué]`, la partie requête d'une URL est retirée.
+
+## Fil des agents et correctif en un clic
+
+Chaque appel d'outil part au backend avec `details.verdict` (`autorise`, `retenu`, `refuse`) et
+`details.raison`, une phrase courte. L'issue d'un appel retenu part aussi : `appel_libere`,
+`appel_annule` ou `appel_refuse`. Le backend en tire `GET /api/activite`.
+
+La passerelle annonce son agent fictif dans `entree_agent` (`details.agent`, `orbis-assistant`
+par défaut). Quand l'analyste retire un droit en trop depuis la console, le backend renvoie
+`session.droits_retires` dans ses réponses. La passerelle retire ce droit de ses droits accordés
+et de son jeton, relit la session avant un appel hors jeton, et refuse l'outil qui l'exige avant
+exécution, dans la session en cours comme dans les suivantes du même agent. Le scénario jury le
+signale (« Correctif actif ») et compte le coffre resté fermé comme une garantie tenue.
 
 Le mode protégé est optionnel (`Passerelle(..., retenir_hors_scope=True, decision_fraiche=True)`).
 Sans lui, le comportement historique ne change pas : un appel hors jeton est refusé d'office.
