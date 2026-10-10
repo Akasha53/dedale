@@ -109,6 +109,7 @@ class Session:
     flag_passe_outre: bool = False              # a cliqué « continuer » sur un avertissement
     flag_intrusion_physique: bool = False       # accès d'un intrus à un actif/port-leurre
     flag_signalement: bool = False              # le salarié a signalé un mail lui-même
+    geste_contexte: str | None = None           # contexte du geste passé outre (« telechargement »…)
     gestes_arretes: int = 0                     # gestes annulés (bon réflexe)
     gestes_passes_outre: int = 0                # gestes passés outre (signal fort)
     # Moindre privilège (V2) : droits accordés / jeton de tâche / utilisés / tentatives hors scope.
@@ -573,6 +574,8 @@ class Store:
                     sess.flag_passe_outre = True
                     if cat:
                         sess.geste_incident_categorie = cat
+                    if isinstance(details.get("contexte"), str):
+                        sess.geste_contexte = details["contexte"][:40]
                     g = details.get("gravite")
                     if g in ("faible", "moyenne", "haute", "critique"):
                         sess.geste_gravite = g
@@ -717,7 +720,7 @@ class Store:
         if sess.source in ("humain", "physique"):
             cat = sess.geste_incident_categorie or sess.geste_categorie
             typ = incidents.type_humain(cat, sess.flag_intrusion_physique)
-            return typ, incidents.titre_humain(typ, sess.id)
+            return typ, incidents.titre_humain(typ, sess.id, sess.geste_contexte)
         if sess.source != "interne":
             return "externe_agent_ia", f"Agent IA attaquant sur la surface exposée ({sess.id})"
         # Usurpation inter-agent (V3b) : provenance non authentifiée, sans canari « contenu ».

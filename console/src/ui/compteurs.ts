@@ -45,7 +45,8 @@ export function compter(
   const agentsVus = new Set(
     sessions.filter((s) => s.source === "interne" && s.agent).map((s) => s.agent as string)
   );
-  const agents = new Set([...inventaire.map((a) => a.id), ...agentsVus]).size;
+  // Les agents d'Orbis Pay seulement : les serveurs MCP des postes se comptent à part.
+  const agents = new Set([...inventaire.filter((a) => a.contexte !== "poste").map((a) => a.id), ...agentsVus]).size;
   const postes = new Set(sessions.filter((s) => appartientPilier(s.source, "humain")).map(clePoste)).size;
   return {
     aTraiter,

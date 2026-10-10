@@ -5813,3 +5813,98 @@ abbr.canary:focus::after {
   position: relative;
   z-index: 6;
 }
+
+/* ---- Signature demandée : le nom manque au moment d'agir ---- */
+.analyste-attendu {
+  border-color: color-mix(in srgb, var(--script) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--script) 12%, transparent);
+  animation: monter 0.35s var(--courbe) both;
+}
+.analyste-attendu label {
+  color: var(--script);
+}
+
+/* ---- Pré-tri du relecteur IA, en haut du panneau de décision ---- */
+.avis-relecteur {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #f9f9f9;
+  font-size: 13px;
+  color: var(--texte-doux);
+}
+.avis-relecteur.doute {
+  background: color-mix(in srgb, var(--script) 6%, #ffffff);
+}
+.avis-lib {
+  font-size: 12px;
+  color: var(--texte-faible);
+}
+.avis-val {
+  color: var(--texte);
+  font-weight: 500;
+}
+.avis-motif {
+  color: var(--texte-doux);
+}
+
+/* ---- Liste : filtre « à regarder » du relecteur ---- */
+.liste-filtres {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.filtre-regarder.actif {
+  background: color-mix(in srgb, var(--script) 10%, #ffffff);
+  color: var(--script);
+}
+
+/* ---- Agents IA des postes ---- */
+.postes-ia {
+  display: grid;
+  gap: 16px;
+}
+.poste-ia-tete {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.poste-ia-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.poste-ia-ligne {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(120px, 0.8fr) minmax(0, 1.4fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+}
+.poste-ia-ligne:hover {
+  background: var(--survol);
+}
+.poste-ia-nom {
+  font-weight: 500;
+  min-width: 0;
+}
+.poste-ia-types {
+  color: var(--texte-doux);
+}
+@media (max-width: 760px) {
+  .poste-ia-ligne {
+    grid-template-columns: 1fr auto;
+  }
+  .poste-ia-types,
+  .poste-ia-ligne .inv-puces {
+    grid-column: 1 / -1;
+  }
+}
+.liste-inc > .titre .liste-filtres {
+  margin-left: auto;
+}

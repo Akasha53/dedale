@@ -887,6 +887,8 @@ export function creerSourceMock(): SourceDonnees {
       politiques = politiques.filter((p) => p.id !== id);
     },
     getVerification: async () => ({ statut: "intacte", verdict: "intacte", sceau: "simulé", verifie_a: new Date().toISOString() }),
+    getTri: async (id) => ({ incident_id: id, statut: "pret", priorite: "normale", decision_proposee: "clore", motif: "Simulé hors ligne.", confiance: 0.8, tranche_par: "règles" }),
+    getFileRelecteur: async () => incidentsVisibles().filter((i) => i.gravite === "critique").map((i) => i.id),
     revelerIdentite: async (id, motif, analyste) => {
       const i = incidents.find((x) => x.id === id);
       if (!i) throw new Error("incident inconnu");

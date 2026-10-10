@@ -450,8 +450,40 @@ def type_humain(categorie: str | None, intrusion: bool = False) -> str:
     return _TYPE_HUMAIN.get(categorie, "humain_secret")
 
 
-def titre_humain(type_incident: str, session_id: str) -> str:
+def titre_humain(type_incident: str, session_id: str, contexte: str | None = None) -> str:
+    if contexte == "telechargement":
+        return f"Fichier à risque gardé par le salarié ({session_id})"
     return f"{_TITRE_HUMAIN.get(type_incident, 'Geste humain à risque')} ({session_id})"
+
+
+# Téléchargement (app Mac) : type du fichier, avec son article, pour les phrases.
+TYPES_FICHIER = {
+    "application": "un programme", "script": "un script", "image_disque": "une image disque",
+    "installeur": "un installeur", "raccourci": "un raccourci", "document_macros": "un document à macros",
+    "archive_chiffree": "une archive chiffrée", "document": "un document",
+}
+
+
+def domaine_propre(valeur) -> str | None:
+    """Hôte seul, lettres, chiffres, points et tirets : rien d'autre ne passe."""
+    if not isinstance(valeur, str):
+        return None
+    import re as _re
+    m = _re.fullmatch(r"[A-Za-z0-9.-]{1,253}", valeur.strip())
+    return m.group(0).lower() if m else None
+
+
+def detail_telechargement(details: dict) -> str:
+    """Le fichier gardé, sans son nom : type, domaine d'origine, empreinte abrégée."""
+    quoi = TYPES_FICHIER.get(details.get("type_fichier"), "un fichier")
+    texte = f"fichier à risque téléchargé : {quoi}"
+    dom = domaine_propre(details.get("domaine"))
+    if dom:
+        texte += f" venu de {dom}"
+    sha = details.get("sha256")
+    if isinstance(sha, str) and len(sha) >= 12 and all(c in "0123456789abcdef" for c in sha.lower()):
+        texte += f" · empreinte SHA-256 {sha.lower()[:12]}…"
+    return texte
 
 
 def gravite_humaine(type_incident: str, gravite_annoncee: str | None = None) -> str:
@@ -532,6 +564,8 @@ def construire_chaine_humaine(evenements: list[dict], leurres: dict[str, Any]) -
             geste = _GESTE_LIBELLE.get(cat, "geste à risque détecté sur le poste")
             cible = details.get("cible")
             d_action = geste + (f" — cible : {_abrege(cible, 160)}" if cible else "")
+            if details.get("contexte") == "telechargement":
+                d_action = detail_telechargement(details)
             etapes.append(
                 _mk_humain(
                     "action_risquee", d_action, ev,
@@ -550,7 +584,10 @@ def construire_chaine_humaine(evenements: list[dict], leurres: dict[str, Any]) -
             if choix == "continuer":
                 a_continuer = True
                 ev_continuer = ev
-                etapes.append(_mk_humain("choix", "décision du salarié : passé outre — a cliqué « continuer » malgré l'avertissement", ev))
+                d_choix = ("décision du salarié : passé outre — a gardé le fichier (« continuer ») malgré l'avertissement"
+                           if details.get("contexte") == "telechargement" else
+                           "décision du salarié : passé outre — a cliqué « continuer » malgré l'avertissement")
+                etapes.append(_mk_humain("choix", d_choix, ev))
             elif choix == "annuler":
                 etapes.append(_mk_humain("choix", "décision du salarié : a annulé le geste (« annuler ») — bon réflexe", ev))
         elif typ in ("requete", "entree_agent", "contexte", "note"):

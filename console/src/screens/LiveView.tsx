@@ -4,10 +4,11 @@ import type { Activite, AgentInventaire, Incident, Pilier } from "../types";
 import { SegmentsPiliers, Spinner, heure } from "../ui/primitives";
 import { desarmer } from "../agent/preuve";
 import { InventaireAgents } from "../agent/Inventaire";
+import { AgentsPostes } from "../agent/AgentsPostes";
 import { PanneauRegles, type ReglesPoignee } from "../agent/Regles";
 import { ListePostes } from "../salarie/Postes";
 import { compter } from "../ui/compteurs";
-import { attendDecision, decoder, libelleOutil, majuscule, nomAgent, raisonActivite, VERDICT } from "../ui/mots";
+import { attendDecision, decoder, libelleOutil, majuscule, nomAgentPour, raisonActivite, VERDICT } from "../ui/mots";
 
 const FIL_COURT = 8;
 
@@ -85,7 +86,7 @@ export function LiveView({
                 <Spinner texte="Connexion…" />
               ) : (
                 <InventaireAgents
-                  inventaire={inventaire}
+                  inventaire={inventaire.filter((a) => a.contexte !== "poste")}
                   sessions={sessions}
                   incidents={incidents}
                   ouvrirIncident={ouvrirIncident}
@@ -94,6 +95,7 @@ export function LiveView({
               )}
             </div>
           </section>
+          <AgentsPostes inventaire={inventaire} />
           <FilAgents activite={activite} incidents={incidents} chargement={chargement} ouvrirIncident={ouvrirIncident} />
           <PanneauRegles ref={regles} />
         </>
@@ -179,6 +181,8 @@ function LigneActivite({
   enAttente: boolean;
   ouvrirIncident: (id: string) => void;
 }) {
+  const { sessions, activite } = useDonnees();
+  const outilsSession = a.agent ? [] : activite.filter((x) => x.session_id === a.session_id).map((x) => x.outil);
   const v = VERDICT[a.verdict] ?? VERDICT.autorise;
   return (
     <li className={`fil-ligne v-${v.cls}`}>
@@ -188,7 +192,7 @@ function LigneActivite({
         {v.lib}
       </span>
       <span className="fil-texte" title={a.raison ? desarmer(decoder(a.raison)) : undefined}>
-        <strong>{nomAgent(a.agent)}</strong> veut {libelleOutil(a.outil)}
+        <strong>{nomAgentPour(a.agent, a.session_id, sessions, outilsSession)}</strong> veut {libelleOutil(a.outil)}
         <span className="fil-raison"> · {raisonActivite(a, enAttente)}</span>
       </span>
       {a.incident_id && a.verdict !== "autorise" ? (

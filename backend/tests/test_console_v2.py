@@ -161,3 +161,25 @@ def test_prenom_cite_suffit_a_pseudonymiser(client):
     detail = client.get(f"/api/incidents/{inc['id']}").json()
     assert not re.search(r"camille", _sans_session_id(detail), re.IGNORECASE)
     assert detail["identite"]["service"] == "Finance"
+
+
+def test_telechargement_garde_a_son_titre_et_sa_phrase(client):
+    sha = "a3f2c19d4b70e8856cba9c0d11e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0"
+    client.post("/api/evenements", json=evenement(
+        session_id=f"poste-mac-telechargement-{sha[:12]}", source="humain", surface="poste",
+        type="avertissement", user_agent="dedale-mac/0.2", horodatage=horo(BASE, 0),
+        details={"origine": "app-mac", "contexte": "telechargement", "categorie": "phishing",
+                 "choix": "continuer", "choix_poste": "garder", "type_fichier": "application",
+                 "motifs": ["double_extension", "application"], "provenance": "mail",
+                 "domaine": "cdn.factures-orbis.example", "cible": "cdn.factures-orbis.example",
+                 "sha256": sha, "gravite": "haute",
+                 "message": "Ce fichier vient de cdn.factures-orbis.example et peut lancer un programme."}))
+    inc = client.get("/api/incidents").json()["incidents"][0]
+    assert inc["titre"].startswith("Fichier à risque gardé par le salarié")
+    assert inc["contexte_humain"] == "telechargement"
+    action = next(m for m in inc["chaine"] if m["phase"] == "action_risquee")
+    assert "un programme venu de cdn.factures-orbis.example" in action["detail"] and sha[:12] in action["detail"]
+    synth = client.get(f"/api/incidents/{inc['id']}/synthese").json()
+    assert synth["phrases"][0]["texte"].startswith("Un programme a été téléchargé depuis cdn.factures-orbis.example")
+    assert "gardé le fichier" in synth["texte"]
+    assert synth["decision_recommandee"]["action"] == "clore"

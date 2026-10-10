@@ -13,10 +13,11 @@ import { SyntheseBloc, useSynthese } from "./Synthese";
 import { ModaleSource } from "./ModaleSource";
 import { DetailEtape, Depliant } from "./Depliant";
 import { BadgeIntegrite, MenuExport } from "./OutilsDossier";
+import { AvisRelecteur } from "./PreTri";
 import { TexteCanary } from "../ui/Canary";
 import { useAnalyste } from "../ui/analyste";
 import { BandeauAnnulation, BlocConfirmation, estPetitEcran, useDifferee } from "../ui/Confirmation";
-import { GRAVITE, libelleDroit, nomAgent, proprietaireAgent, titreIncident } from "../ui/mots";
+import { GRAVITE, libelleDroit, nomAgentPour, proprietaireAgent, titreIncident } from "../ui/mots";
 
 // ---------- temps ----------
 
@@ -164,7 +165,7 @@ export function IncidentAgent({
             </span>
           </div>
           <p className="ag-qui">
-            <strong>{nomAgent(agent)}</strong>
+            <strong>{nomAgentPour(agent, incident.session_id, sessions)}</strong>
             {proprietaireAgent(agent) && <span> · {proprietaireAgent(agent)}</span>}
             {lecture.detection && <span className="ag-meta"> · repéré à <Heure iso={lecture.detection} /></span>}
             {majEnCours ? <span className="ag-meta"> · mise à jour…</span> : null}
@@ -466,7 +467,7 @@ function PanneauDecision({
   useEffect(() => setConfirmation(null), [incident.id, lecture.issue]);
   useEffect(() => setRetrait({ enCours: false, erreur: null, fait: null }), [incident.id]);
 
-  const agent = nomAgent(sessions.find((s) => s.id === incident.session_id)?.agent);
+  const agent = nomAgentPour(null, incident.session_id, sessions);
   const ferme = incident.statut === "clos" || incident.statut === "ignore";
   const occupe = decisionEnCours !== null || retrait.enCours || differee.attente !== null;
   // Incident grave (haute ou critique), ou téléphone : Couper et Laisser passer
@@ -716,6 +717,7 @@ function PanneauDecision({
             {sousTitre && <span className="ag-depuis">{sousTitre}</span>}
           </div>
         </header>
+        <AvisRelecteur incident={incident} />
 
         {lecture.appel && (
           <p className="ag-enjeu">

@@ -17,6 +17,41 @@ function lire(): string {
 
 let courant = lire();
 
+// Signature demandée : quand une décision ou une règle part sans nom, le
+// sélecteur de l'en-tête s'ouvre et attend le nom au lieu de signer
+// « analyste ».
+let demande: { ok: (nom: string) => void; ko: (e: Error) => void } | null = null;
+const ecouteursDemande = new Set<() => void>();
+
+function signalerDemande() {
+  ecouteursDemande.forEach((f) => f());
+}
+
+// Nom à signer : celui choisi, sinon on le demande dans l'en-tête.
+export function exigerAnalyste(): Promise<string> {
+  if (courant) return Promise.resolve(courant);
+  demande?.ko(new Error("Une autre décision attend votre nom."));
+  return new Promise((ok, ko) => {
+    demande = { ok, ko };
+    signalerDemande();
+  });
+}
+
+function repondreDemande(nom: string | null) {
+  const d = demande;
+  demande = null;
+  signalerDemande();
+  if (!d) return;
+  if (nom) d.ok(nom);
+  else d.ko(new Error("Indiquez votre nom en haut à droite : il signe la décision dans le journal."));
+}
+
+// Un nom de remplacement (« analyste », vide) ne signe rien.
+export function nomValide(nom?: string | null): boolean {
+  const n = (nom ?? "").trim();
+  return n.length >= 2 && !/^analyste(-soc)?$/i.test(n);
+}
+
 export function definirAnalyste(nom: string): void {
   courant = nom.trim().slice(0, 40);
   try {
@@ -42,7 +77,19 @@ export function SelecteurAnalyste() {
   const nom = useAnalyste();
   const [edition, setEdition] = useState(false);
   const [brouillon, setBrouillon] = useState(nom);
+  const [attendu, setAttendu] = useState(false);
   const champ = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const suivre = () => {
+      setAttendu(demande !== null);
+      if (demande !== null) setEdition(true);
+    };
+    ecouteursDemande.add(suivre);
+    return () => {
+      ecouteursDemande.delete(suivre);
+    };
+  }, []);
 
   useEffect(() => {
     if (edition) {
@@ -55,18 +102,19 @@ export function SelecteurAnalyste() {
   const valider = () => {
     definirAnalyste(brouillon);
     setEdition(false);
+    repondreDemande(nomValide(brouillon) ? brouillon.trim() : null);
   };
 
   if (edition)
     return (
       <form
-        className="analyste analyste-edition"
+        className={`analyste analyste-edition ${attendu ? "analyste-attendu" : ""}`}
         onSubmit={(e) => {
           e.preventDefault();
           valider();
         }}
       >
-        <label htmlFor="analyste-nom">Analyste</label>
+        <label htmlFor="analyste-nom">{attendu ? "Votre nom, pour signer" : "Analyste"}</label>
         <input
           id="analyste-nom"
           ref={champ}
@@ -76,7 +124,10 @@ export function SelecteurAnalyste() {
           autoComplete="off"
           onChange={(e) => setBrouillon(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Escape") setEdition(false);
+            if (e.key === "Escape") {
+              setEdition(false);
+              repondreDemande(null);
+            }
           }}
           onBlur={valider}
         />

@@ -11,13 +11,14 @@ import { desarmer, preuveInerte } from "../agent/preuve";
 import { fusionnerRefs, lireRef } from "../agent/references";
 import { sansCodes } from "../ui/mots";
 
-export type Genre = "mail_recu" | "lien" | "piece" | "coller" | "mail_sortant" | "depot" | "signal" | "autre";
+export type Genre = "mail_recu" | "lien" | "piece" | "coller" | "mail_sortant" | "depot" | "signal" | "fichier" | "autre";
 
 const PAR_CONTEXTE: Record<string, Genre> = {
   "mail reçu": "mail_recu",
   "navigation web": "lien",
   navigation: "lien",
   signalement: "signal",
+  telechargement: "fichier",
   "pièce jointe": "piece",
   "copier-coller": "coller",
   "mail sortant": "mail_sortant",
@@ -52,6 +53,7 @@ const CONTEXTE: Record<Genre, string> = {
   mail_sortant: "Il écrivait un mail",
   depot: "Il préparait un dépôt de fichier",
   signal: "Un mail est arrivé dans sa boîte",
+  fichier: "Un fichier est arrivé dans ses Téléchargements",
   autre: "Sur son poste",
 };
 
@@ -64,6 +66,7 @@ const GESTE: Record<Genre, string> = {
   mail_sortant: "Il envoyait des données à l'extérieur",
   depot: "Il déposait un fichier confidentiel en ligne",
   signal: "Il a signalé un mail",
+  fichier: "Il a téléchargé un fichier à risque",
   autre: "Il a fait un geste risqué",
 };
 
@@ -75,6 +78,7 @@ const POURQUOI: Record<Genre, string> = {
   mail_sortant: "Le destinataire est hors de l'entreprise et le mail contient des données sensibles.",
   depot: "Ce service n'est pas validé par Orbis Pay et le fichier est confidentiel.",
   signal: "Le salarié a jugé ce mail suspect et l'a signalé lui-même.",
+  fichier: "Le fichier peut lancer un programme et vient de l'extérieur.",
   autre: "Dédale a reconnu un geste qui expose l'entreprise.",
 };
 
@@ -86,6 +90,7 @@ const RISQUE: Record<Genre, string> = {
   mail_sortant: "Les données seraient sorties de l'entreprise.",
   depot: "Le fichier serait stocké chez un service que l'entreprise ne contrôle pas.",
   signal: "Un mail frauduleux non signalé peut piéger d'autres salariés.",
+  fichier: "Le programme se serait lancé sur le poste.",
   autre: "Le geste aurait pu exposer des données de l'entreprise.",
 };
 
@@ -99,6 +104,7 @@ const RISQUE_PASSE: Record<Genre, string> = {
   mail_sortant: "Les données sont peut-être sorties de l'entreprise.",
   depot: "Le fichier est peut-être déjà chez un service que l'entreprise ne contrôle pas.",
   signal: "Le mail est peut-être arrivé chez d'autres salariés.",
+  fichier: "Le fichier est resté sur le poste : il a peut-être été ouvert.",
   autre: "Le geste a peut-être exposé des données de l'entreprise.",
 };
 const TITRE_PASSE = "Ce qui a pu se passer";
@@ -132,6 +138,12 @@ function phraseGeste(g: Genre, d: Details): string {
         : "Le salarié a voulu déposer un fichier confidentiel sur un service non autorisé.";
     case "signal":
       return "Le salarié a signalé lui-même un mail qu'il trouvait suspect.";
+    case "fichier": {
+      const quoi = TYPES_FICHIER[String(d.type_fichier ?? "")] ?? "un fichier à risque";
+      const dom = texte(d.domaine);
+      const garde = d.choix === "annuler" ? "mis de côté" : "gardé";
+      return `${quoi.charAt(0).toUpperCase()}${quoi.slice(1)} téléchargé${dom ? ` depuis ${dom}` : ""} et ${garde} par le salarié.`;
+    }
     default:
       return "Le salarié a fait un geste risqué sur son poste.";
   }
@@ -161,12 +173,50 @@ function texteGeste(g: Genre, d: Details): string | undefined {
     }
     case "depot":
       return fichier && cible ? `« ${fichier} » vers ${cible}.` : undefined;
+    case "fichier": {
+      const quoi = TYPES_FICHIER[String(d.type_fichier ?? "")] ?? "un fichier";
+      const dom = texte(d.domaine);
+      const sha = typeof d.sha256 === "string" && /^[0-9a-f]{12,}$/i.test(d.sha256) ? d.sha256.slice(0, 12).toLowerCase() : "";
+      return `${quoi.charAt(0).toUpperCase()}${quoi.slice(1)}${dom ? ` venu de ${dom}` : ""}${sha ? `, empreinte ${sha}…` : ""}.`;
+    }
     default:
       return undefined;
   }
 }
 
+// Type d'un fichier téléchargé (app Mac), avec son article. Jamais son nom.
+const TYPES_FICHIER: Record<string, string> = {
+  application: "un programme",
+  script: "un script",
+  image_disque: "une image disque",
+  installeur: "un installeur",
+  raccourci: "un raccourci",
+  document_macros: "un document à macros",
+  archive_chiffree: "une archive chiffrée",
+  document: "un document",
+};
+const PROVENANCES: Record<string, string> = {
+  mail: "un mail",
+  site: "un site",
+  messagerie: "une messagerie",
+  airdrop: "AirDrop",
+  inconnue: "inconnue",
+  locale: "le poste lui-même",
+};
+
+function brutsFichier(d: Details): Brut[] {
+  const sha = typeof d.sha256 === "string" && /^[0-9a-f]{12,}$/i.test(d.sha256) ? `${d.sha256.slice(0, 16).toLowerCase()}…` : "";
+  return [
+    { lib: "Type", valeur: TYPES_FICHIER[String(d.type_fichier ?? "")] ?? "" },
+    { lib: "Domaine d'origine", valeur: texte(d.domaine), mono: true },
+    { lib: "Arrivé par", valeur: PROVENANCES[String(d.provenance ?? "")] ?? "" },
+    { lib: "Empreinte SHA-256", valeur: sha, mono: true },
+    { lib: "Choix", valeur: d.choix === "annuler" ? "mis de côté" : d.choix === "continuer" ? "gardé" : "" },
+  ].filter((b) => b.valeur);
+}
+
 function brutsGeste(g: Genre, d: Details): Brut[] {
+  if (g === "fichier") return brutsFichier(d);
   const lignes: [string, unknown, boolean?][] = [
     ["Expéditeur affiché", d.expediteur_affiche],
     ["Adresse réelle", d.expediteur, true],
@@ -348,10 +398,17 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
       }
       case "choix": {
         const continue_ = d.choix === "continuer" || /continu|outre/i.test(m.detail ?? "");
+        const fichier = g === "fichier";
         return {
           ...base,
-          titre: continue_ ? "Il a continué malgré l'alerte" : "Il a annulé son geste",
-          texte: continue_ ? "Il a cliqué sur « Continuer quand même »." : "Il a suivi l'alerte et cliqué sur « Annuler ».",
+          titre: continue_ ? (fichier ? "Il a gardé le fichier" : "Il a continué malgré l'alerte") : fichier ? "Il a mis le fichier de côté" : "Il a annulé son geste",
+          texte: continue_
+            ? fichier
+              ? "Il a choisi « Garder » plutôt que « Mettre de côté »."
+              : "Il a cliqué sur « Continuer quand même »."
+            : fichier
+              ? "Il a suivi l'alerte : le fichier est rangé à part."
+              : "Il a suivi l'alerte et cliqué sur « Annuler ».",
           ton: (continue_ ? "alerte" : "protege") as TonMaillon,
           detail: {
             brut: [{ lib: "Choix", valeur: continue_ ? "continuer quand même" : "annuler" }],
@@ -366,7 +423,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
         return {
           ...base,
           titre: "Le dossier est arrivé au SOC",
-          texte: "Le geste a abouti malgré l'alerte.",
+          texte: g === "fichier" ? "Le fichier est resté sur le poste." : "Le geste a abouti malgré l'alerte.",
           ton: "neutre" as TonMaillon,
           detail: {
             brut: [],

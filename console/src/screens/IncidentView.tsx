@@ -4,6 +4,7 @@ import type { ActionRemediation, ChoixSalarie, DecisionAction, Incident, Pilier,
 import { FriseEtapes, IncidentAgent } from "../agent/IncidentAgent";
 import { SyntheseBloc, useSynthese } from "../agent/Synthese";
 import { BadgeIntegrite, MenuExport } from "../agent/OutilsDossier";
+import { AvisRelecteur } from "../agent/PreTri";
 import { Icone } from "../agent/icones";
 import { desarmer } from "../agent/preuve";
 import { lireGesteSalarie } from "../salarie/lecture";
@@ -238,9 +239,13 @@ function ListeIncidents({
   courant: string | null;
   choisir: (id: string) => void;
 }) {
-  const { sessions } = useDonnees();
+  const { sessions, aRegarder } = useDonnees();
   const [sortants, setSortants] = useState<Record<string, "barre" | "repli">>({});
   const [voirRegles, setVoirRegles] = useState(false);
+  // File « à regarder » du relecteur IA : priorité haute ou avis incertain.
+  const [filtre, setFiltre] = useState(false);
+  const fileIci = incidents.filter((i) => aRegarder.includes(i.id) && estATraiter(i));
+  const filtreActif = filtre && fileIci.length > 0;
   const precedents = useRef<Set<string> | null>(null);
   const minuteurs = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => minuteurs.current.forEach(clearTimeout), []);
@@ -277,7 +282,9 @@ function ListeIncidents({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleATraiter]);
 
-  const affiches = incidents.filter((i) => estATraiter(i) || sortants[i.id]);
+  const affiches = incidents.filter(
+    (i) => (estATraiter(i) || sortants[i.id]) && (!filtreActif || aRegarder.includes(i.id))
+  );
   const regles = incidents.filter((i) => !estATraiter(i) && !sortants[i.id]);
 
   return (
@@ -288,16 +295,29 @@ function ListeIncidents({
             ? "Rien à traiter"
             : `${aTraiter.length} incident${aTraiter.length > 1 ? "s" : ""} à traiter`}
         </span>
-        {regles.length > 0 && (
-          <button
-            type="button"
-            className="liste-regles-btn"
-            aria-expanded={voirRegles}
-            onClick={() => setVoirRegles((v) => !v)}
-          >
-            réglés ({regles.length})
-          </button>
-        )}
+        <span className="liste-filtres">
+          {fileIci.length > 0 && (
+            <button
+              type="button"
+              className={`liste-regles-btn filtre-regarder ${filtreActif ? "actif" : ""}`}
+              aria-pressed={filtreActif}
+              title="Signalés par le relecteur IA : priorité haute ou avis incertain"
+              onClick={() => setFiltre((v) => !v)}
+            >
+              à regarder ({fileIci.length})
+            </button>
+          )}
+          {regles.length > 0 && (
+            <button
+              type="button"
+              className="liste-regles-btn"
+              aria-expanded={voirRegles}
+              onClick={() => setVoirRegles((v) => !v)}
+            >
+              réglés ({regles.length})
+            </button>
+          )}
+        </span>
       </div>
       {affiches.length > 0 && (
         <ul className="liste-inc-lignes">
@@ -436,7 +456,8 @@ function relectureDe(inc: Incident): Relecture | null {
   const d = ev.details as Record<string, unknown>;
   return {
     decision: typeof d.decision === "string" ? d.decision : undefined,
-    motif: typeof d.motif === "string" ? desarmer(d.motif) : undefined,
+    // Le relecteur écrit un motif pour la SOC et un autre pour le salarié : la console lit le premier.
+    motif: typeof d.motif_soc === "string" ? desarmer(d.motif_soc) : typeof d.motif === "string" ? desarmer(d.motif) : undefined,
     tranche_par: typeof d.tranche_par === "string" ? d.tranche_par : undefined,
     duree_ms: typeof d.duree_ms === "number" ? d.duree_ms : undefined,
     modele: typeof d.modele === "string" ? d.modele : undefined,
@@ -523,7 +544,9 @@ function IncidentSalarie({
     : quatreYeux
       ? "Un geste attend votre accord"
       : recours && relecture
-        ? `Geste ${relecture.decision === "accorde" ? "accordé" : "refusé"} par le relecteur IA`
+        ? `Geste ${relecture.decision === "accorde" ? "accordé" : "refusé"} par ${
+            relecture.tranche_par && relecture.tranche_par !== "règles" ? "le relecteur IA" : "les règles du relecteur"
+          }`
         : recours && q?.issue === "expire"
           ? "Délai dépassé, le poste a refusé le geste"
           : "Le dossier attend votre décision";
@@ -548,7 +571,8 @@ function IncidentSalarie({
             repli={[phraseSalarie(incident.type, choix, incident.contexte_humain)]}
           />
           <p className="ag-meta sal-meta">
-            {libelleType(incident.type)} · signalé à {heure(incident.ouvert_le).slice(0, 5)}
+            {incident.contexte_humain === "telechargement" ? "Téléchargement" : libelleType(incident.type)} · signalé à{" "}
+            {heure(incident.ouvert_le).slice(0, 5)}
           </p>
         </div>
       </section>
@@ -585,6 +609,8 @@ function IncidentSalarie({
                 )}
               </div>
             </header>
+            {/* Le geste déjà relu : son verdict suffit, le pré-tri le répéterait. */}
+            {!relecture && <AvisRelecteur incident={incident} />}
             {relecture ? (
               <div className="relecture">
                 <p className="relecture-titre">
@@ -789,7 +815,12 @@ function Remediations({ incident }: { incident: Incident }) {
   );
   if (incident.type === "humain_intrusion_physique") return null;
   // Un mail signalé : le compte du salarié n'est pas en cause, seul le domaine l'est.
-  const possibles = incident.type === "humain_signalement" ? REMEDIATIONS.filter((r) => r.action === "bloquer_domaine") : REMEDIATIONS;
+  const possibles =
+    incident.type === "humain_signalement"
+      ? REMEDIATIONS.filter((r) => r.action === "bloquer_domaine")
+      : incident.contexte_humain === "telechargement"
+        ? REMEDIATIONS.filter((r) => r.action !== "reinitialiser_mot_de_passe")
+        : REMEDIATIONS;
 
   const lancer = async (action: ActionRemediation) => {
     setEnCours(action);

@@ -5,6 +5,7 @@ import type {
   AnalysePolitique,
   DocumentSource,
   Politique,
+  PreTri,
   Remediation,
   RevelationIdentite,
   Verification,
@@ -45,6 +46,9 @@ export interface SourceDonnees {
   retirerPolitique(id: string, analyste: string): Promise<void>;
   // Journal scellé : l'incident est-il intact ?
   getVerification(id: string): Promise<Verification>;
+  // Relecteur IA : pré-tri d'un incident, et la file « à regarder » (identifiants).
+  getTri(id: string): Promise<PreTri>;
+  getFileRelecteur(): Promise<string[]>;
   // Salarié : identité levée sur motif, actions simulées et scellées.
   revelerIdentite(id: string, motif: string, analyste: string): Promise<RevelationIdentite>;
   remedier(id: string, action: ActionRemediation, analyste: string): Promise<Remediation>;
@@ -181,6 +185,9 @@ export const sourceLive: SourceDonnees = {
     );
   },
   getVerification: (id) => j<Verification>(`/api/incidents/${encodeURIComponent(id)}/verification`),
+  getTri: (id) => j<PreTri>(`/api/incidents/${encodeURIComponent(id)}/tri`),
+  getFileRelecteur: async () =>
+    (await liste<{ incident_id: string }>("/api/relecteur/file", "incidents")).map((x) => x.incident_id),
   revelerIdentite: (id, motif, analyste) =>
     envoyer<RevelationIdentite>(`/api/incidents/${encodeURIComponent(id)}/identite`, { motif, analyste }),
   remedier: (id, action, analyste) =>

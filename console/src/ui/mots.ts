@@ -65,8 +65,42 @@ const AGENTS: Record<string, { nom: string; proprietaire?: string | null; servic
   "orbis-support": { nom: "Agent de support client", proprietaire: "Direction de la relation client", service: "Relation client" },
 };
 
+// Outil → agents d'Orbis Pay qui le portent : sert à nommer une action venue
+// d'une session qui n'a pas annoncé son agent (ancienne passerelle).
+const PORTEURS: Record<string, Set<string>> = {};
+
 export function definirAgents(inventaire: AgentInventaire[]): void {
-  for (const a of inventaire) AGENTS[a.id] = { nom: a.nom, proprietaire: a.proprietaire, service: a.service };
+  for (const a of inventaire) {
+    AGENTS[a.id] = { nom: a.nom, proprietaire: a.proprietaire, service: a.service };
+    if (a.contexte === "poste") continue;
+    for (const o of a.outils ?? []) (PORTEURS[o.nom] ??= new Set()).add(a.id);
+  }
+}
+
+// Nom de l'agent d'une action ou d'un incident : l'identifiant annoncé, sinon
+// celui de sa session, sinon le seul agent d'Orbis Pay qui porte cet outil,
+// sinon la tâche de la session. « Non identifié » seulement sans aucun indice.
+export function nomAgentPour(
+  agent: string | null | undefined,
+  sessionId: string | null | undefined,
+  sessions: Session[],
+  outils: (string | null | undefined)[] = []
+): string {
+  const s = sessionId ? sessions.find((x) => x.id === sessionId) : undefined;
+  const id = agent ?? s?.agent;
+  if (id) return nomAgent(id);
+  // Les agents qui portent tous les outils vus dans la session : s'il n'en
+  // reste qu'un, c'est lui.
+  let candidats: string[] | null = null;
+  for (const o of outils) {
+    const porteurs: Set<string> | undefined = o ? PORTEURS[o] : undefined;
+    if (!porteurs) continue;
+    candidats = candidats === null ? [...porteurs] : candidats.filter((x: string) => porteurs.has(x));
+  }
+  if (candidats !== null && candidats.length === 1) return nomAgent(candidats[0]);
+  const tache = s?.droits?.tache;
+  if (tache) return `Agent interne, tâche « ${tache.replace(/_/g, " ")} »`;
+  return "Agent interne non identifié";
 }
 
 export function nomAgent(id?: string | null): string {
@@ -88,8 +122,7 @@ export function quiIncident(inc: Incident, sessions: Session[]): string {
     const s = sessions.find((x) => x.id === inc.session_id);
     return inc.identite?.libelle ?? s?.identite?.libelle ?? "Salarié";
   }
-  const agent = sessions.find((s) => s.id === inc.session_id)?.agent;
-  return nomAgent(agent);
+  return nomAgentPour(null, inc.session_id, sessions);
 }
 
 // Verdict d'une action dans le fil des agents.
@@ -145,6 +178,7 @@ const TITRES: Record<string, string> = {
 };
 
 export function titreIncident(inc: Pick<Incident, "type" | "titre"> & { contexte_humain?: string | null }): string {
+  if (inc.type === "humain_phishing" && inc.contexte_humain === "telechargement") return "Fichier à risque gardé par le salarié";
   if (inc.type === "humain_phishing" && inc.contexte_humain === "navigation") return "Site sosie ouvert malgré l'alerte";
   if (inc.type === "humain_phishing" && inc.contexte_humain === "mail reçu") return "Faux mail : le salarié a continué malgré l'alerte";
   if (inc.type === "interne_anomalie") {
@@ -170,6 +204,10 @@ const GESTES: Record<string, string> = {
 
 export function phraseSalarie(type?: TypeIncident, choix?: "continuer" | "annuler", contexte?: string | null): string {
   if (type === "humain_signalement") return "Un salarié a signalé lui-même un mail qu'il trouvait suspect.";
+  if (contexte === "telechargement")
+    return choix === "annuler"
+      ? "Un salarié a téléchargé un fichier à risque. Dédale l'a prévenu et il l'a mis de côté."
+      : "Un salarié a téléchargé un fichier à risque. Dédale l'a prévenu, il l'a gardé quand même.";
   const geste =
     type === "humain_phishing" && contexte === "navigation"
       ? "Un salarié a ouvert un site qui imite Orbis Pay"

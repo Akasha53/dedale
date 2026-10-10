@@ -26,7 +26,7 @@ import json
 import os
 import re
 
-from . import config, llm
+from . import config, incidents, llm
 
 RAPPEL = "C’est l’analyste qui décide : Dédale n’applique rien tout seul."
 ACTIONS_AGENT = ["couper", "reprendre", "ignorer"]
@@ -499,6 +499,10 @@ class _Redaction:
         p = self.p
         if self.d.get("type") == "humain_signalement":
             return self._rediger_signalement()
+        telechargement = next((e for e in self.etapes("action_risquee")
+                               if "téléchargé" in (e.get("detail") or "")), None)
+        if telechargement is not None:
+            return self._rediger_telechargement(telechargement)
         actions = self.etapes("action_risquee")
         avert = self.etapes("avertissement")
         choix = self.etapes("choix")
@@ -527,6 +531,26 @@ class _Redaction:
                 self.ecrire([("L’équipe sécurité a été prévenue", [p(q, "detail", "escalade au SOC")]), "."])
         return {"actions": actions, "passe_outre": passe_outre, "contexte": self.etapes("contexte")}
 
+
+    def _rediger_telechargement(self, a: dict) -> dict:
+        """Fichier à risque gardé par le salarié (app Mac) : quoi, d'où, et son choix."""
+        p = self.p
+        det = self.det(a)
+        quoi = incidents.TYPES_FICHIER.get(det.get("type_fichier"), "un fichier")
+        dom = incidents.domaine_propre(det.get("domaine"))
+        dit = f"{_maj(quoi)} a été téléchargé" + (f" depuis {dom}" if dom else "")
+        preuves = [p(a, "detail", "téléchargé")] + ([p(a, "detail", dom)] if dom else [])
+        avert = self.etapes("avertissement")
+        morceaux: list = [(dit, preuves)]
+        if avert:
+            morceaux += [", puis ", ("Dédale a prévenu le salarié", [p(avert[0], "etape", "avertissement")])]
+        self.ecrire(morceaux + ["."])
+        garde = next((c for c in self.etapes("choix") if "continuer" in (c.get("detail") or "")), None)
+        if garde is not None:
+            self.ecrire([("Le salarié a gardé le fichier malgré l’avertissement",
+                          [p(garde, "detail", "continuer")]), "."])
+        return {"actions": [a], "passe_outre": garde, "contexte": self.etapes("contexte"),
+                "telechargement": a}
 
     def _rediger_signalement(self) -> dict:
         """Le salarié a signalé un mail lui-même : ce qu'il a fait et ce qu'en pensait l'analyseur."""
@@ -662,6 +686,12 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
             action = "refuser"
             justification = ("Le salarié veut continuer un geste critique. Refusez-le, sauf si une raison métier "
                              "vérifiée justifie de l’accorder. Son poste reste utilisable.")
+        elif humain.get("telechargement") is not None and humain["passe_outre"] is not None:
+            possibles = ACTIONS_HUMAIN
+            action = "clore"
+            justification = ("Le salarié a gardé un fichier qui peut lancer un programme. Faites-le analyser "
+                             "sur son poste et bloquez son domaine d’origine pour tous, puis classez le dossier. "
+                             "Son poste n’est jamais bloqué.")
         elif humain.get("signalement"):
             action = "clore"
             justification = ("Relisez le mail signalé. S’il est frauduleux, bloquez son domaine pour tous les "

@@ -264,6 +264,30 @@ export interface AgentInventaire {
   resistance?: ResistanceAgent | null;
   incidents: { total: number; ouverts: number; recents_24h: number; ids: string[] };
   risque: { niveau: "faible" | "moyen" | "eleve"; score: number; raisons: RaisonRisque[]; explication?: string };
+  // Serveur MCP trouvé sur le poste d'un salarié (app Mac) : `contexte: "poste"`.
+  contexte?: "poste" | (string & {});
+  poste?: string;
+  client?: string;
+  serveur?: string;
+  types?: string[];
+  droits_risques?: string[];
+  transport?: "local" | "distant" | (string & {});
+  source_config?: "demo" | "reel" | (string & {});
+}
+
+// Pré-tri du relecteur IA (GET /api/incidents/{id}/tri).
+export interface PreTri {
+  incident_id: string;
+  statut?: "pret" | "en_cours" | (string & {});
+  priorite?: "haute" | "normale" | "basse" | (string & {});
+  decision_proposee?: string;
+  motif?: string;
+  motif_soc?: string;
+  confiance?: number;
+  doute?: boolean;
+  a_regarder?: boolean;
+  tranche_par?: string;
+  duree_ms?: number;
 }
 
 // Règles écrites en français par le SOC (GET/POST /api/politiques).

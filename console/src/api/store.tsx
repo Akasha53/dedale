@@ -21,6 +21,7 @@ import type {
   MessageWS,
   ModeConnexion,
   Politique,
+  PreTri,
   Remediation,
   RetraitDroit,
   RevelationIdentite,
@@ -31,6 +32,12 @@ import type {
 import { backendJoignable, sourceLive, type SourceDonnees } from "./source";
 import { visibleConsole } from "../ui/primitives";
 import { definirAgents } from "../ui/mots";
+import { exigerAnalyste, nomValide } from "../ui/analyste";
+
+// Nom qui signe un acte : celui donné s'il est réel, sinon on le demande.
+async function signature(nom?: string | null): Promise<string> {
+  return nomValide(nom) ? (nom as string).trim() : exigerAnalyste();
+}
 import { creerSourceMock } from "./mock";
 
 interface Etat {
@@ -43,6 +50,8 @@ interface Etat {
   activite: Activite[];
   inventaire: AgentInventaire[];
   politiques: Politique[];
+  // File « à regarder » du relecteur IA : identifiants d'incidents.
+  aRegarder: string[];
   chargement: boolean;
   erreur: string | null;
   rafraichir: () => Promise<void>;
@@ -52,6 +61,7 @@ interface Etat {
   activerPolitique: (phrase: string, regle: Record<string, unknown> | null, analyste: string) => Promise<Politique>;
   retirerPolitique: (id: string, analyste: string) => Promise<void>;
   getVerification: (id: string) => Promise<Verification>;
+  getTri: (id: string) => Promise<PreTri>;
   revelerIdentite: (id: string, motif: string, analyste: string) => Promise<RevelationIdentite>;
   remedier: (id: string, action: ActionRemediation, analyste: string) => Promise<Remediation>;
   getSynthese: (id: string) => Promise<Synthese>;
@@ -88,6 +98,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [activite, setActivite] = useState<Activite[]>([]);
   const [inventaire, setInventaire] = useState<AgentInventaire[]>([]);
   const [politiques, setPolitiques] = useState<Politique[]>([]);
+  const [aRegarder, setARegarder] = useState<string[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -95,9 +106,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const deconnecterRef = useRef<(() => void) | null>(null);
 
   const chargerTout = useCallback(async (src: SourceDonnees) => {
-    const [se, inc, le, me, ac, inv, pol] = await Promise.allSettled([
+    const [se, inc, le, me, ac, inv, pol, fil] = await Promise.allSettled([
       src.getSessions(), src.getIncidents(), src.getLeurres(), src.getMesures(), src.getActivite(TAILLE_FIL),
-      src.getInventaire(), src.getPolitiques(),
+      src.getInventaire(), src.getPolitiques(), src.getFileRelecteur(),
     ]);
     if (sourceRef.current !== src) return;
     // Deux piliers seulement, agents IA et salariés : la surface externe et le
@@ -115,6 +126,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setInventaire(inv.value);
     }
     if (pol.status === "fulfilled") setPolitiques(pol.value);
+    if (fil.status === "fulfilled") setARegarder(fil.value);
     setErreur([se, inc, le, me].some((r) => r.status === "rejected")
       ? "Actualisation incomplète. Les dernières données reçues restent affichées."
       : null);
@@ -216,7 +228,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     async (id: string, action: DecisionAction, analyste: string, motif?: string) => {
       const src = sourceRef.current;
       if (!src) throw new Error("Connexion au backend en cours. Réessayez après le chargement.");
-      const incident = await src.postDecision(id, action, analyste, motif);
+      const incident = await src.postDecision(id, action, await signature(analyste), motif);
       setIncidents((prev) => prev.map((i) => i.id === id ? { ...i, ...incident } : i));
       setSessions((prev) => prev.map((s) => s.id === incident.session_id ? { ...s, etat: incident.etat } : s));
       void rafraichir();
@@ -246,7 +258,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     async (id: string, droit: string, analyste: string) => {
       const src = sourceRef.current;
       if (!src) throw new Error("Connexion au backend en cours. Réessayez après le chargement.");
-      const res = await src.retirerDroit(id, droit, analyste);
+      const res = await src.retirerDroit(id, droit, await signature(analyste));
       if (res.incident) {
         const maj = res.incident;
         setIncidents((prev) => prev.map((i) => (i.id === id ? { ...i, ...maj } : i)));
@@ -266,7 +278,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const analyserPolitique = useCallback((phrase: string) => source().analyserPolitique(phrase), []);
   const activerPolitique = useCallback(
     async (phrase: string, regle: Record<string, unknown> | null, analyste: string) => {
-      const p = await source().activerPolitique(phrase, regle, analyste);
+      const p = await source().activerPolitique(phrase, regle, await signature(analyste));
       void rafraichir();
       return p;
     },
@@ -274,16 +286,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   );
   const retirerPolitique = useCallback(
     async (id: string, analyste: string) => {
-      await source().retirerPolitique(id, analyste);
+      await source().retirerPolitique(id, await signature(analyste));
       setPolitiques((prev) => prev.filter((p) => p.id !== id));
       void rafraichir();
     },
     [rafraichir]
   );
   const getVerification = useCallback((id: string) => source().getVerification(id), []);
+  const getTri = useCallback((id: string) => source().getTri(id), []);
   const revelerIdentite = useCallback(
     async (id: string, motif: string, analyste: string) => {
-      const r = await source().revelerIdentite(id, motif, analyste);
+      const r = await source().revelerIdentite(id, motif, await signature(analyste));
       void rafraichir();
       return r;
     },
@@ -291,7 +304,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   );
   const remedier = useCallback(
     async (id: string, action: ActionRemediation, analyste: string) => {
-      const r = await source().remedier(id, action, analyste);
+      const r = await source().remedier(id, action, await signature(analyste));
       void rafraichir();
       return r;
     },
@@ -308,6 +321,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     activite,
     inventaire,
     politiques,
+    aRegarder,
     chargement,
     erreur,
     rafraichir,
@@ -320,6 +334,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     activerPolitique,
     retirerPolitique,
     getVerification,
+    getTri,
     revelerIdentite,
     remedier,
   };
