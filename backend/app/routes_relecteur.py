@@ -9,14 +9,16 @@ qui l'attend (geste à quatre yeux, pré-tri). La réponse au module ne l'attend
 from __future__ import annotations
 
 import json
+import re
 from typing import Callable
 
 from fastapi import APIRouter, FastAPI, HTTPException
 
-from . import relecteur
+from . import memoire_relecteur, relecteur
 
 routeur = APIRouter()
 _TAILLE_MAX = 256 * 1024
+_DECISION = re.compile(r"^/api/incidents/([A-Za-z0-9_-]{1,40})/decision$")
 
 
 @routeur.get("/api/relecteur")
@@ -40,6 +42,14 @@ async def relecture_demande(demande_id: str):
     return d
 
 
+@routeur.get("/api/relecteur/memoire")
+async def memoire():
+    """Décisions passées confirmées ou renversées par un analyste (le geste, jamais la personne)."""
+    with relecteur.store.lock:
+        entrees = memoire_relecteur.entrees()
+    return {"entrees": entrees, "total": len(entrees)}
+
+
 @routeur.get("/api/incidents/{iid}/tri")
 async def tri_incident(iid: str):
     """Pré-tri de l'incident : priorité, décision proposée, motif, confiance, qui a tranché."""
@@ -51,12 +61,31 @@ async def tri_incident(iid: str):
 
 class Observateur:
     """Middleware ASGI pur : recopie le corps de `POST /api/evenements` sans le retenir, puis,
-    la réponse partie, signale la session au relecteur."""
+    la réponse partie, signale la session au relecteur. Après `POST /api/incidents/{id}/decision`,
+    note dans la mémoire du relecteur la décision d'un analyste qui confirme ou renverse."""
 
     def __init__(self, app) -> None:
         self.app = app
 
     async def __call__(self, scope, receive, send):
+        decision = _DECISION.match(scope.get("path") or "") if scope.get("method") == "POST" else None
+        if decision and scope.get("type") == "http":
+            statut_d: dict = {}
+
+            async def envoyer_d(message):
+                if message.get("type") == "http.response.start":
+                    statut_d["code"] = message.get("status", 0)
+                await send(message)
+
+            await self.app(scope, receive, envoyer_d)
+            if 200 <= statut_d.get("code", 0) < 300:
+                try:
+                    job = memoire_relecteur.apres_decision(decision.group(1), relecteur.faits_geste)
+                    if job:
+                        relecteur.persister(job)
+                except Exception:  # la mémoire ne fait jamais échouer une décision
+                    pass
+            return
         if (scope.get("type") != "http" or scope.get("method") != "POST"
                 or scope.get("path") != "/api/evenements" or not relecteur.actif()):
             await self.app(scope, receive, send)

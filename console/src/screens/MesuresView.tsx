@@ -75,6 +75,10 @@ export function MesuresView() {
   const gestes = mesures.gestes_humains;
   const autorisees = comptes.actionsVues - comptes.actionsArretees;
   const mesures_res = inventaire.filter((a) => a.resistance && a.resistance.essais);
+  // Relecteur IA et sa mémoire (GET /api/mesures, bloc `relecteur`).
+  const relecteur = (mesures as unknown as {
+    relecteur?: { decisions: number; duree?: { mediane_ms: number | null }; memoire?: { entrees: number; renversements: number; decisions_appuyees: number } };
+  }).relecteur;
 
   return (
     <>
@@ -131,6 +135,27 @@ export function MesuresView() {
           sous={`${comptes.regles.interne} agents · ${comptes.regles.humain} salariés`}
         />
       </div>
+
+      {relecteur && (
+        <div className="grille-mesures">
+          <Kpi
+            lib="Relectures de l'IA"
+            val={relecteur.decisions}
+            sous={relecteur.duree?.mediane_ms != null ? `médiane ${duree(relecteur.duree.mediane_ms)}` : "gestes critiques et pré-tris"}
+          />
+          <Kpi
+            lib="Appuyées sur la mémoire"
+            val={relecteur.memoire?.decisions_appuyees ?? 0}
+            sous={`${relecteur.memoire?.entrees ?? 0} décisions d'analystes en mémoire`}
+          />
+          <Kpi
+            lib="Renversements"
+            val={relecteur.memoire?.renversements ?? 0}
+            sous="relecteur contredit par un analyste"
+            cls={(relecteur.memoire?.renversements ?? 0) > 0 ? "att" : ""}
+          />
+        </div>
+      )}
 
       <div className="graphes">
         <section className="panneau">

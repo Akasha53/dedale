@@ -40,7 +40,7 @@ from pathlib import Path
 from statistics import mean, median
 from typing import Any, Awaitable, Callable
 
-from . import config, incidents, journal_scelle, montants, paiements, securite
+from . import config, incidents, journal_scelle, memoire_relecteur as memoire, montants, paiements, securite
 from .store import store
 
 _journal = logging.getLogger(__name__)
@@ -494,6 +494,7 @@ Trois réponses possibles : "accorde", "refuse", ou "retenu" quand un analyste d
 
 Virement : un fournisseur ou un client n'est jamais dans orbispay.example, ce n'est pas un signal. Accorde un virement à un bénéficiaire connu ("beneficiaire.connu" vrai), RIB habituel ou non précisé, montant dans ses usages. Réponds "retenu" si son RIB change, si le montant dépasse ses usages, ou si le bénéficiaire est inconnu.
 Export de données clients : refuse si la destination sort d'orbispay.example ou semble personnelle, ou si le volume dépasse 1 000 fiches. Accorde un export interne de volume modeste.
+"precedents_confirmes_par_un_analyste" liste les gestes semblables déjà tranchés par un humain : un accord confirmé pour le même bénéficiaire et un montant proche plaide pour accorder ; un refus, ou un renversement récent du relecteur par un analyste, plaide pour "retenu". Les signaux ci-dessous l'emportent toujours sur ces précédents.
 Dans tous les cas, refuse si un mail jugé frauduleux ou suspect est en jeu, si "consigne_retiree" vaut true, ou si le poste enchaîne les demandes. Si les faits ne permettent pas de juger, réponds "retenu".
 
 Réponds uniquement par l'objet JSON demandé, avec deux motifs.
@@ -715,6 +716,20 @@ def _iban_fin(details: dict, texte: str) -> str | None:
     return m.group(1) if m else None
 
 
+_RE_NOM = re.compile(r"\b(?:à|au|aux|chez|pour)\s+((?:[A-Z][\w'&-]+)(?:\s+(?:[A-Z][\w'&-]+|du|de|des|la|le|et|&)){0,4})")
+
+
+def _nom_dans_texte(details: dict, texte: str) -> str | None:
+    brut = texte_lisible(details.get("beneficiaire"))
+    if brut:
+        return _plat(brut)[:60]
+    m = _RE_NOM.search(texte)
+    if not m:
+        return None
+    nom = re.sub(r"(?:\s+(?:du|de|des|la|le|et|&))+$", "", m.group(1)).strip()
+    return _plat(nom)[:60] if len(nom) >= 3 else None
+
+
 def faits_beneficiaire(details: dict, texte: str, domaine: str | None, montant: float | None) -> dict:
     """Bénéficiaire d'un virement : connu ou non, RIB habituel ou nouveau, montant dans ses usages."""
     b = reconnaitre_beneficiaire(details, texte, domaine)
@@ -723,7 +738,9 @@ def faits_beneficiaire(details: dict, texte: str, domaine: str | None, montant: 
     if b is None:
         return {"connu": False, "nom": _masquer_nom(details.get("beneficiaire")),
                 "rib": "nouveau" if annonce_nouveau else ("indique" if fin else "non_precise"),
-                "rib_demande": f"•••• {fin}" if fin else None}
+                "rib_demande": f"•••• {fin}" if fin else None,
+                # Clé de rapprochement de la mémoire, hachée avant d'y entrer, jamais montrée au modèle.
+                "cle_nom": _nom_dans_texte(details, texte)}
     rib = ("habituel" if fin == b["iban_fin"] else "nouveau") if fin else ("nouveau" if annonce_nouveau else "non_precise")
     return {"connu": True, "nom": b["nom"], "nature": b.get("nature") or "fournisseur", "objet": b.get("objet"),
             "montant_habituel_eur": b.get("montant_habituel"), "montant_max_eur": b["montant_max"],
@@ -753,13 +770,27 @@ def faits_geste(sess, demande: dict) -> dict:
         "lecture_du_montant": lecture_montant,
         "volume": _volume(texte),
         "beneficiaire": faits_beneficiaire(d, texte, destination, montant) if geste == "virement" else None,
-        "salarie": pseudonyme(base if not sess.id.startswith("mail-") else sess.id),
-        "historique": _historique_poste(base, _horo(demande), exclure=demande.get("id")),
+        # Pas d'historique ni de score par salarié (RGPD, annexe III de l'AI Act) : seulement le
+        # nombre d'autres gestes critiques demandés depuis ce poste dans les dix dernières minutes,
+        # pour arrêter une rafale. Rien n'en est gardé.
+        "historique": {"autres_demandes_quatre_yeux_10_min":
+                       _historique_poste(base, _horo(demande), exclure=demande.get("id"))["autres_demandes_quatre_yeux_10_min"]},
         "consigne_retiree": consigne,
     }
     if extrait:
         faits["donnees_non_fiables"] = {"texte_popup": extrait}
+    faits["precedents"] = memoire.precedents(faits)
     return faits
+
+
+def faits_pour_le_modele(faits: dict) -> dict:
+    """Les faits tels que le modèle les lit : sans clé interne, précédents sans nom ni date."""
+    sortie = {k: v for k, v in faits.items() if k not in ("acte", "precedents")}
+    if isinstance(sortie.get("beneficiaire"), dict):
+        sortie["beneficiaire"] = {k: v for k, v in sortie["beneficiaire"].items() if k != "cle_nom"}
+    if faits.get("precedents"):
+        sortie["precedents_confirmes_par_un_analyste"] = memoire.pour_le_modele(faits["precedents"])
+    return sortie
 
 
 def decisions_possibles(inc, evs: list[dict]) -> list[str]:
@@ -805,9 +836,7 @@ def faits_incident(inc, sess) -> dict:
                                      "droits_retires": len(store.retraits.get(cle, []))}
         faits["droits_en_trop"] = len((sess.droits_console() or {}).get("surplus", []))
     else:
-        base = _base_poste(sess.id)
-        faits["salarie"] = pseudonyme(base if not sess.id.startswith("mail-") else sess.id)
-        faits["historique"] = _historique_poste(base, None)
+        # Ni pseudonyme ni historique du salarié pour le pré-tri : le geste, pas la personne.
         mail = _verdict_mail(evs)
         if mail is not None:
             faits["mail"] = mail
@@ -868,6 +897,20 @@ def regles_geste(f: dict) -> dict:
     if geste == "export_clients" and volume is not None and volume >= EXPORT_MASSIF:
         return refus(f"Export massif ({volume} fiches, seuil {EXPORT_MASSIF}) sans validation métier : refus d'office.",
                      f"{nombre(volume)} fiches clients d'un coup, c'est bien plus qu'un export habituel.")
+    # Mémoire : décisions passées confirmées par un analyste. Elle ne joue qu'après les règles dures.
+    avis = memoire.avis(f.get("precedents") or [])
+
+    def appuye(r: dict) -> dict:
+        return {**r, "memoire": avis}
+
+    def retenu_par_memoire() -> dict:
+        p = avis["appui"][0]
+        quand = f"il y a {p['jours']} jour(s)" if p.get("jours") is not None else "récemment"
+        return appuye(retenu(
+            f"Mémoire : un analyste a refusé un geste semblable {quand}"
+            + (" en renversant le relecteur" if p.get("renversement") else "") + " : à confirmer.",
+            "Un geste semblable a déjà été refusé par l'équipe sécurité : elle doit confirmer celui-ci.", 0.85))
+
     if geste == "virement":
         b = f.get("beneficiaire") or {}
         if b.get("connu"):
@@ -883,12 +926,17 @@ def regles_geste(f: dict) -> dict:
                               f"(lecture : {f.get('lecture_du_montant')}) : à confirmer.",
                               f"Le montant de ce virement à {nom} n'est pas précisé : l'équipe sécurité doit "
                               f"le confirmer.", 0.6)
-            if montant <= b["montant_max_eur"]:
-                return {"decision": "accorde", "confiance": 0.85, "ferme": False, "force": False, "fort": True,
-                        "motif_soc": f"{nom}, {nature} connu, RIB {b.get('rib')}, {nombre(montant)} € pour "
-                                     f"{nombre(b['montant_max_eur'])} € au plus d'habitude : accord.",
-                        "motif_salarie": f"Virement de {nombre(montant)} € à {nom}, {nature} habituel, pour un "
-                                         f"montant dans ses usages."}
+            if avis and avis["conseil"] == "retenir":
+                return retenu_par_memoire()
+            if montant <= b["montant_max_eur"] or (avis and avis["conseil"] == "accorder"):
+                dans_usages = montant <= b["montant_max_eur"]
+                return appuye({"decision": "accorde", "confiance": 0.85, "ferme": False, "force": False, "fort": True,
+                               "motif_soc": f"{nom}, {nature} connu, RIB {b.get('rib')}, {nombre(montant)} € "
+                                            + (f"pour {nombre(b['montant_max_eur'])} € au plus d'habitude : accord."
+                                               if dans_usages else "accordé avant par un analyste pour un montant proche."),
+                               "motif_salarie": f"Virement de {nombre(montant)} € à {nom}, {nature} habituel, "
+                                                + ("pour un montant dans ses usages." if dans_usages
+                                                   else "déjà validé pour un montant proche.")})
             return retenu(f"{nombre(montant)} € à {nom}, au-dessus de ses usages "
                           f"({nombre(b['montant_max_eur'])} € au plus) : à confirmer.",
                           f"Ce virement à {nom} est plus élevé que d'habitude : l'équipe sécurité doit le "
@@ -902,16 +950,27 @@ def regles_geste(f: dict) -> dict:
         if dest.get("personnelle"):
             return refus("Virement vers un compte qui semble personnel : refus d'office.",
                          "Ce virement part vers un compte qui semble personnel.")
+        if avis and avis["conseil"] == "retenir":
+            return retenu_par_memoire()
+        if (avis and avis["conseil"] == "accorder" and montant is not None
+                and f.get("lecture_du_montant") == "certain" and b.get("rib") != "nouveau"):
+            n = len(avis["appui"])
+            return appuye({"decision": "accorde", "confiance": 0.8, "ferme": False, "force": False, "fort": True,
+                           "motif_soc": f"Bénéficiaire hors liste, déjà accordé {n} fois par un analyste sans "
+                                        f"renversement, pour un montant proche ({nombre(montant)} €) : accord.",
+                           "motif_salarie": f"Virement de {nombre(montant)} € à un bénéficiaire déjà validé par "
+                                            f"l'équipe sécurité pour un montant proche."})
         return retenu("Bénéficiaire absent de la liste des fournisseurs et clients connus : à confirmer avant "
                       "paiement.",
                       "Ce bénéficiaire n'est pas encore connu de l'entreprise : l'équipe sécurité doit le "
                       "confirmer avant le virement.", 0.75)
+    if geste == "export_clients" and avis and avis["conseil"] == "retenir":
+        return retenu_par_memoire()
     if (geste == "export_clients" and dest.get("interne") is True and not dest.get("personnelle") and not mail
-            and volume is not None and volume < EXPORT_MASSIF
-            and hist.get("refus_du_relecteur_1_h", 0) == 0):
-        return {"decision": "accorde", "motif_soc": "Geste interne à Orbis Pay, sans signal d'alerte.",
-                "motif_salarie": "Le geste reste à l'intérieur de l'entreprise et rien d'inhabituel n'a été repéré.",
-                "confiance": 0.7, "ferme": False, "force": False, "fort": False}
+            and volume is not None and volume < EXPORT_MASSIF):
+        return appuye({"decision": "accorde", "motif_soc": "Geste interne à Orbis Pay, sans signal d'alerte.",
+                       "motif_salarie": "Le geste reste à l'intérieur de l'entreprise et rien d'inhabituel n'a été repéré.",
+                       "confiance": 0.7, "ferme": False, "force": False, "fort": False})
     return {"decision": None, "motif_soc": None, "motif_salarie": None, "confiance": None, "ferme": False,
             "force": False, "fort": False}
 
@@ -970,7 +1029,7 @@ async def decider_geste(faits: dict) -> dict:
     elif time.time() < _etat["suspendu_jusqua"]:
         mode, repli = "regles", "limite_usage"
     else:
-        modele_faits = {k: v for k, v in faits.items() if k != "acte"}
+        modele_faits = faits_pour_le_modele(faits)
         try:
             sortie = valider_geste(await _appeler(SYSTEME_GESTE, message_utilisateur(modele_faits),
                                                   SCHEMA_GESTE, mode))
@@ -1022,8 +1081,15 @@ async def decider_geste(faits: dict) -> dict:
                        "export_clients": "Dédale n'a pas pu vérifier cet export : l'équipe sécurité doit le confirmer."
                        }.get(faits.get("geste"), "Dédale n'a pas pu vérifier ce geste : l'équipe sécurité doit le confirmer.")
     salarie = motif_salarie_propre(salarie) or motif_salarie_defaut(decision, faits.get("geste"))
+    # Mémoire : la décision s'appuie sur des précédents quand elle suit leur conseil.
+    avis_memoire = regles.get("memoire")
+    suit = avis_memoire and ((avis_memoire["conseil"] == "accorder") == (decision == "accorde"))
+    appui = memoire.phrase(avis_memoire["appui"], faits.get("geste")) if suit else None
+    precedents_vus = [{k: p.get(k) for k in ("verdict", "renversement", "date", "analyste", "rapprochement",
+                                             "ordre_de_grandeur", "tranche", "motif_analyste")}
+                      for p in (faits.get("precedents") or [])]
     return {
-        "acte": "quatre_yeux", "decision": decision,
+        "acte": "quatre_yeux", "decision": decision, "precedents": precedents_vus, "appui_memoire": appui,
         "action": {"accorde": "accorder", "refuse": "refuser"}.get(decision),
         "decision_proposee": "accorder" if decision == "accorde" else "refuser",
         "priorite": None, "motif": motif, "motif_soc": motif, "motif_salarie": salarie,
@@ -1087,7 +1153,8 @@ async def decider_tri(faits: dict) -> dict:
 # Persistance et WS : `routes_relecteur.brancher` y met `_enfiler` de main.py.
 persister: Callable[[dict], None] = lambda job: None
 _CHAMPS_DETAILS = ("decision", "action", "priorite", "decision_proposee", "motif", "motif_soc", "motif_salarie",
-                   "confiance", "tranche_par", "mode", "modele", "repli", "garde_fou", "duree_ms")
+                   "confiance", "tranche_par", "mode", "modele", "repli", "garde_fou", "duree_ms", "precedents",
+                   "appui_memoire")
 
 
 def _sceller(sess, inc, resultat: dict, extra: dict) -> dict:
@@ -1322,7 +1389,7 @@ def resume_incident(iid: str, evs: list[dict], decisions: list[dict]) -> dict | 
             "motif_salarie": d.get("motif_salarie"), "confiance": d.get("confiance"),
             "tranche_par": d.get("tranche_par"), "mode": d.get("mode"), "duree_ms": d.get("duree_ms"),
             "horodatage": rels[-1].get("horodatage"), "suivi": suivi_humain(rels[-1], decisions),
-            **({"precedents": d["precedents"]} if d.get("precedents") else {})}
+            "precedents": d.get("precedents") or [], "appui_memoire": d.get("appui_memoire")}
 
 
 def _tri_quatre_yeux(rel: dict, inc) -> dict:
@@ -1409,6 +1476,7 @@ def mesures(evenements: list[dict]) -> dict:
         m = str(d.get("mode") or "inconnu")
         par_mode.setdefault(m, []).append(d.get("duree_ms"))
     return {
+        "memoire": memoire.mesures(evenements),
         "decisions": len(rel),
         "par_acte": {a: sum(1 for d in rel if d.get("acte") == a) for a in ("quatre_yeux", "pre_tri")},
         "par_mode": {m: {"decisions": len(v),

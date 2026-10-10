@@ -513,6 +513,35 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
         },
       })
     );
+  // Mémoire du relecteur : gestes semblables déjà tranchés par un analyste (le geste, jamais la personne).
+  type Precedent = { verdict?: string; renversement?: boolean; date?: string; analyste?: string; rapprochement?: string; ordre_de_grandeur?: number | null; tranche?: string | null };
+  const relu = (inc as { relecteur?: { precedents?: Precedent[]; appui_memoire?: string | null } | null }).relecteur;
+  const precs = relu?.precedents ?? [];
+  if (precs.length > 0) {
+    const n = precs.length;
+    maillons.push({
+      cle: "decision",
+      id: "sal-precedents",
+      lib: "Précédents",
+      icone: "resultat",
+      titre: relu?.appui_memoire ? `Appuyé sur ${n} décision${n > 1 ? "s" : ""} passée${n > 1 ? "s" : ""}` : `${n} geste${n > 1 ? "s" : ""} semblable${n > 1 ? "s" : ""} déjà tranché${n > 1 ? "s" : ""}`,
+      texte: relu?.appui_memoire ? desarmer(relu.appui_memoire) : undefined,
+      ton: "neutre",
+      detail: {
+        brut: precs.slice(0, 5).map((p) => ({
+          lib: p.date ? new Date(p.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "Date inconnue",
+          valeur: [
+            `${p.verdict === "accorde" ? "Accordé" : "Refusé"}${p.renversement ? " contre l'avis du relecteur" : ""}`,
+            p.analyste ? `par ${desarmer(p.analyste)}` : "",
+            p.rapprochement ?? "",
+            p.ordre_de_grandeur != null ? `${p.ordre_de_grandeur.toLocaleString("fr-FR")}` : p.tranche ?? "",
+          ].filter(Boolean).join(" · "),
+        })),
+        pourquoi: "Seules les décisions confirmées ou renversées par un analyste entrent dans la mémoire du relecteur. Elle garde le geste, jamais la personne.",
+        refs: [],
+      },
+    });
+  }
   if (decisions.length === 0) {
     maillons.push({
       cle: "decision",

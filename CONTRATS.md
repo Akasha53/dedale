@@ -1399,3 +1399,44 @@ Retours d'un testeur RSSI sur le commit 7738d40. Fichiers : `backend/app/politiq
 - Un appel refusé pour droit retiré (`details.droit_retire`, posé par la passerelle) reçoit à l'ingestion `details.politique = {id, numero, effet: "droit_retire", droit, texte, enonce, constat}` : la règle de moindre privilège qui a retiré le droit, ou à défaut le correctif d'incident (`id` vide, `constat` « … depuis l'incident INC-… »). Fait avant le scellement de l'événement.
 - Il ouvre un incident `interne_politique` de gravité `moyenne`, sans suspendre l'agent : « Tentative bloquée : l'agent de tri des mails a voulu ouvrir le coffre, droit retiré par la règle n°2 ». Résumé : « Tentative bloquée (1) : ouvrir le coffre, droit retiré par la règle n°2. L'agent poursuit sa tâche. » La boîte noire garde toute la session, document source compris, et ajoute le maillon « Tentative bloquée : ouvrir le coffre, droit retiré par la règle n°2 ». Ces refus comptent dans `declenchements` de la règle.
 - Les canaris et le désarmeur remontent toujours ce qu'ils voient. Vérifié sur backend isolé : `orbis.demo --scenario jury` après le retrait des droits ouvre INC-0001 (`interne_politique`, 7 étapes : entrée, document source, consigne cachée C-3E58, tentative bloquée, envoi du rapport), et avec `--desarmeur` INC-0002 (`interne_desarme`).
+
+## Avenant du 10 octobre 2026 : mémoire du relecteur IA (décisions confirmées par un analyste)
+
+Le relecteur s'appuie sur les gestes déjà jugés par un humain. Code : `backend/app/memoire_relecteur.py`.
+
+### Qui l'alimente
+
+Seule une décision d'analyste qui confirme ou renverse une relecture y entre (`accorder` ou `refuser` sur `POST /api/incidents/{id}/decision`, après la relecture d'un geste). Ni le relecteur seul, ni ce que déclare le salarié : sinon un attaquant pourrait empoisonner la mémoire (« memory poisoning », OWASP agentique). Chaque entrée est un événement scellé de la session de l'incident :
+
+```json
+{"type": "memoire", "surface": "soc", "user_agent": "dedale-memoire",
+ "details": {"acte": "memoire", "incident_id": "INC-0007", "decision_sceau": "<sceau de la décision de l'analyste>",
+   "geste": "virement", "cle": "beneficiaire:imprimerie du lys", "beneficiaire": "Imprimerie du Lys",
+   "tranche": "moins de 500 €", "ordre_de_grandeur": 300.0, "rib": "rib:<empreinte>", "frequence": 3,
+   "verdict": "refuse", "relecteur": "accorde", "renversement": true,
+   "motif_analyste": "Facture en double, le fournisseur ne l'a jamais émise.", "analyste": "claire.d",
+   "date": "2026-10-10T21:40:02+00:00"}}
+```
+
+Une entrée ne compte que si `decision_sceau` est le sceau d'une décision humaine de la chaîne des décisions, pour le même incident et le même verdict. Un événement `memoire` envoyé par `POST /api/evenements` est donc ignoré.
+
+### Ce qu'on garde
+
+Le geste, jamais la personne : type de geste ; bénéficiaire de la liste des connus ou domaine d'Orbis Pay en clair, sinon une empreinte (`nom:…`, `domaine:…`) ; tranche et ordre de grandeur du montant (centaine d'euros) ou du volume ; empreinte des quatre derniers chiffres du RIB ; fréquence ; verdict final ; motif et nom de l'analyste ; date. Ni session, ni pseudonyme, ni score ou historique par salarié (RGPD, annexe III de l'AI Act). Les faits envoyés au modèle ont perdu au passage le pseudonyme et l'historique du salarié ; il reste seulement l'anti-rafale (`autres_demandes_quatre_yeux_10_min`). La mémoire vit dans le journal : même conservation que le reste.
+
+### Comment on s'en sert
+
+À chaque geste, au plus 5 précédents : même type, même bénéficiaire ou domaine, montant proche (à 30 % près) d'abord. Ils vont :
+
+- au modèle, dans `precedents_confirmes_par_un_analyste` (verdict, renversement, avis du relecteur d'alors, ancienneté en jours, rapprochement, tranche, montant proche, même RIB, motif de l'analyste ; ni nom d'analyste, ni date) ;
+- aux règles de repli, après les règles dures : un renversement de moins de 30 jours décide (vers le refus : `retenu`) ; un refus parmi les précédents donne `retenu` ; un accord confirmé, montant proche, même RIB, montant lu en entier, permet d'accorder un bénéficiaire hors liste ou un connu au-dessus de ses usages.
+
+Les règles dures gagnent toujours : mail frauduleux, consigne cachée, rafale, plafond de 10 000 € pour un bénéficiaire hors liste, compte personnel, RIB qui change, montant illisible.
+
+### Le montrer
+
+- Relecture (`GET /api/relecteur/demandes/{id}`, WS `relecture`, événement scellé) : `precedents` (verdict, renversement, date, analyste, rapprochement, ordre_de_grandeur, tranche, motif_analyste) et `appui_memoire`, par exemple « Appuyé sur 3 décisions passées : accordé le 3 oct. par Claire D. (même fournisseur, 1 200 €) ; … », quand la décision suit la mémoire. Les deux champs passent aussi dans `incident.relecteur`.
+- `GET /api/relecteur/memoire` : `{"entrees": [...], "total": n}`, entrées valides seulement, la plus récente en tête.
+- `GET /api/mesures`, bloc `relecteur.memoire` : `{"entrees", "renversements", "decisions_appuyees"}`.
+- Console : étape « Précédents » dans la frise du geste (`salarie/lecture.ts`) ; trois chiffres dans Mesures : relectures de l'IA, décisions appuyées sur la mémoire, renversements.
+
