@@ -14,6 +14,9 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp "$BIN" "$APP/Contents/MacOS/Dedale"
 cp "$ICI/Ressources/Info.plist" "$APP/Contents/Info.plist"
+# Règles communes des sites louches, les mêmes que l'extension Chrome.
+mkdir -p "$APP/Contents/Resources"
+cp "$ICI/../partage/regles-sites.json" "$APP/Contents/Resources/regles-sites.json"
 # Configuration MCP factice lue par le module Agents IA tant que le scan réel est coupé.
 mkdir -p "$APP/Contents/Resources"
 cp -R "$ICI/demo/agents-factices" "$APP/Contents/Resources/agents-factices"

@@ -35,6 +35,8 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var socConnecte: Bool?
     private var ecouteOk = false
     private var minuteurs: [Timer] = []
+    /// Sites louches dans Safari et Chrome (SitesVeille.swift).
+    private let sites = SitesVeille()
 
     // Poste : téléchargements, agents IA, transparence
     private let surveillance = SurveillanceTelechargements()
@@ -134,6 +136,8 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ]
         minuteurs.forEach { RunLoop.main.add($0, forMode: .common) }
         demarrerPoste()
+        sites.surEvite = { [weak self] in self?.compteur.ajouter(); self?.majCompteur() }
+        sites.demarrer(menu: menu, apres: ligneEcoute)
         journal("Dédale démarré, backend \(backend.base.absoluteString), boîte de démo \(messagerie.base.absoluteString), "
                 + "poste \(IdentitePoste.identifiant)")
     }
@@ -195,6 +199,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "en_file": file.count,
             "quatre_yeux_en_attente": demande != nil,
             "pieges_evites_semaine": compteur.cetteSemaine(),
+            "sites": sites.etat(),
             "poste": IdentitePoste.identifiant,
             "modules": Dictionary(uniqueKeysWithValues: ModulePoste.allCases.map {
                 ($0.rawValue, ReglagesModules.partage.actif($0))

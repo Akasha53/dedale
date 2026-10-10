@@ -50,9 +50,16 @@ struct Avertissement {
     var conseil: String? = nil
     /// Codes des signaux de l'analyseur (`lien_menteur`, `sosie_domaine`…).
     var codes: [String] = []
+    /// Libellés propres à une alerte qui n'est pas un geste du poste. Un site louche affiche
+    /// « Revenir en arrière » et « Continuer quand même » (voir SitesVeille.swift).
+    var titreAnnuler: String? = nil
+    var titreContinuer: String? = nil
+    var puce: String? = nil
+    /// Préfixe des PNG écrits avec DEDALE_CAPTURE, s'il faut le fixer.
+    var prefixe: String? = nil
 
     var libelleCategorie: String {
-        geste.flatMap { Self.gestes[$0] } ?? Self.categories[categorie] ?? "Geste à risque"
+        puce ?? geste.flatMap { Self.gestes[$0] } ?? Self.categories[categorie] ?? "Geste à risque"
     }
 
     /// Un geste critique (virement, export de données clients) ne passe pas sur le seul
@@ -61,6 +68,7 @@ struct Avertissement {
 
     /// Préfixe des PNG écrits avec DEDALE_CAPTURE.
     var prefixeCapture: String {
+        if let prefixe { return prefixe }
         if let geste { return geste.replacingOccurrences(of: "_", with: "-") }
         if mail != nil { return "mail" }
         return quatreYeux ? "quatre-yeux" : "popup"
