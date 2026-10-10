@@ -64,6 +64,7 @@ class AgentInterne:
             "resumer": self.outils.resumer,
             "envoyer_rapport": self.outils.envoyer_rapport,
             "executer_paiement": self.outils.executer_paiement,
+            "lire_coffre": self.outils.lire_coffre,
             "exporter_contacts": self.outils.exporter_contacts,
             # V1 (appels) et V4 (mémoire long terme).
             "chercher_appel": self.outils.chercher_appel,
@@ -100,8 +101,11 @@ class AgentInterne:
                 continue
 
             descripteur = self._mcp.get(nom)
+            # L'intention annoncée n'est transmise que si le cerveau en donne une.
+            options = {"intention": action["intention"]} if action.get("intention") else {}
             try:
-                resultat = self.passerelle.appel_outil(nom, params, fonction, descripteur=descripteur)
+                resultat = self.passerelle.appel_outil(nom, params, fonction, descripteur=descripteur,
+                                                       **options)
             except AgentCoupe:
                 coupe = True
                 break
@@ -127,4 +131,11 @@ class AgentInterne:
             "historique": historique,
             "rapports_envoyes": self.outils.rapports_envoyes,
             "journal": self.passerelle.journal,
+            # Mode protégé (scénario jury) : vides ou None hors de ce mode.
+            "appels_liberes": list(getattr(self.passerelle, "appels_liberes", [])),
+            "appels_refuses": list(getattr(self.passerelle, "appels_refuses", [])),
+            "boite_noire": (list(self.passerelle.enregistreur.maillons)
+                            if getattr(self.passerelle, "enregistreur", None) else None),
+            "chronos": (list(self.passerelle.enregistreur.chronos)
+                        if getattr(self.passerelle, "enregistreur", None) else None),
         }

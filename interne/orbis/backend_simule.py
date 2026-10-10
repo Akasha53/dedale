@@ -1,7 +1,8 @@
 """Backend simulé minimal, pour la démo hors-ligne et les tests.
 
-Il n'implémente QUE les trois routes dont le module interne a besoin :
-  POST /api/leurres, POST /api/evenements, GET /api/sessions/{id}.
+Il n'implémente QUE les routes dont le module interne a besoin :
+  POST /api/leurres, POST /api/evenements, GET /api/sessions/{id},
+  GET /api/incidents et POST /api/incidents/{id}/decision (journal des décisions).
 
 Le vrai backend (agent A, port 8700) est la source de vérité en démo réelle ; ce stub
 permet de jouer la chaîne complète, décision d'analyste comprise, sans dépendre de lui.
@@ -12,15 +13,59 @@ from __future__ import annotations
 
 import json
 import threading
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import unquote, urlsplit
+
+# Décision analyste -> état de session (même table que le vrai backend).
+_ETAT_APRES = {"couper": "coupee", "valider_riposte": "coupee", "reprendre": "active",
+               "ignorer": "active"}
+
+
+def _ouvre_incident(ev: dict) -> bool:
+    """Même règle que le backend pour une session interne : canari touché, droits dépassés
+    ou délégation non authentifiée."""
+    details = ev.get("details") or {}
+    return (ev.get("type") == "leurre_touche" or isinstance(details.get("violation_droits"), dict)
+            or isinstance(details.get("provenance_invalide"), dict))
 
 
 class _Etat:
-    def __init__(self) -> None:
+    def __init__(self, suspendre_a_l_incident: bool = False) -> None:
         self.leurres: list[dict] = []
         self.evenements: list[dict] = []
         self.etats: dict[str, str] = {}  # session_id -> "active" | "coupee" | "suspendue"
+        self.incidents: dict[str, dict] = {}  # session_id -> incident minimal
+        # Fidèle au vrai backend : l'ouverture d'un incident suspend la session. Désactivé par
+        # défaut pour les tests historiques, qui fixent l'état à la main.
+        self.suspendre_a_l_incident = suspendre_a_l_incident
         self.verrou = threading.Lock()
+
+    def noter_evenement(self, ev: dict) -> None:
+        with self.verrou:
+            self.evenements.append(ev)
+            sid = ev.get("session_id", "")
+            if sid and sid not in self.incidents and _ouvre_incident(ev):
+                self.incidents[sid] = {
+                    "id": f"INC-S{len(self.incidents) + 1:04d}", "session_id": sid,
+                    "ouvert_le": datetime.now(timezone.utc).isoformat(), "decisions": [],
+                }
+                if self.suspendre_a_l_incident and self.etats.get(sid, "active") == "active":
+                    self.etats[sid] = "suspendue"
+
+    def decider(self, iid: str, action: str, analyste: str) -> dict | None:
+        with self.verrou:
+            inc = next((i for i in self.incidents.values() if i["id"] == iid), None)
+            if inc is None or action not in _ETAT_APRES:
+                return None
+            inc["decisions"].append({"action": action, "analyste": analyste,
+                                     "horodatage": datetime.now(timezone.utc).isoformat()})
+            self.etats[inc["session_id"]] = _ETAT_APRES[action]
+            return dict(inc)
+
+    def incident_publie(self, inc: dict) -> dict:
+        sid = inc["session_id"]
+        return {**inc, "decisions": list(inc["decisions"]), "etat": self.etats.get(sid, "active")}
 
     def etat_session(self, sid: str) -> str:
         with self.verrou:
@@ -53,8 +98,7 @@ def _fabriquer_handler(etat: _Etat):
                     etat.leurres.extend(corps if isinstance(corps, list) else [corps])
                 self._repondre(200, {"ok": True, "total": len(etat.leurres)})
             elif self.path == "/api/evenements":
-                with etat.verrou:
-                    etat.evenements.append(corps)
+                etat.noter_evenement(corps)
                 sid = corps.get("session_id", "")
                 self._repondre(
                     200,
@@ -64,17 +108,29 @@ def _fabriquer_handler(etat: _Etat):
                         "consigne": "aucune",
                     },
                 )
+            elif self.path.startswith("/api/incidents/") and self.path.endswith("/decision"):
+                iid = unquote(self.path.split("/")[3])
+                inc = etat.decider(iid, corps.get("action", ""), corps.get("analyste", "inconnu"))
+                if inc is None:
+                    self._repondre(404, {"erreur": "incident ou action inconnus"})
+                else:
+                    self._repondre(200, {"incident": etat.incident_publie(inc)})
             else:
                 self._repondre(404, {"erreur": "route inconnue"})
 
         def do_GET(self):
-            if self.path.startswith("/api/sessions/"):
-                sid = self.path.rsplit("/", 1)[-1]
+            chemin = urlsplit(self.path).path
+            if chemin.startswith("/api/sessions/"):
+                sid = unquote(chemin.rsplit("/", 1)[-1])
                 self._repondre(
                     200,
                     {"id": sid, "etat": etat.etat_session(sid),
                      "evenements": [e for e in etat.evenements if e.get("session_id") == sid]},
                 )
+            elif chemin == "/api/incidents":
+                with etat.verrou:
+                    liste = [etat.incident_publie(i) for i in etat.incidents.values()]
+                self._repondre(200, {"incidents": liste})
             else:
                 self._repondre(404, {"erreur": "route inconnue"})
 
@@ -84,8 +140,8 @@ def _fabriquer_handler(etat: _Etat):
 class BackendSimule:
     """Serveur HTTP de test. Usage : `with BackendSimule() as b: ... b.base`."""
 
-    def __init__(self, hote: str = "127.0.0.1", port: int = 0):
-        self.etat = _Etat()
+    def __init__(self, hote: str = "127.0.0.1", port: int = 0, *, suspendre_a_l_incident: bool = False):
+        self.etat = _Etat(suspendre_a_l_incident=suspendre_a_l_incident)
         self._serveur = ThreadingHTTPServer((hote, port), _fabriquer_handler(self.etat))
         self._fil: threading.Thread | None = None
 
@@ -112,6 +168,10 @@ class BackendSimule:
 
     def leurres(self) -> list[dict]:
         return list(self.etat.leurres)
+
+    def incidents(self) -> list[dict]:
+        with self.etat.verrou:
+            return [self.etat.incident_publie(i) for i in self.etat.incidents.values()]
 
     def __enter__(self) -> "BackendSimule":
         return self.demarrer()

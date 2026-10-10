@@ -6,6 +6,10 @@ Par défaut : cerveau scripté (reproductible) + backend simulé en mémoire (au
 Options :
   --cerveau {scripte,cli,api,auto}   pilote un vrai agent (claude -p ou API)
   --backend-reel                     tape le vrai backend sur 8700 (pas de décision simulée)
+  --backend URL                      tape le backend à cette adresse (ex. http://127.0.0.1:8790)
+  --scenario jury                    agent interne protégé : appel retenu, boîte noire, chrono
+  --issue {couper,reprendre,les-deux,console}   issue du scénario jury (défaut : les-deux)
+  --json                             scénario jury : constat complet en JSON sur la sortie
 """
 
 from __future__ import annotations
@@ -111,16 +115,68 @@ def _lancer(session_id, temperament, cerveau_mode, base, decision=None, tache=No
     return agent.executer(demande)
 
 
-def main() -> None:
+def _jouer_jury(args, base: str, simule: bool) -> int:
+    """Scénario jury : une session par issue demandée. Code de sortie 0 si chaque issue a
+    tenu ses garanties (rien d'exécuté hors décision, relance refusée après coupure)."""
+    from . import jury
+
+    if args.issue == "console" and simule:
+        print("L'issue « console » attend un analyste humain : donner --backend URL.")
+        return 2
+    issues = ["couper", "reprendre"] if args.issue == "les-deux" else [args.issue]
+    constats, ok = [], True
+    for issue in issues:
+        if not args.json:
+            _titre(f"SCÉNARIO JURY : agent interne protégé, issue « {issue} »")
+        attente = args.attente if issue == "console" else max(args.attente, 15.0)
+        c = jury.jouer(base, issue, delai_analyste=args.delai_analyste, poll_max_s=attente)
+        constats.append(c)
+        if issue == "couper":
+            ok &= c["coffre_lectures"] == [] and c["jeton_revoque"] and c["relance_apres_coupure"] == "refusée"
+        elif issue == "reprendre":
+            ok &= c["coffre_lectures"] == ["sauvegarde"] and c["rapports_envoyes"] == 0
+        if not args.json:
+            jury.raconter(c)
+    if args.json:
+        print(json.dumps(constats if len(constats) > 1 else constats[0], ensure_ascii=False, indent=2))
+    elif not ok:
+        print("\nUne garantie du scénario jury n'a pas tenu (voir ci-dessus).")
+    return 0 if ok else 1
+
+
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cerveau", default="scripte",
                     choices=["scripte", "cli", "api", "auto"])
     ap.add_argument("--backend-reel", action="store_true")
-    args = ap.parse_args()
+    ap.add_argument("--backend", default=None,
+                    help="adresse d'un backend Dédale (prioritaire sur --backend-reel)")
+    ap.add_argument("--scenario", default="tout", choices=["tout", "jury"])
+    ap.add_argument("--issue", default="les-deux",
+                    choices=["couper", "reprendre", "les-deux", "console"])
+    ap.add_argument("--delai-analyste", type=float, default=1.0,
+                    help="secondes avant la décision de l'analyste scripté (jury)")
+    ap.add_argument("--attente", type=float, default=120.0,
+                    help="attente maximale d'une décision, en secondes (jury)")
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args(argv)
+
+    if args.scenario == "jury":
+        stub = None
+        if args.backend or args.backend_reel:
+            base = (args.backend or "http://127.0.0.1:8700").rstrip("/")
+        else:
+            stub = BackendSimule(suspendre_a_l_incident=True).demarrer()
+            base = stub.base
+        try:
+            return _jouer_jury(args, base, simule=stub is not None)
+        finally:
+            if stub:
+                stub.arreter()
 
     stub = None
-    if args.backend_reel:
-        base = "http://127.0.0.1:8700"
+    if args.backend or args.backend_reel:
+        base = (args.backend or "http://127.0.0.1:8700").rstrip("/")
         decideur = None
     else:
         stub = BackendSimule().demarrer()
@@ -189,7 +245,8 @@ def main() -> None:
         print(f"\nÉvénements vus par le backend simulé : {len(stub.evenements())}")
         print(f"  dont leurre_touche : {len(stub.evenements('leurre_touche'))}")
         stub.arreter()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

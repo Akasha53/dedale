@@ -88,3 +88,14 @@ class BoiteNoire:
     def lire_session(self, session_id: str) -> dict | None:
         """GET /api/sessions/{id}. Renvoie le détail de session ou None si muet."""
         return _lire(self.base, f"/api/sessions/{session_id}")
+
+    def incident_de_session(self, session_id: str) -> dict | None:
+        """GET /api/incidents, filtré sur la session. None si muet ou si aucun incident."""
+        rep = _lire(self.base, "/api/incidents")
+        liste = rep.get("incidents") if isinstance(rep, dict) else None
+        if not isinstance(liste, list):
+            return None
+        for inc in liste:
+            if isinstance(inc, dict) and inc.get("session_id") == session_id:
+                return inc
+        return None

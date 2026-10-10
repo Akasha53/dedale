@@ -62,6 +62,8 @@ SCOPE_PAR_OUTIL = {
     "chercher_appel": "appel:lire",
     "lire_memoire": "memoire:lire",
     "memoriser": "memoire:ecrire",
+    # Scénario jury : lecture d'une entrée du coffre de clés.
+    "lire_coffre": "coffre:lire",
 }
 
 
@@ -110,6 +112,11 @@ TACHES: dict[str, Tache] = {
         "revue_hebdo",
         "Revue hebdomadaire (mémoire + rapport)",
         ("memoire:lire", "mail:lire", "resume:local", "rapport:envoyer"),
+    ),
+    "rapport_paiements": Tache(
+        "rapport_paiements",
+        "Préparer le rapport mensuel des paiements fournisseurs",
+        ("document:lire", "resume:local", "rapport:envoyer"),
     ),
     "apprentissage_prefs": Tache(
         "apprentissage_prefs",
