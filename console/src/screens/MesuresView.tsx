@@ -34,6 +34,11 @@ function KpiDuree({ lib, d, vide }: { lib: string; d?: DureeMesuree; vide: strin
   );
 }
 
+// Accord en nombre à la française : singulier pour 0 et 1.
+function nb(n: number, mot: string): string {
+  return `${n} ${mot}${n > 1 ? "s" : ""}`;
+}
+
 function Kpi({ lib, val, sous, cls = "" }: { lib: string; val: string | number; sous?: string; cls?: string }) {
   return (
     <div className="kpi">
@@ -126,13 +131,13 @@ export function MesuresView() {
         <Kpi
           lib="Dossiers à traiter"
           val={comptes.aTraiter.interne + comptes.aTraiter.humain}
-          sous={`${comptes.aTraiter.interne} agents · ${comptes.aTraiter.humain} salariés`}
+          sous={`${nb(comptes.aTraiter.interne, "agent")} · ${nb(comptes.aTraiter.humain, "salarié")}`}
           cls={comptes.aTraiter.interne + comptes.aTraiter.humain > 0 ? "att" : ""}
         />
         <Kpi
           lib="Dossiers réglés"
           val={comptes.regles.interne + comptes.regles.humain}
-          sous={`${comptes.regles.interne} agents · ${comptes.regles.humain} salariés`}
+          sous={`${nb(comptes.regles.interne, "agent")} · ${nb(comptes.regles.humain, "salarié")}`}
         />
       </div>
 
@@ -146,7 +151,7 @@ export function MesuresView() {
           <Kpi
             lib="Appuyées sur la mémoire"
             val={relecteur.memoire?.decisions_appuyees ?? 0}
-            sous={`${relecteur.memoire?.entrees ?? 0} décisions d'analystes en mémoire`}
+            sous={`${nb(relecteur.memoire?.entrees ?? 0, "décision")} d'analyste en mémoire`}
           />
           <Kpi
             lib="Renversements"
