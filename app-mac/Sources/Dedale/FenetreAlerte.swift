@@ -1,6 +1,6 @@
 import AppKit
 
-/// La pop-up d'un geste à risque, en verre clair. Elle passe par plusieurs états :
+/// La pop-up d'un geste à risque, carte blanche aux jetons de la console (Theme.swift). Elle passe par plusieurs états :
 /// - le choix : message, raisons, « Voir le mail » pour un mail, puis Annuler / Continuer ;
 /// - le coach, après Annuler : ce qui était piégé, comment le repérer, « Compris » ;
 /// - l'attente des quatre yeux, après Continuer sur un geste critique, puis Accordé ou Refusé ;
@@ -79,20 +79,20 @@ final class FenetreAlerte: NSObject {
         let w = Self.interieur
         let entete = Gabarit.entete(titre: "Dédale", puce: a.libelleCategorie)
         // Geste critique : titre bâti sur les champs structurés, jamais sur le texte reçu.
-        let message = Gabarit.paragraphe(a.quatreYeux ? DemandeQuatreYeux.titre(pour: a) : a.message, taille: 17,
+        let message = Gabarit.paragraphe(a.quatreYeux ? DemandeQuatreYeux.titre(pour: a) : a.message, taille: Taille.titre,
                                          graisse: .semibold, couleur: Teinte.encre, largeur: w)
 
         // Pour un mail : « objet » · expéditeur, sur une ligne, désarmés.
         var ligneMail: NSTextField?
         if let m = a.mail {
             let exp = m.adresse.isEmpty ? "" : " · \(Messagerie.desarmerLigne(m.adresse, max: 60))"
-            let t = Gabarit.paragraphe("« \(Messagerie.desarmerLigne(m.objet, max: 80)) »\(exp)", taille: 12,
+            let t = Gabarit.paragraphe("« \(Messagerie.desarmerLigne(m.objet, max: 80)) »\(exp)", taille: Taille.note,
                                        couleur: Teinte.discret, largeur: w)
             t.maximumNumberOfLines = 2
             t.cell?.truncatesLastVisibleLine = true
             ligneMail = t
         }
-        let detail = Gabarit.paragraphe(a.detail, taille: 13, couleur: Teinte.texte, largeur: w)
+        let detail = Gabarit.paragraphe(a.detail, taille: Taille.texte, couleur: Teinte.texte, largeur: w)
         detail.isHidden = a.detail.isEmpty || a.quatreYeux
 
         if a.mail != nil {
@@ -110,7 +110,7 @@ final class FenetreAlerte: NSObject {
         let note = Gabarit.paragraphe(
             a.note ?? (a.quatreYeux ? "Geste sensible : Dédale le vérifie avant qu'il parte, et l'équipe sécurité voit sa décision."
                          : "Dans les deux cas, l'équipe sécurité reçoit le type d'alerte et votre choix. Jamais le contenu de votre poste."),
-            taille: 11, couleur: Teinte.discret, largeur: w)
+            taille: Taille.note, couleur: Teinte.discret, largeur: w)
 
         zoneFin.orientation = .vertical
         zoneFin.alignment = .leading
@@ -144,7 +144,8 @@ final class FenetreAlerte: NSObject {
         panneau.makeKeyAndOrderFront(nil)
         panneau.makeFirstResponder(boutonAnnuler)
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.18
+            ctx.duration = 0.2
+            ctx.timingFunction = Courbe.fluide
             panneau.animator().alphaValue = 1
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -181,8 +182,8 @@ final class FenetreAlerte: NSObject {
     func montrerCoach(_ fiche: Coach.Fiche) {
         let w = Self.interieur
         let titre = NSStackView(views: [
-            Gabarit.icone("checkmark.circle.fill", taille: 16, couleurs: [.white, Teinte.cyanFonce]),
-            Gabarit.etiquette("C'est annulé.", taille: 15, graisse: .semibold, couleur: Teinte.encre),
+            Gabarit.icone("checkmark.circle.fill", taille: 16, couleurs: [Teinte.fond, Teinte.ok]),
+            Gabarit.etiquette("C'est annulé.", taille: Taille.titreCarte, graisse: .semibold, couleur: Teinte.encre),
         ])
         titre.orientation = .horizontal
         titre.alignment = .centerY
@@ -211,12 +212,13 @@ final class FenetreAlerte: NSObject {
 
     /// Quatre yeux : la demande part au SOC, la pop-up attend le relecteur ou un analyste.
     func montrerAttente(restant: Int) {
-        let texte = Gabarit.paragraphe(Self.texteRestant(restant), taille: 12, couleur: Teinte.discret,
+        let texte = Gabarit.paragraphe(Self.texteRestant(restant), taille: Taille.libelle, couleur: Teinte.discret,
                                        largeur: Self.interieur - 28)
         texteAttente = texte
         let ligne = NSStackView(views: [
-            Gabarit.icone("hourglass", taille: 15, couleurs: [Teinte.cyanFonce]),
-            Gabarit.etiquette(DemandeQuatreYeux.titreAttente, taille: 14, graisse: .semibold, couleur: Teinte.encre),
+            Gabarit.icone("hourglass", taille: 15, couleurs: [Teinte.orange]),
+            Gabarit.etiquette(DemandeQuatreYeux.titreAttente, taille: Taille.titreCarte, graisse: .semibold,
+                              couleur: Teinte.encre),
         ])
         ligne.orientation = .horizontal
         ligne.alignment = .centerY
@@ -235,12 +237,14 @@ final class FenetreAlerte: NSObject {
     }
 
     /// Issue des quatre yeux (« Relu par Dédale en 1,8 s : refusé. » et le motif), puis fermeture.
+    /// Accordé en vert, comme ce qui est réglé dans la console ; refusé ou sans réponse en noir :
+    /// une décision, pas un danger.
     func montrerIssue(_ issue: DemandeQuatreYeux.Issue) {
         let accorde = issue == .accorde
         let relecture = DemandeQuatreYeux.relecture(pour: avertissement.id)
         let sousTitre = DemandeQuatreYeux.texteIssue(issue, relecture: relecture)
         montrerFin(symbole: accorde ? "checkmark.circle.fill" : "xmark.circle.fill",
-                   couleur: accorde ? Teinte.cyanFonce : Teinte.rouge,
+                   couleur: accorde ? Teinte.ok : Teinte.encre,
                    titre: accorde ? "Accordé" : "Refusé", sousTitre: sousTitre,
                    capture: accorde ? "accorde" : (issue == .expire ? "expire" : "refuse"),
                    duree: relecture == nil ? 3.5 : 7)
@@ -262,12 +266,13 @@ final class FenetreAlerte: NSObject {
         textes.alignment = .leading
         textes.spacing = 2
         if let titre {
-            textes.addArrangedSubview(Gabarit.etiquette(titre, taille: 15, graisse: .semibold, couleur: Teinte.encre))
+            textes.addArrangedSubview(Gabarit.etiquette(titre, taille: Taille.titreCarte, graisse: .semibold,
+                                                        couleur: Teinte.encre))
         }
-        textes.addArrangedSubview(Gabarit.paragraphe(sousTitre, taille: titre == nil ? 13 : 12,
+        textes.addArrangedSubview(Gabarit.paragraphe(sousTitre, taille: titre == nil ? Taille.texte : Taille.libelle,
                                                      graisse: titre == nil ? .medium : .regular,
                                                      couleur: titre == nil ? Teinte.encre : Teinte.texte, largeur: w))
-        let ligne = NSStackView(views: [Gabarit.icone(symbole, taille: 16, couleurs: [.white, couleur]), textes])
+        let ligne = NSStackView(views: [Gabarit.icone(symbole, taille: 16, couleurs: [Teinte.fond, couleur]), textes])
         ligne.orientation = .horizontal
         ligne.alignment = titre == nil ? .centerY : .top
         ligne.spacing = 8
@@ -300,6 +305,7 @@ final class FenetreAlerte: NSObject {
         fermee = true
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
+            ctx.timingFunction = Courbe.fluide
             panneau.animator().alphaValue = 0
         }
         // Pas de completionHandler : il ne vient pas toujours quand la fermeture part d'un clic
@@ -316,11 +322,14 @@ final class FenetreAlerte: NSObject {
         var cadre = panneau.frame
         if garderLeHaut {
             cadre.origin.y = cadre.maxY - taille.height
-        } else if let ecran = NSScreen.main?.visibleFrame {
+        } else {
+            let ecran = Ecran.zone
             cadre.origin.x = ecran.midX - taille.width / 2
             cadre.origin.y = ecran.minY + ecran.height * 0.62 - taille.height / 2
         }
         cadre.size = taille
+        // Jamais hors de la zone visible : ni sous la barre de menus, ni sous le Dock.
+        cadre = Ecran.borner(cadre)
         panneau.setFrame(cadre, display: true)
         panneau.invalidateShadow()
     }

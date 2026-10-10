@@ -56,16 +56,15 @@ final class FenetreApercu: NSObject {
     func montrer(pres voisin: NSRect?) {
         ajuster()
         var cadre = panneau.frame
-        if let ecran = NSScreen.main?.visibleFrame {
-            if let v = voisin {
-                cadre.origin.x = v.maxX + 16 + cadre.width <= ecran.maxX ? v.maxX + 16 : max(ecran.minX + 16, v.minX - 16 - cadre.width)
-                cadre.origin.y = max(ecran.minY + 16, v.maxY - cadre.height)
-            } else {
-                cadre.origin.x = ecran.midX - cadre.width / 2
-                cadre.origin.y = ecran.midY - cadre.height / 2
-            }
+        let ecran = Ecran.zone
+        if let v = voisin {
+            cadre.origin.x = v.maxX + 16 + cadre.width <= ecran.maxX ? v.maxX + 16 : max(ecran.minX, v.minX - 16 - cadre.width)
+            cadre.origin.y = max(ecran.minY, v.maxY - cadre.height)
+        } else {
+            cadre.origin.x = ecran.midX - cadre.width / 2
+            cadre.origin.y = ecran.midY - cadre.height / 2
         }
-        panneau.setFrameOrigin(cadre.origin)
+        panneau.setFrameOrigin(Ecran.borner(cadre).origin)
         panneau.makeKeyAndOrderFront(nil)
         journal("aperçu du mail \(resume.id) ouvert")
     }
@@ -87,29 +86,29 @@ final class FenetreApercu: NSObject {
         let w = Self.interieur
         let r = mail?.resume ?? resume
         var vues: [NSView] = [
-            Gabarit.paragraphe(Messagerie.desarmerLigne(r.objet, max: 140), taille: 15, graisse: .semibold,
+            Gabarit.paragraphe(Messagerie.desarmerLigne(r.objet, max: 140), taille: Taille.titreCarte, graisse: .semibold,
                                couleur: Teinte.encre, largeur: w),
         ]
         var meta = ["De : " + (r.expediteur.isEmpty ? "inconnu" : Messagerie.desarmerLigne(r.expediteur))]
         if let dest = mail?.destinataire, !dest.isEmpty { meta.append("À : " + Messagerie.desarmerLigne(dest)) }
         if let date = r.date { meta.append("Reçu : " + Self.dateLisible(date)) }
-        vues.append(Gabarit.paragraphe(meta.joined(separator: "\n"), taille: 12, couleur: Teinte.discret, largeur: w))
+        vues.append(Gabarit.paragraphe(meta.joined(separator: "\n"), taille: Taille.libelle, couleur: Teinte.discret, largeur: w))
 
         let bandeau = NSStackView(views: [
-            Gabarit.icone("link", taille: 11, couleurs: [Teinte.cyanFonce], cote: 14),
-            Gabarit.etiquette("Liens désactivés et réécrits. Rien ne se charge.", taille: 11, couleur: Teinte.texte),
+            Gabarit.icone("link", taille: 11, couleurs: [Teinte.texte], cote: 14),
+            Gabarit.etiquette("Liens désactivés et réécrits. Rien ne se charge.", taille: Taille.note, couleur: Teinte.texte),
         ])
         bandeau.orientation = .horizontal
         bandeau.alignment = .centerY
         bandeau.spacing = 6
-        bandeau.edgeInsets = NSEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
+        bandeau.edgeInsets = NSEdgeInsets(top: 7, left: 12, bottom: 7, right: 14)
         bandeau.wantsLayer = true
-        bandeau.layer?.backgroundColor = Teinte.puce.cgColor
-        bandeau.layer?.cornerRadius = 8
+        bandeau.layer?.backgroundColor = Teinte.puits.cgColor
+        bandeau.layer?.cornerRadius = Rayon.petit
         vues.append(bandeau)
 
         if let message {
-            vues.append(Gabarit.paragraphe(message, taille: 13, couleur: Teinte.texte, largeur: w))
+            vues.append(Gabarit.paragraphe(message, taille: Taille.texte, couleur: Teinte.texte, largeur: w))
         } else if let mail {
             vues.append(corps(Self.texteDuMail(mail), largeur: w))
         }
@@ -143,11 +142,14 @@ final class FenetreApercu: NSObject {
     /// Le corps désarmé, puis ce qui ne se voit pas à l'écran : où mènent vraiment les liens,
     /// les pièces jointes (jamais ouvertes) et le texte caché relevé par l'analyseur.
     static func texteDuMail(_ mail: MailComplet) -> NSAttributedString {
-        let normal: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: Teinte.texte]
-        let titre: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+        let normal: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: Taille.texte),
+                                                     .foregroundColor: Teinte.texte]
+        let titre: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: Taille.libelle, weight: .semibold),
                                                     .foregroundColor: Teinte.encre]
-        let alerte: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: Teinte.rouge]
-        let note: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: Teinte.texte]
+        let alerte: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: Taille.libelle),
+                                                     .foregroundColor: Teinte.rouge]
+        let note: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: Taille.libelle),
+                                                   .foregroundColor: Teinte.texte]
         let sortie = NSMutableAttributedString(string: Messagerie.desarmer(mail.corps).isEmpty
                                                ? "(mail vide)" : Messagerie.desarmer(mail.corps), attributes: normal)
         func section(_ nom: String, _ lignes: [(String, Bool)]) {
@@ -205,7 +207,7 @@ final class FenetreApercu: NSObject {
         let hauteur = ceil(racine.fittingSize.height)
         if garderLeHaut { cadre.origin.y = cadre.maxY - hauteur }
         cadre.size = NSSize(width: Self.largeur, height: hauteur)
-        panneau.setFrame(cadre, display: true)
+        panneau.setFrame(Ecran.borner(cadre), display: true)
         panneau.invalidateShadow()
     }
 
@@ -225,12 +227,12 @@ final class Bulle: NSObject {
     private let panneau: PanneauAlerte
 
     init(_ texte: String, ok: Bool) {
-        panneau = PanneauAlerte.carte(largeur: 300, racine: racine, rayon: 12)
+        panneau = PanneauAlerte.carte(largeur: 300, racine: racine, rayon: Rayon.bulle)
         super.init()
         let ligne = NSStackView(views: [
             Gabarit.icone(ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill", taille: 15,
-                          couleurs: [.white, ok ? Teinte.cyanFonce : Teinte.rouge]),
-            Gabarit.paragraphe(texte, taille: 13, graisse: .medium, couleur: Teinte.encre, largeur: 300 - 64),
+                          couleurs: [Teinte.fond, ok ? Teinte.ok : Teinte.orange]),
+            Gabarit.paragraphe(texte, taille: Taille.texte, graisse: .medium, couleur: Teinte.encre, largeur: 300 - 64),
         ])
         ligne.orientation = .horizontal
         ligne.alignment = .centerY
@@ -249,17 +251,17 @@ final class Bulle: NSObject {
     func montrer(capture: String? = nil) {
         racine.layoutSubtreeIfNeeded()
         let taille = NSSize(width: 300, height: ceil(racine.fittingSize.height))
-        if let ecran = NSScreen.main?.visibleFrame {
-            panneau.setFrame(NSRect(x: ecran.maxX - taille.width - 16, y: ecran.maxY - taille.height - 12,
-                                    width: taille.width, height: taille.height), display: true)
-        }
+        let ecran = Ecran.zone
+        panneau.setFrame(Ecran.borner(NSRect(x: ecran.maxX - taille.width, y: ecran.maxY - taille.height,
+                                             width: taille.width, height: taille.height)), display: true)
         panneau.alphaValue = 0
         panneau.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.18
+            ctx.duration = 0.2
+            ctx.timingFunction = Courbe.fluide
             panneau.animator().alphaValue = 1
         }
-        if let capture { Gabarit.capturer(racine, nom: capture, delai: 0.4) }
+        if let capture { Gabarit.capturer(racine, nom: capture, delai: 0.4, rayon: Rayon.bulle) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [self] in
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.25

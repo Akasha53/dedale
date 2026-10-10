@@ -25,7 +25,6 @@ final class FenetreAgents: FenetrePanneau {
         pile.orientation = .vertical
         pile.alignment = .leading
         pile.spacing = 10
-        pile.edgeInsets = NSEdgeInsets(top: 24, left: 28, bottom: 22, right: 28)
 
         let r = agents.resultat
         let resume: String
@@ -41,7 +40,6 @@ final class FenetreAgents: FenetrePanneau {
             resume = "Analyse en cours…"
         }
         let tete = entete(titre: "Agents IA de ce poste", sousTitre: resume)
-        pile.addArrangedSubview(tete)
         tete.widthAnchor.constraint(equalToConstant: w).isActive = true
 
         let source = Coque.pilule(agents.source.libelle, ton: agents.source.code == "reel" ? .risque : .accent,
@@ -63,7 +61,7 @@ final class FenetreAgents: FenetrePanneau {
                 if i > 0 {
                     let trait = NSView()
                     trait.wantsLayer = true
-                    trait.layer?.backgroundColor = Teinte.bord.withAlphaComponent(0.8).cgColor
+                    trait.layer?.backgroundColor = Teinte.bord.cgColor
                     trait.heightAnchor.constraint(equalToConstant: 1).isActive = true
                     liste.addArrangedSubview(trait)
                     trait.widthAnchor.constraint(equalToConstant: w - 32).isActive = true
@@ -73,10 +71,10 @@ final class FenetreAgents: FenetrePanneau {
                 l.widthAnchor.constraint(equalToConstant: w - 32).isActive = true
             }
             if tries.count > Self.lignesMax {
-                liste.addArrangedSubview(Gabarit.etiquette("et \(tries.count - Self.lignesMax) autre(s)", taille: 11,
+                liste.addArrangedSubview(Gabarit.etiquette("et \(tries.count - Self.lignesMax) autre(s)", taille: Taille.note,
                                                            couleur: Teinte.discret))
             }
-            let coque = Coque.creer(liste, marge: NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12))
+            let coque = Coque.creer(liste, marge: NSEdgeInsets(top: 4, left: 16, bottom: 4, right: 16))
             pile.addArrangedSubview(coque)
             coque.widthAnchor.constraint(equalToConstant: w).isActive = true
             pile.setCustomSpacing(14, after: coque)
@@ -85,7 +83,7 @@ final class FenetreAgents: FenetrePanneau {
         let note = Gabarit.paragraphe(
             "Dédale lit le nom de chaque serveur et sa commande de lancement pour en déduire le type. "
             + "Les jetons, les clés et les variables d'environnement ne sont ni gardés ni envoyés.",
-            taille: 11, couleur: Teinte.discret, largeur: w)
+            taille: Taille.note, couleur: Teinte.discret, largeur: w)
         pile.addArrangedSubview(note)
         note.widthAnchor.constraint(equalToConstant: w).isActive = true
 
@@ -97,20 +95,18 @@ final class FenetreAgents: FenetrePanneau {
         }
         let bouton = BoutonDedale(titre: "Fermer", style: .neutre, cible: self, action: #selector(fermer))
         bouton.widthAnchor.constraint(equalToConstant: 96).isActive = true
-        let pied = NSStackView(views: [Gabarit.etiquette(envoi, taille: 11, graisse: .medium,
+        let pied = NSStackView(views: [Gabarit.etiquette(envoi, taille: Taille.note, graisse: .medium,
                                                          couleur: agents.envoiOk == false ? Teinte.rouge : Teinte.texte),
                                        Gabarit.ressort(), bouton])
         pied.orientation = .horizontal
         pied.alignment = .centerY
-        pile.setCustomSpacing(16, after: note)
-        pile.addArrangedSubview(pied)
         pied.widthAnchor.constraint(equalToConstant: w).isActive = true
-        poser(pile)
+        poser(tete: tete, corps: pile, pied: pied)
     }
 
     private func ligne(_ s: InventaireAgents.Serveur, largeur: CGFloat) -> NSView {
-        let nom = Gabarit.etiquette(s.nom, taille: 13, graisse: .semibold, couleur: Teinte.encre)
-        let client = Gabarit.etiquette(s.client + (s.transport == "distant" ? " · serveur distant" : ""), taille: 11,
+        let nom = Gabarit.etiquette(s.nom, taille: Taille.texte, graisse: .semibold, couleur: Teinte.encre)
+        let client = Gabarit.etiquette(s.client + (s.transport == "distant" ? " · serveur distant" : ""), taille: Taille.note,
                                        couleur: Teinte.discret)
         let textes = NSStackView(views: [nom, client])
         textes.orientation = .vertical

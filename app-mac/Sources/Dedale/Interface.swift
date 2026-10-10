@@ -1,47 +1,23 @@
 import AppKit
 
-// Briques communes aux fenêtres de l'app : teintes du thème clair, boutons, panneau
-// flottant, carte en verre clair, fabriques de textes et capture PNG.
-
-// MARK: - Teintes (thème clair)
-
-extension NSColor {
-    convenience init(hex: UInt32, alpha: CGFloat = 1) {
-        self.init(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
-                  green: CGFloat((hex >> 8) & 0xFF) / 255,
-                  blue: CGFloat(hex & 0xFF) / 255,
-                  alpha: alpha)
-    }
-}
-
-enum Teinte {
-    static let encre = NSColor(hex: 0x0B1220)
-    static let texte = NSColor(hex: 0x3F4859)
-    static let discret = NSColor(hex: 0x6B7385)
-    static let bord = NSColor(hex: 0xE3E6EB)
-    static let puce = NSColor(hex: 0xF1F3F6)
-    static let survol = NSColor(hex: 0xF6F7F9)
-    static let cyan = NSColor(hex: 0x22D3EE)
-    static let cyanPresse = NSColor(hex: 0x1BB8D1)
-    static let cyanSurvol = NSColor(hex: 0x3ADBF2)
-    static let cyanFonce = NSColor(hex: 0x0E7490)
-    static let rouge = NSColor(hex: 0xB42318)
-    static let rougeBord = NSColor(hex: 0xF2D0CC)
-    static let rougeFond = NSColor(hex: 0xFEF3F2)
-    static let gris = NSColor(hex: 0x9AA1AE)
-}
+// Briques communes aux fenêtres de l'app : boutons en pilule, panneau flottant, carte
+// blanche, fabriques de textes et capture PNG. Les jetons (teintes, rayons, tailles,
+// courbe) sont dans Theme.swift, repris de la console SOC.
 
 // MARK: - Bouton
 
-/// Bouton plat aux coins arrondis. `.protege` (Annuler, Compris) porte l'accent cyan,
-/// `.risque` (Continuer) reste blanc avec un texte rouge sobre, `.neutre` (Fermer) est
-/// blanc et gris, `.lien` n'a pas de fond (Voir le mail).
+/// Bouton en pilule, comme ceux de la console. `.protege` (Annuler, Compris, Mettre de côté)
+/// est le bouton principal, noir. `.risque` (Continuer, Garder) est en contour, texte rouge,
+/// comme « Couper » en option secondaire. `.neutre` (Fermer) est en contour, texte noir.
+/// `.lien` est une petite pilule en contour (Voir le mail, comme `.ag-voir`).
 final class BoutonDedale: NSButton {
     enum Style { case protege, risque, neutre, lien }
 
     private let style: Style
     private var enfonce = false
     private var survole = false
+    private var hauteur: CGFloat { style == .lien ? 30 : 38 }
+    private var marge: CGFloat { style == .lien ? 14 : 20 }
 
     init(titre: String, style: Style, cible: AnyObject, action: Selector) {
         self.style = style
@@ -52,9 +28,9 @@ final class BoutonDedale: NSButton {
         isBordered = false
         focusRingType = .none
         wantsLayer = true
-        layer?.cornerRadius = style == .lien ? 6 : 10
+        layer?.cornerRadius = hauteur / 2
         translatesAutoresizingMaskIntoConstraints = false
-        heightAnchor.constraint(equalToConstant: style == .lien ? 24 : 36).isActive = true
+        heightAnchor.constraint(equalToConstant: hauteur).isActive = true
         if style == .lien {
             setContentHuggingPriority(.required, for: .horizontal)
         }
@@ -65,6 +41,10 @@ final class BoutonDedale: NSButton {
 
     override var isEnabled: Bool { didSet { majApparence() } }
 
+    /// Le texte et la marge de la pilule, de chaque côté.
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: ceil(attributedTitle.size().width) + marge * 2, height: hauteur)
+    }
 
     override func mouseDown(with event: NSEvent) {
         enfonce = true
@@ -86,40 +66,124 @@ final class BoutonDedale: NSButton {
     override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
 
     private func majApparence() {
+        let actif = enfonce || survole
         let fond: NSColor
         let texte: NSColor
-        var taille: CGFloat = 13
+        let bord: NSColor?
+        var taille = Taille.bouton
         switch style {
         case .protege:
-            fond = enfonce ? Teinte.cyanPresse : (survole ? Teinte.cyanSurvol : Teinte.cyan)
-            texte = Teinte.encre
-            layer?.borderWidth = 0
+            (fond, texte, bord) = (actif ? Teinte.encreSurvol : Teinte.encre, Teinte.fond, nil)
         case .risque:
-            fond = (enfonce || survole) ? Teinte.rougeFond : .white
-            texte = Teinte.rouge
-            layer?.borderWidth = 1
-            layer?.borderColor = Teinte.rougeBord.cgColor
+            (fond, texte, bord) = (actif ? Teinte.rougeSurvol : Teinte.fond, Teinte.rouge,
+                                   actif ? Teinte.rougeBord : Teinte.bordFort)
         case .neutre:
-            fond = (enfonce || survole) ? Teinte.survol : .white
-            texte = Teinte.encre
-            layer?.borderWidth = 1
-            layer?.borderColor = Teinte.bord.cgColor
+            (fond, texte, bord) = (actif ? Teinte.pale(Teinte.encre, 0.04) : Teinte.fond, Teinte.encre, Teinte.bordFort)
         case .lien:
-            fond = .clear
-            texte = (enfonce || survole) ? Teinte.encre : Teinte.cyanFonce
-            taille = 12
-            layer?.borderWidth = 0
+            (fond, texte, bord) = (actif ? Teinte.pale(Teinte.encre, 0.04) : Teinte.fond, Teinte.encre, Teinte.bordFort)
+            taille = Taille.libelle
         }
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.3)
+        CATransaction.setAnimationTimingFunction(Courbe.fluide)
         layer?.backgroundColor = fond.cgColor
-        alphaValue = isEnabled ? 1 : 0.5
+        layer?.borderWidth = bord == nil ? 0 : 1
+        layer?.borderColor = bord?.cgColor
+        CATransaction.commit()
+        alphaValue = isEnabled ? 1 : 0.45
         let paragraphe = NSMutableParagraphStyle()
-        paragraphe.alignment = style == .lien ? .left : .center
+        paragraphe.alignment = .center
         attributedTitle = NSAttributedString(string: title, attributes: [
-            .font: NSFont.systemFont(ofSize: taille, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: taille, weight: .medium),
             .foregroundColor: texte,
             .paragraphStyle: paragraphe,
         ])
+        invalidateIntrinsicContentSize()
     }
+}
+
+/// Bouton rond sans fond, pour une icône (fermeture d'un panneau) : fond gris au survol,
+/// comme `.modale-fermer` dans la console.
+final class BoutonIcone: NSButton {
+    private var survole = false
+
+    init(symbole: String, cible: AnyObject, action: Selector, cote: CGFloat = 28) {
+        super.init(frame: .zero)
+        image = Gabarit.symbole(symbole, taille: 11, couleurs: [Teinte.texte])
+        imagePosition = .imageOnly
+        target = cible
+        self.action = action
+        isBordered = false
+        focusRingType = .none
+        wantsLayer = true
+        layer?.cornerRadius = cote / 2
+        translatesAutoresizingMaskIntoConstraints = false
+        widthAnchor.constraint(equalToConstant: cote).isActive = true
+        heightAnchor.constraint(equalToConstant: cote).isActive = true
+        setAccessibilityLabel("Fermer")
+    }
+
+    required init?(coder: NSCoder) { fatalError("non utilisé") }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { survole = true; layer?.backgroundColor = Teinte.actif.cgColor }
+    override func mouseExited(with event: NSEvent) { survole = false; layer?.backgroundColor = nil }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+}
+
+/// Fond d'une pastille : ses coins suivent sa hauteur, elle reste une pilule quelle que soit
+/// la taille du texte.
+final class FondPilule: NSView {
+    override func layout() {
+        super.layout()
+        layer?.cornerRadius = bounds.height / 2
+    }
+}
+
+// MARK: - Écran
+
+/// Zone où les fenêtres de l'app ont le droit de se poser : la partie visible de l'écran
+/// principal (sans barre de menus ni encoche, sans Dock), moins une marge. Aucune fenêtre
+/// n'en sort. `DEDALE_ECRAN=1440x900` simule un écran plus petit (taille en points, barre de
+/// menus comprise), calé sur le haut de l'écran réel, pour vérifier qu'aucune fenêtre ne dépasse.
+enum Ecran {
+    static let marge: CGFloat = 16
+
+    /// La partie visible de l'écran, réelle ou simulée.
+    static var visible: NSRect {
+        let reelle = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 875)
+        let brut = (ProcessInfo.processInfo.environment["DEDALE_ECRAN"] ?? "").lowercased()
+        let morceaux = brut.split(separator: "x").compactMap { Double($0) }
+        guard morceaux.count == 2, morceaux[0] >= 400, morceaux[1] >= 300 else { return reelle }
+        let largeur = min(CGFloat(morceaux[0]), reelle.width)
+        let hauteur = min(CGFloat(morceaux[1]) - 25, reelle.height)
+        return NSRect(x: reelle.midX - largeur / 2, y: reelle.maxY - hauteur, width: largeur, height: hauteur)
+    }
+
+    /// La partie visible moins la marge : là où une fenêtre se pose.
+    static var zone: NSRect { visible.insetBy(dx: marge, dy: marge) }
+
+    /// Ramène `cadre` dans la zone. Plus haut que la zone, il garde son haut visible.
+    static func borner(_ cadre: NSRect) -> NSRect {
+        let z = zone
+        var r = cadre
+        if r.maxX > z.maxX { r.origin.x = z.maxX - r.width }
+        if r.minX < z.minX { r.origin.x = z.minX }
+        if r.maxY > z.maxY { r.origin.y = z.maxY - r.height }
+        if r.minY < z.minY { r.origin.y = min(z.minY, z.maxY - r.height) }
+        return r
+    }
+}
+
+/// Vue retournée : son origine est en haut, le contenu d'un défilement commence en haut.
+final class VueRetournee: NSView {
+    override var isFlipped: Bool { true }
 }
 
 // MARK: - Panneau
@@ -132,8 +196,9 @@ final class PanneauAlerte: NSPanel {
     override var canBecomeMain: Bool { false }
     override func cancelOperation(_ sender: Any?) { surEchap?() }
 
-    /// Panneau prêt à l'emploi : verre clair (flou, voile blanc, bord fin) sous `racine`.
-    static func carte(largeur: CGFloat, racine: NSView, rayon: CGFloat = Gabarit.rayon) -> PanneauAlerte {
+    /// Panneau prêt à l'emploi : carte blanche aux coins de 20 points et au bord fin, comme
+    /// une carte de la console, sous `racine`. Toujours en apparence claire.
+    static func carte(largeur: CGFloat, racine: NSView, rayon: CGFloat = Rayon.fenetre) -> PanneauAlerte {
         let p = PanneauAlerte(contentRect: NSRect(x: 0, y: 0, width: largeur, height: 200),
                               styleMask: [.borderless, .nonactivatingPanel],
                               backing: .buffered, defer: false)
@@ -146,31 +211,24 @@ final class PanneauAlerte: NSPanel {
         p.isReleasedWhenClosed = false
         p.isMovableByWindowBackground = true
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        p.appearance = NSAppearance(named: .aqua)
+        p.appearance = Apparence.claire
 
         racine.wantsLayer = true
         p.contentView = racine
-        let verre = NSVisualEffectView()
-        verre.material = .popover
-        verre.blendingMode = .behindWindow
-        verre.state = .active
-        verre.maskImage = Gabarit.masqueArrondi(rayon: rayon)
-        let voile = NSView()
-        voile.wantsLayer = true
-        voile.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.86).cgColor
-        voile.layer?.cornerRadius = rayon
-        voile.layer?.borderWidth = 1
-        voile.layer?.borderColor = Teinte.bord.cgColor
-        for v in [verre, voile] {
-            v.translatesAutoresizingMaskIntoConstraints = false
-            racine.addSubview(v)
-            NSLayoutConstraint.activate([
-                v.leadingAnchor.constraint(equalTo: racine.leadingAnchor),
-                v.trailingAnchor.constraint(equalTo: racine.trailingAnchor),
-                v.topAnchor.constraint(equalTo: racine.topAnchor),
-                v.bottomAnchor.constraint(equalTo: racine.bottomAnchor),
-            ])
-        }
+        let carte = NSView()
+        carte.wantsLayer = true
+        carte.layer?.backgroundColor = Teinte.fond.cgColor
+        carte.layer?.cornerRadius = rayon
+        carte.layer?.borderWidth = 1
+        carte.layer?.borderColor = Teinte.bord.cgColor
+        carte.translatesAutoresizingMaskIntoConstraints = false
+        racine.addSubview(carte)
+        NSLayoutConstraint.activate([
+            carte.leadingAnchor.constraint(equalTo: racine.leadingAnchor),
+            carte.trailingAnchor.constraint(equalTo: racine.trailingAnchor),
+            carte.topAnchor.constraint(equalTo: racine.topAnchor),
+            carte.bottomAnchor.constraint(equalTo: racine.bottomAnchor),
+        ])
         racine.widthAnchor.constraint(equalToConstant: largeur).isActive = true
         return p
     }
@@ -179,7 +237,7 @@ final class PanneauAlerte: NSPanel {
 // MARK: - Fabriques
 
 enum Gabarit {
-    static let rayon: CGFloat = 14
+    static let rayon: CGFloat = Rayon.fenetre
 
     static func etiquette(_ texte: String, taille: CGFloat, graisse: NSFont.Weight = .regular,
                           couleur: NSColor = Teinte.texte) -> NSTextField {
@@ -204,11 +262,11 @@ enum Gabarit {
     static func ligneLibellee(_ libelle: String, _ texte: String, largeur: CGFloat) -> NSTextField {
         let t = NSTextField(wrappingLabelWithString: "")
         let corps = NSMutableAttributedString(string: libelle + " : ", attributes: [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: Taille.texte, weight: .semibold),
             .foregroundColor: Teinte.encre,
         ])
         corps.append(NSAttributedString(string: texte, attributes: [
-            .font: NSFont.systemFont(ofSize: 13),
+            .font: NSFont.systemFont(ofSize: Taille.texte),
             .foregroundColor: Teinte.texte,
         ]))
         t.attributedStringValue = corps
@@ -217,19 +275,17 @@ enum Gabarit {
         return t
     }
 
+    /// Pastille neutre en pilule, comme `.gravite` dans la console : gris très pâle, texte doux.
     static func puce(_ texte: String) -> NSView {
-        let fond = NSView()
+        let fond = FondPilule()
         fond.wantsLayer = true
         fond.layer?.backgroundColor = Teinte.puce.cgColor
-        fond.layer?.cornerRadius = 6
-        fond.layer?.borderWidth = 1
-        fond.layer?.borderColor = Teinte.bord.cgColor
-        let t = etiquette(texte, taille: 11, graisse: .medium, couleur: Teinte.texte)
+        let t = etiquette(texte, taille: Taille.pastille, graisse: .medium, couleur: Teinte.texte)
         t.translatesAutoresizingMaskIntoConstraints = false
         fond.addSubview(t)
         NSLayoutConstraint.activate([
-            t.leadingAnchor.constraint(equalTo: fond.leadingAnchor, constant: 8),
-            t.trailingAnchor.constraint(equalTo: fond.trailingAnchor, constant: -8),
+            t.leadingAnchor.constraint(equalTo: fond.leadingAnchor, constant: 11),
+            t.trailingAnchor.constraint(equalTo: fond.trailingAnchor, constant: -11),
             t.topAnchor.constraint(equalTo: fond.topAnchor, constant: 3),
             t.bottomAnchor.constraint(equalTo: fond.bottomAnchor, constant: -3),
         ])
@@ -238,30 +294,31 @@ enum Gabarit {
         return fond
     }
 
+    /// La marque de la console (`.pastille-logo`) : tuile noire, « D » blanc.
     static func badgeBouclier() -> NSView {
         let fond = NSView()
         fond.wantsLayer = true
-        fond.layer?.backgroundColor = Teinte.cyan.withAlphaComponent(0.16).cgColor
-        fond.layer?.cornerRadius = 8
+        fond.layer?.backgroundColor = Teinte.encre.cgColor
+        fond.layer?.cornerRadius = Rayon.tuile - 1
         fond.translatesAutoresizingMaskIntoConstraints = false
         fond.widthAnchor.constraint(equalToConstant: 28).isActive = true
         fond.heightAnchor.constraint(equalToConstant: 28).isActive = true
-        let icone = NSImageView()
-        icone.image = symbole("shield.lefthalf.filled", taille: 13, couleurs: [Teinte.cyanFonce])
-        icone.translatesAutoresizingMaskIntoConstraints = false
-        fond.addSubview(icone)
+        let lettre = etiquette("D", taille: 14, graisse: .semibold, couleur: Teinte.fond)
+        lettre.translatesAutoresizingMaskIntoConstraints = false
+        fond.addSubview(lettre)
         NSLayoutConstraint.activate([
-            icone.centerXAnchor.constraint(equalTo: fond.centerXAnchor),
-            icone.centerYAnchor.constraint(equalTo: fond.centerYAnchor),
+            lettre.centerXAnchor.constraint(equalTo: fond.centerXAnchor),
+            lettre.centerYAnchor.constraint(equalTo: fond.centerYAnchor),
         ])
+        fond.setAccessibilityLabel("Dédale")
         return fond
     }
 
-    /// En-tête commun : badge bouclier, titre, puce à droite.
+    /// En-tête commun : marque, titre, pastille à droite.
     static func entete(titre: String, puce texte: String) -> NSStackView {
         let ressort = NSView()
         ressort.setContentHuggingPriority(.init(1), for: .horizontal)
-        let pile = NSStackView(views: [badgeBouclier(), etiquette(titre, taille: 13, graisse: .semibold, couleur: Teinte.encre),
+        let pile = NSStackView(views: [badgeBouclier(), etiquette(titre, taille: 14, graisse: .semibold, couleur: Teinte.encre),
                                        ressort, puce(texte)])
         pile.orientation = .horizontal
         pile.alignment = .centerY
@@ -291,18 +348,6 @@ enum Gabarit {
         return v
     }
 
-    static func masqueArrondi(rayon: CGFloat) -> NSImage {
-        let cote = rayon * 2 + 1
-        let image = NSImage(size: NSSize(width: cote, height: cote), flipped: false) { r in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: r, xRadius: rayon, yRadius: rayon).fill()
-            return true
-        }
-        image.capInsets = NSEdgeInsets(top: rayon, left: rayon, bottom: rayon, right: rayon)
-        image.resizingMode = .stretch
-        return image
-    }
-
     /// Dossier des captures de test (`DEDALE_CAPTURE`), ou `nil`.
     static var dossierCapture: URL? {
         guard let d = ProcessInfo.processInfo.environment["DEDALE_CAPTURE"], !d.isEmpty else { return nil }
@@ -310,12 +355,12 @@ enum Gabarit {
     }
 
     /// Écrit `<nom>.png` de la vue dans `DEDALE_CAPTURE`, après `delai` secondes.
-    static func capturer(_ vue: NSView, nom: String, delai: Double = 0.6) {
+    static func capturer(_ vue: NSView, nom: String, delai: Double = 0.6, rayon: CGFloat = Rayon.fenetre) {
         guard let dossier = dossierCapture else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + delai) { [weak vue] in
             guard let vue else { return }
             let url = dossier.appendingPathComponent("\(nom).png")
-            if Capture.ecrire(vue, vers: url) { journal("capture écrite : \(url.path)") }
+            if Capture.ecrire(vue, vers: url, rayon: rayon) { journal("capture écrite : \(url.path)") }
         }
     }
 }
@@ -323,8 +368,7 @@ enum Gabarit {
 // MARK: - Capture en PNG
 
 enum Capture {
-    /// Rend la vue (et ses calques) sur un fond clair façon bureau, avec une ombre douce.
-    /// Le flou du verre n'apparaît pas dans ce rendu : seul le voile blanc est dessiné.
+    /// Rend la vue (et ses calques) sur une toile gris clair, avec l'ombre diffuse de la console.
     @discardableResult
     static func ecrire(_ vue: NSView, vers url: URL, rayon: CGFloat = Gabarit.rayon) -> Bool {
         guard let couche = vue.layer else { return false }
@@ -354,17 +398,28 @@ enum Capture {
         ctx.scaleBy(x: echelle, y: echelle)
         let toile = CGRect(x: 0, y: 0, width: taille.width + marge * 2, height: taille.height + marge * 2)
         if let degrade = CGGradient(colorsSpace: espace,
-                                    colors: [NSColor(hex: 0xF6F7F9).cgColor, NSColor(hex: 0xE6EAF0).cgColor] as CFArray,
+                                    colors: [Teinte.puits.cgColor, Teinte.puce.cgColor] as CFArray,
                                     locations: [0, 1]) {
             ctx.drawLinearGradient(degrade, start: CGPoint(x: 0, y: toile.maxY), end: CGPoint(x: toile.maxX, y: 0), options: [])
         }
         let carte = CGRect(x: marge, y: marge, width: taille.width, height: taille.height)
         let chemin = CGPath(roundedRect: carte, cornerWidth: rayon, cornerHeight: rayon, transform: nil)
+        // --ombre-haute : une ombre proche, une ombre large, puis le liseré.
+        for o in [Ombre.proche, Ombre.haute] {
+            ctx.saveGState()
+            ctx.setShadow(offset: CGSize(width: 0, height: -o.decalage), blur: o.flou,
+                          color: NSColor(srgbRed: 0, green: 0, blue: 0, alpha: o.opacite).cgColor)
+            ctx.addPath(chemin)
+            ctx.setFillColor(Teinte.fond.cgColor)
+            ctx.fillPath()
+            ctx.restoreGState()
+        }
         ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 36, color: NSColor(white: 0.05, alpha: 0.16).cgColor)
-        ctx.addPath(chemin)
-        ctx.setFillColor(NSColor(hex: 0xFBFCFD).cgColor)
-        ctx.fillPath()
+        ctx.addPath(CGPath(roundedRect: carte.insetBy(dx: -0.5, dy: -0.5), cornerWidth: rayon + 0.5,
+                           cornerHeight: rayon + 0.5, transform: nil))
+        ctx.setStrokeColor(Ombre.liseré.cgColor)
+        ctx.setLineWidth(1)
+        ctx.strokePath()
         ctx.restoreGState()
 
         ctx.saveGState()
@@ -406,13 +461,13 @@ enum Capture {
         }.max() ?? 240
         let largeur = min(max(240, ceil(plusLong)), 560)
         let hauteur = items.reduce(marge * 2) { $0 + ($1.isSeparatorItem ? hSeparateur : hLigne) }
-        return ecrire(taille: NSSize(width: largeur, height: hauteur), rayon: 10, vers: url) { ctx in
+        return ecrire(taille: NSSize(width: largeur, height: hauteur), rayon: Rayon.petit, vers: url) { ctx in
             let graphique = NSGraphicsContext(cgContext: ctx, flipped: true)
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = graphique
             ctx.translateBy(x: 0, y: hauteur)
             ctx.scaleBy(x: 1, y: -1)
-            NSColor(white: 1, alpha: 0.96).setFill()
+            Teinte.fond.setFill()
             NSBezierPath(rect: NSRect(x: 0, y: 0, width: largeur, height: hauteur)).fill()
             var y = marge
             for item in items {

@@ -6,6 +6,10 @@ Ce que l'app regarde sur le Mac se limite à trois choses : l'adresse de l'ongle
 
 ![Mail frauduleux](captures/mail.png)
 
+## Apparence
+
+L'app reprend le système visuel de la console SOC : police système, gris partout, une couleur seulement quand elle a un sens (rouge pour le danger, orange pour ce qui attend une décision, vert pour ce qui est réglé), boutons en pilule avec le bouton principal noir et le secondaire en contour, cartes blanches aux coins de 18 à 20 points et au bord fin. Tous ces jetons sont dans `Sources/Dedale/Theme.swift`, avec le nom de la variable CSS de la console en regard. La console n'a qu'un thème clair : les fenêtres et le menu restent clairs quand macOS est en mode sombre. Captures avant et après, à côté de la console : `../captures/app-theme/`.
+
 ## Lancer
 
 Il faut macOS 13 ou plus et Swift 5.9 ou plus (Xcode ou les outils en ligne de commande).
@@ -194,6 +198,7 @@ L'événement envoyé suit `CONTRATS.md`, avenant « humain » : `source: humain
 | `DEDALE_SITES` | `off` coupe la veille des sites (sinon, l'interrupteur « Sites » du panneau) |
 | `DEDALE_REGLES_SITES` | fichier de règles des sites à la place de celui rangé dans `Dedale.app` |
 | `DEDALE_SITES_ESSAI` | adresses à ouvrir dans une nouvelle fenêtre Safari, séparées par des espaces (essai réel) |
+| `DEDALE_SITES_SIMULE` | adresses passées au moteur des sites comme si Safari les affichait, sans lire ni piloter de navigateur, même avec `DEDALE_SITES=off` (captures de la pop-up) |
 
 Elles se passent au binaire : `DEDALE_CLIC_AUTO=voir,annuler,compris ./Dedale.app/Contents/MacOS/Dedale`.
 
@@ -238,7 +243,7 @@ Lancé depuis `.build/release/`, le binaire n'a pas d'identifiant de paquet : il
 - Sans backend, la pop-up s'affiche quand même et l'app tient, mais l'événement est perdu : il n'y a pas de file de renvoi. Un geste critique est alors refusé.
 - Une décision du SOC qui arrive après le délai des quatre yeux ne change plus rien sur le poste. Dans `/api/mesures`, la demande compte comme un geste passé outre, même refusée.
 - Entrée et Échap valent Annuler, une seconde après l'apparition seulement, pour qu'une frappe en cours dans une autre fenêtre ne ferme pas l'alerte. Dans le coach, ils valent Compris.
-- Les PNG sont rendus par l'app : le flou du verre n'y apparaît pas, seulement le voile blanc. Le menu est redessiné à partir de ses lignes, ce n'est pas une capture d'écran du système.
+- Les PNG sont rendus par l'app, posés sur une toile gris clair. Le menu est redessiné à partir de ses lignes, ce n'est pas une capture d'écran du système.
 - L'app est signée ad hoc. Copiée sur un autre Mac, elle s'ouvre par clic droit, Ouvrir.
 - Sites : l'app réagit après coup, jusqu'à une seconde après l'arrivée de l'adresse dans l'onglet (deux relevés dans Chrome). La page a le temps de commencer à se charger, contrairement aux sosies d'Orbis Pay que l'extension bloque avant la requête. Seuls Safari et Chrome sont lus, et seulement la fenêtre de devant.
 - Sites : le retour arrière de Safari recharge la dernière page sûre vue dans l'onglet, ce n'est pas un vrai retour dans l'historique. Sans page connue, l'onglet se ferme.

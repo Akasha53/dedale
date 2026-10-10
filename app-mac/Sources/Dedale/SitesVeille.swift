@@ -78,6 +78,11 @@ final class SitesVeille {
         ligne.isEnabled = false
         let index = menu.index(of: apres)
         menu.insertItem(ligne, at: index >= 0 ? index + 1 : menu.numberOfItems)
+        if let liste = ProcessInfo.processInfo.environment["DEDALE_SITES_SIMULE"], !liste.isEmpty, moteur != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                self?.essaiSimule(liste.split(separator: " ").map(String.init), rang: 0)
+            }
+        }
         guard actif else {
             majLigne("Sites : veille coupée (DEDALE_SITES=off)", couleur: Teinte.gris)
             return
@@ -88,14 +93,14 @@ final class SitesVeille {
             return
         }
         journal("sites : règles lues dans \(fichierRegles?.path ?? "?"), session \(sessionId)")
-        majLigne(nil, couleur: Teinte.cyan)
+        majLigne(nil, couleur: Teinte.ok)
         observateur = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.premierPlanChange() }
         NotificationCenter.default.addObserver(forName: ReglagesModules.changement, object: ModulePoste.sites,
                                                queue: .main) { [weak self] _ in
             let allume = ReglagesModules.partage.actif(.sites)
-            self?.majLigne(allume ? nil : "Sites : coupé", couleur: allume ? Teinte.cyan : Teinte.gris)
+            self?.majLigne(allume ? nil : "Sites : coupé", couleur: allume ? Teinte.ok : Teinte.gris)
             self?.premierPlanChange()
         }
         if !ReglagesModules.partage.actif(.sites) { majLigne("Sites : coupé", couleur: Teinte.gris) }
@@ -163,6 +168,20 @@ final class SitesVeille {
         }
     }
 
+    /// DEDALE_SITES_SIMULE : adresses passées au moteur comme si Safari les affichait, une par
+    /// une (la suivante quand la pop-up s'est refermée). Aucun navigateur n'est lu ni piloté,
+    /// même avec DEDALE_SITES=off : sert aux captures de la pop-up sans autorisation macOS.
+    private func essaiSimule(_ adresses: [String], rang: Int) {
+        guard rang < adresses.count else { return }
+        guard fenetre == nil else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.essaiSimule(adresses, rang: rang) }
+            return
+        }
+        journal("essai simulé : \(MoteurSites.decomposer(adresses[rang]).hote)")
+        examiner(OngletLu(navigateur: .safari, adresse: adresses[rang], fenetre: -1, onglet: rang))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.essaiSimule(adresses, rang: rang + 1) }
+    }
+
     func etat() -> [String: Any] {
         var permissions: [String: String] = [:]
         for n in Navigateur.allCases { permissions[n.nom.lowercased()] = lecteur.permission(n).rawValue }
@@ -213,9 +232,9 @@ final class SitesVeille {
                 guard let self else { return }
                 if p == .refusee {
                     self.majLigne("Sites : autorisez Dédale pour \(n.nom) (Réglages Système, Automatisation)",
-                                  couleur: Teinte.rouge)
+                                  couleur: Teinte.orange)
                 } else if p == .accordee {
-                    self.majLigne(nil, couleur: Teinte.cyan)
+                    self.majLigne(nil, couleur: Teinte.ok)
                 }
             }
             return
@@ -316,6 +335,8 @@ final class SitesVeille {
     }
 
     private func revenir(_ o: OngletLu, domaine: String) {
+        // Onglet simulé (DEDALE_SITES_SIMULE) : aucun navigateur à ramener en arrière.
+        guard o.fenetre >= 0 else { return }
         let sure = pagesSures[o.cle].flatMap { Date().timeIntervalSince($0.date) < 900 ? $0.adresse : nil }
         journal("sites : retour arrière dans \(o.navigateur.nom)" + (sure == nil && o.navigateur == .safari ? " (fermeture de l'onglet)" : ""))
         lecteur.revenir(o, pageSure: sure) { [weak self] actuelle in

@@ -3,60 +3,49 @@ import AppKit
 // MARK: - Briques des panneaux du poste
 
 enum Coque {
-    /// Double coque : un plateau gris clair au bord fin, et dedans une carte blanche aux coins
-    /// concentriques. `contenu` remplit la carte avec `marge` points autour.
-    static func creer(_ contenu: NSView, marge: NSEdgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 14, right: 16),
-                      rayon: CGFloat = 16) -> NSView {
-        let coque = NSView()
-        coque.wantsLayer = true
-        coque.layer?.backgroundColor = Teinte.puce.cgColor
-        coque.layer?.cornerRadius = rayon
-        coque.layer?.borderWidth = 1
-        coque.layer?.borderColor = Teinte.bord.withAlphaComponent(0.7).cgColor
-        let coeur = NSView()
-        coeur.wantsLayer = true
-        coeur.layer?.backgroundColor = NSColor.white.cgColor
-        coeur.layer?.cornerRadius = rayon - 4
-        coeur.layer?.shadowColor = NSColor(white: 0.05, alpha: 1).cgColor
-        coeur.layer?.shadowOpacity = 0.05
-        coeur.layer?.shadowRadius = 8
-        coeur.layer?.shadowOffset = CGSize(width: 0, height: -1)
-        for (parent, enfant, m) in [(coque, coeur, NSEdgeInsets(top: 4, left: 4, bottom: 4, right: 4)), (coeur, contenu, marge)] {
-            enfant.translatesAutoresizingMaskIntoConstraints = false
-            parent.addSubview(enfant)
-            NSLayoutConstraint.activate([
-                enfant.leadingAnchor.constraint(equalTo: parent.leadingAnchor, constant: m.left),
-                enfant.trailingAnchor.constraint(equalTo: parent.trailingAnchor, constant: -m.right),
-                enfant.topAnchor.constraint(equalTo: parent.topAnchor, constant: m.top),
-                enfant.bottomAnchor.constraint(equalTo: parent.bottomAnchor, constant: -m.bottom),
-            ])
-        }
-        return coque
+    /// Carte blanche au bord fin et aux coins de 18 points, comme une carte d'agent dans la
+    /// console (`.inv-carte`) : une seule enveloppe, sans ombre. `contenu` la remplit avec
+    /// `marge` points autour.
+    static func creer(_ contenu: NSView, marge: NSEdgeInsets = NSEdgeInsets(top: 16, left: 18, bottom: 16, right: 18),
+                      rayon: CGFloat = Rayon.carte) -> NSView {
+        let carte = NSView()
+        carte.wantsLayer = true
+        carte.layer?.backgroundColor = Teinte.fond.cgColor
+        carte.layer?.cornerRadius = rayon
+        carte.layer?.borderWidth = 1
+        carte.layer?.borderColor = Teinte.bord.cgColor
+        contenu.translatesAutoresizingMaskIntoConstraints = false
+        carte.addSubview(contenu)
+        NSLayoutConstraint.activate([
+            contenu.leadingAnchor.constraint(equalTo: carte.leadingAnchor, constant: marge.left),
+            contenu.trailingAnchor.constraint(equalTo: carte.trailingAnchor, constant: -marge.right),
+            contenu.topAnchor.constraint(equalTo: carte.topAnchor, constant: marge.top),
+            contenu.bottomAnchor.constraint(equalTo: carte.bottomAnchor, constant: -marge.bottom),
+        ])
+        return carte
     }
 
-    /// Pilule de texte : neutre (gris), risque (rouge pâle) ou accent (cyan pâle).
+    /// Pilule de texte, comme les puces de la console : neutre (gris pâle), risque (rouge
+    /// pâle, comme « Droits en trop ») ou accent (gris plus marqué, texte noir).
     enum Ton { case neutre, risque, accent }
 
     static func pilule(_ texte: String, ton: Ton = .neutre, symbole: String? = nil) -> NSView {
-        let fond = NSView()
+        let fond = FondPilule()
         fond.wantsLayer = true
-        let (bg, bord, encre): (NSColor, NSColor, NSColor)
+        let (bg, encre): (NSColor, NSColor)
         switch ton {
-        case .neutre: (bg, bord, encre) = (Teinte.puce, Teinte.bord, Teinte.texte)
-        case .risque: (bg, bord, encre) = (Teinte.rougeFond, Teinte.rougeBord, Teinte.rouge)
-        case .accent: (bg, bord, encre) = (Teinte.cyan.withAlphaComponent(0.12), Teinte.cyan.withAlphaComponent(0.35), Teinte.cyanFonce)
+        case .neutre: (bg, encre) = (Teinte.puce, Teinte.texte)
+        case .risque: (bg, encre) = (Teinte.rougeFond, Teinte.rouge)
+        case .accent: (bg, encre) = (Teinte.actif, Teinte.encre)
         }
         fond.layer?.backgroundColor = bg.cgColor
-        fond.layer?.cornerRadius = 10
-        fond.layer?.borderWidth = 1
-        fond.layer?.borderColor = bord.cgColor
         var vues: [NSView] = []
         if let symbole { vues.append(Gabarit.icone(symbole, taille: 9, couleurs: [encre], cote: 11)) }
-        vues.append(Gabarit.etiquette(texte, taille: 11, graisse: .medium, couleur: encre))
+        vues.append(Gabarit.etiquette(texte, taille: Taille.puce, couleur: encre))
         let pile = NSStackView(views: vues)
         pile.orientation = .horizontal
         pile.spacing = 4
-        pile.edgeInsets = NSEdgeInsets(top: 3, left: 9, bottom: 3, right: 9)
+        pile.edgeInsets = NSEdgeInsets(top: 2, left: 9, bottom: 2, right: 9)
         pile.translatesAutoresizingMaskIntoConstraints = false
         fond.addSubview(pile)
         NSLayoutConstraint.activate([
@@ -94,57 +83,108 @@ enum Coque {
         return colonne
     }
 
-    /// Petite étiquette en capitales espacées, au-dessus d'un texte.
+    /// Petit libellé au-dessus d'un texte : casse normale, gris, comme les libellés de la
+    /// console (`.ag-lib`, `.inv-faits dt`).
     static func surtitre(_ texte: String) -> NSTextField {
-        let t = NSTextField(labelWithString: "")
-        t.attributedStringValue = NSAttributedString(string: texte.uppercased(), attributes: [
-            .font: NSFont.systemFont(ofSize: 9.5, weight: .semibold),
-            .foregroundColor: Teinte.discret,
-            .kern: 0.9,
-        ])
-        return t
+        Gabarit.etiquette(texte, taille: Taille.pastille, graisse: .medium, couleur: Teinte.discret)
     }
 
     /// Bouton de fermeture discret, en haut à droite d'un panneau.
     static func boutonFermer(cible: AnyObject, action: Selector) -> NSButton {
-        let b = NSButton(image: Gabarit.symbole("xmark", taille: 10, couleurs: [Teinte.discret]) ?? NSImage(),
-                         target: cible, action: action)
-        b.isBordered = false
-        b.wantsLayer = true
-        b.layer?.cornerRadius = 11
-        b.layer?.backgroundColor = Teinte.puce.cgColor
-        b.translatesAutoresizingMaskIntoConstraints = false
-        b.widthAnchor.constraint(equalToConstant: 22).isActive = true
-        b.heightAnchor.constraint(equalToConstant: 22).isActive = true
-        return b
+        BoutonIcone(symbole: "xmark", cible: cible, action: action)
     }
 }
 
-/// Fenêtre d'un panneau du poste : carte en verre clair, au centre de l'écran, fermée par
-/// Échap ou par son bouton. `racine` reçoit le contenu.
+/// Fenêtre d'un panneau du poste : carte blanche de la console, au centre de la zone visible
+/// de l'écran, fermée par Échap ou par son bouton. L'en-tête et le pied restent fixes ; le corps
+/// défile quand le panneau dépasserait 85 % de la hauteur visible.
 class FenetrePanneau: NSObject {
+    /// Part de la hauteur visible de l'écran que le panneau peut prendre.
+    static let partEcran: CGFloat = 0.85
+
     let racine = NSView()
     let panneau: PanneauAlerte
     let largeur: CGFloat
     var surFermeture: (() -> Void)?
 
+    private var colonne: NSStackView?
+    private var corps: NSView?
+    private var defile: NSScrollView?
+    private var hauteurDefile: NSLayoutConstraint?
+    private var filets: [NSView] = []
+    private var positionAGarder: NSPoint?
+
     init(largeur: CGFloat) {
         self.largeur = largeur
-        panneau = PanneauAlerte.carte(largeur: largeur, racine: racine, rayon: 18)
+        panneau = PanneauAlerte.carte(largeur: largeur, racine: racine)
         super.init()
         panneau.surEchap = { [weak self] in self?.fermer() }
     }
 
-    func poser(_ pile: NSStackView) {
-        pile.translatesAutoresizingMaskIntoConstraints = false
-        racine.subviews.filter { $0 is NSStackView }.forEach { $0.removeFromSuperview() }
-        racine.addSubview(pile)
+    /// Pose l'en-tête (fixe), le corps (qui défile s'il le faut) et le pied (fixe). Les trois
+    /// font `largeur - 56` points de large ; les marges sont posées ici.
+    func poser(tete: NSView, corps: NSStackView, pied: NSView) {
+        positionAGarder = defile?.contentView.bounds.origin
+        colonne?.removeFromSuperview()
+
+        let haut = NSStackView(views: [tete])
+        haut.edgeInsets = NSEdgeInsets(top: 24, left: 28, bottom: 16, right: 28)
+        let bas = NSStackView(views: [pied])
+        bas.edgeInsets = NSEdgeInsets(top: 14, left: 28, bottom: 22, right: 28)
+        corps.edgeInsets = NSEdgeInsets(top: 2, left: 28, bottom: 4, right: 28)
+
+        let doc = VueRetournee()
+        doc.translatesAutoresizingMaskIntoConstraints = false
+        corps.translatesAutoresizingMaskIntoConstraints = false
+        doc.addSubview(corps)
+        let defile = NSScrollView()
+        defile.drawsBackground = false
+        defile.borderType = .noBorder
+        defile.hasVerticalScroller = true
+        defile.autohidesScrollers = true
+        defile.scrollerStyle = .overlay
+        defile.documentView = doc
+        defile.translatesAutoresizingMaskIntoConstraints = false
+        let hauteur = defile.heightAnchor.constraint(equalToConstant: 100)
         NSLayoutConstraint.activate([
-            pile.leadingAnchor.constraint(equalTo: racine.leadingAnchor),
-            pile.trailingAnchor.constraint(equalTo: racine.trailingAnchor),
-            pile.topAnchor.constraint(equalTo: racine.topAnchor),
-            pile.bottomAnchor.constraint(equalTo: racine.bottomAnchor),
+            corps.leadingAnchor.constraint(equalTo: doc.leadingAnchor),
+            corps.trailingAnchor.constraint(equalTo: doc.trailingAnchor),
+            corps.topAnchor.constraint(equalTo: doc.topAnchor),
+            corps.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
+            doc.leadingAnchor.constraint(equalTo: defile.contentView.leadingAnchor),
+            doc.trailingAnchor.constraint(equalTo: defile.contentView.trailingAnchor),
+            doc.topAnchor.constraint(equalTo: defile.contentView.topAnchor),
+            hauteur,
         ])
+
+        // Filets fins au-dessus et au-dessous du corps, visibles seulement quand il défile.
+        let filets = (0..<2).map { _ -> NSView in
+            let f = NSView()
+            f.wantsLayer = true
+            f.layer?.backgroundColor = Teinte.bord.cgColor
+            f.heightAnchor.constraint(equalToConstant: 1).isActive = true
+            return f
+        }
+        let colonne = NSStackView(views: [haut, filets[0], defile, filets[1], bas])
+        colonne.orientation = .vertical
+        colonne.alignment = .leading
+        colonne.spacing = 0
+        colonne.translatesAutoresizingMaskIntoConstraints = false
+        racine.addSubview(colonne)
+        NSLayoutConstraint.activate([
+            colonne.leadingAnchor.constraint(equalTo: racine.leadingAnchor),
+            colonne.trailingAnchor.constraint(equalTo: racine.trailingAnchor),
+            colonne.topAnchor.constraint(equalTo: racine.topAnchor),
+            colonne.bottomAnchor.constraint(equalTo: racine.bottomAnchor),
+        ])
+        for v in [haut, filets[0], defile, filets[1], bas] as [NSView] {
+            v.widthAnchor.constraint(equalToConstant: largeur).isActive = true
+        }
+        self.colonne = colonne
+        self.corps = corps
+        self.defile = defile
+        self.hauteurDefile = hauteur
+        self.filets = filets
     }
 
     func montrer(capture: String) {
@@ -154,31 +194,55 @@ class FenetrePanneau: NSObject {
             panneau.makeKeyAndOrderFront(nil)
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.22
-                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.32, 0.72, 0, 1)
+                ctx.timingFunction = Courbe.fluide
                 panneau.animator().alphaValue = 1
             }
         }
         Gabarit.capturer(racine, nom: capture, delai: 0.8)
     }
 
+    /// Taille le panneau : au plus 85 % de la hauteur visible, le corps défile au-delà.
+    /// Centré dans la zone visible à l'ouverture, puis le haut reste en place.
     func ajuster(centrer: Bool) {
+        guard let corps, let defile, let hauteurDefile, let colonne else { return }
         racine.layoutSubtreeIfNeeded()
+        let visible = Ecran.visible
+        let besoin = ceil(corps.fittingSize.height)
+        let fixe = colonne.arrangedSubviews.filter { $0 !== defile }.reduce(CGFloat(0)) { $0 + $1.fittingSize.height }
+        let plafond = min(floor(visible.height * Self.partEcran), Ecran.zone.height)
+        let hauteur = max(80, min(besoin, plafond - fixe))
+        let defilant = besoin > hauteur
+        hauteurDefile.constant = hauteur
+        filets.forEach { $0.alphaValue = defilant ? 1 : 0 }
+        racine.layoutSubtreeIfNeeded()
+        if let p = positionAGarder {
+            defile.contentView.scroll(to: NSPoint(x: 0, y: min(p.y, max(0, besoin - hauteur))))
+            defile.reflectScrolledClipView(defile.contentView)
+            positionAGarder = nil
+        }
+
         let taille = NSSize(width: largeur, height: ceil(racine.fittingSize.height))
         var cadre = panneau.frame
-        if centrer, let ecran = NSScreen.main?.visibleFrame {
-            cadre.origin.x = ecran.midX - taille.width / 2
-            cadre.origin.y = ecran.minY + ecran.height * 0.55 - taille.height / 2
+        if centrer {
+            let zone = Ecran.zone
+            cadre.origin.x = zone.midX - taille.width / 2
+            cadre.origin.y = zone.midY - taille.height / 2
         } else {
             cadre.origin.y = cadre.maxY - taille.height
         }
         cadre.size = taille
+        cadre = Ecran.borner(cadre)
         panneau.setFrame(cadre, display: true)
         panneau.invalidateShadow()
+        journal("panneau : \(Int(taille.width))×\(Int(taille.height)) points sur une zone visible de "
+                + "\(Int(visible.width))×\(Int(visible.height)), corps \(Int(besoin)) points"
+                + (defilant ? ", défile" : ", sans défilement"))
     }
 
     @objc func fermer() {
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.18
+            ctx.duration = 0.2
+            ctx.timingFunction = Courbe.fluide
             panneau.animator().alphaValue = 0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [self] in
@@ -187,14 +251,14 @@ class FenetrePanneau: NSObject {
         }
     }
 
-    /// En-tête : badge bouclier, titre, sous-titre, bouton de fermeture.
+    /// En-tête : marque, titre, sous-titre, bouton de fermeture.
     func entete(titre: String, sousTitre: String) -> NSView {
-        // Largeur utile moins le badge (28), le bouton (22) et trois espaces de 12.
-        let largeurTexte = largeur - 56 - 28 - 22 - 36 - 8
-        let sous = Gabarit.paragraphe(sousTitre, taille: 12, couleur: Teinte.discret, largeur: largeurTexte)
+        // Largeur utile moins la marque (28), le bouton (28) et trois espaces de 12.
+        let largeurTexte = largeur - 56 - 28 - 28 - 36 - 2
+        let sous = Gabarit.paragraphe(sousTitre, taille: Taille.libelle, couleur: Teinte.discret, largeur: largeurTexte)
         sous.widthAnchor.constraint(equalToConstant: largeurTexte).isActive = true
         let textes = NSStackView(views: [
-            Gabarit.etiquette(titre, taille: 15, graisse: .semibold, couleur: Teinte.encre), sous,
+            Gabarit.etiquette(titre, taille: Taille.titrePanneau, graisse: .semibold, couleur: Teinte.encre), sous,
         ])
         textes.orientation = .vertical
         textes.alignment = .leading
@@ -217,7 +281,11 @@ final class FenetreTransparence: FenetrePanneau {
     var etatModule: ((ModulePoste) -> String)?
     var piedDePage: String = ""
 
-    init() { super.init(largeur: 560) }
+    /// Large de 880 points quand l'écran le permet : les quatre modules tiennent alors en deux
+    /// colonnes et le panneau défile à peine, même sur un écran de 13 pouces.
+    init() { super.init(largeur: min(880, max(560, Ecran.zone.width))) }
+
+    private var deuxColonnes: Bool { largeur >= 760 }
 
     func afficher() {
         construire()
@@ -233,60 +301,71 @@ final class FenetreTransparence: FenetrePanneau {
 
     private func construire() {
         let w = largeur - 56
-        let pile = NSStackView()
-        pile.orientation = .vertical
-        pile.alignment = .leading
-        pile.spacing = 10
-        pile.edgeInsets = NSEdgeInsets(top: 24, left: 28, bottom: 22, right: 28)
-
         let tete = entete(titre: "Ce que Dédale regarde sur ce poste",
                           sousTitre: "Chaque module se coupe ici. Coupé, il ne lit et n'envoie plus rien.")
-        pile.addArrangedSubview(tete)
         tete.widthAnchor.constraint(equalToConstant: w).isActive = true
-        pile.setCustomSpacing(18, after: tete)
 
-        for m in ModulePoste.allCases {
-            let carte = carteModule(m, largeur: w)
-            pile.addArrangedSubview(carte)
-            carte.widthAnchor.constraint(equalToConstant: w).isActive = true
+        let corps = NSStackView()
+        corps.orientation = .vertical
+        corps.alignment = .leading
+        corps.spacing = 12
+        let modules = ModulePoste.allCases
+        if deuxColonnes {
+            // Deux cartes par rangée, de même hauteur.
+            let lc = floor((w - 12) / 2)
+            for i in stride(from: 0, to: modules.count, by: 2) {
+                let cartes = modules[i..<min(i + 2, modules.count)].map { carteModule($0, largeur: lc) }
+                let rangee = NSStackView(views: cartes)
+                rangee.orientation = .horizontal
+                rangee.alignment = .top
+                rangee.spacing = 12
+                for c in cartes { c.widthAnchor.constraint(equalToConstant: lc).isActive = true }
+                if cartes.count == 2 { cartes[0].heightAnchor.constraint(equalTo: cartes[1].heightAnchor).isActive = true }
+                corps.addArrangedSubview(rangee)
+                rangee.widthAnchor.constraint(equalToConstant: w).isActive = true
+            }
+        } else {
+            for m in modules {
+                let carte = carteModule(m, largeur: w)
+                corps.addArrangedSubview(carte)
+                carte.widthAnchor.constraint(equalToConstant: w).isActive = true
+            }
         }
-        if let derniere = pile.arrangedSubviews.last { pile.setCustomSpacing(18, after: derniere) }
-
+        if let derniere = corps.arrangedSubviews.last { corps.setCustomSpacing(16, after: derniere) }
         let jamais = carteJamais(largeur: w)
-        pile.addArrangedSubview(jamais)
+        corps.addArrangedSubview(jamais)
         jamais.widthAnchor.constraint(equalToConstant: w).isActive = true
-        pile.setCustomSpacing(16, after: jamais)
 
         let bouton = BoutonDedale(titre: "Fermer", style: .neutre, cible: self, action: #selector(fermer))
         bouton.widthAnchor.constraint(equalToConstant: 96).isActive = true
-        let pied = NSStackView(views: [Gabarit.etiquette(piedDePage, taille: 11, couleur: Teinte.discret),
+        let pied = NSStackView(views: [Gabarit.etiquette(piedDePage, taille: Taille.note, couleur: Teinte.discret),
                                        Gabarit.ressort(), bouton])
         pied.orientation = .horizontal
         pied.alignment = .centerY
-        pile.addArrangedSubview(pied)
         pied.widthAnchor.constraint(equalToConstant: w).isActive = true
-        poser(pile)
+        poser(tete: tete, corps: corps, pied: pied)
     }
 
     private func carteModule(_ m: ModulePoste, largeur w: CGFloat) -> NSView {
         let actif = ReglagesModules.partage.actif(m)
-        let interieur = w - 40
+        let interieur = w - 36  // marges de la carte : 18 + 18
 
         let tuile = NSView()
         tuile.wantsLayer = true
-        tuile.layer?.cornerRadius = 9
-        tuile.layer?.backgroundColor = (actif ? Teinte.cyan.withAlphaComponent(0.14) : Teinte.puce).cgColor
+        tuile.layer?.cornerRadius = Rayon.tuile
+        tuile.layer?.backgroundColor = Teinte.puce.cgColor
         tuile.translatesAutoresizingMaskIntoConstraints = false
-        let icone = Gabarit.icone(m.symbole, taille: 14, couleurs: [actif ? Teinte.cyanFonce : Teinte.discret])
+        let icone = Gabarit.icone(m.symbole, taille: 14, couleurs: [actif ? Teinte.encre : Teinte.gris])
         tuile.addSubview(icone)
         NSLayoutConstraint.activate([
             tuile.widthAnchor.constraint(equalToConstant: 32), tuile.heightAnchor.constraint(equalToConstant: 32),
             icone.centerXAnchor.constraint(equalTo: tuile.centerXAnchor),
             icone.centerYAnchor.constraint(equalTo: tuile.centerYAnchor),
         ])
-        let titre = Gabarit.etiquette(m.titre, taille: 14, graisse: .semibold, couleur: Teinte.encre)
-        let etat = Gabarit.etiquette(actif ? (etatModule?(m) ?? "Actif") : "Coupé", taille: 11,
-                                     couleur: actif ? Teinte.discret : Teinte.rouge)
+        let titre = Gabarit.etiquette(m.titre, taille: Taille.titreCarte, graisse: .semibold, couleur: Teinte.encre)
+        // Coupé : orange, comme ce qui attend une décision dans la console.
+        let etat = Gabarit.etiquette(actif ? (etatModule?(m) ?? "Actif") : "Coupé", taille: Taille.note,
+                                     couleur: actif ? Teinte.discret : Teinte.orange)
         let textes = NSStackView(views: [titre, etat])
         textes.orientation = .vertical
         textes.alignment = .leading
@@ -303,7 +382,7 @@ final class FenetreTransparence: FenetrePanneau {
 
         func bloc(_ libelle: String, _ texte: String) -> NSView {
             let p = NSStackView(views: [Coque.surtitre(libelle),
-                                        Gabarit.paragraphe(texte, taille: 12, couleur: actif ? Teinte.texte : Teinte.discret,
+                                        Gabarit.paragraphe(texte, taille: Taille.libelle, couleur: actif ? Teinte.texte : Teinte.discret,
                                                            largeur: (interieur - 16) / 2)])
             p.orientation = .vertical
             p.alignment = .leading
@@ -330,14 +409,14 @@ final class FenetreTransparence: FenetrePanneau {
     private func carteJamais(largeur w: CGFloat) -> NSView {
         let titre = NSStackView(views: [
             Gabarit.icone("eye.slash", taille: 13, couleurs: [Teinte.encre], cote: 18),
-            Gabarit.etiquette("Ce que Dédale ne lit jamais", taille: 13, graisse: .semibold, couleur: Teinte.encre),
+            Gabarit.etiquette("Ce que Dédale ne lit jamais", taille: Taille.titreCarte, graisse: .semibold, couleur: Teinte.encre),
         ])
         titre.orientation = .horizontal
         titre.spacing = 6
         let pilules = ModulePoste.jamais.map { Coque.pilule($0, symbole: "nosign") }
-        let rangees = Coque.rangees(pilules, largeur: w - 40)
+        let rangees = Coque.rangees(pilules, largeur: w - 36)
         let note = Gabarit.paragraphe("L'app ne demande aucune autorisation d'enregistrer l'écran ou de suivre le clavier.",
-                                      taille: 11, couleur: Teinte.discret, largeur: w - 40)
+                                      taille: Taille.note, couleur: Teinte.discret, largeur: w - 36)
         let contenu = NSStackView(views: [titre, rangees, note])
         contenu.orientation = .vertical
         contenu.alignment = .leading
@@ -370,8 +449,8 @@ final class FenetreTransparence: FenetrePanneau {
 
 // MARK: - Interrupteur
 
-/// Interrupteur aux couleurs de Dédale : piste cyan allumé, grise éteint, pastille blanche qui
-/// glisse. Dessiné en calques, il garde sa couleur même quand l'app n'est pas au premier plan
+/// Interrupteur aux couleurs de la console : piste noire allumé, gris clair éteint, pastille
+/// blanche qui glisse. Dessiné en calques, il garde sa couleur même quand l'app n'est pas au premier plan
 /// (un NSSwitch y devient gris dans les deux positions).
 final class Interrupteur: NSControl {
     private(set) var allume: Bool
@@ -390,8 +469,8 @@ final class Interrupteur: NSControl {
         piste.cornerRadius = Self.taille.height / 2
         pastille.frame = CGRect(x: 2, y: 2, width: 18, height: 18)
         pastille.cornerRadius = 9
-        pastille.backgroundColor = NSColor.white.cgColor
-        pastille.shadowColor = NSColor.black.cgColor
+        pastille.backgroundColor = Teinte.fond.cgColor
+        pastille.shadowColor = Teinte.encre.cgColor
         pastille.shadowOpacity = 0.18
         pastille.shadowRadius = 1.5
         pastille.shadowOffset = CGSize(width: 0, height: -0.5)
@@ -419,8 +498,8 @@ final class Interrupteur: NSControl {
         CATransaction.begin()
         CATransaction.setDisableActions(!anime)
         CATransaction.setAnimationDuration(0.2)
-        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(controlPoints: 0.32, 0.72, 0, 1))
-        piste.backgroundColor = (allume ? Teinte.cyan : NSColor(hex: 0xD5D9E0)).cgColor
+        CATransaction.setAnimationTimingFunction(Courbe.fluide)
+        piste.backgroundColor = (allume ? Teinte.encre : Teinte.eteint).cgColor
         pastille.frame.origin.x = allume ? Self.taille.width - 20 : 2
         CATransaction.commit()
     }

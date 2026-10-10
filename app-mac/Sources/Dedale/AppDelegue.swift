@@ -75,6 +75,8 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.autoenablesItems = false
         menu.delegate = self
+        // La console n'a qu'un thème clair : le menu aussi, même en mode sombre.
+        for m in [menu, sousMenuSignaler, sousMenuMisDeCote] { m.appearance = Apparence.claire }
         for ligne in [ligneEtat, ligneSoc, ligneBoite, ligneTelechargements, ligneEcoute, ligneCompteur] {
             ligne.isEnabled = false
         }
@@ -158,13 +160,14 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let change = socConnecte != ok
         socConnecte = ok
         ligneSoc.title = ok ? "Connecté à la SOC" : "SOC hors ligne"
-        ligneSoc.image = Self.pastille(ok ? Teinte.cyan : Teinte.gris)
+        ligneSoc.image = Self.pastille(ok ? Teinte.ok : Teinte.gris)
         majEtat()
         if change { prevoirCaptureMenu() }
     }
 
     /// Une seule icône dans la barre de menus, et en tête du menu l'état d'ensemble :
-    /// « Protégé » quand tous les modules tournent et que la SOC répond.
+    /// « Protégé » quand tous les modules tournent et que la SOC répond. Couleurs de la
+    /// console : vert quand tout est réglé, orange quand quelque chose attend une action.
     private func majEtat() {
         let actifs = ReglagesModules.partage.actifs.count
         let total = ModulePoste.allCases.count
@@ -172,16 +175,16 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let symbole: String
         let couleur: NSColor
         if actifs == 0 {
-            (titre, symbole, couleur) = ("Protection en pause", "shield.slash", Teinte.discret)
+            (titre, symbole, couleur) = ("Protection en pause", "shield.slash", Teinte.gris)
         } else if actifs < total {
-            (titre, symbole, couleur) = ("Protection partielle (\(actifs) modules sur \(total))", "exclamationmark.shield", Teinte.rouge)
+            (titre, symbole, couleur) = ("Protection partielle (\(actifs) modules sur \(total))", "exclamationmark.shield", Teinte.orange)
         } else if socConnecte == false {
-            (titre, symbole, couleur) = ("Protégé, SOC hors ligne", "exclamationmark.shield", Teinte.rouge)
+            (titre, symbole, couleur) = ("Protégé, SOC hors ligne", "exclamationmark.shield", Teinte.orange)
         } else {
-            (titre, symbole, couleur) = ("Protégé", "checkmark.shield", Teinte.cyanFonce)
+            (titre, symbole, couleur) = ("Protégé", "checkmark.shield", Teinte.ok)
         }
         ligneEtat.attributedTitle = NSAttributedString(string: titre, attributes: [
-            .font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: Teinte.encre])
+            .font: NSFont.systemFont(ofSize: Taille.bouton, weight: .semibold), .foregroundColor: Teinte.encre])
         ligneEtat.image = Gabarit.symbole(symbole + ".fill", taille: 13, couleurs: [couleur])
         let image = NSImage(systemSymbolName: symbole, accessibilityDescription: "Dédale : \(titre)")
         image?.isTemplate = true
@@ -285,7 +288,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let n = mailsRecents.count
         ligneBoite.title = enLigne ? "Boîte de démo : \(n) mail\(n > 1 ? "s" : "")" : "Boîte de démo hors ligne"
-        ligneBoite.image = Self.pastille(enLigne ? Teinte.cyan : Teinte.gris)
+        ligneBoite.image = Self.pastille(enLigne ? Teinte.ok : Teinte.gris)
         if change {
             majSousMenu()
             prevoirCaptureMenu()
@@ -333,10 +336,10 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.state = mailsSignales.contains(m.id) ? .on : .off
             let objet = Messagerie.desarmerLigne(m.objet, max: 46)
             let titre = NSMutableAttributedString(string: objet, attributes: [
-                .font: NSFont.menuFont(ofSize: 13), .foregroundColor: Teinte.encre])
+                .font: NSFont.menuFont(ofSize: Taille.libelle), .foregroundColor: Teinte.encre])
             if !m.adresse.isEmpty {
                 titre.append(NSAttributedString(string: "   " + Messagerie.desarmerLigne(m.adresse, max: 40), attributes: [
-                    .font: NSFont.menuFont(ofSize: 11), .foregroundColor: Teinte.discret]))
+                    .font: NSFont.menuFont(ofSize: Taille.puce - 1), .foregroundColor: Teinte.discret]))
             }
             item.attributedTitle = titre
             sousMenuSignaler.addItem(item)
@@ -389,7 +392,7 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func majCompteur() {
         let n = compteur.cetteSemaine()
         ligneCompteur.attributedTitle = NSAttributedString(string: Compteur.libelle(n), attributes: [
-            .font: NSFont.menuFont(ofSize: 12), .foregroundColor: Teinte.discret])
+            .font: NSFont.menuFont(ofSize: Taille.note), .foregroundColor: Teinte.discret])
         ligneCompteur.image = NSImage(systemSymbolName: "checkmark.shield", accessibilityDescription: nil)
         ligneCompteur.image?.isTemplate = true
     }
@@ -572,9 +575,9 @@ extension AppDelegue {
             (titre, teinte) = ("Téléchargements : coupé", Teinte.gris)
         } else {
             switch etatTelechargements {
-            case .active: (titre, teinte) = ("Téléchargements surveillés", Teinte.cyan)
-            case .accesRefuse: (titre, teinte) = ("Téléchargements : accès à autoriser", Teinte.rouge)
-            case .dossierAbsent: (titre, teinte) = ("Téléchargements : dossier introuvable", Teinte.rouge)
+            case .active: (titre, teinte) = ("Téléchargements surveillés", Teinte.ok)
+            case .accesRefuse: (titre, teinte) = ("Téléchargements : accès à autoriser", Teinte.orange)
+            case .dossierAbsent: (titre, teinte) = ("Téléchargements : dossier introuvable", Teinte.orange)
             case .arretee: (titre, teinte) = ("Téléchargements : démarrage…", Teinte.gris)
             }
         }
@@ -592,7 +595,7 @@ extension AppDelegue {
         } else if let r = agentsPoste.resultat {
             let n = r.serveurs.count
             ligneAgents.title = "Agents IA : \(n) serveur\(n > 1 ? "s" : "") dont \(r.risques) à risque"
-            ligneAgents.image = Self.pastille(r.risques > 0 ? Teinte.rouge : Teinte.cyan)
+            ligneAgents.image = Self.pastille(r.risques > 0 ? Teinte.rouge : Teinte.ok)
             ligneAgents.isEnabled = true
         } else {
             if case .aucune = agentsPoste.source {

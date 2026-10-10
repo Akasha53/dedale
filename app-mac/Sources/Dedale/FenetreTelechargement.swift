@@ -1,7 +1,7 @@
 import AppKit
 import DedaleNoyau
 
-/// La pop-up d'un téléchargement à risque, dans le même verre clair que celle des gestes à
+/// La pop-up d'un téléchargement à risque, sur la même carte blanche que celle des gestes à
 /// risque : le fichier, d'où il vient, ce qu'il peut faire, puis « Garder » ou « Mettre de
 /// côté ». Après le choix, une ligne dit ce qui s'est passé et la pop-up part seule.
 final class FenetreTelechargement: NSObject {
@@ -61,8 +61,8 @@ final class FenetreTelechargement: NSObject {
         let v = fichier.verdict
         let entete = Gabarit.entete(titre: "Dédale", puce: "Téléchargement")
         let tuile = Self.tuileFichier(fichier, largeur: w)
-        let message = Gabarit.paragraphe(v.message, taille: 17, graisse: .semibold, couleur: Teinte.encre, largeur: w)
-        let detail = Gabarit.paragraphe(v.detail, taille: 13, couleur: Teinte.texte, largeur: w)
+        let message = Gabarit.paragraphe(v.message, taille: Taille.titre, graisse: .semibold, couleur: Teinte.encre, largeur: w)
+        let detail = Gabarit.paragraphe(v.detail, taille: Taille.texte, couleur: Teinte.texte, largeur: w)
         detail.isHidden = v.detail.isEmpty
 
         boutonGarder = BoutonDedale(titre: "Garder", style: .risque, cible: self, action: #selector(garder))
@@ -72,7 +72,7 @@ final class FenetreTelechargement: NSObject {
         boutons.distribution = .fillEqually
         boutons.spacing = 10
         let note = Gabarit.paragraphe("Dans les deux cas, l'équipe sécurité reçoit le type du fichier, son origine et votre choix. Jamais son contenu ni son nom.",
-                                      taille: 11, couleur: Teinte.discret, largeur: w)
+                                      taille: Taille.note, couleur: Teinte.discret, largeur: w)
 
         zoneFin.orientation = .vertical
         zoneFin.alignment = .leading
@@ -89,32 +89,19 @@ final class FenetreTelechargement: NSObject {
         choixVues = [boutons, note]
     }
 
-    /// Le fichier dans une double coque : un plateau gris clair, et dedans une carte blanche
-    /// avec l'icône du type, le nom et sa provenance.
+    /// Le fichier dans un bloc gris pâle, comme les faits d'une carte de la console
+    /// (`.inv-faits`) : l'icône du type, le nom et sa provenance.
     static func tuileFichier(_ f: FichierSignale, largeur: CGFloat) -> NSView {
-        let coque = NSView()
-        coque.wantsLayer = true
-        coque.layer?.backgroundColor = Teinte.puce.cgColor
-        coque.layer?.cornerRadius = 14
-        coque.layer?.borderWidth = 1
-        coque.layer?.borderColor = Teinte.bord.withAlphaComponent(0.7).cgColor
-
         let coeur = NSView()
         coeur.wantsLayer = true
-        coeur.layer?.backgroundColor = NSColor.white.cgColor
-        coeur.layer?.cornerRadius = 10
-        coeur.layer?.borderWidth = 1
-        coeur.layer?.borderColor = NSColor(white: 1, alpha: 0.9).cgColor
-        coeur.layer?.shadowColor = NSColor(white: 0.05, alpha: 1).cgColor
-        coeur.layer?.shadowOpacity = 0.06
-        coeur.layer?.shadowRadius = 6
-        coeur.layer?.shadowOffset = CGSize(width: 0, height: -1)
+        coeur.layer?.backgroundColor = Teinte.puits.cgColor
+        coeur.layer?.cornerRadius = Rayon.bloc
 
         let haute = f.verdict.gravite == "haute"
         let fondIcone = NSView()
         fondIcone.wantsLayer = true
         fondIcone.layer?.backgroundColor = (haute ? Teinte.rougeFond : Teinte.puce).cgColor
-        fondIcone.layer?.cornerRadius = 9
+        fondIcone.layer?.cornerRadius = Rayon.tuile
         fondIcone.translatesAutoresizingMaskIntoConstraints = false
         let icone = Gabarit.icone(symbole(f.verdict.typeFichier), taille: 15,
                                   couleurs: [haute ? Teinte.rouge : Teinte.texte], cote: 20)
@@ -126,10 +113,10 @@ final class FenetreTelechargement: NSObject {
             icone.centerYAnchor.constraint(equalTo: fondIcone.centerYAnchor),
         ])
 
-        let nom = Gabarit.etiquette(f.nom, taille: 13, graisse: .semibold, couleur: Teinte.encre)
+        let nom = Gabarit.etiquette(f.nom, taille: Taille.texte, graisse: .semibold, couleur: Teinte.encre)
         nom.lineBreakMode = .byTruncatingMiddle
         nom.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let sous = Gabarit.etiquette(sousTitre(f), taille: 11, couleur: Teinte.discret)
+        let sous = Gabarit.etiquette(sousTitre(f), taille: Taille.note, couleur: Teinte.discret)
         sous.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let textes = NSStackView(views: [nom, sous])
         textes.orientation = .vertical
@@ -139,23 +126,17 @@ final class FenetreTelechargement: NSObject {
         ligne.orientation = .horizontal
         ligne.alignment = .centerY
         ligne.spacing = 12
-        ligne.edgeInsets = NSEdgeInsets(top: 10, left: 10, bottom: 10, right: 12)
+        ligne.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 14)
         ligne.translatesAutoresizingMaskIntoConstraints = false
         coeur.addSubview(ligne)
-        coeur.translatesAutoresizingMaskIntoConstraints = false
-        coque.addSubview(coeur)
         NSLayoutConstraint.activate([
             ligne.leadingAnchor.constraint(equalTo: coeur.leadingAnchor),
             ligne.trailingAnchor.constraint(equalTo: coeur.trailingAnchor),
             ligne.topAnchor.constraint(equalTo: coeur.topAnchor),
             ligne.bottomAnchor.constraint(equalTo: coeur.bottomAnchor),
-            coeur.leadingAnchor.constraint(equalTo: coque.leadingAnchor, constant: 4),
-            coeur.trailingAnchor.constraint(equalTo: coque.trailingAnchor, constant: -4),
-            coeur.topAnchor.constraint(equalTo: coque.topAnchor, constant: 4),
-            coeur.bottomAnchor.constraint(equalTo: coque.bottomAnchor, constant: -4),
             textes.widthAnchor.constraint(lessThanOrEqualToConstant: largeur - 90),
         ])
-        return coque
+        return coeur
     }
 
     static func symbole(_ type: String) -> String {
@@ -205,7 +186,7 @@ final class FenetreTelechargement: NSObject {
         panneau.makeFirstResponder(boutonCote)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
-            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.32, 0.72, 0, 1)
+            ctx.timingFunction = Courbe.fluide
             panneau.animator().alphaValue = 1
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -241,7 +222,8 @@ final class FenetreTelechargement: NSObject {
         surChoix?(choix)
     }
 
-    /// Issue du choix : ce qui s'est passé sur le Mac et ce qui est parti à la SOC.
+    /// Issue du choix : ce qui s'est passé sur le Mac et ce qui est parti à la SOC. Mis de côté
+    /// en vert (réglé), déplacement impossible en orange (une action attend), gardé en rouge.
     func montrerIssue(choix: String, deplace: Bool, remonte: Bool) {
         let titre: String
         let texte: String
@@ -249,7 +231,7 @@ final class FenetreTelechargement: NSObject {
         let couleur: NSColor
         if choix == "mettre_de_cote" {
             symbole = deplace ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
-            couleur = deplace ? Teinte.cyanFonce : Teinte.rouge
+            couleur = deplace ? Teinte.ok : Teinte.orange
             titre = deplace ? "Mis de côté." : "Impossible de le déplacer."
             texte = deplace
                 ? "Il est dans « \(SurveillanceTelechargements.nomMisDeCote) ». Le menu Dédale peut le remettre à sa place."
@@ -261,13 +243,13 @@ final class FenetreTelechargement: NSObject {
             texte = remonte ? "L'équipe sécurité est prévenue." : "La SOC est injoignable, rien n'a été signalé."
         }
         let textes = NSStackView(views: [
-            Gabarit.etiquette(titre, taille: 15, graisse: .semibold, couleur: Teinte.encre),
-            Gabarit.paragraphe(texte, taille: 12, couleur: Teinte.texte, largeur: Self.interieur - 28),
+            Gabarit.etiquette(titre, taille: Taille.titreCarte, graisse: .semibold, couleur: Teinte.encre),
+            Gabarit.paragraphe(texte, taille: Taille.libelle, couleur: Teinte.texte, largeur: Self.interieur - 28),
         ])
         textes.orientation = .vertical
         textes.alignment = .leading
         textes.spacing = 2
-        let ligne = NSStackView(views: [Gabarit.icone(symbole, taille: 16, couleurs: [.white, couleur]), textes])
+        let ligne = NSStackView(views: [Gabarit.icone(symbole, taille: 16, couleurs: [Teinte.fond, couleur]), textes])
         ligne.orientation = .horizontal
         ligne.alignment = .top
         ligne.spacing = 8
@@ -285,6 +267,7 @@ final class FenetreTelechargement: NSObject {
         fermee = true
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
+            ctx.timingFunction = Courbe.fluide
             panneau.animator().alphaValue = 0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [self] in
@@ -299,11 +282,14 @@ final class FenetreTelechargement: NSObject {
         var cadre = panneau.frame
         if garderLeHaut {
             cadre.origin.y = cadre.maxY - taille.height
-        } else if let ecran = NSScreen.main?.visibleFrame {
+        } else {
+            let ecran = Ecran.zone
             cadre.origin.x = ecran.midX - taille.width / 2
             cadre.origin.y = ecran.minY + ecran.height * 0.62 - taille.height / 2
         }
         cadre.size = taille
+        // Jamais hors de la zone visible : ni sous la barre de menus, ni sous le Dock.
+        cadre = Ecran.borner(cadre)
         panneau.setFrame(cadre, display: true)
         panneau.invalidateShadow()
     }
