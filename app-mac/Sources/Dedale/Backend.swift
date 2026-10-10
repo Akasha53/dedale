@@ -23,9 +23,29 @@ final class Backend {
         session = URLSession(configuration: conf)
     }
 
-    /// Sonde `GET /api/mesures`. `fin` est appelé sur le fil principal.
+    /// Jeton `poste`, lu hors du dépôt dans `~/.config/dedale/jeton-poste` (ou le dossier
+    /// `DEDALE_JETONS`), où le backend l'a tiré au premier démarrage. Relu à chaque appel.
+    /// Absent : pas d'en-tête, le backend répond 401 et l'app continue sans tomber.
+    static func signer(_ requete: inout URLRequest) {
+        let env = ProcessInfo.processInfo.environment
+        let dossier = env["DEDALE_JETONS"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/dedale")
+        guard let brut = try? String(contentsOf: dossier.appendingPathComponent("jeton-poste"), encoding: .ascii)
+        else { return }
+        let jeton = brut.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !jeton.isEmpty { requete.setValue("Bearer \(jeton)", forHTTPHeaderField: "Authorization") }
+    }
+
+    /// Requête GET signée du jeton poste vers un chemin du backend.
+    func requete(_ chemin: String) -> URLRequest {
+        var r = URLRequest(url: base.appendingPathComponent(chemin))
+        Backend.signer(&r)
+        return r
+    }
+
+    /// Sonde `GET /api/sante`, seule route ouverte sans jeton. `fin` est appelé sur le fil principal.
     func sonder(_ fin: @escaping (Bool) -> Void) {
-        let url = base.appendingPathComponent("api/mesures")
+        let url = base.appendingPathComponent("api/sante")
         session.dataTask(with: url) { _, reponse, erreur in
             let ok = erreur == nil && (200..<300).contains((reponse as? HTTPURLResponse)?.statusCode ?? 0)
             DispatchQueue.main.async { fin(ok) }
@@ -111,6 +131,7 @@ final class Backend {
         requete.httpMethod = "POST"
         requete.setValue("application/json", forHTTPHeaderField: "Content-Type")
         requete.httpBody = donnees
+        Backend.signer(&requete)
         session.dataTask(with: requete) { _, reponse, erreur in
             let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
             let ok = erreur == nil && (200..<300).contains(code)
@@ -121,10 +142,11 @@ final class Backend {
         }.resume()
     }
 
-    /// Décisions déjà prises sur l'incident ouvert pour cette session (`GET /api/incidents`).
+    /// Décisions déjà prises sur l'incident ouvert pour cette session. Le jeton poste ne lit
+    /// pas la liste des incidents : `GET /api/sessions/{session}/decisions` ne rend que celles-ci.
     /// `fin(nil)` si le backend ne répond pas ou si l'incident n'existe pas encore.
     func decisions(session sid: String, fin: @escaping ([String]?) -> Void) {
-        session.dataTask(with: base.appendingPathComponent("api/incidents")) { donnees, reponse, erreur in
+        session.dataTask(with: requete("api/sessions/\(sid)/decisions")) { donnees, reponse, erreur in
             var actions: [String]?
             let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
             if erreur == nil, (200..<300).contains(code), let donnees,

@@ -107,6 +107,7 @@ final class AgentsDuPoste {
         requete.httpMethod = "POST"
         requete.setValue("application/json", forHTTPHeaderField: "Content-Type")
         requete.httpBody = donnees
+        Backend.signer(&requete)
         session.dataTask(with: requete) { [weak self] _, reponse, erreur in
             let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
             let ok = erreur == nil && (200..<300).contains(code)
