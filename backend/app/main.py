@@ -307,7 +307,9 @@ async def incident_export(iid: str, format: str = "ecs"):
         return exports.vers_ecs(d, sess.get("evenements", []))
     if fmt == "sigma":
         return PlainTextResponse(exports.vers_sigma(d), media_type="application/x-yaml")
-    raise HTTPException(status_code=400, detail="format doit valoir 'ecs' ou 'sigma'")
+    if fmt == "cef":  # une ligne CEF par événement, pour un SIEM qui lit le syslog (cef.py)
+        return PlainTextResponse(exports.vers_cef(d), media_type="text/plain")
+    raise HTTPException(status_code=400, detail="format doit valoir 'ecs', 'sigma' ou 'cef'")
 
 
 # ---------------------------------------------------------------- Fil des agents
@@ -376,6 +378,9 @@ routes_ancrage.brancher(app)
 # Besoin d'en connaître : espace de validation métier et vue minimisée du SOC (validation_metier.py).
 from . import validation_metier  # noqa: E402
 validation_metier.brancher(app, _enfiler)
+# Intégrations : Sigma, CEF et syslog, alertes par rôle, résumé du lundi (routes_integrations.py).
+from . import routes_integrations  # noqa: E402
+routes_integrations.brancher(app)
 
 
 # ---------------------------------------------------------------- Console web
