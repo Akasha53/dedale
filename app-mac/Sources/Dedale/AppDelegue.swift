@@ -444,6 +444,14 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.afficherSuivante()
         }
         fenetre = f
+        // Geste critique lancé sur le poste : Dédale vérifie d'abord, sans question au salarié.
+        // La pop-up ne s'ouvre que s'il y a un signal de risque (QuatreYeux.swift).
+        if DemandeQuatreYeux.verifieDAbord(a) {
+            let d = DemandeQuatreYeux(a, backend: backend)
+            demande = d
+            d.verifier(fenetre: f) { [weak self] in self?.demande = nil }
+            return
+        }
         f.montrer()
     }
 

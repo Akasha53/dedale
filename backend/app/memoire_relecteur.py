@@ -20,9 +20,14 @@ données et aux règles de repli. Les règles dures du SOC gagnent toujours sur 
 from __future__ import annotations
 
 import hashlib
+import hmac
+import os
 import re
+import secrets
+import threading
 import unicodedata
 from datetime import datetime, timezone
+from pathlib import Path
 
 from . import journal_scelle
 from .store import store
@@ -84,29 +89,97 @@ def _rib(faits: dict) -> str | None:
     return _empreinte("rib", fin) if re.fullmatch(r"\d{4}", fin) else None
 
 
+# ---------------------------------------------------------------- Signature des entrées
+# Une entrée n'est écrite que par le backend, après la décision d'un humain (analyste ou
+# validateur métier). Elle porte une signature HMAC d'une clé qui ne quitte pas le serveur
+# (`cle-memoire`, dans le dossier des jetons, en 600) : un événement `memoire` envoyé par le
+# collecteur, même par un client authentifié, n'a pas de signature valable et reste ignoré.
+_verrou_cle = threading.Lock()
+_cles: dict[str, bytes] = {}
+
+
+def _dossier_cles() -> Path:
+    brut = os.environ.get("DEDALE_JETONS", "").strip()
+    return Path(brut).expanduser() if brut else Path.home() / ".config" / "dedale"
+
+
+def _cle() -> bytes:
+    chemin = _dossier_cles() / "cle-memoire"
+    with _verrou_cle:
+        if str(chemin) not in _cles:
+            chemin.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.chmod(chemin.parent, 0o700)
+            except OSError:
+                pass
+            if not chemin.exists():
+                fd = os.open(chemin, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "w") as f:
+                    f.write(secrets.token_hex(32))
+            _cles[str(chemin)] = chemin.read_text().strip().encode()
+        return _cles[str(chemin)]
+
+
+def signer(details: dict) -> str:
+    contenu = journal_scelle.canonique({k: v for k, v in details.items() if k != "signature"})
+    return hmac.new(_cle(), contenu.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _signature_valide(details: dict) -> bool:
+    sig = details.get("signature")
+    return isinstance(sig, str) and hmac.compare_digest(sig, signer(details))
+
+
+def sceller(sess, type_: str, details: dict, user_agent: str = "dedale-memoire") -> dict:
+    """Ajoute un événement de service à la session (scellé), et rend le travail à persister."""
+    moment = datetime.now(timezone.utc).isoformat()
+    eid = store._nouvel_id()
+    enreg = {"id": eid, "horodatage": moment, "recu_a": moment, "source": sess.source, "surface": "soc",
+             "type": type_, "session_id": sess.id, "leurre_id": None, "leurre_nature": None, "ip": None,
+             "user_agent": user_agent, "methode": None, "chemin": None, "outil": None, "details": details}
+    store.tete_evenements = journal_scelle.sceller_evenement(enreg, store.tete_evenements)
+    store.evenements[eid] = enreg
+    sess.evenement_ids.append(eid)
+    return enreg
+
+
 # ---------------------------------------------------------------- Entrées valides
-def _decisions_humaines() -> dict[str, dict]:
-    """Sceau → décision d'un analyste humain (accorder ou refuser). Sous verrou."""
-    return {d["sceau"]: d for d in store.decisions
-            if d.get("sceau") and d.get("action") in ("accorder", "refuser")
-            and not str(d.get("analyste", "")).lower().startswith("relecteur")}
-
-
 def entrees() -> list[dict]:
-    """Entrées confirmées par un humain, de la plus récente à la plus ancienne. Sous verrou."""
-    humaines = _decisions_humaines()
+    """Entrées signées par le backend après une décision humaine, de la plus récente à la plus
+    ancienne. Sous verrou."""
     sortie = []
     for e in store.evenements.values():
         d = e.get("details") or {}
-        if e.get("type") != "memoire" or e.get("surface") != "soc" or e.get("user_agent") != "dedale-memoire":
-            continue
-        dec = humaines.get(d.get("decision_sceau"))
-        voulu = {"accorde": "accorder", "refuse": "refuser"}.get(d.get("verdict"))
-        if dec is None or dec.get("incident_id") != d.get("incident_id") or dec.get("action") != voulu:
-            continue  # pas adossée à une décision humaine scellée : ignorée
+        if e.get("type") != "memoire" or not _signature_valide(d):
+            continue  # pas écrite par le backend après une décision humaine : ignorée
         sortie.append(d)
     sortie.sort(key=lambda d: d.get("date") or "", reverse=True)
     return sortie
+
+
+def _entree(faits: dict, verdict: str, humain: str, role: str, date: str | None, motif: str | None,
+            **extra) -> dict | None:
+    """Entrée signée pour un geste tranché par un humain : le geste, jamais la personne."""
+    from . import relecteur  # import local : le relecteur importe ce module
+    cle, _ = cle_geste(faits)
+    if cle is None:
+        return None
+    geste = faits.get("geste")
+    b = faits.get("beneficiaire") or {}
+    details = {
+        "acte": "memoire", "geste": geste, "cle": cle,
+        "beneficiaire": b.get("nom") if b.get("connu") else None,
+        "tranche": tranche(geste, faits.get("montant_eur"), faits.get("volume")),
+        "ordre_de_grandeur": _ordre_de_grandeur(geste, faits.get("montant_eur"), faits.get("volume")),
+        "rib": _rib(faits),
+        "frequence": sum(1 for x in entrees() if x.get("cle") == cle) + 1,
+        "verdict": verdict, "role": role,
+        "motif_analyste": relecteur.motif_propre(motif) if motif else None,
+        "analyste": str(humain or "")[:40], "date": date or datetime.now(timezone.utc).isoformat(),
+        **extra,
+    }
+    details["signature"] = signer(details)
+    return details
 
 
 # ---------------------------------------------------------------- Écrire après une décision humaine
@@ -140,36 +213,15 @@ def apres_decision(iid: str, faits_de: callable) -> dict | None:
         if demande is None:
             return None
         faits = faits_de(sess, demande)
-        cle, _ = cle_geste(faits)
-        if cle is None:
-            return None
-        geste = faits.get("geste")
-        meme_cle = [x for x in entrees() if x.get("cle") == cle]
         motif = next((j.get("motif") for j in reversed(store._journal_console(iid, evs))
                       if j.get("acte") == "decision" and j.get("action") == dec["action"]), None)
-        details = {
-            "acte": "memoire", "incident_id": iid, "decision_sceau": dec["sceau"],
-            "geste": geste, "cle": cle,
-            "beneficiaire": (faits.get("beneficiaire") or {}).get("nom") if (faits.get("beneficiaire") or {}).get("connu") else None,
-            "tranche": tranche(geste, faits.get("montant_eur"), faits.get("volume")),
-            "ordre_de_grandeur": _ordre_de_grandeur(geste, faits.get("montant_eur"), faits.get("volume")),
-            "rib": _rib(faits),
-            "frequence": len(meme_cle) + 1,
-            "verdict": "accorde" if dec["action"] == "accorder" else "refuse",
-            "relecteur": (rel.get("details") or {}).get("decision"),
-            "renversement": suivi["etat"] == "renverse",
-            "motif_analyste": relecteur.motif_propre(motif) if motif else None,
-            "analyste": str(dec.get("analyste") or "")[:40],
-            "date": dec.get("horodatage"),
-        }
-        moment = datetime.now(timezone.utc).isoformat()
-        eid = store._nouvel_id()
-        enreg = {"id": eid, "horodatage": moment, "recu_a": moment, "source": sess.source, "surface": "soc",
-                 "type": "memoire", "session_id": sess.id, "leurre_id": None, "leurre_nature": None, "ip": None,
-                 "user_agent": "dedale-memoire", "methode": None, "chemin": None, "outil": None, "details": details}
-        store.tete_evenements = journal_scelle.sceller_evenement(enreg, store.tete_evenements)
-        store.evenements[eid] = enreg
-        sess.evenement_ids.append(eid)
+        details = _entree(faits, "accorde" if dec["action"] == "accorder" else "refuse", dec.get("analyste"),
+                          "analyste", dec.get("horodatage"), motif, incident_id=iid, decision_sceau=dec["sceau"],
+                          relecteur=(rel.get("details") or {}).get("decision"),
+                          renversement=suivi["etat"] == "renverse")
+        if details is None:
+            return None
+        enreg = sceller(sess, "memoire", details)
         return {"evenements": [enreg], "sessions": [sess], "diffusions": [("memoire", details)]}
 
 

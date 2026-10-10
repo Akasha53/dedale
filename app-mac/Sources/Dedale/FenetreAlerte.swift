@@ -241,13 +241,15 @@ final class FenetreAlerte: NSObject {
     /// une décision, pas un danger.
     func montrerIssue(_ issue: DemandeQuatreYeux.Issue) {
         let accorde = issue == .accorde
+        // Retenu : ni accordé ni refusé, à faire confirmer par le responsable (jamais un refus sec).
+        let retenu = issue == .retenu || issue == .expire || issue == .injoignable
         let relecture = DemandeQuatreYeux.relecture(pour: avertissement.id)
         let sousTitre = DemandeQuatreYeux.texteIssue(issue, relecture: relecture)
-        montrerFin(symbole: accorde ? "checkmark.circle.fill" : "xmark.circle.fill",
-                   couleur: accorde ? Teinte.ok : Teinte.encre,
-                   titre: accorde ? "Accordé" : "Refusé", sousTitre: sousTitre,
-                   capture: accorde ? "accorde" : (issue == .expire ? "expire" : "refuse"),
-                   duree: relecture == nil ? 3.5 : 7)
+        montrerFin(symbole: accorde ? "checkmark.circle.fill" : retenu ? "pause.circle.fill" : "xmark.circle.fill",
+                   couleur: accorde ? Teinte.ok : retenu ? Teinte.orange : Teinte.encre,
+                   titre: accorde ? "Accordé" : retenu ? "Retenu" : "Refusé", sousTitre: sousTitre,
+                   capture: accorde ? "accorde" : retenu ? "retenu" : "refuse",
+                   duree: relecture == nil && !retenu ? 3.5 : 8)
     }
 
     /// Montre l'issue d'un « Continuer » ordinaire, puis ferme la pop-up.

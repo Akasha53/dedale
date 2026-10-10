@@ -1524,3 +1524,47 @@ Le badge du dossier (`BadgeIntegrite`) ne parle que de l'intégrité vérifiée 
 - Ce qui a été écrit depuis la dernière ancre n'est protégé que par les signatures et les déclencheurs.
 - Les clés de signature sont sur la machine du backend : qui la contrôle entièrement peut signer à sa place, mais ne peut pas faire retomber une base réécrite sur une racine déjà publiée.
 - Les tables `sessions` et `leurres` portent de l'état vivant, hors du journal : elles ne sont ni scellées ni ancrées.
+
+## Avenant du 10 octobre 2026 : Dédale ne se montre que s'il y a un signal (gestes critiques du poste)
+
+Retour produit de Guilhem : l'équipe sécurité n'a pas à valider chaque virement, et les données de virement sont confidentielles. Un geste critique lancé sur le poste (virement, export de données clients, hors alerte de mail) ne pose plus de question au salarié : l'app le fait vérifier, et ne s'ouvre que s'il y a un signal de risque.
+
+### `POST /api/relecteur/verifier` (identités `poste` ou `passerelle`)
+
+Corps : `{"demande_id", "session_id", "geste": "virement" | "export_clients", "categorie", "message", "cible"?, "lien"?, "montant"?, "beneficiaire"?, "iban"?, "mail_id"?}`. Réponse, en quelques millisecondes sans signal, en quelques secondes avec un signal de fraude :
+
+```json
+{"demande_id": "a1b2c3", "issue": "retenu", "fraude": false, "validation": true, "incident_id": null,
+ "signaux": [{"code": "rib_change", "raison": "Ce RIB n'a jamais servi pour Atelier Nord."}],
+ "motif_salarie": "Ce RIB n'a jamais servi pour Atelier Nord.", "tranche_par": "règles", "mode": "regles",
+ "duree_ms": 4}
+```
+
+| Cas | `issue` | Ce que voit le salarié | Qui d'autre le voit |
+|---|---|---|---|
+| aucun signal (bénéficiaire connu, RIB habituel, montant habituel ; export interne de volume lu) | `passe` | rien | personne : un événement discret `geste_verifie`, compté dans `/api/mesures` |
+| signal sans fraude, accordé (rare) | `accorde` | une bulle « Vérifié par Dédale : le geste part. » | personne |
+| signal sans fraude : bénéficiaire inconnu, RIB qui change, montant au-dessus des usages ou illisible, export massif, destination illisible, précédent refusé | `retenu` | pop-up « Retenu », le motif en clair, « Fais-le confirmer par ton responsable ou par la finance, puis relance-le. » | l'espace de validation métier (responsable, finance), pas la SOC |
+| signal de fraude : geste après un mail suspect ou frauduleux, après une alerte passée outre ou un signalement (30 min), consigne cachée, rafale, compte personnel, export hors de l'entreprise | `refuse` ou `retenu` | pop-up « Refusé » ou « Retenu », « Parles-en à ton responsable. L'équipe sécurité est prévenue. » | la SOC : incident `humain_*` (alerte), montant en tranche, bénéficiaire masqué, aucun texte du geste |
+
+- Les signaux sont tirés par des règles, sans modèle ; `signaux_geste` dans `relecteur.py`. Sans fraude, la décision est prise par les règles seules (`mode: regles`) ; avec un signal de fraude, le relecteur complet tourne (Haiku, puis règles). Un signal de fraude ne laisse jamais passer le geste en silence : un accord devient `retenu`.
+- Sans réponse du backend en 12 s, l'app retient le geste (« Dédale est injoignable : ce geste attend. ») : jamais de refus sec à cause d'un délai.
+- Une réponse lente ouvre « Dédale vérifie ce virement… » (« Quelques secondes. »), sans compte à rebours. Plus de « doit être confirmé par l'équipe sécurité » côté salarié.
+- Le geste qui suit une alerte de mail garde son choix « Annuler » ou « Continuer » : la demande à quatre yeux part comme avant, et sans relecture dans le délai (20 s, `DEDALE_QUATRE_YEUX_DELAI`), le geste est retenu au lieu d'être refusé.
+
+### Validation métier (responsable, finance)
+
+Un geste retenu sans fraude produit un événement scellé `validation_demandee` (`user_agent: dedale-relecteur`) dans la session du poste : `demande_id`, `geste`, `montant_eur` exact, `volume`, `beneficiaire`, `beneficiaire_connu`, `rib`, `texte` (pop-up désarmée), `signaux`, `motif_salarie`, `statut: "a_valider"`.
+
+- `GET /api/validation/relecteur[?toutes=true]` (identité `validateur` seulement, 403 pour l'analyste) : les gestes à confirmer, le plus récent en tête.
+- `POST /api/validation/relecteur/{demande_id}` `{"verdict": "accorde" | "refuse", "validateur": "marc.n", "motif": "…"}` (identité `validateur`) : décision scellée (`validation_decidee`) et entrée de mémoire du relecteur, au même titre qu'une décision d'analyste. 404 si la demande est inconnue ou déjà tranchée. Fonctions Python équivalentes pour l'espace `/validation` : `relecteur.demandes_de_validation()` et `relecteur.valider_metier(demande_id, verdict, validateur, motif)`.
+- À brancher par l'agent de l'espace `/validation` : `GET /api/validation/file` peut lire `relecteur.demandes_de_validation()`, et sa décision appeler `relecteur.valider_metier(...)`. Un geste confirmé par le validateur sert ensuite de précédent : le même bénéficiaire, pour un montant proche et le même RIB, passe sans pop-up.
+
+### Mémoire : entrées signées
+
+Les entrées `memoire` portent maintenant `signature`, un HMAC-SHA-256 calculé par le backend avec une clé qui ne quitte pas le serveur (`cle-memoire`, dans le dossier des jetons, en 600), et `role` (`analyste` ou `validateur`). Une entrée sans signature valable, par exemple envoyée par le collecteur, est ignorée.
+
+### Mesures
+
+`/api/mesures`, bloc `relecteur.gestes_verifies` : `{"passe": n, "accorde": n, "retenu": n}`.
+

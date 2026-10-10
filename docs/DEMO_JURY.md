@@ -32,12 +32,21 @@ La pop-up Mac passe avant la commande : « Annuler » n'ouvre aucun incident, et
 
 En finale : sauter « Voir le mail en entier » et le rapport.
 
+## Gestes critiques : deux virements (30 s, après le déroulé)
+
+Dédale ne se montre que s'il y a un signal de risque. Un virement normal part sans rien afficher. Seul un signal ouvre la pop-up, sans que l'équipe sécurité voie le virement.
+
+| Action | Ce qu'on voit, ce qu'on dit |
+|---|---|
+| `curl -X POST 127.0.0.1:8712/avertir -d '{"categorie":"mail_externe","geste":"virement","gravite":"critique","message":"Virement de 320 € à Imprimerie du Lys."}'` | rien ne s'affiche : « Fournisseur habituel, montant habituel : le virement part, Dédale reste invisible. » |
+| même commande avec `"message":"Virement de 3 480 € à Atelier Nord, nouveau RIB FR76 1111 2222 3333 4444 5555 0042."` | pop-up « Retenu » : « Ce RIB n'a jamais servi pour Atelier Nord. » « On demande au salarié de faire confirmer par son responsable, pas par la sécurité. » |
+
 Les numéros d'incident changent avec l'ordre des scènes : le lien imprimé par le script fait foi. La durée du redémarrage du backend (lignes « Préparation ») reste à mesurer en répétition ; parler pendant.
 
 ## Ajouts, seulement après trois répétitions sans accroc
 
 - Désarmeur : `cd interne && uv run python -m orbis.demo --scenario jury --desarmeur --backend http://127.0.0.1:8700`. `./demo.sh jury` ne l'active pas.
-- Geste critique et relecteur IA : `envoyer_demo.py --cas fraude_president`, puis « Continuer ». À vérifier : relecteur et boutons « Accorder » et « Refuser » dans la console.
+- Geste critique après un mail frauduleux : `envoyer_demo.py --cas fraude_president`, puis « Continuer ». Le relecteur refuse, l'incident arrive à la SOC (montant en tranche, bénéficiaire masqué), boutons « Accorder » et « Refuser » dans la console.
 - Incident salarié en direct : `envoyer_demo.py --cas lien_menteur`, puis « Continuer ».
 
 ## Si ça casse

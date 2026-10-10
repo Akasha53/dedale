@@ -12,7 +12,7 @@ import json
 import re
 from typing import Callable
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, Body, FastAPI, HTTPException
 
 from . import auth, memoire_relecteur, relecteur
 
@@ -40,6 +40,36 @@ async def relecture_demande(demande_id: str):
     if d is None:
         raise HTTPException(status_code=404, detail=f"Demande inconnue : {demande_id[:80]}")
     return d
+
+
+@routeur.post("/api/relecteur/verifier", dependencies=[auth.ECRIVAINS])
+async def verifier(corps: dict = Body(...)):
+    """Geste critique du poste : `passe` (aucun signal, aucune pop-up), `accorde`, `retenu` (à faire
+    confirmer par le responsable) ou `refuse` (signal de fraude, la SOC est prévenue)."""
+    propre = {k: (str(v)[:2000] if isinstance(v, str) else v) for k, v in (corps or {}).items()
+              if k in relecteur.CHAMPS_GESTE + ("demande_id", "session_id") and isinstance(v, (str, int, float))}
+    return await relecteur.verifier_geste(propre)
+
+
+@routeur.get("/api/validation/relecteur", dependencies=[auth.VALIDATEUR])
+async def validations(toutes: bool = False):
+    """Gestes retenus à faire confirmer par le responsable ou la finance. Pas pour la SOC."""
+    liste = relecteur.demandes_de_validation(toutes)
+    return {"validations": liste, "total": len(liste)}
+
+
+@routeur.post("/api/validation/relecteur/{demande_id}", dependencies=[auth.VALIDATEUR])
+async def valider(demande_id: str, corps: dict = Body(...)):
+    """Le validateur métier accorde ou refuse ; sa décision entre dans la mémoire du relecteur."""
+    try:
+        r = relecteur.valider_metier(demande_id[:80], str((corps or {}).get("verdict", "")),
+                                     str((corps or {}).get("validateur") or "validateur"),
+                                     str((corps or {}).get("motif") or ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if r is None:
+        raise HTTPException(status_code=404, detail="Demande inconnue ou déjà tranchée.")
+    return r
 
 
 @routeur.get("/api/relecteur/memoire")
