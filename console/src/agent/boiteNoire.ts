@@ -395,7 +395,7 @@ function decisionMaillon(d: Decision, i: number, motif?: string): MaillonAgent {
     id: `decision-${i}`,
     lib: LIB.decision,
     titre: DECISION_TITRE[d.action] ?? `Décision : ${d.action}`,
-    texte: motif ? `Décision prise par ${d.analyste}. Motif : « ${motif} ».` : `Décision prise par ${d.analyste}.`,
+    texte: `Décision prise par ${d.analyste.replace(/\.$/, "")}.${motif ? ` Motif : « ${motif} ».` : ""}`,
     horodatage: d.horodatage,
     ton: tonDecision(d.action),
     detail: {
@@ -572,8 +572,14 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
   }
   const appel = cibles.length ? cibles[cibles.length - 1] : null;
 
+  const gouv = (inc.chaine ?? []).find((m) => m.phase === "regle" || m.phase === "anomalie" || m.phase === "desarme");
   const detection =
-    evConsigne?.horodatage ?? touches[0]?.horodatage ?? cibles[0]?.horodatage ?? inc.temps_session?.detecte_a ?? undefined;
+    evConsigne?.horodatage ??
+    touches[0]?.horodatage ??
+    cibles[0]?.horodatage ??
+    inc.temps_session?.detecte_a ??
+    gouv?.horodatage ??
+    undefined;
 
   const issue = issueDe(inc, derniereDecision, Boolean(ripBlocage));
 
@@ -697,9 +703,11 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
         ? "Dédale l'a retirée : l'agent a reçu le contenu sans elle."
         : demande
           ? `Elle lui demande de ${court(sansCodes(demande))}.`
-          : descr
-            ? court(sansCodes(descr))
-            : "Le contenu s'adressait à l'agent, pas à la personne qui l'a reçu.",
+          : textePiege
+            ? "Un passage du contenu s'adresse à l'agent, pas à la personne qui l'a reçu. Il est surligné dans le texte complet."
+            : descr
+              ? court(sansCodes(descr))
+              : "Le contenu s'adressait à l'agent, pas à la personne qui l'a reçu.",
       horodatage: evConsigne?.horodatage ?? toucheSource?.horodatage ?? mcpEv?.horodatage,
       ton: prevenu ? "protege" : "alerte",
       detail: {

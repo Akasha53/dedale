@@ -469,10 +469,11 @@ function PanneauDecision({
   const agent = nomAgent(sessions.find((s) => s.id === incident.session_id)?.agent);
   const ferme = incident.statut === "clos" || incident.statut === "ignore";
   const occupe = decisionEnCours !== null || retrait.enCours || differee.attente !== null;
-  // Incident critique, ou téléphone : Couper et Laisser passer demandent une
-  // confirmation avec un motif, puis laissent cinq secondes pour annuler.
-  const critique = incident.gravite === "critique";
-  const garde = critique || estPetitEcran();
+  // Incident grave (haute ou critique), ou téléphone : Couper et Laisser passer
+  // demandent une confirmation avec un motif, puis laissent cinq secondes pour
+  // annuler.
+  const grave = incident.gravite === "critique" || incident.gravite === "haute";
+  const garde = grave || estPetitEcran();
   const peutCouper = !occupe && lecture.issue !== "coupee" && !ferme;
   const peutReprendre = !occupe && lecture.appelLiberable;
   // Désarmé avant lecture : rien à laisser passer, l'agent attend d'être relancé.

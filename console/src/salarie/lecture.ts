@@ -393,7 +393,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
       titre: /^relecteur/i.test(dec.analyste)
         ? (DECISION[dec.action] ?? `Décision : ${dec.action}`).replace("L'analyste", "Le relecteur IA")
         : DECISION[dec.action] ?? `Décision : ${dec.action}`,
-      texte: motif ? `Décision prise par ${dec.analyste}. Motif : « ${motif} ».` : `Décision prise par ${dec.analyste}.`,
+      texte: `Décision prise par ${dec.analyste.replace(/\.$/, "")}.${motif ? ` Motif : « ${motif} ».` : ""}`,
       horodatage: dec.horodatage,
       ton: dec.action === "refuser" ? "protege" : "neutre",
       detail: {

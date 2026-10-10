@@ -5801,3 +5801,15 @@ abbr.canary:focus::after {
   color: var(--texte-doux);
   cursor: help;
 }
+
+/* « Pourquoi ? » d'une carte d'agent : s'ouvre sous le bouton, vers la droite,
+   et passe au-dessus des panneaux suivants. */
+.inv-pied .sig-pop {
+  left: 0;
+  right: auto;
+}
+.panneau:has(.sig-pop),
+.inv-carte:has(.sig-pop) {
+  position: relative;
+  z-index: 6;
+}

@@ -443,7 +443,24 @@ class _Redaction:
         self._phrase_origine(f)
         self._phrase_desarme()
         self._phrase_tentatives(f)
+        self._phrase_gouvernance()
         self._phrase_issue(f)
+
+    def _phrase_gouvernance(self) -> None:
+        """Règle écrite par le SOC qui a tranché un appel, écart à l'habitude de l'agent."""
+        for e in self.etapes("regle")[:1]:
+            detail = e.get("detail") or ""
+            nom = _action(self.ev(e).get("outil"))[1]
+            for mot, verbe in (("bloqué", "a bloqué"), ("en attente", "a mis en attente"),
+                               ("laissé passer", "a signalé")):
+                if mot in detail:
+                    self.ecrire([(f"Une règle écrite par le SOC {verbe} {nom}",
+                                  [self.p(e, "etape", "regle"), self.p(e, "detail", mot)]), "."])
+                    break
+        for e in self.etapes("anomalie")[:1]:
+            self.ecrire([("Dédale a repéré un écart net avec l’habitude de travail de cet agent",
+                          [self.p(e, "etape", "anomalie")]), ", ",
+                         ("sans l’arrêter", [self.p(e, "etape", "anomalie")]), "."])
 
     def _phrase_desarme(self) -> None:
         """Le désarmeur a retiré l'instruction avant que l'agent la lise : le dire tout de suite
@@ -680,6 +697,15 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
             justification = ("Dédale a déjà refusé cette action, sans attendre personne : rien n’est parti. "
                              "Il reste à clore le dossier. Retirer à l’agent l’accès qu’il n’aurait pas dû "
                              "avoir évite qu’il recommence.")
+        elif d.get("type") in ("interne_politique", "interne_anomalie") and not graves:
+            # Une règle du SOC a déjà tranché, ou une alerte n'a pas arrêté l'agent : on lit, on clôt.
+            possibles = ACTIONS_AGENT + ["clore"]
+            action = "clore"
+            justification = (
+                "Une règle écrite par le SOC a déjà tranché cette action. Relisez-la, puis clorez le dossier."
+                if d.get("type") == "interne_politique" else
+                "L’agent n’a pas été arrêté. Si l’écart s’explique par son travail, clorez le dossier ; "
+                "sinon, coupez-le.")
         elif r.etapes("desarme") and not graves:
             # Prévenu avant lecture : rien n'a été suivi, l'agent attend seulement d'être relancé.
             action = "reprendre"

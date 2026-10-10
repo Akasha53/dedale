@@ -86,7 +86,27 @@ def personne(session_id: str, evenements: list[dict] | None = None) -> dict | No
     for p in ANNUAIRE:
         if any(a in vues for a in p["adresses"]):
             return p
+    # En dernier recours, le prénom cité par le poste (« Camille ouvre un mail… », `?u=camille`).
+    textes: list[str] = []
+    for ev in evenements or []:
+        _textes(ev.get("details") or {}, textes)
+    tout = " ".join(textes)
+    for p in ANNUAIRE:
+        prenom = p["noms"][1] if len(p["noms"]) > 1 else p["noms"][0]
+        if re.search(r"(?<![\w])" + re.escape(prenom) + r"(?![\w])", tout, re.IGNORECASE):
+            return p
     return None
+
+
+def _textes(valeur: Any, sortie: list[str]) -> None:
+    if isinstance(valeur, str):
+        sortie.append(valeur)
+    elif isinstance(valeur, dict):
+        for v in valeur.values():
+            _textes(v, sortie)
+    elif isinstance(valeur, list):
+        for v in valeur:
+            _textes(v, sortie)
 
 
 def identite(session_id: str, evenements: list[dict] | None = None) -> dict:

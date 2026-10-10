@@ -146,7 +146,7 @@ const TITRES: Record<string, string> = {
 
 export function titreIncident(inc: Pick<Incident, "type" | "titre"> & { contexte_humain?: string | null }): string {
   if (inc.type === "humain_phishing" && inc.contexte_humain === "navigation") return "Site sosie ouvert malgré l'alerte";
-  if (inc.type === "humain_phishing" && inc.contexte_humain === "mail reçu") return "Lien d'un faux mail ouvert malgré l'alerte";
+  if (inc.type === "humain_phishing" && inc.contexte_humain === "mail reçu") return "Faux mail : le salarié a continué malgré l'alerte";
   if (inc.type === "interne_anomalie") {
     const m = /Comportement inhabituel : ([^(]+)/.exec(inc.titre ?? "");
     if (m) return `Comportement inhabituel : ${m[1].trim()}`;
@@ -292,7 +292,10 @@ export function sansJargon(t: string): string {
     .replace(/\bEchoLeak\b/g, "fuite par image invisible")
     .replace(/\s*\(tool poisoning\)/gi, " (outil empoisonné)")
     .replace(/\btool poisoning\b/gi, "outil empoisonné")
-    .replace(/\(repère Palisade ([\d.,]+) s pour un agent\)/gi, "(un agent IA agit toutes les $1 s environ)");
+    .replace(/\(repère Palisade ([\d.,]+) s pour un agent\)/gi, "(un agent IA agit toutes les $1 s environ)")
+    .replace(/\bpixel markdown\b/gi, "image invisible")
+    .replace(/\bexfiltrer\b/gi, "faire sortir")
+    .replace(/\bexfiltration\b/gi, "sortie de données");
 }
 
 export function decoder(t: string): string {

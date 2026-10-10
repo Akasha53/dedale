@@ -18,7 +18,9 @@ export function useSynthese(incident: Incident): { synthese: Synthese | null; pr
     prete: false,
   });
   // On relit la synthèse quand l'incident change d'état (décision, correctif).
-  const version = `${incident.id}|${incident.etat}|${incident.statut}|${incident.decisions?.length ?? 0}|${incident.correctifs?.length ?? 0}|${incident.droits_retirables?.length ?? 0}`;
+  // La passerelle confirme l'issue d'une décision un instant après : la chaîne
+  // s'allonge, et la synthèse doit suivre.
+  const version = `${incident.id}|${incident.etat}|${incident.statut}|${incident.decisions?.length ?? 0}|${incident.correctifs?.length ?? 0}|${incident.droits_retirables?.length ?? 0}|${incident.chaine?.length ?? 0}|${incident.journal_console?.length ?? 0}`;
   useEffect(() => {
     let vivant = true;
     getSynthese(incident.id)

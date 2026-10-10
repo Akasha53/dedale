@@ -153,3 +153,11 @@ def test_quatre_yeux_conseille_de_refuser(client):
     inc = _poste_phishing(client, quatre_yeux=True)
     dec = client.get(f"/api/incidents/{inc['id']}/synthese").json()["decision_recommandee"]
     assert dec["action"] == "refuser" and "accorder" in dec["actions_possibles"]
+
+
+def test_prenom_cite_suffit_a_pseudonymiser(client):
+    """Une session sans préfixe nominatif (démo jury) : le prénom cité suffit à la masquer."""
+    inc = _poste_phishing(client, sid="jury-215301-ab12-poste")
+    detail = client.get(f"/api/incidents/{inc['id']}").json()
+    assert not re.search(r"camille", _sans_session_id(detail), re.IGNORECASE)
+    assert detail["identite"]["service"] == "Finance"
