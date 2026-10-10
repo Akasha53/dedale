@@ -85,14 +85,20 @@ SESSIONS = [
 
 
 def main() -> None:
+    from app import auth
+
+    def jeton(role: str) -> dict[str, str]:
+        return {"Authorization": "Bearer " + auth.chemin_jeton(role).read_text().strip()}
+
+    passerelle, analyste = jeton("passerelle"), jeton("analyste")
     with httpx.Client(base_url=BASE_URL, timeout=10) as c:
-        r = c.post("/api/leurres", json=LEURRES)
+        r = c.post("/api/leurres", json=LEURRES, headers=passerelle)
         r.raise_for_status()
         print(f"Leurres enregistrés : {r.json()['enregistres']}")
         for e in SESSIONS:
-            c.post("/api/evenements", json=e).raise_for_status()
-        inc = c.get("/api/incidents").json()["incidents"]
-        mes = c.get("/api/mesures").json()
+            c.post("/api/evenements", json=e, headers=passerelle).raise_for_status()
+        inc = c.get("/api/incidents", headers=analyste).json()["incidents"]
+        mes = c.get("/api/mesures", headers=analyste).json()
         print(f"Événements rejoués : {len(SESSIONS)}")
         print(f"Incidents créés : {len(inc)} — {[i['id'] for i in inc]}")
         print(f"Taux de détection : {mes['taux_detection']} | faux positifs : {mes['faux_positifs']}")

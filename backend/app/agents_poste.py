@@ -24,7 +24,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from . import config, inventaire
+from . import auth, config, inventaire
 
 routeur = APIRouter()
 
@@ -298,7 +298,7 @@ def fiches_inventaire() -> list[dict]:
     return sortie
 
 
-@routeur.post("/api/agents/poste", status_code=201)
+@routeur.post("/api/agents/poste", status_code=201, dependencies=[auth.POSTE])
 async def recevoir_inventaire(corps: dict[str, Any]):
     try:
         return registre.enregistrer(corps)

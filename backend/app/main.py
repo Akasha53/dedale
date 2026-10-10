@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, agents_poste, alertes, api_preuves, config, db, exports, inventaire, nis2, routes_gouvernance, synthese
+from . import __version__, agents_poste, alertes, api_preuves, auth, config, db, exports, inventaire, nis2, routes_gouvernance, synthese
 from .models import DecisionIn, EvenementIn, LeurreIn, RemediationIn, RetraitDroitIn, RevelationIn
 from .store import store
 from .ws import diffuseur
@@ -109,6 +109,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Jetons analyste, passerelle et poste : toute route de l'API exige le sien (auth.py).
+auth.brancher(app)
 
 
 def _enfiler(job: dict) -> None:
@@ -123,7 +125,7 @@ def _enfiler(job: dict) -> None:
 
 
 # ---------------------------------------------------------------- Collecteur
-@app.post("/api/evenements")
+@app.post("/api/evenements", dependencies=[auth.ECRIVAINS])
 async def recevoir_evenement(ev: EvenementIn):
     res = store.ingerer(ev)
     leurre = store.leurres.get(res["evenement"]["leurre_id"])
@@ -140,7 +142,7 @@ async def recevoir_evenement(ev: EvenementIn):
     return res["reponse"]
 
 
-@app.post("/api/leurres")
+@app.post("/api/leurres", dependencies=[auth.PASSERELLE])
 async def enregistrer_leurres(leurres: list[LeurreIn]):
     objets = store.enregistrer_leurres(leurres)
     _enfiler({"leurres": objets})
@@ -158,7 +160,7 @@ async def lister_sessions():
     return {"sessions": store.liste_sessions()}
 
 
-@app.get("/api/sessions/{sid}")
+@app.get("/api/sessions/{sid}", dependencies=[auth.LECTURE_SESSION])
 async def session_detail(sid: str):
     d = store.session_detail(sid)
     if d is None:
@@ -189,7 +191,7 @@ async def incident_detail(iid: str):
     return d
 
 
-@app.post("/api/incidents/{iid}/decision")
+@app.post("/api/incidents/{iid}/decision", dependencies=[auth.ANALYSTE])
 async def decider(iid: str, decision: DecisionIn):
     try:
         res = store.decider(iid, decision.action, decision.analyste, decision.motif)
@@ -223,7 +225,7 @@ def _acte_console(res: dict | None, iid: str) -> dict:
     return res["reponse"]
 
 
-@app.post("/api/incidents/{iid}/identite")
+@app.post("/api/incidents/{iid}/identite", dependencies=[auth.ANALYSTE])
 async def reveler_identite(iid: str, corps: RevelationIn):
     """Lève l'anonymat du salarié d'un dossier : motif obligatoire, acte scellé."""
     try:
@@ -233,7 +235,7 @@ async def reveler_identite(iid: str, corps: RevelationIn):
     return _acte_console(res, iid)
 
 
-@app.post("/api/incidents/{iid}/remediation")
+@app.post("/api/incidents/{iid}/remediation", dependencies=[auth.ANALYSTE])
 async def remedier(iid: str, corps: RemediationIn):
     """Action simulée côté salarié (mot de passe, sessions, domaine), notée au journal scellé."""
     try:
@@ -275,7 +277,7 @@ async def incident_source(iid: str):
     return d
 
 
-@app.post("/api/incidents/{iid}/retirer-droit")
+@app.post("/api/incidents/{iid}/retirer-droit", dependencies=[auth.ANALYSTE])
 async def retirer_droit(iid: str, corps: RetraitDroitIn):
     """Correctif en un clic : retire à l'agent un droit en trop pour sa tâche."""
     try:
@@ -320,7 +322,7 @@ async def activite(limite: int = Query(50, ge=1, le=500)):
 @app.get("/api/mesures")
 async def mesures():
     from . import mesures as m
-    return m.calculer(store)
+    return {**m.calculer(store), "acces_refuses": auth.bilan()}
 
 
 @app.get("/api/sante")

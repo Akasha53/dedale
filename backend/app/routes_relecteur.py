@@ -14,7 +14,7 @@ from typing import Callable
 
 from fastapi import APIRouter, FastAPI, HTTPException
 
-from . import memoire_relecteur, relecteur
+from . import auth, memoire_relecteur, relecteur
 
 routeur = APIRouter()
 _TAILLE_MAX = 256 * 1024
@@ -33,7 +33,7 @@ async def file_a_regarder():
     return relecteur.file_a_regarder()
 
 
-@routeur.get("/api/relecteur/demandes/{demande_id}")
+@routeur.get("/api/relecteur/demandes/{demande_id}", dependencies=[auth.VERDICT_POSTE])
 async def relecture_demande(demande_id: str):
     """Ce que le relecteur a décidé d'un geste à quatre yeux (`en_cours`, puis `tranchee`)."""
     d = relecteur.relecture_demande(demande_id[:80])

@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import inventaire, politiques, resistance
+from . import auth, inventaire, politiques, resistance
 
 routeur = APIRouter()
 
@@ -61,7 +61,7 @@ class EvaluationIn(BaseModel):
 
 
 # ------------------------------------------------------------------ règles du SOC
-@routeur.post("/api/politiques/analyser")
+@routeur.post("/api/politiques/analyser", dependencies=[auth.ANALYSTE])
 async def analyser_politique(corps: PhraseIn):
     """Phrase en français → règle proposée et reformulation à faire valider. N'active rien.
     `compris_par` dit qui a compris : « modèle » ou « motifs »."""
@@ -75,7 +75,7 @@ async def analyser_politique(corps: PhraseIn):
     return await politiques.analyser_avec_modele(corps.phrase, _store())
 
 
-@routeur.post("/api/politiques", status_code=201)
+@routeur.post("/api/politiques", status_code=201, dependencies=[auth.ANALYSTE])
 async def activer_politique(corps: ActivationIn):
     """Active une règle relue par l'analyste : la règle proposée, ou la phrase réanalysée.
     Une règle de moindre privilège retire les droits tout de suite. `regle.remplace` (posé par
@@ -126,7 +126,7 @@ async def journal_politiques():
     return {"actes": politiques.registre.journal(), "verification": politiques.registre.verifier()}
 
 
-@routeur.delete("/api/politiques/{rid}")
+@routeur.delete("/api/politiques/{rid}", dependencies=[auth.ANALYSTE])
 async def retirer_politique(rid: str, analyste: str = "inconnu"):
     """Retire une règle. Pour une règle de moindre privilège, rend les droits aux agents."""
     r = politiques.registre.retirer(rid, analyste)
@@ -136,7 +136,7 @@ async def retirer_politique(rid: str, analyste: str = "inconnu"):
     return {"retiree": r["id"], "politique": r}
 
 
-@routeur.post("/api/politiques/evaluer")
+@routeur.post("/api/politiques/evaluer", dependencies=[auth.PASSERELLE])
 async def evaluer_politiques(corps: EvaluationIn):
     """Appelé par la passerelle avant un appel d'outil : quelle règle active s'applique ?"""
     ctx = corps.model_dump()
@@ -165,7 +165,7 @@ async def agent_resistance(agent_id: str):
     return resistance.pour_agent(agent_id)
 
 
-@routeur.post("/api/resistance/campagnes", status_code=201)
+@routeur.post("/api/resistance/campagnes", status_code=201, dependencies=[auth.PASSERELLE])
 async def recevoir_campagne(corps: dict[str, Any]):
     try:
         return resistance.registre.enregistrer(corps)

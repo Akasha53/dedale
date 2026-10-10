@@ -12,6 +12,8 @@ os.environ["DEDALE_DB"] = _TMPDB
 os.environ["DEDALE_LLM"] = "off"  # pas d'appel modèle en test : repli gabarit déterministe
 os.environ["DEDALE_RELECTEUR"] = "off"  # relecteur IA coupé, sauf dans test_relecteur.py
 os.environ.pop("DEDALE_WEBHOOK_URL", None)  # aucune alerte ne sort pendant les tests
+# Jetons d'accès tirés dans un dossier jetable, jamais ~/.config/dedale.
+os.environ["DEDALE_JETONS"] = tempfile.mkdtemp(prefix="dedale-jetons-")
 # Ancrage : clés de signature dans un dossier jetable, jamais ~/.config/dedale, et aucun
 # appel au réseau Fuji (tests/test_ancrage.py passe par un faux client RPC).
 _CLES = tempfile.mkdtemp(prefix="dedale-cles-")
@@ -19,10 +21,12 @@ os.environ["DEDALE_CLES"] = os.path.join(_CLES, "cles")
 os.environ["DEDALE_ANCRAGE_CLE"] = os.path.join(_CLES, "ancrage.key")
 os.environ["DEDALE_ANCRAGE"] = "off"
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app import auth
 from app import config, journal_scelle
 from app.store import store
 from app import gouvernance
@@ -45,6 +49,43 @@ def _reset_store(tmp_path, monkeypatch):
     store.tete_evenements = journal_scelle.GENESE
     store.tete_decisions = journal_scelle.GENESE
     gouvernance.vider()
+    auth.vider_bilan()
+    yield
+
+
+def jeton(role: str) -> dict[str, str]:
+    """En-tête d'une identité, pour les tests qui choisissent leur jeton."""
+    return {"Authorization": "Bearer " + auth.chemin_jeton(role).read_text().strip()}
+
+
+# Routes ouvertes à une machine ; toutes les autres sont celles de la console (analyste).
+ROUTES_DES_MACHINES = {
+    ("POST", "/api/evenements"): "passerelle",
+    ("POST", "/api/leurres"): "passerelle",
+    ("POST", "/api/politiques/evaluer"): "passerelle",
+    ("POST", "/api/resistance/campagnes"): "passerelle",
+    ("POST", "/api/agents/poste"): "poste",
+}
+
+
+def _jeton_de_la_route(requete: httpx.Request) -> None:
+    """Le client de test se présente comme l'appelant légitime de chaque route : la passerelle
+    pour un événement, le poste pour son inventaire, l'analyste pour le reste. Un test qui pose
+    son propre en-tête Authorization le garde ; tests/test_auth.py vérifie les refus."""
+    if "authorization" not in requete.headers:
+        role = ROUTES_DES_MACHINES.get((requete.method, requete.url.path), "analyste")
+        requete.headers.update(jeton(role))
+
+
+@pytest.fixture(autouse=True)
+def _jetons_par_defaut(monkeypatch):
+    origine = TestClient.__init__
+
+    def initialiser(self, *args, **kwargs):
+        origine(self, *args, **kwargs)
+        self.event_hooks = {"request": [_jeton_de_la_route], "response": []}
+
+    monkeypatch.setattr(TestClient, "__init__", initialiser)
     yield
 
 
