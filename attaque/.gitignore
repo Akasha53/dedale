@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 *.pyc
 .pytest_cache/
+
+# Bilans de résistance générés (reproductibles via resistance.py)
+rapports/resistance-*.json
