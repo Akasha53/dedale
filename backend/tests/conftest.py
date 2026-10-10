@@ -12,6 +12,12 @@ os.environ["DEDALE_DB"] = _TMPDB
 os.environ["DEDALE_LLM"] = "off"  # pas d'appel modèle en test : repli gabarit déterministe
 os.environ["DEDALE_RELECTEUR"] = "off"  # relecteur IA coupé, sauf dans test_relecteur.py
 os.environ.pop("DEDALE_WEBHOOK_URL", None)  # aucune alerte ne sort pendant les tests
+# Ancrage : clés de signature dans un dossier jetable, jamais ~/.config/dedale, et aucun
+# appel au réseau Fuji (tests/test_ancrage.py passe par un faux client RPC).
+_CLES = tempfile.mkdtemp(prefix="dedale-cles-")
+os.environ["DEDALE_CLES"] = os.path.join(_CLES, "cles")
+os.environ["DEDALE_ANCRAGE_CLE"] = os.path.join(_CLES, "ancrage.key")
+os.environ["DEDALE_ANCRAGE"] = "off"
 
 import pytest
 from fastapi.testclient import TestClient

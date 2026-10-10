@@ -5,7 +5,7 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
-from app import config, journal_scelle, main, verifier_journal
+from app import ancrage, config, journal_scelle, main, verifier_journal
 from tests import scenario_jury
 from tests.conftest import BASE, evenement, horo
 
@@ -33,8 +33,10 @@ def _verifier(client, iid):
 
 
 def _base():
+    """La base vue par un administrateur : il retire d'abord les déclencheurs d'ajout seul."""
     conn = sqlite3.connect(str(config.CHEMIN_DB))
     conn.row_factory = sqlite3.Row
+    ancrage.retirer_ajout_seul(conn)
     return conn
 
 
@@ -65,8 +67,8 @@ def test_maillon_modifie_en_base_est_vu(client):
         conn.execute("UPDATE incidents SET chaine = ? WHERE id = ?", (json.dumps(chaine), iid))
     v = _verifier(client, iid)
     assert v["statut"] == "alteree"
-    assert v["verdict"] == "altérée à l'étape 2"
-    assert v["etape_alteree"] == 2 and v["element_altere"] == "maillon"
+    assert v["verdict"] == "altérée à l'étape 2 : champ detail modifié"
+    assert v["etape_alteree"] == 2 and v["element_altere"] == "maillon" and v["champs_modifies"] == ["detail"]
 
 
 def test_maillon_supprime_en_base_est_vu(client):
@@ -87,7 +89,7 @@ def test_evenement_source_modifie_en_base_est_vu(client):
         eid = chaine[2]["evenement_id"]
         conn.execute("UPDATE evenements SET details = ? WHERE id = ?", (json.dumps({"exfiltration": False}), eid))
     v = _verifier(client, iid)
-    assert v["verdict"] == "altérée à l'étape 3"
+    assert v["verdict"].startswith("altérée à l'étape 3 : champs ") and "exfiltration" in v["verdict"]
     assert f"événement source {eid}" in v["raison"]
 
 
@@ -103,7 +105,7 @@ def test_decision_et_entete_modifiees_en_base(client):
         conn.execute("UPDATE incidents SET analyste = 'alice' WHERE id = ?", (iid,))
         conn.execute("UPDATE decisions SET analyste = 'mallory'")
     v = _verifier(client, iid)
-    assert v["verdict"] == "altérée à la décision 1"
+    assert v["verdict"] == "altérée à la décision 1 : champ analyste modifié"
 
 
 def test_donnees_anterieures_au_scellement(client):
@@ -112,7 +114,8 @@ def test_donnees_anterieures_au_scellement(client):
     with _base() as conn:
         chaine = [{k: v for k, v in m.items() if k != "sceau"} for m in _chaine_en_base(conn, iid)]
         conn.execute("UPDATE incidents SET chaine = ?, sceau = NULL WHERE id = ?", (json.dumps(chaine), iid))
-        conn.execute("UPDATE evenements SET sceau = NULL, sceau_precedent = NULL")
+        # Une base d'avant le scellement n'a pas non plus de signatures.
+        conn.execute("UPDATE evenements SET sceau = NULL, sceau_precedent = NULL, signataire = NULL, signature = NULL")
     v = _verifier(client, iid)
     assert v["statut"] == "anterieure_au_scellement"
     assert v["verdict"] == "antérieure au scellement"

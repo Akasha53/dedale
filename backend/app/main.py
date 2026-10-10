@@ -368,6 +368,9 @@ app.include_router(routes_gouvernance.routeur)
 # Relecteur IA : gestes à quatre yeux tranchés en quelques secondes, pré-tri des incidents.
 from . import routes_relecteur  # noqa: E402
 routes_relecteur.brancher(app, _enfiler)
+# Écritures signées, ajout seul et ancrage du journal sur Avalanche Fuji (routes_ancrage.py).
+from . import routes_ancrage  # noqa: E402
+routes_ancrage.brancher(app)
 
 
 # ---------------------------------------------------------------- Console web

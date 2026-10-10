@@ -14,7 +14,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from . import alertes, config, journal_scelle, rapport, synthese
+from . import alertes, ancrage, config, journal_scelle, rapport, synthese
 from .store import store
 
 routeur = APIRouter()
@@ -26,7 +26,9 @@ def _verifier(iid: str) -> dict | None:
         return None
     conn = journal_scelle.ouvrir_lecture(chemin)
     try:
-        return journal_scelle.verifier_incident(conn, iid)
+        # Même vérification que `python -m app.verifier_journal` : chaînes SHA-256, signatures
+        # Ed25519 et ancre sur Avalanche (ancrage.verifier_dossier).
+        return ancrage.verifier_dossier(conn, iid, ancrage.client_rpc())
     finally:
         conn.close()
 

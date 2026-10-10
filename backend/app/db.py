@@ -12,7 +12,7 @@ import sqlite3
 from dataclasses import asdict
 from datetime import datetime
 
-from . import config
+from . import config, journal_scelle
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS evenements (
@@ -51,16 +51,22 @@ def ouvrir() -> sqlite3.Connection:
     # Ajouts compatibles avec les bases créées avant le rechargement au démarrage.
     for table, colonnes in {
         "sessions": {"etat_json": "TEXT"},
-        "evenements": {"leurre_nature": "TEXT", "sceau_precedent": "TEXT", "sceau": "TEXT"},
+        "evenements": {"leurre_nature": "TEXT", "sceau_precedent": "TEXT", "sceau": "TEXT",
+                       "signataire": "TEXT", "signature": "TEXT"},
         "incidents": {"gravite": "TEXT", "resume": "TEXT", "sceau": "TEXT"},
         # Journal scellé (journal_scelle.py) : NULL pour les lignes antérieures au scellement.
-        "decisions": {"sceau_precedent": "TEXT", "sceau": "TEXT"},
+        "decisions": {"sceau_precedent": "TEXT", "sceau": "TEXT", "signataire": "TEXT", "signature": "TEXT"},
     }.items():
         presentes = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
         for nom, type_ in colonnes.items():
             if nom not in presentes:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {nom} {type_}")
     conn.commit()
+    # Empreintes par champ (diagnostic du journal scellé), puis ancrage (ancrage.py) :
+    # déclencheurs d'ajout seul et table des ancres.
+    journal_scelle.preparer(conn)
+    from . import ancrage
+    ancrage.preparer(conn)
     return conn
 
 
@@ -109,15 +115,17 @@ def lire(conn: sqlite3.Connection) -> dict[str, list[dict]]:
 def ecrire_evenement(conn: sqlite3.Connection, ev: dict) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO evenements
-        (id,horodatage,recu_a,source,surface,type,session_id,leurre_id,ip,user_agent,methode,chemin,outil,details,leurre_nature,sceau_precedent,sceau)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (id,horodatage,recu_a,source,surface,type,session_id,leurre_id,ip,user_agent,methode,chemin,outil,details,leurre_nature,sceau_precedent,sceau,signataire,signature)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             ev["id"], ev["horodatage"], ev["recu_a"], ev["source"], ev["surface"], ev["type"],
             ev["session_id"], ev["leurre_id"], ev["ip"], ev["user_agent"], ev["methode"],
             ev["chemin"], ev["outil"], _j(ev["details"]), ev.get("leurre_nature"),
-            ev.get("sceau_precedent"), ev.get("sceau"),
+            ev.get("sceau_precedent"), ev.get("sceau"), ev.get("signataire"), ev.get("signature"),
         ),
     )
+    if ev.get("sceau"):
+        journal_scelle.ecrire_champs(conn, f"evenement:{ev['sceau']}", journal_scelle._contenu_evenement(ev))
 
 
 def ecrire_session(conn: sqlite3.Connection, s) -> None:
@@ -158,11 +166,22 @@ def ecrire_incident(conn: sqlite3.Connection, i) -> None:
             i.action, _j(i.chaine), i.gravite, i.resume, getattr(i, "sceau", None),
         ),
     )
+    if getattr(i, "sceau", None):
+        journal_scelle.ecrire_champs(conn, f"incident:{i.id}", journal_scelle.contenu_incident_ecrit(i, i.sceau),
+                                     remplacer=True)
+        for m in i.chaine:
+            sceau = m.get("sceau") if isinstance(m, dict) else None
+            if isinstance(sceau, dict) and sceau.get("empreinte"):
+                journal_scelle.ecrire_champs(conn, f"maillon:{sceau['empreinte']}", journal_scelle.contenu_maillon(m))
 
 
 def ecrire_decision(conn: sqlite3.Connection, d: dict) -> None:
-    conn.execute(
-        "INSERT INTO decisions (incident_id,action,analyste,horodatage,sceau_precedent,sceau) VALUES (?,?,?,?,?,?)",
+    cur = conn.execute(
+        "INSERT INTO decisions (incident_id,action,analyste,horodatage,sceau_precedent,sceau,signataire,signature) "
+        "VALUES (?,?,?,?,?,?,?,?)",
         (d["incident_id"], d["action"], d["analyste"], d["horodatage"],
-         d.get("sceau_precedent"), d.get("sceau")),
+         d.get("sceau_precedent"), d.get("sceau"), d.get("signataire"), d.get("signature")),
     )
+    if d.get("sceau"):
+        journal_scelle.ecrire_champs(conn, f"decision:{d['sceau']}",
+                                     journal_scelle.contenu_decision_ecrite(d, cur.lastrowid))

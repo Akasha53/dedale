@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
-from app import main
+from app import ancrage, main
 from app.store import Store
 from tests.conftest import BASE, evenement, horo
 
@@ -141,6 +141,7 @@ def test_ancienne_base_sans_etat_complet_est_rejouee(monkeypatch):
 
     from app import config
     with sqlite3.connect(config.CHEMIN_DB) as conn:
+        ancrage.retirer_ajout_seul(conn)  # une base d'avant l'ajout seul
         conn.execute("UPDATE sessions SET etat_json = NULL")
         conn.execute("UPDATE evenements SET leurre_nature = NULL")
         conn.execute("UPDATE leurres SET touches = 0, premier_touche = NULL, dernier_touche = NULL")
@@ -187,6 +188,7 @@ def test_ancienne_base_avec_journal_partiel_preserve_incident(monkeypatch):
 
     from app import config
     with sqlite3.connect(config.CHEMIN_DB) as conn:
+        ancrage.retirer_ajout_seul(conn)  # une base d'avant l'ajout seul
         conn.execute("UPDATE sessions SET etat_json = NULL, n_evenements = 4 WHERE id = 'S-partiel'")
         conn.execute("DELETE FROM evenements WHERE session_id = 'S-partiel' AND type = 'leurre_touche'")
         conn.execute("UPDATE sessions SET etat_json = NULL, n_evenements = 1 WHERE id = 'S-en-retard'")
