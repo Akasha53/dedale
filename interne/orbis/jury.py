@@ -30,7 +30,7 @@ from datetime import datetime
 from urllib.parse import quote
 from uuid import uuid4
 
-from . import config, desarmeur
+from . import config, desarmeur, jetons
 from .agent import AgentInterne, enregistrer_canaris
 from .boite_noire import BoiteNoire
 from .canaris import jetons_secrets
@@ -48,7 +48,9 @@ PLANS = {"couper": ["couper"], "reprendre": ["reprendre", "couper"]}
 
 def _lire(base: str, chemin: str) -> dict | None:
     try:
-        with urllib.request.urlopen(base + chemin, timeout=2.0) as rep:
+        # L'analyste scripté lit comme la console : jeton analyste.
+        req = urllib.request.Request(base + chemin, headers=jetons.entete("analyste"))
+        with urllib.request.urlopen(req, timeout=2.0) as rep:
             return json.loads(rep.read().decode("utf-8", "replace"))
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
         return None
@@ -82,7 +84,7 @@ class AnalysteScripte(threading.Thread):
         corps = json.dumps({"action": action, "analyste": self.analyste}).encode()
         req = urllib.request.Request(
             self.base + f"/api/incidents/{quote(incident_id, safe='')}/decision", data=corps,
-            method="POST", headers={"Content-Type": "application/json"})
+            method="POST", headers={"Content-Type": "application/json", **jetons.entete("analyste")})
         try:
             with urllib.request.urlopen(req, timeout=2.0):
                 return True

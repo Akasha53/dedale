@@ -23,6 +23,7 @@ import time
 import urllib.error
 import urllib.request
 
+from . import jetons
 from .agent import AgentInterne, enregistrer_canaris
 from .backend_simule import BackendSimule
 from .boite_noire import BoiteNoire
@@ -36,7 +37,8 @@ DEMANDE = "Résume mes mails de la semaine et envoie-moi le rapport."
 def _incident_pour_session(base: str, session_id: str) -> str | None:
     """Trouve l'id d'incident ouvert pour une session, via GET /api/incidents."""
     try:
-        with urllib.request.urlopen(base + "/api/incidents", timeout=2.0) as rep:
+        req = urllib.request.Request(base + "/api/incidents", headers=jetons.entete("analyste"))
+        with urllib.request.urlopen(req, timeout=2.0) as rep:
             donnees = json.loads(rep.read().decode("utf-8", "replace"))
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
         return None
@@ -50,7 +52,7 @@ def _poster_decision(base: str, incident_id: str, action: str, analyste: str) ->
     corps = json.dumps({"action": action, "analyste": analyste}).encode()
     req = urllib.request.Request(
         base + f"/api/incidents/{incident_id}/decision", data=corps, method="POST",
-        headers={"Content-Type": "application/json"})
+        headers={"Content-Type": "application/json", **jetons.entete("analyste")})
     with urllib.request.urlopen(req, timeout=2.0):
         pass
 

@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
-from . import config
+from . import config, jetons
 
 
 def _horodatage() -> str:
@@ -25,7 +25,8 @@ def _poster(base: str, chemin: str, corps: dict | list, timeout: float = 1.0) ->
     url = base + chemin
     donnees = json.dumps(corps).encode("utf-8")
     req = urllib.request.Request(
-        url, data=donnees, headers={"Content-Type": "application/json"}, method="POST"
+        url, data=donnees, method="POST",
+        headers={"Content-Type": "application/json", **jetons.entete("passerelle")},
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as rep:
@@ -36,9 +37,9 @@ def _poster(base: str, chemin: str, corps: dict | list, timeout: float = 1.0) ->
 
 
 def _lire(base: str, chemin: str, timeout: float = 1.0) -> dict | None:
-    url = base + chemin
+    req = urllib.request.Request(base + chemin, headers=jetons.entete("passerelle"))
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as rep:
+        with urllib.request.urlopen(req, timeout=timeout) as rep:
             brut = rep.read().decode("utf-8")
             return json.loads(brut) if brut else {}
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
