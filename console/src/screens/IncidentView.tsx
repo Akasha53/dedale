@@ -408,8 +408,8 @@ function GestePanneau({ incident }: { incident: Incident }) {
             style={{ marginBottom: 0 }}
           >
             {annule
-              ? "Le salarié a annulé après l'alerte : le geste risqué a été arrêté à temps. C'est la protection qui marche."
-              : "Le salarié est passé outre l'alerte : le geste a eu lieu. Dédale l'a attrapé au moment du clic et l'escalade au SOC."}
+              ? "Le salarié a annulé après l'alerte : le geste risqué s'est arrêté là, avant d'aboutir."
+              : "Le salarié est passé outre l'alerte : le geste a eu lieu. Dédale l'a repéré au clic et l'a escaladé au SOC."}
           </p>
         )}
       </div>

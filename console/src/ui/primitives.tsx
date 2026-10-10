@@ -66,6 +66,7 @@ export function SegmentsPiliers({
         <button
           key={p.id}
           role="tab"
+          data-pilier={p.id}
           aria-selected={pilier === p.id}
           className={pilier === p.id ? "actif" : ""}
           onClick={() => setPilier(p.id)}
