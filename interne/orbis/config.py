@@ -10,6 +10,12 @@ RACINE = Path(__file__).resolve().parent.parent
 DOSSIER_DONNEES = RACINE / "donnees"
 FICHIER_MAILS = DOSSIER_DONNEES / "boite_mail.json"
 DOSSIER_DOCUMENTS = DOSSIER_DONNEES / "documents"
+DOSSIER_APPELS = DOSSIER_DONNEES / "appels"
+
+# Mémoire long terme persistante de l'agent (V4). Dérivée, locale, non versionnée.
+FICHIER_MEMOIRE = Path(
+    os.environ.get("DEDALE_MEMOIRE", str(RACINE / "instance" / "memoire.json"))
+)
 
 # Boîte noire : console API du backend (agent A).
 BACKEND_BASE = os.environ.get("DEDALE_BACKEND", "http://127.0.0.1:8700")

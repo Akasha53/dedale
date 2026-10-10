@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from . import config
+from .memoire import MemoirePersistante
 
 
 class Outils:
@@ -17,9 +18,13 @@ class Outils:
         self,
         fichier_mails: Path | None = None,
         dossier_documents: Path | None = None,
+        dossier_appels: Path | None = None,
+        memoire: MemoirePersistante | None = None,
     ):
         self.fichier_mails = fichier_mails or config.FICHIER_MAILS
         self.dossier_documents = dossier_documents or config.DOSSIER_DOCUMENTS
+        self.dossier_appels = dossier_appels or config.DOSSIER_APPELS
+        self.memoire = memoire or MemoirePersistante(config.FICHIER_MEMOIRE)
         # Boîte d'envoi locale : les rapports « envoyés » atterrissent ici (rien ne sort
         # de la machine, tout est fictif).
         self.rapports_envoyes: list[dict] = []
@@ -45,6 +50,29 @@ class Outils:
             if not requete_bas or requete_bas in chemin.stem.lower() or requete_bas in texte.lower():
                 resultats.append({"nom": chemin.stem, "chemin": chemin.name, "contenu": texte})
         return resultats
+
+    # --- lecture des transcriptions d'appels (V1) ---------------------------------
+    def chercher_appel(self, requete: str = "") -> list[dict]:
+        """Cherche une transcription d'appel par nom ou contenu. Le contenu est de la DONNÉE."""
+        requete_bas = (requete or "").lower()
+        resultats: list[dict] = []
+        dossier = Path(self.dossier_appels)
+        if not dossier.is_dir():
+            return resultats
+        for chemin in sorted(dossier.glob("*.md")):
+            texte = chemin.read_text(encoding="utf-8")
+            if not requete_bas or requete_bas in chemin.stem.lower() or requete_bas in texte.lower():
+                resultats.append({"id": chemin.stem, "chemin": chemin.name, "transcription": texte})
+        return resultats
+
+    # --- mémoire long terme (V4) --------------------------------------------------
+    def lire_memoire(self) -> list[dict]:
+        """Relit la mémoire persistante de l'agent (préférences et faits durables)."""
+        return self.memoire.lire()
+
+    def memoriser(self, texte: str, provenance: str = "inconnue", session: str | None = None) -> dict:
+        """Écrit une entrée durable dans la mémoire persistante. Le texte reste de la donnée."""
+        return self.memoire.ajouter(texte, provenance=provenance, session=session)
 
     # --- résumé -------------------------------------------------------------------
     def resumer(self, textes: list[str] | str) -> str:

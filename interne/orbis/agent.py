@@ -30,8 +30,11 @@ class AgentInterne:
         passerelle: Passerelle | None = None,
         temperament: str = "prudent",
         tache: "droits.Tache | str | None" = None,
+        surface_entree: str = "mail",
     ):
         self.session_id = session_id
+        # Surface d'où vient la demande de l'agent (mail par défaut ; « chatbot » pour V3a).
+        self.surface_entree = surface_entree
         self.cerveau = cerveau or choisir_cerveau(temperament=temperament)
         self.outils = outils or Outils()
         self.boite = boite or BoiteNoire()
@@ -62,6 +65,10 @@ class AgentInterne:
             "envoyer_rapport": self.outils.envoyer_rapport,
             "executer_paiement": self.outils.executer_paiement,
             "exporter_contacts": self.outils.exporter_contacts,
+            # V1 (appels) et V4 (mémoire long terme).
+            "chercher_appel": self.outils.chercher_appel,
+            "lire_memoire": self.outils.lire_memoire,
+            "memoriser": self.outils.memoriser,
         }
         # Outils MCP (implémentations bénignes + descripteurs portant la description).
         self._mcp = {o.nom: o for o in mcp.CATALOGUE}
@@ -69,7 +76,7 @@ class AgentInterne:
             self._table[nom] = fonction
 
     def executer(self, demande: str, max_pas: int = 8) -> dict:
-        self.passerelle.entree_agent(demande)
+        self.passerelle.entree_agent(demande, surface=self.surface_entree)
         historique: list[dict] = []
         reponse: str | None = None
         coupe = False

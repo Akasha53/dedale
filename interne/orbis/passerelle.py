@@ -19,7 +19,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from . import detection, droits
+from . import detection, droits, inter_agent
 from .boite_noire import BoiteNoire
 
 
@@ -28,6 +28,14 @@ from .boite_noire import BoiteNoire
 # signal — un humain le lit aussi ; le signal, c'est que l'agent le *ressorte*.
 OUTILS_SORTANTS = {"envoyer_rapport", "exporter_contacts"}
 
+# Outils de LECTURE dont le résultat peut être une source piégée (attribution d'une exfiltration
+# ultérieure). id canari + nature. On inspecte le contenu lu pour le CLASSER suspect, jamais
+# pour l'exécuter — exactement comme l'inspection d'une description d'outil MCP.
+SOURCES_LECTURE = {
+    "chercher_appel": ("C-4D17", "appel"),
+    "lire_memoire": ("C-6A05", "memoire"),
+}
+
 
 class AgentCoupe(Exception):
     """Levée quand l'analyste coupe la session : l'agent doit s'arrêter."""
@@ -35,6 +43,10 @@ class AgentCoupe(Exception):
 
 class AgentHorsScope(Exception):
     """Levée quand l'agent tente une action hors de son jeton de tâche (moindre privilège)."""
+
+
+class AgentUsurpation(Exception):
+    """Levée quand une délégation inter-agent n'est pas authentifiée (provenance invalide)."""
 
 
 @dataclass
@@ -82,6 +94,9 @@ class Passerelle:
         self.hors_scope = False
         # Mémoire d'une description d'outil MCP piégée consultée dans la session (attribution).
         self._consigne_mcp: tuple[str, str, str] | None = None
+        # Mémoire d'une source piégée lue/reçue (appel, chatbot, mémoire) pour attribuer une
+        # exfiltration ultérieure au bon canari. (canari_id, nature, detail).
+        self._source_piegee: tuple[str, str, str] | None = None
 
         self.jeton_revoque = False
         self.etat = "active"
@@ -90,8 +105,13 @@ class Passerelle:
         self.journal: list[dict] = []  # trace locale, utile aux tests et à la démo
 
     # --- entrée / sortie de l'agent ----------------------------------------------
-    def entree_agent(self, texte: str) -> None:
+    def entree_agent(self, texte: str, surface: str = "mail") -> None:
         details: dict = {"texte": texte}
+        # Chatbot (V3a) : l'entrée vient de l'extérieur. Si elle porte une injection de prompt,
+        # on la mémorise pour attribuer une exfiltration ultérieure au canari chatbot. On ne
+        # suit jamais l'injection : on la classe suspecte.
+        if surface == "chatbot" and self._source_piegee is None and detection.consigne_cachee_dans(texte):
+            self._source_piegee = ("C-5E22", "chatbot", "entrée chatbot porteuse d'une injection de prompt")
         if self.jeton_tache is not None:
             # On annonce au backend les droits : accordés (larges), jeton de tâche (restreint),
             # nécessaires (= jeton). L'écart accordés/nécessaires porte le pitch moindre privilège.
@@ -102,11 +122,11 @@ class Passerelle:
                 "jeton": list(self.jeton_tache.scopes),
             }
         self._tracer("entree_agent", details)
-        self.boite.evenement("entree_agent", "mail", self.session_id, details=details)
+        self.boite.evenement("entree_agent", surface, self.session_id, details=details)
 
     def sortie_agent(self, texte: str) -> str:
         """Inspecte la sortie finale. Peut retenir et faire décider l'analyste."""
-        trouvailles = self._attribuer_mcp(detection.inspecter(texte, self.jetons))
+        trouvailles = self._attribuer(detection.inspecter(texte, self.jetons))
         if trouvailles:
             decision = self._gerer_touche(trouvailles, surface="outil", outil=None)
             if decision.verdict == "couper":
@@ -157,7 +177,7 @@ class Passerelle:
         sortant = nom in OUTILS_SORTANTS or (descripteur is not None and getattr(descripteur, "sortant", False))
         if sortant:
             charge = json.dumps(params, ensure_ascii=False, default=str)
-            trouvailles = self._attribuer_mcp(detection.inspecter(charge, self.jetons))
+            trouvailles = self._attribuer(detection.inspecter(charge, self.jetons))
 
         if trouvailles:
             decision = self._gerer_touche(trouvailles, surface="outil", outil=nom)
@@ -170,7 +190,18 @@ class Passerelle:
                 }
             # verdict "reprendre" : l'analyste a validé, l'appel retenu s'exécute.
 
-        return fonction(**params)
+        resultat = fonction(**params)
+        # Un outil de lecture dont le résultat porte une consigne cachée est mémorisé comme
+        # source piégée (attribution d'une exfiltration ultérieure). Jamais exécuté.
+        src = SOURCES_LECTURE.get(nom)
+        if src is not None and self._source_piegee is None:
+            try:
+                texte_lu = json.dumps(resultat, ensure_ascii=False, default=str)
+            except TypeError:
+                texte_lu = str(resultat)
+            if detection.consigne_cachee_dans(texte_lu):
+                self._source_piegee = (src[0], src[1], f"a lu une source {src[1]} porteuse d'une consigne cachée")
+        return resultat
 
     def _attribuer_mcp(self, trouvailles: list) -> list:
         """Si un outil MCP piégé a été consulté dans la session et qu'une exfiltration est
@@ -184,6 +215,64 @@ class Passerelle:
             )
             return [tete] + trouvailles
         return trouvailles
+
+    def _attribuer(self, trouvailles: list) -> list:
+        """Attribution unifiée. D'abord l'attribution MCP (tête dédiée, comportement V2 inchangé),
+        puis la source piégée appel/chatbot/mémoire : on ré-étiquette une exfiltration générique
+        (C-7A3F par défaut) vers le canari de la vraie source, pour que l'incident soit nommé
+        correctement (interne_appel / interne_chatbot / interne_memoire)."""
+        trouvailles = self._attribuer_mcp(trouvailles)
+        if trouvailles and self._source_piegee is not None:
+            cid, nature, detail = self._source_piegee
+            retag = False
+            for t in trouvailles:
+                if t.type == "exfiltration_markdown" and t.canari_id in (None, "C-7A3F"):
+                    t.canari_id = cid
+                    retag = True
+            if not retag:
+                # Pas d'exfiltration à ré-étiqueter (ex. faux secret seul) : on ajoute une tête.
+                tete = detection.Trouvaille(type=f"consigne_{nature}", detail=detail, canari_id=cid)
+                return [tete] + trouvailles
+        return trouvailles
+
+    # --- confiance inter-agent (V3b) ---------------------------------------------
+    def recevoir_delegation(self, deleg: "inter_agent.Delegation") -> bool:
+        """Vérifie la provenance d'une délégation inter-agent. Une délégation signée par un
+        agent de confiance passe ; une délégation sans signature ou forgée est bloquée, signalée
+        (canari C-7C34, OWASP ASI07) et lève AgentUsurpation — l'escalade n'a jamais lieu."""
+        details_entree = {"texte": deleg.message, "agent_pretendu": deleg.expediteur}
+        if inter_agent.verifier(deleg):
+            details_entree["provenance"] = {"valide": True, "agent": deleg.expediteur}
+            self._tracer("entree_agent", details_entree)
+            self.boite.evenement("entree_agent", "agent", self.session_id, details=details_entree)
+            return True
+
+        # Usurpation : provenance absente ou invalide.
+        self.incident = True
+        self.etat = "suspendue"
+        violation = {
+            "agent_pretendu": deleg.expediteur,
+            "signature_fournie": bool(deleg.signature),
+            "raison": "signature absente ou invalide : provenance non authentifiée",
+        }
+        if inter_agent.CANARI_USURPATION not in self.canaris_touches:
+            self.canaris_touches.append(inter_agent.CANARI_USURPATION)
+        self._tracer("leurre_touche", {"type": "agent_usurpation", "leurre_id": inter_agent.CANARI_USURPATION})
+        self.boite.evenement(
+            "leurre_touche", "agent", self.session_id,
+            leurre_id=inter_agent.CANARI_USURPATION,
+            details={"detail": "délégation inter-agent non authentifiée (provenance invalide)"},
+        )
+        self.boite.evenement(
+            "appel_outil", "agent", self.session_id,
+            details={"parametres": {}, "provenance_invalide": violation},
+        )
+        self._tracer("riposte", {"action": "bloquer_usurpation", "agent_pretendu": deleg.expediteur})
+        self.boite.evenement(
+            "riposte", "agent", self.session_id,
+            details={"action": "bloquer_usurpation", "agent_pretendu": deleg.expediteur},
+        )
+        raise AgentUsurpation(f"délégation non authentifiée de « {deleg.expediteur} »")
 
     def _refuser_hors_scope(self, nom: str, scope: str) -> None:
         """Action hors du jeton de tâche : on bloque, on révoque le jeton (réutilise la

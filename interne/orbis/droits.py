@@ -26,6 +26,9 @@ LIBELLES = {
     "contact:exporter": "Exporter la base contacts",
     "outil:mcp": "Appeler les outils MCP",
     "resume:local": "Résumer en local",
+    "appel:lire": "Lire les transcriptions d'appels",
+    "memoire:lire": "Lire la mémoire long terme",
+    "memoire:ecrire": "Écrire dans la mémoire long terme",
 }
 
 # Droits ACCORDÉS au compte de l'agent (larges, hérités du périmètre Orbis Pay).
@@ -39,6 +42,9 @@ SCOPES_ACCORDES = [
     "contact:exporter",
     "outil:mcp",
     "resume:local",
+    "appel:lire",
+    "memoire:lire",
+    "memoire:ecrire",
 ]
 
 # Scope requis par chaque outil (natifs + MCP). Un outil absent n'exige aucun droit.
@@ -52,6 +58,10 @@ SCOPE_PAR_OUTIL = {
     # Outils MCP :
     "convertir_montant": "outil:mcp",
     "verifier_conformite": "outil:mcp",
+    # Appels (V1), mémoire long terme (V4) :
+    "chercher_appel": "appel:lire",
+    "lire_memoire": "memoire:lire",
+    "memoriser": "memoire:ecrire",
 }
 
 
@@ -90,6 +100,21 @@ TACHES: dict[str, Tache] = {
         "verif_conformite",
         "Vérification de conformité du compte",
         ("mail:lire", "outil:mcp", "document:lire", "rapport:envoyer"),
+    ),
+    "triage_appels": Tache(
+        "triage_appels",
+        "Trier et résumer les transcriptions d'appels",
+        ("appel:lire", "resume:local", "rapport:envoyer"),
+    ),
+    "revue_hebdo": Tache(
+        "revue_hebdo",
+        "Revue hebdomadaire (mémoire + rapport)",
+        ("memoire:lire", "mail:lire", "resume:local", "rapport:envoyer"),
+    ),
+    "apprentissage_prefs": Tache(
+        "apprentissage_prefs",
+        "Enregistrer les préférences d'un échange",
+        ("appel:lire", "memoire:ecrire"),
     ),
 }
 
