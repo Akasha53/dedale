@@ -24,7 +24,12 @@ arreter_pid() {
     local pid
     pid="$(cat "$fichier")"
     if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" && echo "arrêté : PID $pid"
+      kill "$pid"
+      for _ in $(seq 1 50); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.1
+      done
+      echo "arrêté : PID $pid"
     fi
     : > "$fichier"
   fi

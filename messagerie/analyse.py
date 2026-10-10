@@ -361,11 +361,11 @@ class _LecteurHTML(HTMLParser):
             self._ajouter("\n")
         if tag in _BALISES_VIDES:
             return
-        technique, fond = _technique_cachee(a.get("style", ""), self._fond_actif())
+        fond_attribut = a.get("bgcolor", "").strip().lower() or None
+        technique, fond = _technique_cachee(a.get("style", ""), fond_attribut or self._fond_actif())
         if "hidden" in a and technique is None:
             technique = "masqué par l'attribut hidden"
-        if a.get("bgcolor") and fond is None:
-            fond = a["bgcolor"].lower()
+        fond = fond or fond_attribut
         self.pile.append((tag, technique, fond))
 
     def handle_startendtag(self, tag, attrs):
@@ -893,11 +893,41 @@ def signaux_du_mail(m: MailLu) -> list[Signal]:
     return sorted(uniques.values(), key=lambda s: -s.poids)
 
 
+TITRES = {
+    "sosie_domaine": "domaine qui en imite un autre",
+    "nom_affiche_trompeur": "expéditeur déguisé",
+    "lien_menteur": "lien trompeur",
+    "piece_jointe_dangereuse": "pièce jointe dangereuse",
+    "urgence_argent": "demande d'argent pressante",
+    "urgence_identifiants": "demande d'identifiants",
+    "changement_bancaire": "changement de RIB",
+    "instruction_cachee": "consigne cachée pour un assistant IA",
+    "caracteres_invisibles": "caractères invisibles",
+    "texte_cache": "texte invisible",
+    "authentification_echec": "origine non vérifiée",
+    "reponse_detournee": "réponses détournées",
+}
+
+
+def _gravite(verdict: str, score: float) -> str:
+    if verdict == "frauduleux":
+        return "critique" if score >= 0.9 else "haute"
+    return "moyenne" if verdict == "suspect" else "faible"
+
+
 def analyser(m: MailLu, *, id: str = "", recu_a: str | None = None) -> dict:
     """Verdict explicable d'un mail déjà lu."""
     signaux = signaux_du_mail(m)
     score = combiner(signaux)
     verdict = classer(score)
+    suspects = {s.preuve for s in signaux if s.code in ("lien_menteur", "sosie_domaine")}
+    lien_reel = next((l.destination for l in m.liens if hote_de(l.destination) in suspects), None)
+    titre = None
+    if signaux and verdict != "sur":
+        quoi = TITRES.get(signaux[0].code, "signal de fraude")
+        if any("schéma de la fraude au président" in s.raison for s in signaux):
+            quoi = "fraude au président"
+        titre = ("Mail frauduleux : " if verdict == "frauduleux" else "Mail douteux : ") + quoi
     return {
         "id": id,
         "message_id": m.message_id,
@@ -906,8 +936,13 @@ def analyser(m: MailLu, *, id: str = "", recu_a: str | None = None) -> dict:
         "a": m.a,
         "objet": citer(m.objet, 160),
         "verdict": verdict,
+        "frauduleux": verdict == "frauduleux",
         "score": score,
+        "gravite": _gravite(verdict, score),
+        "titre_alerte": titre,
         "conseil": CONSEILS[verdict],
+        "geste": "virement" if any(s.code in ("urgence_argent", "changement_bancaire") for s in signaux) else None,
+        "lien_reel": desarmer(lien_reel, 300) if lien_reel else None,
         "raison_principale": signaux[0].raison if signaux else None,
         "raisons": [s.raison for s in signaux],
         "signaux": [s.json() for s in signaux],
