@@ -47,7 +47,7 @@ def _cadence(delais: list[float]) -> tuple[bool, bool, str]:
     cv = ecart / m if m > 0 else 0.0
     raison = (
         f"intervalle moyen {m:.2f} s, écart-type {ecart:.2f} s "
-        f"(repère Palisade {config.PALISADE_DELAI} s pour un agent)"
+        f"(un agent IA enchaîne ses actions toutes les {str(config.PALISADE_DELAI).replace('.', ',')} s environ)"
     )
     # Machine : rythme serré et régulier (faible coefficient de variation).
     if m <= 3.0 and cv < 0.6:

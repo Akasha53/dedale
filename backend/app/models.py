@@ -43,7 +43,28 @@ class LeurreIn(BaseModel):
 class DecisionIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    action: Literal["valider_riposte", "couper", "reprendre", "ignorer", "clore"]
+    # « accorder » et « refuser » tranchent un geste critique du salarié (quatre yeux).
+    action: Literal["valider_riposte", "couper", "reprendre", "ignorer", "clore", "accorder", "refuser"]
+    analyste: str = "inconnu"
+    # Motif court de l'analyste : journalisé et scellé avec la décision (événement `console`).
+    motif: str = Field(default="", max_length=300)
+
+
+class RevelationIn(BaseModel):
+    """Levée de l'anonymat d'un salarié : motif obligatoire, acte scellé."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    motif: str = Field(default="", max_length=300)
+    analyste: str = "inconnu"
+
+
+class RemediationIn(BaseModel):
+    """Action simulée côté salarié : mot de passe, sessions, domaine bloqué pour tous."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    action: Literal["reinitialiser_mot_de_passe", "fermer_sessions", "bloquer_domaine"]
     analyste: str = "inconnu"
 
 

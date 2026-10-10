@@ -86,8 +86,12 @@ def calculer(store) -> dict:
     # Pilier humain : gestes risqués arrêtés (annuler, bon réflexe) vs passés outre (continuer,
     # signal fort). Comptés sur les événements d'avertissement du garde du corps du poste.
     gestes_arretes = gestes_passes = 0
+    signalements = 0
     passes_par_type: dict[str, int] = {}
     for e in evenements:
+        if e.get("type") == "signalement":
+            signalements += 1
+            continue
         if e.get("type") != "avertissement":
             continue
         d = e.get("details") or {}
@@ -137,5 +141,7 @@ def calculer(store) -> dict:
             "total": gestes_arretes + gestes_passes,
             "passes_outre_par_type": passes_par_type,
             "incidents_humains": sum(1 for i in incidents if str(i.type).startswith("humain_")),
+            # Mails signalés par les salariés eux-mêmes (app Mac).
+            "signalements": signalements,
         },
     }

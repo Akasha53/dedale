@@ -59,6 +59,7 @@ AGENTS: list[dict] = [
         "libelle": "l'agent de tri des mails",
         "role": "Trie la boîte mail partagée, résume les mails et prépare les rapports internes.",
         "service": "Opérations",
+        "proprietaire": "Direction des opérations",
         "outils": [
             _outil("lire_mail", "mail:lire", "Lire la boîte mail"),
             _outil("chercher_document", "document:lire", "Chercher un document interne"),
@@ -86,6 +87,7 @@ AGENTS: list[dict] = [
         "libelle": "l'agent de rapprochement bancaire",
         "role": "Rapproche les relevés bancaires et les factures, puis envoie les écarts à la comptabilité.",
         "service": "Finance",
+        "proprietaire": "Direction financière",
         "outils": [
             _outil("lire_releve", "banque:lire", "Lire un relevé bancaire"),
             _outil("chercher_document", "document:lire", "Chercher une facture"),
@@ -107,6 +109,7 @@ AGENTS: list[dict] = [
         "libelle": "l'agent de support client",
         "role": "Lit les tickets des clients PME, consulte leur fiche et leur répond.",
         "service": "Relation client",
+        "proprietaire": "Direction de la relation client",
         "outils": [
             _outil("lire_ticket", "ticket:lire", "Lire un ticket"),
             _outil("chercher_client", "client:lire", "Lire la fiche d'un client"),
@@ -275,6 +278,8 @@ def fiche(store, agent_id: str, *, maintenant: datetime | None = None) -> dict |
         "libelle": declare["libelle"],
         "role": declare["role"],
         "service": declare.get("service"),
+        # Propriétaire métier de l'agent : qui répond de ses droits et de ses actes.
+        "proprietaire": declare.get("proprietaire"),
         "declare": agent_id in PAR_ID,
         "outils": outils,
         "droits": {

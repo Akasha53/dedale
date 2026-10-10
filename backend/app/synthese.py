@@ -469,6 +469,8 @@ class _Redaction:
 
     def rediger_humain(self) -> dict:
         p = self.p
+        if self.d.get("type") == "humain_signalement":
+            return self._rediger_signalement()
         actions = self.etapes("action_risquee")
         avert = self.etapes("avertissement")
         choix = self.etapes("choix")
@@ -496,6 +498,25 @@ class _Redaction:
             else:
                 self.ecrire([("L’équipe sécurité a été prévenue", [p(q, "detail", "escalade au SOC")]), "."])
         return {"actions": actions, "passe_outre": passe_outre, "contexte": self.etapes("contexte")}
+
+
+    def _rediger_signalement(self) -> dict:
+        """Le salarié a signalé un mail lui-même : ce qu'il a fait et ce qu'en pensait l'analyseur."""
+        p = self.p
+        signale = self.etapes("signalement")
+        if signale:
+            e = signale[0]
+            self.ecrire([("Un salarié a signalé lui-même un mail qu’il venait de recevoir",
+                          [p(e, "etape", "signalement")]), "."])
+            detail = e.get("detail") or ""
+            for mot, phrase in (("sûr", "L’analyseur de mails l’avait jugé sûr et l’avait laissé passer"),
+                                ("suspect", "L’analyseur de mails l’avait jugé suspect, sans alerter le salarié"),
+                                ("frauduleux", "L’analyseur de mails l’avait déjà jugé frauduleux")):
+                if f"analyseur : {mot}" in detail:
+                    self.ecrire([(phrase, [p(e, "detail", mot)]), "."])
+                    break
+        return {"actions": [], "passe_outre": None, "contexte": self.etapes("contexte"),
+                "signalement": signale}
 
 
 # --- confiance ---------------------------------------------------------------------------
@@ -530,6 +551,10 @@ def _confiance(r: _Redaction, faits: dict | None, humain: dict | None) -> dict:
             familles += 1
             raisons.append(_raison("intrusion", 0.35, "Quelqu’un a touché un appareil piège dans les locaux.",
                                    [e["ordre"] for e in humain["actions"]]))
+        if humain.get("signalement"):
+            familles += 1
+            raisons.append(_raison("signalement", 0.35, "Le salarié a signalé ce mail lui-même.",
+                                   [e["ordre"] for e in humain["signalement"]]))
         if r.etapes("consequence"):
             raisons.append(_raison("consequence", 0.10, "La suite du geste est enregistrée.",
                                    [e["ordre"] for e in r.etapes("consequence")]))
@@ -602,7 +627,11 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
     if humain is not None:
         possibles = ACTIONS_HUMAIN
         intrusion = d.get("type") == "humain_intrusion_physique"
-        if (humain["passe_outre"] is not None or intrusion) and score >= 0.5:
+        if humain.get("signalement"):
+            action = "clore"
+            justification = ("Relisez le mail signalé. S’il est frauduleux, bloquez son domaine pour tous les "
+                             "salariés, puis classez le dossier. Le poste n’est jamais bloqué.")
+        elif (humain["passe_outre"] is not None or intrusion) and score >= 0.5:
             action = "clore"
             suite = {
                 "humain_phishing": "Vérifiez son poste et faites changer son mot de passe",
@@ -621,7 +650,19 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
     else:
         possibles = ACTIONS_AGENT
         graves = faits["canaris"] or faits["violations"] or faits["sorties"] or faits["retenus"]
-        if d.get("source") == "externe" and d.get("classement") == "agent_ia" and score >= 0.5:
+        # Refus d'office : la passerelle a déjà refusé l'action, sans attendre personne. S'il ne
+        # reste aucun appel en attente, le conseil suit l'état : clore, pas classer sans suite.
+        refus_office = [e for e in r.etapes("riposte")
+                        if str(r.det(e).get("action") or "").startswith("bloquer_")]
+        en_attente = [e for e in faits["violations"] + faits["sorties"] + faits["retenus"]
+                      if r.det(e).get("retenu") is True or r.det(e).get("verdict") == "retenu"]
+        if refus_office and not en_attente and d.get("source") != "externe":
+            possibles = ACTIONS_AGENT + ["clore"]
+            action = "clore"
+            justification = ("Dédale a déjà refusé cette action, sans attendre personne : rien n’est parti. "
+                             "Il reste à clore le dossier. Retirer à l’agent l’accès qu’il n’aurait pas dû "
+                             "avoir évite qu’il recommence.")
+        elif d.get("source") == "externe" and d.get("classement") == "agent_ia" and score >= 0.5:
             action = "couper"
             justification = ("Ce visiteur a suivi une instruction cachée : c’est un robot d’IA, pas une "
                              "personne. Couper bloque ses requêtes.")
@@ -662,8 +703,11 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
                 }
                 break
     derniere = (d.get("decisions") or [None])[-1]
-    equivalents = {"valider_riposte": "couper"}
+    equivalents = {"valider_riposte": "couper", "accorder": "clore", "refuser": "clore"}
     deja = bool(derniere) and equivalents.get(derniere.get("action"), derniere.get("action")) == action
+    # Dossier fermé (clos, classé, agent coupé) : la console montre la décision prise, pas un
+    # conseil qui contredirait l'état.
+    ferme = d.get("statut") in ("clos", "ignore") or d.get("etat") == "coupee"
     return ({
         "action": action,
         "justification": justification,
@@ -672,6 +716,7 @@ def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance:
         "actions_possibles": possibles,
         "derniere_decision": derniere,
         "deja_appliquee": deja,
+        "dossier_ferme": ferme,
     }, correctif)
 
 

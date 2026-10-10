@@ -371,13 +371,14 @@ def chaine_complete(etapes: list[dict]) -> bool:
 # déjà neutralisé en amont (store) : on l'affiche tel quel, jamais réinjecté.
 # ===================================================================================
 
-_ORDRE_HUMAIN = ["contexte", "action_risquee", "avertissement", "choix", "consequence"]
+_ORDRE_HUMAIN = ["contexte", "action_risquee", "avertissement", "choix", "signalement", "consequence"]
 
 _LIBELLES_HUMAIN = {
     "contexte": "Contexte du poste",
     "action_risquee": "Action risquée détectée",
     "avertissement": "Avertissement affiché au salarié",
     "choix": "Choix du salarié",
+    "signalement": "Mail signalé par le salarié",
     "consequence": "Conséquence / escalade",
 }
 
@@ -388,6 +389,8 @@ _TYPE_HUMAIN = {
     "upload_ia": "humain_upload_ia",
     "phishing": "humain_phishing",
     "intrusion_physique": "humain_intrusion_physique",
+    # Le salarié signale lui-même un mail (app Mac, « Signaler un mail suspect… »).
+    "signalement": "humain_signalement",
 }
 
 _TITRE_HUMAIN = {
@@ -396,6 +399,7 @@ _TITRE_HUMAIN = {
     "humain_upload_ia": "Fichier confidentiel déposé vers une IA non autorisée",
     "humain_phishing": "Salarié piégé par un lien de phishing",
     "humain_intrusion_physique": "Intrusion physique sur un actif-leurre",
+    "humain_signalement": "Mail signalé par un salarié",
 }
 
 _GESTE_LIBELLE = {
@@ -415,6 +419,7 @@ _GRAVITE_HUMAIN = {
     "humain_upload_ia": "moyenne",
     "humain_phishing": "haute",
     "humain_intrusion_physique": "critique",
+    "humain_signalement": "moyenne",
 }
 
 # Techniques MITRE ATT&CK (couche humaine) rattachées au geste. Plausibles, À CONFIRMER sur
@@ -435,6 +440,10 @@ _RISQUE_HUMAIN = {
 }
 
 
+# Verdict de l'analyseur de mails (`messagerie/`) au moment du signalement.
+_VERDICT_ANALYSEUR = {"sur": "sûr", "suspect": "suspect", "frauduleux": "frauduleux"}
+
+
 def type_humain(categorie: str | None, intrusion: bool = False) -> str:
     if intrusion:
         return "humain_intrusion_physique"
@@ -453,6 +462,8 @@ def gravite_humaine(type_incident: str, gravite_annoncee: str | None = None) -> 
 
 def resume_humain(chaine: list[dict], type_incident: str, passe_outre: bool) -> str:
     quoi = _TITRE_HUMAIN.get(type_incident, "geste humain à risque").lower()
+    if type_incident == "humain_signalement":
+        return f"Pilier humain : {quoi}. Chaîne de {len(chaine)} étape(s)."
     etat = "passé outre (signal fort)" if passe_outre else "respecté par le salarié"
     return (
         f"Pilier humain : {quoi}. Avertissement {etat}. "
@@ -547,6 +558,22 @@ def construire_chaine_humaine(evenements: list[dict], leurres: dict[str, Any]) -
             if not brut:
                 brut = f"{ev.get('methode') or ''} {ev.get('chemin') or ''}".strip() or "activité sur le poste du salarié"
             etapes.append(_mk_humain("contexte", _abrege(brut), ev))
+        elif typ == "signalement":
+            # Le salarié signale un mail : le mail reçu, puis son signalement et ce que
+            # l'analyseur en pensait. Le texte libre est déjà neutralisé à l'ingestion.
+            doc = details.get("document_source") if isinstance(details.get("document_source"), dict) else {}
+            objet = doc.get("titre")
+            d_ctx = "mail reçu" + (f" : « {_abrege(objet, 120)} »" if objet else "")
+            if details.get("cible"):
+                d_ctx += f" — expéditeur : {_abrege(details['cible'], 120)}"
+            etape_ctx = _mk_humain("contexte", d_ctx, ev)
+            if doc:
+                etape_ctx["document_source"] = doc
+            etapes.append(etape_ctx)
+            verdict = _VERDICT_ANALYSEUR.get(details.get("verdict_analyseur"), "inconnu")
+            etapes.append(_mk_humain(
+                "signalement", f"le salarié a signalé ce mail ; verdict de l'analyseur : {verdict}", ev,
+                list(_TECH_HUMAIN["humain_phishing"])))
         elif typ == "leurre_touche" and intrusion:
             tech = list(_TECH_HUMAIN["humain_intrusion_physique"])
             if leurre is not None:

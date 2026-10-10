@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__, alertes, api_preuves, config, db, exports, inventaire, nis2, routes_gouvernance, synthese
-from .models import DecisionIn, EvenementIn, LeurreIn, RetraitDroitIn
+from .models import DecisionIn, EvenementIn, LeurreIn, RemediationIn, RetraitDroitIn, RevelationIn
 from .store import store
 from .ws import diffuseur
 
@@ -190,7 +190,7 @@ async def incident_detail(iid: str):
 @app.post("/api/incidents/{iid}/decision")
 async def decider(iid: str, decision: DecisionIn):
     try:
-        res = store.decider(iid, decision.action, decision.analyste)
+        res = store.decider(iid, decision.action, decision.analyste, decision.motif)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if res is None:
@@ -200,11 +200,45 @@ async def decider(iid: str, decision: DecisionIn):
     sess = store.sessions.get(inc.session_id) if inc else None
     _enfiler({
         "decisions": [res["journal"]],
+        "evenements": res.get("evenements", []),
         "incidents": [inc] if inc else [],
         "sessions": [sess] if sess else [],
         "diffusions": res["diffusions"],
     })
     return res["incident"]
+
+
+def _acte_console(res: dict | None, iid: str) -> dict:
+    """Persiste un acte de la console (événement scellé, session, incident) et le renvoie."""
+    if res is None:
+        raise HTTPException(status_code=404, detail=f"Incident inconnu : {iid}")
+    _enfiler({
+        "evenements": [res["evenement"]],
+        "sessions": [res["session"]],
+        "incidents": [res["incident"]],
+        "diffusions": res["diffusions"],
+    })
+    return res["reponse"]
+
+
+@app.post("/api/incidents/{iid}/identite")
+async def reveler_identite(iid: str, corps: RevelationIn):
+    """Lève l'anonymat du salarié d'un dossier : motif obligatoire, acte scellé."""
+    try:
+        res = store.reveler_identite(iid, corps.motif, corps.analyste)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _acte_console(res, iid)
+
+
+@app.post("/api/incidents/{iid}/remediation")
+async def remedier(iid: str, corps: RemediationIn):
+    """Action simulée côté salarié (mot de passe, sessions, domaine), notée au journal scellé."""
+    try:
+        res = store.remedier(iid, corps.action, corps.analyste)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _acte_console(res, iid)
 
 
 @app.get("/api/incidents/{iid}/nis2")

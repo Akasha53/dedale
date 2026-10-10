@@ -12,7 +12,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from . import activite, classement, config, gouvernance, incidents, journal_scelle, securite
+from . import activite, classement, config, gouvernance, identites, incidents, journal_scelle, paiements, securite
 
 
 def maintenant() -> datetime:
@@ -108,6 +108,7 @@ class Session:
     geste_gravite: str | None = None            # gravité annoncée d'un geste passé outre
     flag_passe_outre: bool = False              # a cliqué « continuer » sur un avertissement
     flag_intrusion_physique: bool = False       # accès d'un intrus à un actif/port-leurre
+    flag_signalement: bool = False              # le salarié a signalé un mail lui-même
     gestes_arretes: int = 0                     # gestes annulés (bon réflexe)
     gestes_passes_outre: int = 0                # gestes passés outre (signal fort)
     # Moindre privilège (V2) : droits accordés / jeton de tâche / utilisés / tentatives hors scope.
@@ -580,6 +581,16 @@ class Store:
                 if cat == "intrusion_physique" and choix != "annuler":
                     sess.flag_intrusion_physique = True
                     sess.geste_incident_categorie = "intrusion_physique"
+            # Le salarié signale un mail (app Mac) : un dossier s'ouvre pour l'analyste, plus
+            # grave quand l'analyseur de mails l'avait laissé passer.
+            if ev.type == "signalement" and sess.source in ("humain", "physique"):
+                sess.flag_humain = True
+                sess.flag_signalement = True
+                sess.geste_categorie = sess.geste_categorie or "signalement"
+                sess.geste_incident_categorie = sess.geste_incident_categorie or "signalement"
+                if sess.geste_gravite is None:
+                    sess.geste_gravite = ("faible" if details.get("verdict_analyseur") == "frauduleux"
+                                          else "moyenne")
             # Canari physique touché (serveur/port-leurre) : intrusion matérielle avérée.
             if ev.type == "leurre_touche" and leurre is not None and (
                 leurre.nature == "canari_physique" or sess.source == "physique"
@@ -637,6 +648,10 @@ class Store:
                 enreg["details"]["desarmement"] = securite.desarmer_desarmement(details["desarmement"])
             if cadence_s is not None:
                 enreg["details"]["cadence_s"] = cadence_s
+            # Virement demandé : montant, bénéficiaire et IBAN masqué, lisibles par le SOC.
+            virement = paiements.resumer(ev.outil, details.get("parametres")) if ev.type == "appel_outil" else None
+            if virement is not None:
+                enreg["details"]["virement"] = virement
             if _enregistre is not None:
                 # Le journal est déjà neutralisé ; conserver aussi ses ID et dates de réception.
                 enreg = deepcopy(_enregistre)
@@ -663,7 +678,7 @@ class Store:
             if consigne == "contre_injection" and sess.contre_injection_servie is None:
                 sess.contre_injection_servie = horo
 
-            diffusions = [("evenement", enreg), ("session", sess.abrege())]
+            diffusions = [("evenement", enreg), ("session", self._session_vue(sess))]
             if incident is not None:
                 diffusions.append(("incident", self._incident_dict(incident)))
             # Fil des agents : l'appel d'outil et son verdict, poussés sur le WS.
@@ -734,7 +749,7 @@ class Store:
         if sess.source in ("humain", "physique"):
             # Pilier humain : ouvre sur un geste passé outre, ou une intrusion physique.
             # Un geste annulé (bon réflexe) n'ouvre rien.
-            est_incident = sess.flag_passe_outre or sess.flag_intrusion_physique
+            est_incident = sess.flag_passe_outre or sess.flag_intrusion_physique or sess.flag_signalement
         elif sess.source == "externe":
             est_incident = sess.classement == "agent_ia"
         else:  # interne
@@ -816,7 +831,7 @@ class Store:
             if d["incident_id"] == inc.id
         ]
         vue_droits = sess.droits_console() if sess else None
-        return {
+        d = {
             "id": inc.id,
             "session_id": inc.session_id,
             "source": sess.source if sess else None,
@@ -844,6 +859,52 @@ class Store:
             "correctifs": [dict(r) for r in (sess.droits_retires if sess else [])
                            if r.get("incident_id") == inc.id],
         }
+        if sess is None:
+            return d
+        evs = [self.evenements[i] for i in sess.evenement_ids if i in self.evenements]
+        # Actes de la console sur ce dossier (motifs, identité levée, remédiations), scellés.
+        d["journal_console"] = self._journal_console(inc.id, evs)
+        if sess.source in ("humain", "physique"):
+            d.update(self._vue_humaine(sess, evs, d["journal_console"]))
+            d = identites.masqueur(sess.id, evs)(d)
+        return d
+
+    @staticmethod
+    def _journal_console(iid: str, evs: list[dict]) -> list[dict]:
+        sortie = []
+        for e in evs:
+            det = e.get("details") or {}
+            if e.get("type") != "console" or det.get("incident_id") != iid:
+                continue
+            sortie.append({k: det[k] for k in ("acte", "analyste", "action", "motif", "message", "domaine")
+                           if det.get(k) is not None} | {"horodatage": e.get("horodatage"),
+                                                         "evenement_id": e.get("id")})
+        return sortie
+
+    @staticmethod
+    def _vue_humaine(sess: Session, evs: list[dict], journal: list[dict]) -> dict:
+        """Ce que la console lit d'un dossier salarié : identité pseudonyme, contexte du geste,
+        demande de quatre yeux et son issue."""
+        ident = identites.identite(sess.id, evs)
+        ident["revelations"] = [{k: j.get(k) for k in ("analyste", "horodatage", "motif")}
+                                for j in journal if j.get("acte") == "reveler_identite"]
+        avert = [e for e in evs if e.get("type") == "avertissement"]
+        principal = next((e for e in reversed(avert) if (e.get("details") or {}).get("choix") == "continuer"),
+                         avert[-1] if avert else None)
+        contexte = (principal.get("details") or {}).get("contexte") if principal else None
+        if sess.flag_signalement and not sess.flag_passe_outre:
+            contexte = "signalement"
+        demande = next((e for e in evs if (e.get("details") or {}).get("quatre_yeux") == "demande"), None)
+        quatre_yeux = None
+        if demande is not None:
+            dd = demande.get("details") or {}
+            issue = next(((e.get("details") or {}).get("quatre_yeux") for e in reversed(evs)
+                          if e.get("type") == "riposte"
+                          and (e.get("details") or {}).get("quatre_yeux") in ("accorde", "refuse", "expire")), None)
+            quatre_yeux = {"demande_id": dd.get("demande_id"), "delai_s": dd.get("delai_s"),
+                           "horodatage": demande.get("horodatage"), "issue": issue}
+        return {"identite": ident, "contexte_humain": contexte if isinstance(contexte, str) else None,
+                "quatre_yeux": quatre_yeux}
 
     @staticmethod
     def _retirables(vue: dict | None) -> list[dict]:
@@ -881,7 +942,21 @@ class Store:
             if sess is None:
                 return None
             evs = [self.evenements[i] for i in sess.evenement_ids]
-            return sess.detail(evs)
+            d = sess.detail(evs)
+            if sess.source in ("humain", "physique"):
+                # Poste d'un salarié : pseudonyme à la place du nom, URL sans paramètres.
+                d["identite"] = identites.identite(sess.id, evs)
+                d = identites.masqueur(sess.id, evs)(d)
+            return d
+
+    def _session_vue(self, sess: Session) -> dict:
+        """Session telle que l'API la montre : pseudonymisée pour le poste d'un salarié."""
+        d = sess.abrege()
+        if sess.source in ("humain", "physique"):
+            evs = [self.evenements[i] for i in sess.evenement_ids if i in self.evenements]
+            d["identite"] = identites.identite(sess.id, evs)
+            d = identites.masqueur(sess.id, evs)(d)
+        return d
 
     def etat_session(self, sid: str) -> dict | None:
         with self.lock:
@@ -892,7 +967,7 @@ class Store:
 
     def liste_sessions(self) -> list[dict]:
         with self.lock:
-            return [s.abrege() for s in self.sessions.values()]
+            return [self._session_vue(s) for s in self.sessions.values()]
 
     def liste_incidents(self) -> list[dict]:
         with self.lock:
@@ -956,20 +1031,27 @@ class Store:
             sess = self.sessions.get(inc.session_id)
             d = self._incident_dict(inc)
             d["chaine_complete"] = incidents.chaine_complete(inc.chaine)
-            d["session"] = sess.abrege() if sess else None
+            d["session"] = self._session_vue(sess) if sess else None
             d["signaux"] = sess.signaux if sess else []
             d["leurres_touches"] = sorted(sess.leurres_touches) if sess else []
             return d
 
-    def decider(self, iid: str, action: str, analyste: str) -> dict | None:
+    def decider(self, iid: str, action: str, analyste: str, motif: str = "") -> dict | None:
         with self.lock:
             inc = self.incidents.get(iid)
             if inc is None:
                 return None
             sess = self.sessions.get(inc.session_id)
             est_humain = inc.type.startswith("humain_")
-            if est_humain and action not in ("clore", "ignorer"):
+            if est_humain and action not in ("clore", "ignorer", "accorder", "refuser"):
                 raise ValueError("Une décision sur un salarié ne peut pas couper son poste")
+            if action in ("accorder", "refuser"):
+                # Quatre yeux : seul un geste suspendu du salarié s'accorde ou se refuse.
+                if not est_humain:
+                    raise ValueError("« accorder » et « refuser » valent pour le geste d’un salarié.")
+                evs = [self.evenements[i] for i in (sess.evenement_ids if sess else [])]
+                if not any((e.get("details") or {}).get("quatre_yeux") == "demande" for e in evs):
+                    raise ValueError("Aucun geste de ce dossier n’attend la validation d’un analyste.")
             # Sur un agent, « clore » ferme le dossier sans toucher à la session : c'est la
             # suite d'une action déjà refusée d'office. Un appel encore retenu le reste.
             moment = maintenant()
@@ -992,7 +1074,7 @@ class Store:
                 if sess and not est_humain:
                     sess.etat = "active"
                 inc.statut = "ignore"
-            elif action == "clore":
+            elif action in ("clore", "accorder", "refuser"):
                 inc.statut = "clos"
             inc.analyste = analyste
             inc.decide_a = moment
@@ -1005,11 +1087,122 @@ class Store:
             }
             self.tete_decisions = journal_scelle.sceller_decision(journal, self.tete_decisions)
             self.decisions.append(journal)
+            notes = []
+            if motif and motif.strip() and sess is not None:
+                # Le motif entre au journal scellé, à côté de la décision qu'il justifie.
+                notes.append(self._note_console(inc, sess, "decision", analyste,
+                                                {"action": action, "motif": activite._court(motif, 200)}))
             journal_scelle.sceller_incident(inc, self.decisions, self.evenements)
             diffusions = [("incident", self._incident_dict(inc))]
             if sess:
-                diffusions.append(("session", sess.abrege()))
-            return {"incident": self.incident_detail(iid), "diffusions": diffusions, "journal": journal}
+                diffusions.append(("session", self._session_vue(sess)))
+            return {"incident": self.incident_detail(iid), "diffusions": diffusions, "journal": journal,
+                    "evenements": notes}
+
+    # ----- Actes de la console, scellés -----
+    def _note_console(self, inc: Incident, sess: Session, acte: str, analyste: str, details: dict) -> dict:
+        """Ajoute au journal scellé un acte de l'analyste sur ce dossier (événement `console`).
+        Il ne passe pas par le tri et n'entre pas dans la boîte noire."""
+        moment = maintenant()
+        eid = self._nouvel_id()
+        enreg = {
+            "id": eid, "horodatage": moment.isoformat(), "recu_a": moment.isoformat(),
+            "source": sess.source, "surface": "console", "type": "console", "session_id": sess.id,
+            "leurre_id": None, "leurre_nature": None, "ip": None, "user_agent": None,
+            "methode": None, "chemin": None, "outil": None,
+            "details": {"acte": acte, "analyste": activite._court(analyste or "inconnu", 60),
+                        "incident_id": inc.id, **details},
+        }
+        self.tete_evenements = journal_scelle.sceller_evenement(enreg, self.tete_evenements)
+        self.evenements[eid] = enreg
+        sess.evenement_ids.append(eid)
+        return enreg
+
+    def reveler_identite(self, iid: str, motif: str, analyste: str) -> dict | None:
+        """Lève l'anonymat du salarié d'un dossier. Le motif est obligatoire ; l'acte est
+        scellé, le nom n'est jamais écrit au journal et ne sort que dans cette réponse."""
+        with self.lock:
+            inc = self.incidents.get(iid)
+            if inc is None:
+                return None
+            sess = self.sessions.get(inc.session_id)
+            if sess is None or sess.source not in ("humain", "physique"):
+                raise ValueError("Ce dossier ne concerne pas un salarié.")
+            motif = (motif or "").strip()
+            if len(motif) < 5:
+                raise ValueError("Un motif est obligatoire pour révéler une identité (5 caractères au moins).")
+            evs = [self.evenements[i] for i in sess.evenement_ids]
+            ident = identites.identite(sess.id, evs)
+            note = self._note_console(inc, sess, "reveler_identite", analyste,
+                                      {"motif": activite._court(motif, 200),
+                                       "pseudonyme": ident["pseudonyme"]})
+            p = identites.personne(sess.id, evs)
+            reponse = {
+                "incident_id": iid, "pseudonyme": ident["pseudonyme"], "service": ident["service"],
+                "nom": p["nom"] if p else None, "poste": p["poste"] if p else None,
+                "analyste": note["details"]["analyste"], "motif": note["details"]["motif"],
+                "horodatage": note["horodatage"],
+                "message": (f"Identité révélée à {note['details']['analyste']}. L’acte est noté au journal scellé."
+                            if p else "Ce poste n’est rattaché à aucun salarié de l’annuaire. L’acte est noté."),
+            }
+            inc_vue = self._incident_dict(inc)
+            return {"reponse": reponse, "evenement": note, "session": sess, "incident": inc,
+                    "diffusions": [("incident", inc_vue)]}
+
+    _REMEDIATIONS = {
+        "reinitialiser_mot_de_passe": "Mot de passe de {qui} réinitialisé : il en choisira un nouveau à sa prochaine connexion.",
+        "fermer_sessions": "Sessions ouvertes de {qui} fermées sur tous ses appareils.",
+        "bloquer_domaine": "{domaine} est bloqué pour tous les salariés d’Orbis Pay.",
+    }
+
+    @staticmethod
+    def _domaine_en_cause(evs: list[dict]) -> str | None:
+        """Domaine du lien, du site sosie ou de l'expéditeur en cause, désarmé (`[.]`)."""
+        import re as _re
+        for e in reversed(evs):
+            det = e.get("details") or {}
+            doc = det.get("document_source") if isinstance(det.get("document_source"), dict) else {}
+            for brut in (det.get("lien"), det.get("url"), det.get("url_phishing"), det.get("cible"),
+                         doc.get("expediteur"), det.get("expediteur")):
+                if not isinstance(brut, str):
+                    continue
+                texte = brut.replace("[leurre, neutralisé]", "").replace("[.]", ".")
+                m = _re.search(r"(?:@|//)?((?:[a-z0-9-]+\.)+[a-z]{2,})", texte, _re.IGNORECASE)
+                if m and not m.group(1).lower().endswith(config.ENTITE_DOMAINE):
+                    return m.group(1).lower().replace(".", "[.]")
+        return None
+
+    def remedier(self, iid: str, action: str, analyste: str) -> dict | None:
+        """Action simulée sur le compte d'un salarié ou sur un domaine, notée au journal scellé."""
+        with self.lock:
+            inc = self.incidents.get(iid)
+            if inc is None:
+                return None
+            sess = self.sessions.get(inc.session_id)
+            if sess is None or sess.source not in ("humain", "physique"):
+                raise ValueError("Ces actions valent pour le dossier d’un salarié.")
+            if action not in self._REMEDIATIONS:
+                raise ValueError(f"Action inconnue : {activite._court(action, 40)}")
+            evs = [self.evenements[i] for i in sess.evenement_ids]
+            deja = next((j for j in self._journal_console(iid, evs)
+                         if j.get("acte") == "remediation" and j.get("action") == action), None)
+            if deja is not None:
+                raise ValueError(f"Déjà fait par {deja.get('analyste')} à {str(deja.get('horodatage'))[11:16]}.")
+            domaine = self._domaine_en_cause(evs) if action == "bloquer_domaine" else None
+            if action == "bloquer_domaine" and domaine is None:
+                raise ValueError("Aucun domaine extérieur n’est en cause dans ce dossier.")
+            qui = identites.identite(sess.id, evs)["pseudonyme"]
+            message = self._REMEDIATIONS[action].format(qui=qui, domaine=domaine)
+            details = {"action": action, "message": message, "simulation": True}
+            if domaine:
+                details["domaine"] = domaine
+            note = self._note_console(inc, sess, "remediation", analyste, details)
+            return {"reponse": {"incident_id": iid, "action": action, "message": message,
+                                "domaine": domaine, "simulation": True,
+                                "analyste": note["details"]["analyste"], "horodatage": note["horodatage"],
+                                "incident": self.incident_detail(iid)},
+                    "evenement": note, "session": sess, "incident": inc,
+                    "diffusions": [("incident", self._incident_dict(inc))]}
 
 
     # ----- Correctif en un clic : moindre privilège -----
@@ -1106,7 +1299,7 @@ class Store:
                 if autre is not None and autre not in incidents_maj:
                     incidents_maj.append(autre)
             diffusions = [("evenement", enreg)]
-            diffusions += [("session", s.abrege()) for s in touchees]
+            diffusions += [("session", self._session_vue(s)) for s in touchees]
             diffusions += [("incident", self._incident_dict(i)) for i in incidents_maj]
 
             refuses = ", ".join(outils_tries) if outils_tries else "tout outil qui l’exige"
