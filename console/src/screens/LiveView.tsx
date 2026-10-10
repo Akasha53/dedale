@@ -103,7 +103,7 @@ export function LiveView({
         <section className="panneau" aria-labelledby="postes-titre">
           <div className="titre">
             <span id="postes-titre">Les postes</span>
-            <span className="droite">sous pseudonyme, dossiers à traiter en premier</span>
+            <span className="droite">sous pseudonyme</span>
           </div>
           {chargement ? (
             <Spinner texte="Connexion…" />

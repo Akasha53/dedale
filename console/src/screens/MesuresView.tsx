@@ -156,7 +156,7 @@ export function MesuresView() {
                     lib={a.nom}
                     n={(a.resistance!.essais ?? 0) - (a.resistance!.suivis ?? 0)}
                     total={a.resistance!.essais ?? 0}
-                    cls="b-ok"
+                    cls={(a.resistance!.suivis ?? 0) > 0 ? "b-alerte" : "b-neutre"}
                   />
                 ))}
               </div>

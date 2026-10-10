@@ -360,6 +360,10 @@ function LigneIncident({
   choisir: (id: string) => void;
 }) {
   const e = etatIncident(i);
+  // La couleur reste à ce qui demande un geste. Un dossier réglé, ou un refus
+  // d'office encore à clore, s'affiche en gris : un vert dans la liste « à
+  // traiter » dirait le contraire de sa place.
+  const cls = discret || (e.aTraiter && e.cls === "ok") ? "neutre" : e.cls;
   return (
     <li className={`inc-item ${sortie ? `sortie-${sortie}` : ""}`}>
       <div className="inc-item-interieur">
@@ -370,13 +374,13 @@ function LigneIncident({
           onClick={() => choisir(i.id)}
           tabIndex={sortie === "repli" ? -1 : undefined}
         >
-          <span className={`inc-point e-${e.cls}`} aria-hidden="true" />
+          <span className={`inc-point e-${cls}`} aria-hidden="true" />
           <span className="inc-titre">
             <span className="inc-qui">{qui}</span>
             {titreIncident(i)}
           </span>
           <span className="inc-heure">{heure(i.ouvert_le).slice(0, 5)}</span>
-          <span className={`inc-etat e-${e.cls}`}>{e.lib}</span>
+          <span className={`inc-etat e-${cls}`}>{e.lib}</span>
         </button>
       </div>
     </li>
