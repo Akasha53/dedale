@@ -19,11 +19,13 @@ Ce module ajoute trois protections :
    quittent la machine : ni contenu, ni nom, ni donnée personnelle. Une base réécrite en
    entier, sceaux et signatures recalculés, ne retombe plus sur la racine publiée.
 
-Sans fonds ou sans réseau, les lots attendent dans la table `ancres` et repartent au cycle
-suivant, sans erreur bruyante. Réglages :
+État au 10 octobre 2026 : voie d'exploration. L'adresse d'ancrage n'est pas alimentée et
+aucune ancre n'est publiée. Par défaut (`file`), les racines se calculent et attendent en
+silence dans la table `ancres`, sans aucun appel réseau ; seule la commande
+`python -m app.ancrage ancrer` publie, quand on la lance. Réglages :
 
-- `DEDALE_ANCRAGE` : `auto` (défaut, prépare et envoie), `file` (prépare sans rien envoyer),
-  `off` (rien, sauf la commande `python -m app.ancrage ancrer`) ;
+- `DEDALE_ANCRAGE` : `file` (défaut : racines préparées en local, rien n'est envoyé ni lu sur
+  le réseau), `auto` (envoi et relecture sur Fuji), `off` (rien, sauf la commande) ;
 - `DEDALE_ANCRAGE_RPC` : nœud JSON-RPC (défaut : RPC public Fuji). Le chainId reste 43113 :
   un nœud qui annonce une autre chaîne est refusé, aucune transaction ne part ;
 - `DEDALE_ANCRAGE_PERIODE` : secondes entre deux lots périodiques (défaut 600) ;
@@ -84,8 +86,8 @@ def fichier_cle_ancrage() -> Path:
 
 
 def mode() -> str:
-    valeur = os.environ.get("DEDALE_ANCRAGE", "auto").strip().lower()
-    return valeur if valeur in ("auto", "file", "off") else "auto"
+    valeur = os.environ.get("DEDALE_ANCRAGE", "file").strip().lower()
+    return valeur if valeur in ("auto", "file", "off") else "file"
 
 
 def periode() -> float:
@@ -860,7 +862,7 @@ _RAISONS = {
     "refusee": "transaction refusée par le nœud",
     "rejetee": "transaction rejetée, nouvel essai au prochain cycle",
     "perdue": "transaction perdue, nouvel essai au prochain cycle",
-    "desactive": "ancrage coupé sur ce backend (DEDALE_ANCRAGE)",
+    "desactive": "ancrage Avalanche en exploration : racines gardées en local, rien n'est publié",
 }
 
 

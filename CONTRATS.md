@@ -1440,3 +1440,87 @@ Les règles dures gagnent toujours : mail frauduleux, consigne cachée, rafale, 
 - `GET /api/mesures`, bloc `relecteur.memoire` : `{"entrees", "renversements", "decisions_appuyees"}`.
 - Console : étape « Précédents » dans la frise du geste (`salarie/lecture.ts`) ; trois chiffres dans Mesures : relectures de l'IA, décisions appuyées sur la mémoire, renversements.
 
+
+## Avenant du 10 octobre 2026 : journal signé, en ajout seul, ancrage Avalanche en exploration
+
+Réponse au vocal de Guilhem (22:46) : un agent infecté ne doit pas pouvoir effacer ses traces, et une base réécrite doit se voir. Les signatures, l'ajout seul et la vérification champ par champ sont en place. L'ancrage sur Avalanche reste une voie d'exploration (décision de Guilhem, 23:29) : l'adresse n'est pas alimentée et aucune ancre n'est publiée. Fichiers : `backend/app/ancrage.py` (nouveau), `backend/app/routes_ancrage.py` (nouveau), branchements dans `journal_scelle.py`, `db.py`, `api_preuves.py`, `verifier_journal.py` et `main.py` (une ligne), badge `console/src/agent/OutilsDossier.tsx`. Tests : `backend/tests/test_ancrage.py`, `backend/tests/test_journal_champs.py`. Dépendances ajoutées au backend : `cryptography` (Ed25519) et `eth-account` (transaction Fuji). Aucune route existante ne change de forme ; les champs s'ajoutent.
+
+### Qui écrit le journal
+
+Les agents IA n'écrivent jamais dans le journal. Vérifié dans le code : l'agent interne (`interne/orbis/agent.py`) n'appelle ni le backend ni les outils, il passe par la passerelle ; ses outils (`interne/orbis/outils.py`) n'ont aucun accès réseau ; seul le client `BoiteNoire` de la passerelle poste `POST /api/evenements`. Côté backend, un seul écrivain (`main._ecrivain`) pose les lignes en base. L'agent des règles (`agent_regles.py`) et le relecteur passent par le `Store`, comme la passerelle.
+
+### Écritures signées
+
+Chaque événement et chaque décision portent deux colonnes, `signataire` et `signature` (Ed25519, 128 caractères hexadécimaux), posées au scellement et rendues par l'API avec l'événement.
+
+- Émetteur d'un événement, déduit de son contenu scellé : `backend` pour un acte de la console (`surface: "console"` ou `type` `console`/`correctif`, auteur = `details.analyste`) et pour une relecture (`surface: "soc"`, auteur = `relecteur <nom>`) ; `passerelle` pour `source: "interne"` ; `poste` pour `source` `humain`/`physique` ou `surface: "poste"` ; `leurres` pour `source: "externe"`.
+- Une décision est signée par `backend`, au nom de l'analyste (`analyste`).
+- Message signé : `dedale-journal-v1`, nature (`evenement` ou `decision`), sceau, émetteur, auteur, joints par un saut de ligne.
+- Une clé par émetteur, créée au premier usage : `~/.config/dedale/cles/<émetteur>.key` (PKCS8, 600) et `.pub` (hexadécimal), dossier 700, jamais dans le dépôt. `DEDALE_CLES` change le dossier. La vérification lit les clés publiques sur le disque, jamais dans la base.
+- Le backend signe au nom du canal par lequel l'entrée est arrivée. Avec les jetons d'`auth.py`, ce canal est authentifié ; sans eux, la signature `passerelle` atteste que le backend a reçu l'entrée sur ce canal, pas l'identité de l'appelant HTTP.
+
+### Ajout seul
+
+`db.ouvrir` pose des déclencheurs SQLite sur `evenements` et `decisions` : `UPDATE` et `DELETE` échouent (« journal en ajout seul : modification interdite sur evenements »), un `INSERT OR REPLACE` sur un identifiant existant est ignoré et la première écriture reste. Limite : un administrateur de la base peut retirer ces déclencheurs (`ancrage.retirer_ajout_seul` le simule dans les tests). L'ancrage existe pour ce cas.
+
+### Empreintes par champ
+
+Table `empreintes_champs (cle, champs)`, écrite par `db.py` avec chaque ligne : clé `evenement:<sceau>`, `decision:<sceau>`, `maillon:<empreinte>` ou `incident:<id>`, et pour valeur l'empreinte courte (16 caractères) de chaque champ, `details.motif` pour un sous-champ. Elle sert à nommer le champ modifié ; le sceau reste le seul juge. Une table réécrite elle aussi donne « contenu modifié » sans nom de champ. L'identifiant d'une décision, posé à l'écriture, n'entre pas dans son sceau : il est couvert par cette table et par l'ancre.
+
+### `GET /api/incidents/{id}/verification` : tout le dossier
+
+La vérification relit désormais tout ce qui fait le dossier, pas seulement la boîte noire :
+
+- chaque maillon et son événement source ;
+- chaque autre événement de la session : actes de la console (motif d'une décision, levée d'anonymat, remédiation), relectures, correctifs. Chacun est recalculé, ses deux voisins dans la chaîne globale sont contrôlés, et un identifiant que la session annonce (`sessions.etat_json`) et que la base n'a plus est une suppression ;
+- ses décisions, y compris une décision rattachée depuis à un autre incident ;
+- l'en-tête de l'incident, et l'incident lui-même s'il a disparu de la base après y avoir été écrit.
+
+Avant ce changement, le motif d'une décision modifié en base laissait le badge vert : il vit dans un événement `console`, hors de la boîte noire, que seul `verifier_journal` relisait.
+
+Verdicts, le champ nommé quand il se nomme : `altérée à l'étape 3 : champ exfiltration modifié`, `altérée à l'acte 1 du journal de la console : champ motif modifié`, `altérée à la relecture 1 : champ decision modifié`, `altérée à la décision 1 : champ analyste modifié`, `altérée : en-tête de l'incident, champ statut modifié`, `altérée : événement 7 supprimé`, `altérée à l'étape 3 : signature falsifiée`, `altérée à la décision 1 : champ signataire modifié`. Une altération couverte par une ancre se termine par `, ne correspond pas à l'ancre du 10/10/2026 à 23:41` (ou ` : ne correspond pas…` quand aucun champ n'est nommé).
+
+Champs ajoutés : `champs_modifies` (liste, `details.` gardé), `evenements_verifies`, `element_altere` qui vaut aussi `evenement`, `signature` ou `ancre`, puis :
+
+```json
+"signatures": {"valides": 5, "falsifiees": 0, "retirees": 0, "absentes": 0, "cles_inconnues": 0,
+               "par_emetteur": {"passerelle": 3, "backend": 2}, "algorithme": "Ed25519",
+               "entrees": [{"nature": "evenement", "id": 3, "emetteur": "passerelle", "auteur": null,
+                            "signataire": "passerelle", "signature": "valide"}]},
+"ancrage": {"statut": "en_attente", "libelle": "en attente d'ancrage",
+            "reseau": "Avalanche Fuji (C-Chain de test, chainId 43113)", "adresse": null,
+            "bloc": null, "tx": null, "lien": null, "date": null, "chaine_relue": false, "entrees": 5,
+            "entrees_ancrees": 0, "entrees_en_attente": 5, "raison_attente": "desactive", "alteration": null}
+```
+
+`ancrage.statut` vaut `en_attente` (aujourd'hui partout ; `raison_attente` : `fonds`, `reseau`, `desactive`, `refusee`, `rejetee`, `perdue`, `reseau_inattendu`), `ancre` quand une ancre sera confirmée sur la chaîne, `altere` ou `sans_entree`. `signature` d'une entrée vaut `valide`, `falsifiee`, `retiree` (absente après la première entrée signée), `absente` (antérieure) ou `cle_inconnue`.
+
+Le badge et `cd backend && uv run python -m app.verifier_journal [--sans-reseau]` passent par la même fonction, `ancrage.verifier_dossier`. La commande ajoute trois lignes (signatures, ajout seul, ancrage) et sort en 1 sur toute altération, signature falsifiée comprise. Sans ancre confirmée, la ligne d'ancrage dit « Ancrage Avalanche : en exploration, aucune ancre publiée (N racines en file locale) ».
+
+### Ancrage sur Avalanche Fuji (exploration)
+
+Ce qui suit est écrit et testé contre un faux nœud, pas encore éprouvé sur le vrai réseau au-delà d'une lecture (bloc courant, solde de l'adresse). Il manque : alimenter l'adresse au faucet Fuji, lancer `python -m app.ancrage ancrer`, vérifier la première ancre sur Snowtrace.
+
+- Lot : les entrées pas encore ancrées, événements dans l'ordre des identifiants (sans trou, sauf identifiant absent depuis plus de deux minutes), puis décisions. Table `ancres` : `id, cree_a, motif, ev_de, ev_a, dec_de, dec_a, n_feuilles, racine, feuilles, statut (en_attente|envoyee|confirmee), raison, tentatives, envois, adresse, tx, nonce, envoye_a, bloc, confirme_a`.
+- Merkle : feuille = SHA-256(`0x00` ‖ JSON canonique `{nature, id, empreinte recalculée, signataire, signature}`), nœud = SHA-256(`0x01` ‖ gauche ‖ droite), un nœud seul en bout de niveau monte tel quel. Les feuilles restent en base : quand elles retombent sur la racine publiée, elles disent quelle entrée a changé.
+- Transaction : C-Chain Fuji (`https://api.avax-test.network/ext/bc/C/rpc`, chainId 43113), 0 AVAX, de l'adresse d'ancrage vers elle-même, données = `dedale-ancre-v1:` puis les 32 octets de la racine. Pas de contrat. Un nœud qui annonce un autre chainId est refusé : aucun AVAX réel ne peut partir.
+- Quand : un lot se prépare à la clôture d'un incident (deux lots espacés de 20 s au moins), toutes les dix minutes s'il y a du nouveau (`DEDALE_ANCRAGE_PERIODE`), ou sur `POST /api/ancrage/ancrer`. `DEDALE_ANCRAGE` : `file` (défaut : racines calculées et gardées en local, aucun appel réseau, rien dans les journaux), `auto` (envoi et relecture sur Fuji), `off` (rien ; les tests). Seule la commande `ancrer` publie, quand on la lance. Sans fonds ou sans réseau, le lot reste `en_attente` avec sa raison, sans erreur.
+- Portefeuille : clé secp256k1 dans `~/.config/dedale/ancrage.key` (600, jamais affichée, `DEDALE_ANCRAGE_CLE`). `uv run python -m app.ancrage adresse` donne l'adresse à alimenter au faucet Fuji, `etat` lit le bloc courant et le solde, `ancrer` prépare le lot, publie ce qui attend et attend la confirmation.
+- Vérification d'une ancre, quand il y en aura une : la racine est recalculée depuis la base et comparée à celle relue sur la chaîne (`eth_getTransactionByHash`, expéditeur et destinataire contrôlés), sinon à la copie de la table `ancres`. Le nombre de transactions de l'adresse sur la chaîne est comparé aux envois notés en base : une ancre retirée de la base se voit.
+- `GET /api/ancrage` : `{mode, reseau, rpc, adresse, explorateur, periode_s, ajout_seul, file: {en_attente, envoyee, confirmee}, raison_attente, derniere_ancre, cles: {émetteur: empreinte de la clé publique}}` ; `?verifier=true` ajoute `verification`, le résultat de `ancrage.verifier_base`.
+
+### RGPD
+
+Seules l'étiquette et une empreinte de 32 octets partent sur la chaîne : ni contenu, ni nom, ni adresse IP. Effacer une donnée personnelle reste possible, dans la base, sans toucher à l'ancre. L'effacement demande de retirer les déclencheurs, et la vérification montre ensuite l'entrée effacée comme modifiée depuis l'ancrage : un effacement doit se voir. Les autres entrées du lot restent prouvées une à une par leurs feuilles. Pour un effacement complet, vider aussi la ligne de `empreintes_champs` de l'entrée.
+
+### Console
+
+Le badge du dossier (`BadgeIntegrite`) ne parle que de l'intégrité vérifiée en local : « Journal intact », ou « Journal altéré à l'étape k » avec le verdict complet et le champ modifié en infobulle. Il ne dit jamais « ancré sur Avalanche » ; l'infobulle porte « Ancrage Avalanche : en exploration, aucune empreinte publiée. » Le champ `ancrage` de la vérification reste dans l'API pour la suite. Le mock ne porte ni `ancrage` ni `signatures` ; le badge s'en passe.
+
+### Limites
+
+- Aucune ancre publiée : contre un administrateur qui réécrit toute la base et tient la machine, le journal n'a aujourd'hui que des protections locales.
+- Hors ligne, une ancre se compare à la copie locale de la table `ancres`, qu'un administrateur peut réécrire aussi ; seule la relecture de la chaîne le prend en défaut.
+- Ce qui a été écrit depuis la dernière ancre n'est protégé que par les signatures et les déclencheurs.
+- Les clés de signature sont sur la machine du backend : qui la contrôle entièrement peut signer à sa place, mais ne peut pas faire retomber une base réécrite sur une racine déjà publiée.
+- Les tables `sessions` et `leurres` portent de l'état vivant, hors du journal : elles ne sont ni scellées ni ancrées.

@@ -81,6 +81,12 @@ def _lignes_ancrage(res: dict) -> list[str]:
     lignes = [f"Signatures Ed25519 : {', '.join(morceaux)}"]
     lignes.append("Ajout seul : déclencheurs en place sur evenements et decisions" if anc["ajout_seul"]
                   else "Ajout seul : déclencheurs ABSENTS, retirés par un administrateur de la base")
+    confirmes = sum(1 for l in anc["lots"] if l["statut_envoi"] == "confirmee")
+    if anc["statut"] != "altere" and not confirmes:
+        # Voie d'exploration : rien n'est publié tant que l'adresse n'est pas alimentée.
+        lignes.append(f"Ancrage Avalanche : en exploration, aucune ancre publiée "
+                      f"({_n(len(anc['lots']), 'racine', 'racines')} en file locale)")
+        return lignes
     libelle = anc["libelle"]
     if anc["statut"] in ("ancre", "en_attente") and res["statut"] == "intacte":
         libelle = f"Journal intact, {libelle}"
@@ -88,7 +94,6 @@ def _lignes_ancrage(res: dict) -> list[str]:
         libelle += f" ({ancrage.libelle_attente(anc['raison_attente'])})"
     lien = (anc.get("alteration") or {}).get("lien") or (anc.get("derniere_ancre") or {}).get("lien")
     lignes.append(f"Ancrage : {libelle}" + (f", {lien}" if lien else ""))
-    confirmes = sum(1 for l in anc["lots"] if l["statut_envoi"] == "confirmee")
     if anc["lots"]:
         relue = "relue sur la chaîne" if anc["chaine_relue"] else "chaîne non relue, comparée à la base"
         lignes.append(f"  {_n(len(anc['lots']), 'lot', 'lots')}, {confirmes} sur Avalanche ({relue})")

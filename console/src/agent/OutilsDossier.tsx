@@ -1,15 +1,33 @@
 // Outils du dossier, en haut à droite d'un incident : l'état du journal scellé
-// (« Journal intact » ou « altéré ») et un seul menu d'export (rapport à
-// imprimer, document ECS pour le SIEM, règle Sigma).
+// (« Journal intact » ou « altéré à l'étape N ») et un seul menu d'export
+// (rapport à imprimer, document ECS pour le SIEM, règle Sigma).
 
 import { useEffect, useRef, useState } from "react";
 import { useDonnees } from "../api/store";
 import type { Incident, Verification } from "../types";
 import { Icone } from "./icones";
 
+// Signatures ajoutées par le backend (CONTRATS.md, « journal signé, en ajout
+// seul, ancrage Avalanche en exploration »). Absentes du mock : le badge s'en passe.
+type VerificationSignee = Verification & {
+  signatures?: { valides: number; falsifiees: number };
+};
+
+// L'ancrage sur Avalanche est une voie d'exploration : aucune ancre n'est publiée.
+// Le badge ne montre que l'intégrité vérifiée en local et le dit dans l'infobulle.
+const EXPLORATION = "Ancrage Avalanche : en exploration, aucune empreinte publiée.";
+
+// « altérée à l'étape 3 : champ motif modifié » devient « altéré à l'étape 3 » ;
+// « altérée : en-tête de l'incident, champ statut modifié », « altéré : en-tête de l'incident ».
+function verdictCourt(verdict: string): string {
+  const [tete, ...reste] = verdict.split(" : ");
+  const court = tete === "altérée" && reste.length ? `altéré : ${reste.join(" : ").split(", ")[0]}` : tete;
+  return court.replace("altérée", "altéré");
+}
+
 export function BadgeIntegrite({ incident }: { incident: Incident }) {
   const { getVerification } = useDonnees();
-  const [v, setV] = useState<Verification | null>(null);
+  const [v, setV] = useState<VerificationSignee | null>(null);
   const version = `${incident.id}|${incident.decisions?.length ?? 0}|${incident.chaine?.length ?? 0}|${incident.journal_console?.length ?? 0}`;
 
   useEffect(() => {
@@ -17,7 +35,7 @@ export function BadgeIntegrite({ incident }: { incident: Incident }) {
     // Le backend laisse d'abord son écrivain vider la file : on attend un peu.
     const t = window.setTimeout(() => {
       getVerification(incident.id)
-        .then((r) => vivant && setV(r))
+        .then((r) => vivant && setV(r as VerificationSignee))
         .catch(() => vivant && setV(null));
     }, 600);
     return () => {
@@ -30,17 +48,20 @@ export function BadgeIntegrite({ incident }: { incident: Incident }) {
   if (!v) return null;
   const intact = v.statut === "intacte";
   const altere = v.statut === "alteree";
+  // « Journal altéré à l'étape 3 » : le champ modifié et la raison vont dans l'infobulle.
   const lib = intact
     ? "Journal intact"
     : altere
-      ? `Journal ${v.verdict}`
+      ? `Journal ${verdictCourt(v.verdict)}`
       : v.statut === "non_persiste"
         ? "Journal en cours d'écriture"
         : "Antérieur au scellement";
+  const n = v.signatures?.valides ?? 0;
+  const signe = n ? ` ${n} entrée${n > 1 ? "s" : ""} signée${n > 1 ? "s" : ""} par leur émetteur.` : "";
   const titre = intact
-    ? `Chaque étape et chaque décision ont été relues dans la base : aucune n'a changé.${v.sceau ? ` Sceau ${v.sceau.slice(0, 16)}…` : ""}`
+    ? `Chaque étape, chaque acte et chaque décision ont été relus dans la base : aucun n'a changé.${signe}${v.sceau ? ` Sceau ${v.sceau.slice(0, 16)}…` : ""} ${EXPLORATION}`
     : altere
-      ? `Une donnée a changé après son écriture${v.raison ? ` : ${v.raison}` : ""}.`
+      ? `${v.verdict.charAt(0).toUpperCase()}${v.verdict.slice(1)}.${v.raison ? ` ${v.raison}.` : ""}`
       : "Ce dossier n'a pas encore d'empreinte vérifiable.";
   return (
     <span className={`integrite ${intact ? "i-ok" : altere ? "i-alerte" : "i-neutre"}`} title={titre}>

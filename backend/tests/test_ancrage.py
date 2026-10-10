@@ -267,6 +267,17 @@ def test_sans_reseau_le_lot_attend_sans_bruit(client):
         conn.close()
 
 
+def test_par_defaut_la_file_reste_locale_et_silencieuse(client, monkeypatch):
+    """Sans réglage, l'ancrage prépare ses racines en local et ne touche jamais le réseau."""
+    monkeypatch.delenv("DEDALE_ANCRAGE")
+    assert ancrage.mode() == "file" and ancrage.client_rpc() is None
+    _incident(client)
+    _verifier(client, "INC-0001")
+    res = ancrage.cycle(config.CHEMIN_DB, motif="incident_clos")
+    assert res["lot"]["n_feuilles"] == 3 and res["envoi"] is None
+    assert not ancrage.fichier_cle_ancrage().exists()  # aucun portefeuille créé en silence
+
+
 def test_noeud_d_une_autre_chaine_refuse(client):
     _incident(client)
     _verifier(client, "INC-0001")
@@ -374,7 +385,7 @@ def test_commandes_verifier_journal_et_ancrage(client, capsys):
     sortie = capsys.readouterr().out
     assert "Signatures Ed25519 : 3 valides (passerelle 3), 0 falsifiée" in sortie
     assert "Ajout seul : déclencheurs en place" in sortie
-    assert "Ancrage : Journal intact, en attente d'ancrage" in sortie
+    assert "Ancrage Avalanche : en exploration, aucune ancre publiée (0 racine en file locale)" in sortie
 
     rpc = FauxRPC()
     ancrage.fabrique_rpc = lambda: rpc

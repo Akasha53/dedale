@@ -91,7 +91,19 @@ Sans décision, rien ne part : l'appel retenu par la passerelle est refusé au b
 
 ### Un journal scellé
 
-Chaque événement, chaque décision et chaque maillon de la boîte noire porte une empreinte SHA-256 chaînée à la précédente (`backend/app/journal_scelle.py`). `GET /api/incidents/{id}/verification` relit la base et dit si le dossier est intact ou à quelle étape il a été modifié. `cd backend && uv run python -m app.verifier_journal` vérifie toute la base. Le rapport d'une page pour le RSSI (`GET /api/incidents/{id}/rapport`) imprime ce sceau. Les verdicts du relecteur IA, les motifs, les levées d'anonymat et les actions sur le compte d'un salarié entrent dans la même chaîne. Limite : une base réécrite en entier, sceaux recalculés compris, ne se repère qu'en comparant le sceau à une copie gardée ailleurs, comme le rapport imprimé.
+Chaque événement, chaque décision et chaque maillon de la boîte noire porte une empreinte SHA-256 chaînée à la précédente (`backend/app/journal_scelle.py`). Les verdicts du relecteur IA, les motifs, les levées d'anonymat et les actions sur le compte d'un salarié entrent dans la même chaîne. `GET /api/incidents/{id}/verification` relit tout le dossier dans la base et nomme ce qui a changé : « altérée à la décision 1 : champ analyste modifié ». `cd backend && uv run python -m app.verifier_journal` passe par la même vérification pour toute la base. Le rapport d'une page pour le RSSI (`GET /api/incidents/{id}/rapport`) imprime le sceau.
+
+Chaque entrée porte en plus la signature Ed25519 de son émetteur : la passerelle des agents, l'app du poste, les leurres, ou le backend pour une décision, au nom de l'analyste. Les agents IA n'écrivent jamais eux-mêmes dans le journal, ils passent par la passerelle. Les clés restent hors du dépôt, dans `~/.config/dedale/cles/`. SQLite refuse ensuite de modifier ou d'effacer une ligne du journal (`backend/app/ancrage.py`).
+
+### Pourquoi Avalanche, et ce qui part sur la chaîne
+
+C'est une voie d'exploration, pas une fonction livrée. Aucune ancre n'est publiée aujourd'hui : l'adresse d'ancrage n'a pas reçu d'AVAX de test.
+
+Le problème qu'elle vise reste entier. Un administrateur de la base peut retirer les déclencheurs, réécrire tout le journal, recalculer chaque empreinte et, s'il tient la machine, re-signer. Contre lui, il faut une copie que personne ici ne peut modifier. L'idée est de publier la racine de Merkle des entrées nouvelles sur la C-Chain de test d'Avalanche (Fuji), à chaque incident clos : une transaction de 0 AVAX de l'adresse d'ancrage vers elle-même, sans contrat. Avalanche est partenaire du hackathon, et sa C-Chain parle le JSON-RPC d'Ethereum : une transaction signée par `eth-account` suffit.
+
+Sur la chaîne partiraient une étiquette (`dedale-ancre-v1:`) et une empreinte de 32 octets, sans texte, sans nom, sans adresse IP. Effacer une donnée personnelle resterait possible dans la base sans toucher à l'ancre : la vérification montrerait cette entrée comme modifiée depuis l'ancrage, et les autres entrées du lot resteraient prouvées une à une.
+
+Ce qui marche déjà, en local : les signatures, l'ajout seul, la vérification champ par champ, et le calcul des racines, qui attendent dans une file sans aucun appel réseau (`DEDALE_ANCRAGE=file`, le réglage par défaut). Le code d'envoi et de relecture sur Fuji est écrit et testé contre un faux nœud ; en lecture, il a lu le bloc courant et le solde de l'adresse sur le vrai réseau. Ce qui manque : alimenter l'adresse (`uv run python -m app.ancrage adresse`), lancer `uv run python -m app.ancrage ancrer`, puis vérifier une première ancre sur Snowtrace. Le badge de la console ne parle que de l'intégrité vérifiée en local.
 
 ### L'identité du salarié révélée seulement sur motif
 
