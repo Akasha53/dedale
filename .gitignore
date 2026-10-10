@@ -8,3 +8,14 @@ dist/
 data/*.db
 data/*.db-*
 .DS_Store
+
+# Journaux et sauvegardes du lanceur
+lancer.log
+*.bak
+
+# Fichiers de design locaux (les images publiées sont dans landing/img/)
+design.pen
+design-assets/
+
+# Mémoire locale de l'agent interne, recréée à l'usage
+interne/instance/
