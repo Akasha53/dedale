@@ -6,6 +6,11 @@
    d'agent, les listes et le panneau des règles ont leurs propres agents ce
    soir : ce fichier ne les touche pas, sauf par les jetons. */
 
+/* Les jetons communs passent par un @import : Vite l'inline à la
+   compilation, sans servir de fichier hors de console/ (pas besoin de
+   server.fs.allow). */
+@import "../../design/jetons.css";
+
 :root {
   --fond: var(--gris-0);
   --fond-2: var(--gris-50);
@@ -285,4 +290,11 @@ button:not(:disabled):active {
 .confirmation-champ input:focus {
   border-color: var(--texte);
   box-shadow: none;
+}
+
+/* ---- Analyste : neutre au repos ; l'orange revient seulement quand une
+   décision attend son nom (.analyste-attendu). ---- */
+.analyste-vide {
+  color: var(--texte);
+  font-weight: 500;
 }

@@ -1,7 +1,7 @@
 /* Jetons de Dédale, communs à la console et à la landing.
 
-   La console les importe depuis src/main.tsx, la landing les charge par un
-   <link>. L'app Mac reprend les mêmes valeurs à la main dans
+   La console les importe par un @import en tête de src/finitions.css, que
+   Vite inline à la compilation ; la landing les charge par un <link>. L'app Mac reprend les mêmes valeurs à la main dans
    app-mac/Sources/Dedale/Theme.swift : une valeur changée ici se change
    aussi là-bas.
 
