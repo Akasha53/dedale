@@ -357,3 +357,91 @@ Un agent local observe l'action risquée AVANT qu'elle n'aboutisse et émet un �
 
 ### Argument de pitch (donné par l'équipe)
 « Vous faites déjà des faux tests de phishing à vos salariés, et malgré tous vos avertissements ils tombent dedans tous les jours. Dédale les attrape au moment du clic, pas après. » Cible : grandes entreprises (la data y vaut le plus cher, et l'humain y est le vrai trou).
+
+### Pilier humain — backend en place (agent A, 10 octobre 2026)
+
+Le backend accueille le pilier humain sur le moteur existant (collecteur → tri → boîte noire →
+décision → SIEM). Aucun changement cassant : les surfaces interne/externe (V0-V4) sont
+inchangées. Prouvé sur la suite `backend/tests/test_humain.py` (10 tests) et la suite complète
+(36 tests verts).
+
+**Sources et surfaces acceptées.** `source` ∈ `humain` (poste du salarié) | `physique` (accès
+aux locaux/serveurs), en plus de `interne`/`externe`. `surface` ∈ `poste` | `physique`, en plus
+des surfaces existantes. Le schéma d'événement ne change pas.
+
+**Ce que `poste/` (nouvel agent) doit envoyer au backend.** Un `POST /api/evenements` par geste,
+le garde du corps appelant AVANT que l'action n'aboutisse :
+
+```json
+{
+  "horodatage": "2026-10-10T14:03:22+02:00",
+  "source": "humain",
+  "surface": "poste",
+  "type": "avertissement",
+  "session_id": "poste-<salarié ou machine>-NNNN",
+  "details": {
+    "categorie": "secret | mail_externe | upload_ia | phishing | intrusion_physique",
+    "choix": "continuer | annuler",
+    "gravite": "faible | moyenne | haute | critique",   // facultatif, surcharge la gravité par défaut du type
+    "cible": "chat.exemple.ia | destinataire@externe | drive perso | ...",  // facultatif, label de destination
+    "message": "texte exact de la pop-up affichée au salarié",  // facultatif
+    "lien": "http://...",          // phishing : l'URL (neutralisée, jamais active)
+    "secret": "sk-live-...",       // secret : la chaîne repérée (neutralisée/tronquée)
+    "url_phishing": "http://..."   // alias de lien, au choix
+  }
+}
+```
+
+- `choix: "annuler"` = bon réflexe : **aucun incident**, la session reste `active`. `choix:
+  "continuer"` sur un geste sérieux = **signal fort**, ouvre l'incident du type correspondant.
+- La réponse du backend est toujours `{"consigne": "aucune"}` pour `humain`/`physique` : le garde
+  du corps prévient et escalade, il ne bloque jamais le poste. Non suspendu d'office (contrairement
+  à un agent interne). L'escalade se fait par l'ouverture de l'incident (visible console + WS + SIEM).
+- **Contexte** (facultatif, enrichit la frise) : un événement préalable `type: "requete"` (ou
+  `entree_agent`/`note`) sur `surface: "poste"` avec `details.note` (ou `activite`/`contexte`)
+  décrivant ce que faisait le salarié.
+- **Conséquence** (facultatif) : après un `continuer`, un événement `type: "sortie_agent"` /
+  `riposte`, ou n'importe quel événement avec `details.exfiltration`/`details.escalade`/
+  `details.consequence`, alimente l'étape finale. Sans lui, le backend matérialise l'escalade.
+- **Intrusion physique** : soit un `avertissement` `categorie: intrusion_physique` (sans `choix`
+  nécessaire : c'est un intrus, pas le salarié), soit — recommandé — un canari physique touché :
+  enregistrer au démarrage `POST /api/leurres` `{id:"C-PHY1", source:"physique", surface:"physique",
+  nature:"canari_physique", techniques:["T1200"]}` puis émettre `type: "leurre_touche"`,
+  `surface:"physique"`, `leurre_id:"C-PHY1"`. L'accès lui-même ouvre l'incident.
+
+**Cinq types d'incident (lus par la console, badge à ajouter côté D).** `incident.type` ∈
+`humain_secret`, `humain_mail_externe`, `humain_upload_ia`, `humain_phishing`,
+`humain_intrusion_physique`. Gravité par défaut (surchargée par `details.gravite` d'un geste passé
+outre) : secret/mail_externe/phishing → `haute`, upload_ia → `moyenne`, intrusion_physique →
+`critique`.
+
+**Boîte noire du geste humain (`incident.chaine`).** Mêmes champs qu'une chaîne agent IA
+(`ordre, phase, titre, detail, techniques, risques, leurre_id?, canari_id?`), mais avec des
+**phases propres au geste humain**, dans cet ordre : `contexte` → `action_risquee` →
+`avertissement` → `choix` → `consequence`. La console D doit reconnaître ces cinq phases (en plus
+de `entree|consigne|outil|sortie|riposte` pour l'IA) ; à défaut elle les affichera en colonne
+générique. Les `techniques`/`risques` sont portés sur l'étape `action_risquee`.
+
+**Mesures (`GET /api/mesures`).** Nouveau bloc toléré :
+`gestes_humains: {arretes, passes_outre, total, passes_outre_par_type: {<categorie>: n},
+incidents_humains}`. « arrêtés » = avertissements annulés (bon réflexe), « passés outre » =
+continués (signal fort) — c'est l'indicateur de tête du pilier. Les sessions humaines n'ont pas
+de vérité terrain banc : elles n'altèrent ni `taux_detection` ni `faux_positifs`.
+
+**SIEM.** `avertissement` est exporté en ECS (`event.action: "avertissement"`,
+`event.category: ["intrusion_detection"]`, `details` sous `dedale.details.*`). La règle Sigma
+générée par `/export?format=sigma` est étiquetée selon le type (voir ci-dessous) et son `level`
+suit la gravité de l'incident. Deux règles Sigma génériques ajoutées dans `sigma/`
+(`salarie_passe_outre_avertissement.yml`, `fichier_confidentiel_vers_ia.yml`, validées sigma-cli).
+
+**Neutralisation.** `message`, `lien`, `secret`, `url_phishing`, `cible` sont neutralisés comme
+les canaris (préfixe `[leurre, neutralisé]`, HTML échappé, aplati) avant stockage, console et
+SIEM. Jamais réexécutés ni réinjectés — y compris le lien de phishing et le secret.
+
+**Techniques/risques rattachés — À CONFIRMER avant la fiche défense.** Couche humaine MITRE
+ATT&CK (Enterprise, pas ATLAS) : phishing → `T1566` (Phishing) ; secret exposé → `T1552`
+(Unsecured Credentials) ; mail externe → `T1048` (Exfiltration Over Alternative Protocol) ;
+upload IA → `T1567` (Exfiltration Over Web Service) ; intrusion physique → `T1200` (Hardware
+Additions). OWASP : fit partiel, seuls `humain_secret` et `humain_upload_ia` portent `OWASP LLM02`
+(Sensitive Information Disclosure, l'IA comme réceptacle). Le reste reste côté ATT&CK. À vérifier
+sur attack.mitre.org et genai.owasp.org.

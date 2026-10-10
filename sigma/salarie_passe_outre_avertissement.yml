@@ -1,0 +1,28 @@
+title: Salarié ayant passé outre un avertissement du garde du corps du poste
+id: 7c1e0a44-0b1a-4e2a-9b11-2d6f9a0c2001
+status: experimental
+description: >
+  Le garde du corps du poste a prévenu le salarié avant un geste risqué (secret exposé, envoi
+  externe, dépôt vers une IA, clic de phishing) et le salarié a choisi « continuer ». Passer
+  outre un avertissement sérieux est un signal fort : c'est le moment du geste, pas après.
+references:
+  - https://attack.mitre.org/techniques/T1566/
+  - https://genai.owasp.org/
+author: Dédale (Secure Horizons)
+logsource:
+  product: dedale
+detection:
+  selection:
+    event.action: avertissement
+    dedale.details.choix: continuer
+  condition: selection
+fields:
+  - dedale.session_id
+  - dedale.details.categorie
+  - dedale.details.gravite
+falsepositives:
+  - Geste légitime validé par le métier (destinataire ou IA approuvés)
+level: high
+tags:
+  - attack.initial-access
+  - attack.t1566

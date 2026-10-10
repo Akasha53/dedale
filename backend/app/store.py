@@ -94,6 +94,20 @@ class Session:
     canari_id: str | None = None
     canari_nature: str | None = None
     flag_outil_mcp: bool = False
+    # Surfaces internes V1/V3/V4.
+    flag_appel: bool = False          # V1  : transcription d'appel piégée
+    flag_chatbot: bool = False        # V3a : injection de prompt via le chatbot
+    flag_inter_agent: bool = False    # V3b : délégation inter-agent non authentifiée (ASI07)
+    flag_memoire: bool = False        # V4  : mémoire long terme empoisonnée
+    # Pilier humain (« le maillon faible ») : gestes risqués captés par le garde du corps du poste.
+    flag_humain: bool = False
+    geste_categorie: str | None = None          # dernière catégorie de geste observée
+    geste_incident_categorie: str | None = None # catégorie du geste qui a ouvert l'incident
+    geste_gravite: str | None = None            # gravité annoncée d'un geste passé outre
+    flag_passe_outre: bool = False              # a cliqué « continuer » sur un avertissement
+    flag_intrusion_physique: bool = False       # accès d'un intrus à un actif/port-leurre
+    gestes_arretes: int = 0                     # gestes annulés (bon réflexe)
+    gestes_passes_outre: int = 0                # gestes passés outre (signal fort)
     # Moindre privilège (V2) : droits accordés / jeton de tâche / utilisés / tentatives hors scope.
     tache: str | None = None
     droits_accordes: list = field(default_factory=list)
@@ -333,12 +347,64 @@ class Store:
                         sess.flag_outil_mcp = True
                         sess.flag_consigne_cachee = True
                         sess.consigne_leurre_id = sess.consigne_leurre_id or leurre.id
+                    # Appel piégé (V1), injection chatbot (V3a), mémoire empoisonnée (V4) :
+                    # chacun porte une consigne cachée et spécialise le type d'incident interne.
+                    if leurre.nature == "canari_appel":
+                        sess.flag_appel = True
+                        sess.flag_consigne_cachee = True
+                        sess.consigne_leurre_id = sess.consigne_leurre_id or leurre.id
+                    if leurre.nature == "injection_chatbot":
+                        sess.flag_chatbot = True
+                        sess.flag_consigne_cachee = True
+                        sess.consigne_leurre_id = sess.consigne_leurre_id or leurre.id
+                    if leurre.nature == "memoire_empoisonnee":
+                        sess.flag_memoire = True
+                        sess.flag_consigne_cachee = True
+                        sess.consigne_leurre_id = sess.consigne_leurre_id or leurre.id
+                    # Usurpation inter-agent (V3b) : provenance non authentifiée (ASI07).
+                    if leurre.nature == "agent_usurpation":
+                        sess.flag_inter_agent = True
+
+            # Provenance d'une délégation inter-agent invalide (V3b, OWASP ASI07).
+            if isinstance(details.get("provenance_invalide"), dict):
+                sess.flag_inter_agent = True
+
+            # --- Pilier humain : le garde du corps du poste ---
+            # Un avertissement porte le geste risqué et le choix du salarié (continuer/annuler).
+            # Passer outre un avertissement sérieux est un signal fort ; annuler est le bon réflexe.
+            if ev.type == "avertissement" and sess.source in ("humain", "physique"):
+                sess.flag_humain = True
+                cat = details.get("categorie")
+                choix = details.get("choix")
+                if cat:
+                    sess.geste_categorie = cat
+                if choix == "annuler":
+                    sess.gestes_arretes += 1
+                elif choix == "continuer":
+                    sess.gestes_passes_outre += 1
+                    sess.flag_passe_outre = True
+                    if cat:
+                        sess.geste_incident_categorie = cat
+                    g = details.get("gravite")
+                    if g in ("faible", "moyenne", "haute", "critique"):
+                        sess.geste_gravite = g
+                # Intrusion physique : un intrus, pas le salarié protégé. L'accès EST l'incident,
+                # même sans « continuer » (personne n'annule à la place de l'intrus).
+                if cat == "intrusion_physique" and choix != "annuler":
+                    sess.flag_intrusion_physique = True
+                    sess.geste_incident_categorie = "intrusion_physique"
+            # Canari physique touché (serveur/port-leurre) : intrusion matérielle avérée.
+            if ev.type == "leurre_touche" and leurre is not None and (
+                leurre.nature == "canari_physique" or sess.source == "physique"
+            ):
+                sess.flag_intrusion_physique = True
+                sess.geste_incident_categorie = "intrusion_physique"
 
             if details.get("consigne") or details.get("consigne_lue"):
                 sess.flag_consigne_cachee = True
                 sess.consigne_leurre_id = sess.consigne_leurre_id or ev.leurre_id
 
-            if ev.surface in ("doc", "document", "mail") or ev.type == "entree_agent":
+            if ev.surface in ("doc", "document", "mail", "appel", "chatbot", "memoire") or ev.type == "entree_agent":
                 sess.flag_lecture = horo
 
             if ev.type in ("appel_outil", "requete"):
@@ -371,7 +437,9 @@ class Store:
                 "details": securite.neutraliser_details(
                     details,
                     ("consigne", "consigne_lue", "contenu", "extrait", "objectif",
-                     "charge_utile", "payload", "consigne_outil"),
+                     "charge_utile", "payload", "consigne_outil",
+                     # Pilier humain : lien de phishing, secret collé, texte de la pop-up, cible.
+                     "message", "lien", "secret", "url_phishing", "cible"),
                 ),
             }
             if cadence_s is not None:
@@ -415,23 +483,45 @@ class Store:
     @staticmethod
     def _type_titre(sess: Session) -> tuple[str, str]:
         """Type d'incident et titre, spécialisés par source et par nature du piège (V2)."""
+        # Pilier humain (le maillon faible) : type selon le geste du salarié (ou l'intrusion).
+        if sess.source in ("humain", "physique"):
+            cat = sess.geste_incident_categorie or sess.geste_categorie
+            typ = incidents.type_humain(cat, sess.flag_intrusion_physique)
+            return typ, incidents.titre_humain(typ, sess.id)
         if sess.source != "interne":
             return "externe_agent_ia", f"Agent IA attaquant sur la surface exposée ({sess.id})"
+        # Usurpation inter-agent (V3b) : provenance non authentifiée, sans canari « contenu ».
+        if sess.flag_inter_agent and not (
+            sess.flag_outil_mcp or sess.flag_appel or sess.flag_chatbot or sess.flag_memoire
+        ):
+            return "interne_inter_agent", f"Agent interne usurpé : délégation non authentifiée (canari {sess.canari_id or '—'})"
         if sess.flag_outil_mcp:
             return "interne_outil_mcp", f"Agent interne piégé par un outil MCP (canari {sess.canari_id or '—'})"
+        if sess.flag_appel:
+            return "interne_appel", f"Agent interne piégé par une transcription d'appel (canari {sess.canari_id or '—'})"
+        if sess.flag_chatbot:
+            return "interne_chatbot", f"Chatbot interne détourné par injection de prompt (canari {sess.canari_id or '—'})"
+        if sess.flag_memoire:
+            return "interne_memoire", f"Agent interne détourné par sa mémoire empoisonnée (canari {sess.canari_id or '—'})"
         if sess.flag_droits and not sess.flag_canari:
             scope = sess.tentatives_hors_scope[-1]["scope_requis"] if sess.tentatives_hors_scope else "—"
             return "interne_droits", f"Agent interne hors de son périmètre de droits (droit {scope})"
         return "interne_canari", f"Agent IA piégé en interne (canari {sess.canari_id or '—'})"
 
     def _maj_incident(self, sess: Session) -> Incident | None:
-        est_incident = (
-            (sess.source == "externe" and sess.classement == "agent_ia")
-            or (
-                sess.source == "interne"
-                and (sess.flag_canari or sess.flag_droits or sess.classement == "agent_ia")
+        if sess.source in ("humain", "physique"):
+            # Pilier humain : ouvre sur un geste passé outre, ou une intrusion physique.
+            # Un geste annulé (bon réflexe) n'ouvre rien.
+            est_incident = sess.flag_passe_outre or sess.flag_intrusion_physique
+        elif sess.source == "externe":
+            est_incident = sess.classement == "agent_ia"
+        else:  # interne
+            est_incident = (
+                sess.flag_canari
+                or sess.flag_droits
+                or sess.flag_inter_agent
+                or sess.classement == "agent_ia"
             )
-        )
         if not est_incident:
             return None
         typ, titre = self._type_titre(sess)
@@ -454,9 +544,14 @@ class Store:
         if inc.type != "externe_agent_ia":
             inc.type, inc.titre = typ, titre
         evs = [self.evenements[i] for i in sess.evenement_ids]
-        inc.chaine = incidents.construire_chaine(evs, self.leurres)
-        inc.gravite = incidents.gravite(inc.chaine, sess.source)
-        inc.resume = incidents.resume(inc.chaine, sess.classement, sess.source)
+        if sess.source in ("humain", "physique"):
+            inc.chaine = incidents.construire_chaine_humaine(evs, self.leurres)
+            inc.gravite = incidents.gravite_humaine(typ, sess.geste_gravite)
+            inc.resume = incidents.resume_humain(inc.chaine, typ, sess.flag_passe_outre)
+        else:
+            inc.chaine = incidents.construire_chaine(evs, self.leurres)
+            inc.gravite = incidents.gravite(inc.chaine, sess.source)
+            inc.resume = incidents.resume(inc.chaine, sess.classement, sess.source)
         return inc
 
     def _incident_dict(self, inc: Incident) -> dict:
@@ -497,6 +592,9 @@ class Store:
             return "bloquer"
         if sess.etat == "suspendue":
             return "suspendre"
+        # Pilier humain : le garde du corps du poste prévient et escalade, il ne bloque jamais le PC.
+        if sess.source in ("humain", "physique"):
+            return "aucune"
         if sess.source == "interne":
             if sess.classement == "agent_ia" or sess.flag_canari:
                 return "suspendre"

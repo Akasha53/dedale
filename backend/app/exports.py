@@ -21,7 +21,22 @@ _ECS_TYPE = {
     "sortie_agent": ("network", ["connection"]),
     "leurre_touche": ("intrusion_detection", ["info"]),
     "riposte": ("process", ["change"]),
+    # Pilier humain : avertissement du garde du corps du poste (geste risqué du salarié).
+    "avertissement": ("intrusion_detection", ["info"]),
 }
+
+# Étiquettes Sigma (MITRE ATT&CK) par type d'incident. Pour le pilier humain, techniques de la
+# couche humaine (plausibles, à confirmer) ; sinon, le profil agent IA historique.
+_SIGMA_TAGS = {
+    "humain_phishing": ["attack.initial-access", "attack.t1566"],
+    "humain_secret": ["attack.credential-access", "attack.t1552"],
+    "humain_mail_externe": ["attack.exfiltration", "attack.t1048"],
+    "humain_upload_ia": ["attack.exfiltration", "attack.t1567"],
+    "humain_intrusion_physique": ["attack.initial-access", "attack.t1200"],
+}
+
+# Gravité Dédale → niveau Sigma.
+_NIVEAU_SIGMA = {"faible": "low", "moyenne": "medium", "haute": "high", "critique": "critical"}
 
 
 def _ecs_un(ev: dict) -> dict:
@@ -80,31 +95,44 @@ def vers_ecs(incident: dict, evenements: list[dict]) -> dict:
 def vers_sigma(incident: dict) -> str:
     """Règle Sigma calquée sur l'incident : session + leurres touchés + étapes."""
     sess = incident.get("session") or {}
+    type_inc = incident.get("type") or ""
+    est_humain = type_inc.startswith("humain_")
     leurres = incident.get("leurres_touches", [])
     etapes = [e.get("etape") for e in incident.get("chaine", [])]
     sel: dict = {"dedale.session_id": sess.get("id")}
     if leurres:
         sel["dedale.leurre_id"] = leurres
-    regle = {
-        "title": f"Dédale — incident {incident.get('id')} ({incident.get('type')})",
-        "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"dedale/{incident.get('id')}")),
-        "status": "experimental",
-        "description": (
+    if est_humain:
+        description = (
+            "Incident Dédale — pilier humain : geste à risque d'un salarié capté par le garde du "
+            f"corps du poste (type {type_inc}). Chaîne observée : {' -> '.join(etapes) if etapes else 'n/d'}."
+        )
+        references = ["https://attack.mitre.org/", "https://genai.owasp.org/"]
+        falsepositives = ["Geste légitime validé par le métier (destinataire/IA approuvés)"]
+    else:
+        description = (
             "Incident Dédale reconstruit : agent IA détourné/attaquant. "
             f"Chaîne observée : {' -> '.join(etapes) if etapes else 'n/d'}."
-        ),
-        "references": [
+        )
+        references = [
             "https://atlas.mitre.org/",
             "https://genai.owasp.org/ (OWASP Agentic Security ASI01-ASI10)",
-        ],
-        "logsource": {"product": "dedale", "service": incident.get("type")},
+        ]
+        falsepositives = ["Session de test du banc d'attaque avec verite_terrain != agent_ia"]
+    regle = {
+        "title": f"Dédale — incident {incident.get('id')} ({type_inc})",
+        "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"dedale/{incident.get('id')}")),
+        "status": "experimental",
+        "description": description,
+        "references": references,
+        "logsource": {"product": "dedale", "service": type_inc},
         "detection": {
             "selection": sel,
             "condition": "selection",
         },
         "fields": ["dedale.session_id", "dedale.leurre_id", "dedale.surface", "event.action"],
-        "falsepositives": ["Session de test du banc d'attaque avec verite_terrain != agent_ia"],
-        "level": "high",
-        "tags": ["attack.initial_access", "attack.t1566", "owasp.asi01"],
+        "falsepositives": falsepositives,
+        "level": _NIVEAU_SIGMA.get(incident.get("gravite"), "high"),
+        "tags": _SIGMA_TAGS.get(type_inc, ["attack.initial-access", "attack.t1566", "owasp.asi01"]),
     }
     return yaml.safe_dump(regle, allow_unicode=True, sort_keys=False)

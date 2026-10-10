@@ -39,6 +39,7 @@ def calculer(store) -> dict:
     with store.lock:
         sessions = list(store.sessions.values())
         incidents = list(store.incidents.values())
+        evenements = list(store.evenements.values())
 
     repartition = {"humain": 0, "script": 0, "agent_ia": 0, "inconnu": 0}
     vp = fp = vn = fn = 0
@@ -71,6 +72,22 @@ def calculer(store) -> dict:
     taux_detection = vp / (vp + fn) if (vp + fn) else None
     faux_positifs = fp / (fp + vn) if (fp + vn) else None
 
+    # Pilier humain : gestes risqués arrêtés (annuler, bon réflexe) vs passés outre (continuer,
+    # signal fort). Comptés sur les événements d'avertissement du garde du corps du poste.
+    gestes_arretes = gestes_passes = 0
+    passes_par_type: dict[str, int] = {}
+    for e in evenements:
+        if e.get("type") != "avertissement":
+            continue
+        d = e.get("details") or {}
+        choix = d.get("choix")
+        if choix == "annuler":
+            gestes_arretes += 1
+        elif choix == "continuer":
+            gestes_passes += 1
+            cat = d.get("categorie") or "inconnu"
+            passes_par_type[cat] = passes_par_type.get(cat, 0) + 1
+
     delais_confinement = [
         (s.confine_a - s.detecte_a).total_seconds()
         for s in sessions
@@ -99,4 +116,12 @@ def calculer(store) -> dict:
         # Détail utile à l'analyste (toléré par la console).
         "matrice": {"vrais_positifs": vp, "faux_positifs": fp, "vrais_negatifs": vn, "faux_negatifs": fn},
         "sessions_sans_verite_terrain": sans_verite,
+        # Pilier humain : efficacité du garde du corps du poste.
+        "gestes_humains": {
+            "arretes": gestes_arretes,
+            "passes_outre": gestes_passes,
+            "total": gestes_arretes + gestes_passes,
+            "passes_outre_par_type": passes_par_type,
+            "incidents_humains": sum(1 for i in incidents if str(i.type).startswith("humain_")),
+        },
     }

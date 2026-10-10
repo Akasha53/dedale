@@ -1,0 +1,28 @@
+title: Dépôt d'un fichier confidentiel vers une IA non autorisée (shadow AI)
+id: 7c1e0a44-0b1a-4e2a-9b11-2d6f9a0c2002
+status: experimental
+description: >
+  Un salarié dépose un fichier confidentiel vers une IA non autorisée ou un cloud personnel.
+  Exfiltration de données vers un service web tiers, par un geste humain et non par un agent
+  détourné. Le garde du corps du poste le capte au moment du dépôt.
+references:
+  - https://attack.mitre.org/techniques/T1567/
+  - https://genai.owasp.org/ (LLM02 Sensitive Information Disclosure)
+author: Dédale (Secure Horizons)
+logsource:
+  product: dedale
+detection:
+  selection:
+    event.action: avertissement
+    dedale.details.categorie: upload_ia
+    dedale.details.choix: continuer
+  condition: selection
+fields:
+  - dedale.session_id
+  - dedale.details.cible
+falsepositives:
+  - Dépôt vers une IA d'entreprise approuvée (hors périmètre shadow AI)
+level: high
+tags:
+  - attack.exfiltration
+  - attack.t1567

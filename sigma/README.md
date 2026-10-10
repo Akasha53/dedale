@@ -1,8 +1,10 @@
-# Règles Sigma — traces d'agents IA (Dédale)
+# Règles Sigma — traces Dédale (agents IA + pilier humain)
 
-Cinq règles génériques sur les traces d'agents, complémentaires du tri en direct du backend.
+Règles génériques sur les traces, complémentaires du tri en direct du backend.
 Le backend reste la détection temps réel ; ces règles servent à rejouer les traces dans un SIEM
 du SOC (Elastic, Wazuh) et à partager la détection dans un format standard.
+
+Agents IA :
 
 | Fichier | Ce qu'elle attrape | Niveau |
 |---|---|---|
@@ -11,6 +13,17 @@ du SOC (Elastic, Wazuh) et à partager la détection dans un format standard.
 | `exfiltration_sortie_agent.yml` | tentative de sortie de données | critical |
 | `reponse_contre_injection.yml` | agent qui avoue son objectif après contre-injection | high |
 | `cadence_agent_palisade.yml` | cadence régulière ~1,7 s (repère Palisade) | medium |
+
+Pilier humain (le maillon faible) :
+
+| Fichier | Ce qu'elle attrape | Niveau |
+|---|---|---|
+| `salarie_passe_outre_avertissement.yml` | salarié qui clique « continuer » malgré l'avertissement du poste | high |
+| `fichier_confidentiel_vers_ia.yml` | dépôt d'un fichier confidentiel vers une IA non autorisée (shadow AI) | high |
+
+Champs humains : `event.action = avertissement`, `dedale.details.categorie`
+(`secret`/`mail_externe`/`upload_ia`/`phishing`/`intrusion_physique`),
+`dedale.details.choix` (`continuer`/`annuler`), `dedale.details.gravite`, `dedale.details.cible`.
 
 ## Champs attendus
 
