@@ -1,0 +1,28 @@
+title: Cadence de requêtes régulière typique d'un agent (repère Palisade)
+id: 7c1e0a44-0b1a-4e2a-9b11-2d6f9a0c1005
+status: experimental
+description: >
+  Une session enchaîne des requêtes à cadence serrée et régulière, proche des ~1,7 s mesurés
+  par l'étude Palisade pour un agent automatisé. Signal d'automatisation (script ou agent IA),
+  à corréler avec les signaux de compréhension de texte pour distinguer l'agent IA du script.
+  Le backend Dédale place la cadence calculée dans dedale.details.cadence_s.
+references:
+  - https://palisaderesearch.org/
+author: Dédale (Secure Horizons)
+logsource:
+  product: dedale
+detection:
+  selection:
+    event.action:
+      - requete
+      - appel_outil
+    dedale.details.cadence_s|lte: 3.0
+  condition: selection
+fields:
+  - dedale.session_id
+  - user_agent.original
+falsepositives:
+  - Rafraîchissement automatique d'une page par un navigateur humain
+level: medium
+tags:
+  - attack.discovery

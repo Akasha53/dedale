@@ -1,0 +1,30 @@
+title: Appel d'outil sur une route découverte dans un document
+id: 7c1e0a44-0b1a-4e2a-9b11-2d6f9a0c1002
+status: experimental
+description: >
+  Un appel d'outil ou une requête cible une route/un outil qui n'était décrit que dans un
+  document ou un mail lu juste avant (champ details.decouvert_dans_doc). L'enchaînement
+  lecture puis action sur une route non publique trahit un agent qui raisonne sur le texte,
+  pas un simple scanner.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0053
+  - https://genai.owasp.org/
+author: Dédale (Secure Horizons)
+logsource:
+  product: dedale
+detection:
+  selection:
+    event.action:
+      - appel_outil
+      - requete
+    dedale.details.decouvert_dans_doc: true
+  condition: selection
+fields:
+  - dedale.session_id
+  - dedale.outil
+  - url.path
+falsepositives:
+  - Outil interne légitime appelé par l'agent d'Orbis Pay dans un flux approuvé
+level: high
+tags:
+  - attack.discovery

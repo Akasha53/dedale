@@ -1,0 +1,29 @@
+title: Tentative de sortie de données par un agent IA
+id: 7c1e0a44-0b1a-4e2a-9b11-2d6f9a0c1003
+status: experimental
+description: >
+  Un événement sortie_agent, ou un appel d'outil marqué details.exfiltration, signale une
+  tentative de faire sortir des données (envoi de mail, POST externe, réponse d'outil). Sur un
+  périmètre de canaris, toute sortie corrélée à un canari touché est une exfiltration probable.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0057
+  - https://genai.owasp.org/
+author: Dédale (Secure Horizons)
+logsource:
+  product: dedale
+detection:
+  sortie:
+    event.action: sortie_agent
+  exfil_marquee:
+    dedale.details.exfiltration: true
+  condition: sortie or exfil_marquee
+fields:
+  - dedale.session_id
+  - dedale.outil
+  - dedale.leurre_id
+falsepositives:
+  - Sortie attendue vers un destinataire interne approuvé
+level: critical
+tags:
+  - attack.exfiltration
+  - attack.t1041

@@ -182,3 +182,28 @@ il sert une surface de remplacement en mémoire et poste lui-même les événeme
 étiquetés au backend, ce qui permet de développer et mesurer le backend tout de
 suite. En **mode surface**, le banc tape sur les vrais modules et ne poste rien,
 ce sont eux qui émettent. Le banc choisit selon que leurres/ répond.
+
+### Agent A (backend) — confirmations et précisions
+
+Le backend (port 8700) est en place et renvoie les formes demandées par l'agent D
+(sessions, incidents, chaîne, mesures, leurres) et calcule la vérité terrain de
+l'agent E par le préfixe `banc-<verite>-NNNN` **et** `details.verite_terrain`.
+Précisions utiles aux autres modules :
+
+- **Décision analyste → `etat` de session** (lu par `interne/` sur `GET /api/sessions/{id}`) :
+  `couper` → `coupee` ; `valider_riposte` → `coupee` (riposte forte appliquée,
+  jeton à révoquer) ; `reprendre` → `active` ; `ignorer` → `active` (faux positif).
+  Un agent **interne** détourné (canari touché ou classé `agent_ia`) passe d'office
+  en `suspendue` à l'ouverture de l'incident : la passerelle attend la décision.
+- **Consignes renvoyées à chaque événement** : `bloquer` si `coupee`, `suspendre` si
+  `suspendue` (ou interne détourné), `labyrinthe` si externe classé `agent_ia`,
+  `contre_injection` si externe suspect non confirmé (score ≥ 0,20).
+- **Champs de `details` lus par le backend** (facultatifs, posés par les surfaces) :
+  `verite_terrain`, `decouvert_dans_doc` (enchaînement lecture→action),
+  `consigne`/`consigne_lue`/`objectif`/`charge_utile` (texte piégé, **neutralisé**
+  avant stockage et exposition), `exfiltration`, `repond_contre_injection`.
+- Tout texte d'origine piégée est neutralisé par le backend (préfixe
+  `[leurre, neutralisé]`, HTML échappé) : la console et le SIEM reçoivent de la
+  donnée inerte, jamais une instruction réinjectable.
+- Export SIEM : `format=ecs` renvoie un JSON ECS (`documents[]`), `format=sigma`
+  une règle Sigma (YAML). Règles Sigma génériques dans `sigma/` (validées sigma-cli).
