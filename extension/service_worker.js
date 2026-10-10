@@ -262,7 +262,7 @@ async function idSession() {
  * de domaine. Ne lève jamais d'erreur.
  */
 async function signaler(domaine) {
-  const { backend } = await reglages();
+  const { backend, jeton } = await reglages();
   const corps = {
     horodatage: new Date().toISOString(),
     source: "humain",
@@ -278,7 +278,7 @@ async function signaler(domaine) {
   try {
     const rep = await fetch(`${backend}/api/evenements`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(jeton ? { Authorization: `Bearer ${jeton}` } : {}) },
       body: JSON.stringify(corps),
       signal: minuterie.signal,
       credentials: "omit",

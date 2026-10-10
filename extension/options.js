@@ -19,6 +19,7 @@ async function charger() {
   $("nom").value = r.nom;
   $("domaines").value = r.domaines.join("\n");
   $("backend").value = r.backend;
+  $("jeton").value = r.jeton;
   tester();
   compteur();
 }
@@ -40,7 +41,7 @@ async function enregistrer(ev) {
     accesRefuse = !(await chrome.permissions.request({ origins: [origine] }).catch(() => false));
   }
 
-  const r = await ecrireReglages({ nom: $("nom").value, domaines, backend });
+  const r = await ecrireReglages({ nom: $("nom").value, domaines, backend, jeton: $("jeton").value });
   $("nom").value = r.nom;
   $("domaines").value = r.domaines.join("\n");
   $("backend").value = r.backend;

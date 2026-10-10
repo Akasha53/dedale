@@ -17,7 +17,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import net from "node:net";
 import { homedir, tmpdir } from "node:os";
@@ -25,6 +25,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
+// Jetons du backend isolé, tirés dans ~/.config/dedale/ (ou DEDALE_JETONS) à son démarrage.
+const DOSSIER_JETONS = process.env.DEDALE_JETONS || path.join(homedir(), ".config", "dedale");
+const jeton = (role) => readFileSync(path.join(DOSSIER_JETONS, `jeton-${role}`), "utf8").trim();
+const analyste = () => ({ headers: { Authorization: `Bearer ${jeton("analyste")}` } });
 const EXTENSION = path.resolve(ICI, "..");
 const BACKEND = path.resolve(EXTENSION, "..", "backend");
 const TEMP = mkdtempSync(path.join(tmpdir(), "dedale-extension-"));
@@ -246,7 +250,7 @@ async function principal() {
   // Réglages : le backend isolé à la place de 127.0.0.1:8700.
   const reglages = await Onglet.ouvrir(pCdp, `chrome-extension://${id}/options.html`);
   await attendre(() => reglages.eval("document.readyState === 'complete'"), "page d'options");
-  await reglages.eval(`chrome.storage.local.set({ reglages: { nom: "Orbis Pay", domaines: ["orbispay.example"], backend: "${urlBackend}" } })`);
+  await reglages.eval(`chrome.storage.local.set({ reglages: { nom: "Orbis Pay", domaines: ["orbispay.example"], backend: "${urlBackend}", jeton: "${jeton("poste")}" } })`);
   const etat = () => reglages.eval(`chrome.runtime.sendMessage({ type: "etat" })`);
 
   const onglet = await Onglet.ouvrir(pCdp);
@@ -298,13 +302,13 @@ async function principal() {
   verifier(true, "« Continuer quand même » ouvre la page demandée", sosie);
 
   const incident = await attendre(async () => {
-    const { incidents } = await (await fetch(`${urlBackend}/api/incidents`)).json();
+    const { incidents } = await (await fetch(`${urlBackend}/api/incidents`, analyste())).json();
     return incidents.find((i) => i.type === "humain_phishing");
   }, "incident humain_phishing au backend");
   verifier(true, "incident ouvert par le backend isolé", `${incident.id}, ${incident.type}, gravité ${incident.gravite}`);
 
   const sessionId = incident.session_id ?? incident.session?.id;
-  const session = await (await fetch(`${urlBackend}/api/sessions/${encodeURIComponent(sessionId)}`)).json();
+  const session = await (await fetch(`${urlBackend}/api/sessions/${encodeURIComponent(sessionId)}`, analyste())).json();
   const evenements = session.evenements ?? [];
   const ev = evenements.find((e) => e.type === "avertissement");
   verifier(Boolean(ev), "événement « avertissement » enregistré", sessionId);

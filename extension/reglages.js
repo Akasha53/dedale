@@ -57,7 +57,9 @@ export function nettoyer(brut) {
     ? lireListeDomaines(r.domaines.join("\n")).domaines
     : [...DOMAINES_PAR_DEFAUT];
   const backend = adresseBackend(r.backend) ?? BACKEND_PAR_DEFAUT;
-  return { nom, domaines, backend };
+  // Jeton « poste » du backend (~/.config/dedale/jeton-poste), collé dans les réglages.
+  const jeton = /^[A-Za-z0-9_-]{32,512}$/.test(String(r.jeton ?? "").trim()) ? String(r.jeton).trim() : "";
+  return { nom, domaines, backend, jeton };
 }
 
 export async function lireReglages() {
