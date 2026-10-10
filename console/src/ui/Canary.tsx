@@ -1,6 +1,7 @@
 // Le mot « canary » reste (vocabulaire du métier). Sa première occurrence dans
-// un texte porte une courte infobulle pour qui ne le connaît pas.
-export const DEF_CANARY = "Faux secret qu'un agent honnête ne touche jamais";
+// un texte porte une courte définition, au survol comme au toucher : l'élément
+// prend le focus, et la définition s'affiche tant qu'il le garde.
+export const DEF_CANARY = "Faux secret posé par Dédale, qu'un agent honnête ne touche jamais";
 
 export function TexteCanary({ texte }: { texte: string }) {
   const m = /\bcanary\b/i.exec(texte);
@@ -8,7 +9,7 @@ export function TexteCanary({ texte }: { texte: string }) {
   return (
     <>
       {texte.slice(0, m.index)}
-      <abbr className="canary" title={DEF_CANARY}>
+      <abbr className="canary" title={DEF_CANARY} tabIndex={0} data-def={DEF_CANARY}>
         {m[0]}
       </abbr>
       {texte.slice(m.index + m[0].length)}

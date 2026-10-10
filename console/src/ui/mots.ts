@@ -3,7 +3,7 @@
 // on les traduit pour quelqu'un qui n'est pas du métier. Une valeur inconnue
 // retombe sur une forme lisible, jamais sur une erreur.
 
-import type { Activite, Incident, TypeIncident } from "../types";
+import type { Activite, AgentInventaire, Incident, Session, TypeIncident } from "../types";
 
 // Ce que permet un droit, à l'infinitif : « L'agent ne pourra plus … ».
 const DROITS: Record<string, string> = {
@@ -57,16 +57,39 @@ export function libelleOutil(outil?: string | null): string {
   return OUTILS[outil] ?? outil.replace(/_/g, " ");
 }
 
-// Nom d'agent lisible : « orbis-assistant » devient « Assistant Orbis ».
-const AGENTS: Record<string, string> = {
-  "orbis-assistant": "Assistant Orbis",
-  "assistant-rh": "Assistant RH",
+// Nom et propriétaire d'un agent : ceux de l'inventaire du backend (GET /api/agents),
+// tenus à jour par le store. Avant le premier chargement, les noms connus servent.
+const AGENTS: Record<string, { nom: string; proprietaire?: string | null; service?: string | null }> = {
+  "orbis-assistant": { nom: "Agent de tri des mails", proprietaire: "Direction des opérations", service: "Opérations" },
+  "orbis-rapprochement": { nom: "Agent de rapprochement bancaire", proprietaire: "Direction financière", service: "Finance" },
+  "orbis-support": { nom: "Agent de support client", proprietaire: "Direction de la relation client", service: "Relation client" },
 };
 
+export function definirAgents(inventaire: AgentInventaire[]): void {
+  for (const a of inventaire) AGENTS[a.id] = { nom: a.nom, proprietaire: a.proprietaire, service: a.service };
+}
+
 export function nomAgent(id?: string | null): string {
-  if (!id) return "Agent IA";
-  if (AGENTS[id]) return AGENTS[id];
+  if (!id) return "Agent non identifié";
+  if (AGENTS[id]) return AGENTS[id].nom;
   return majuscule(id.replace(/[-_]+/g, " "));
+}
+
+export function proprietaireAgent(id?: string | null): string | null {
+  if (!id) return null;
+  return AGENTS[id]?.proprietaire ?? null;
+}
+
+// Qui est en cause dans un incident : l'agent et son propriétaire, ou le salarié
+// sous son pseudonyme. Jamais un prénom.
+export function quiIncident(inc: Incident, sessions: Session[]): string {
+  const humain = inc.source === "humain" || (inc.type ?? "").startsWith("humain_");
+  if (humain) {
+    const s = sessions.find((x) => x.id === inc.session_id);
+    return inc.identite?.libelle ?? s?.identite?.libelle ?? "Salarié";
+  }
+  const agent = sessions.find((s) => s.id === inc.session_id)?.agent;
+  return nomAgent(agent);
 }
 
 // Verdict d'une action dans le fil des agents.
@@ -87,11 +110,14 @@ export function raisonActivite(a: Activite, enAttente = true): string {
   }
   if (a.verdict === "retenu") {
     const suite = enAttente ? ", attend votre décision" : "";
-    if (/canar[iy]/i.test(r)) return `elle emporte un canary${suite}`;
+    if (/canar[iy]/i.test(r)) return `elle emporte un faux secret posé par Dédale${suite}`;
+    if (/hors des domaines|envoi vers/i.test(r)) return `envoi hors d'Orbis Pay${suite}`;
+    if (/règle/i.test(r)) return `une règle du SOC l'a retenue${suite}`;
     if (droit) return `accès ${droit} non prévu${suite}`;
     return enAttente ? "attend votre décision" : "retenue par Dédale";
   }
   if (/coup/i.test(r)) return "annulée : l'agent a été arrêté";
+  if (/règle/i.test(r)) return "bloquée par une règle du SOC";
   if (/retir/i.test(r)) return "ce droit lui a été retiré";
   if (/délai|aucune décision/i.test(r)) return "personne n'a répondu à temps";
   if (droit) return `accès ${droit} non prévu pour sa tâche`;
@@ -107,13 +133,24 @@ const TITRES: Record<string, string> = {
   interne_chatbot: "Assistant détourné par un message piégé",
   interne_inter_agent: "Agent IA trompé par un faux collègue",
   interne_memoire: "Agent IA trompé par une fausse mémoire",
+  interne_desarme: "Instruction cachée retirée avant lecture",
+  interne_envoi_externe: "Envoi hors d'Orbis Pay retenu",
+  interne_politique: "Règle du SOC déclenchée",
+  interne_anomalie: "Comportement inhabituel d'un agent",
+  humain_signalement: "Mail signalé par un salarié",
   humain_secret: "Clé secrète sur le point de sortir",
   humain_mail_externe: "Données envoyées à une adresse extérieure",
   humain_upload_ia: "Fichier interne déposé sur une IA non autorisée",
   humain_phishing: "Clic sur un lien piégé",
 };
 
-export function titreIncident(inc: Pick<Incident, "type" | "titre">): string {
+export function titreIncident(inc: Pick<Incident, "type" | "titre"> & { contexte_humain?: string | null }): string {
+  if (inc.type === "humain_phishing" && inc.contexte_humain === "navigation") return "Site sosie ouvert malgré l'alerte";
+  if (inc.type === "humain_phishing" && inc.contexte_humain === "mail reçu") return "Lien d'un faux mail ouvert malgré l'alerte";
+  if (inc.type === "interne_anomalie") {
+    const m = /Comportement inhabituel : ([^(]+)/.exec(inc.titre ?? "");
+    if (m) return `Comportement inhabituel : ${m[1].trim()}`;
+  }
   const base = TITRES[inc.type ?? ""];
   if (!base) return sansCodes(inc.titre || "Incident");
   if (inc.type === "interne_canari") {
@@ -131,8 +168,14 @@ const GESTES: Record<string, string> = {
   humain_phishing: "Un salarié a cliqué sur un lien piégé dans un faux mail",
 };
 
-export function phraseSalarie(type?: TypeIncident, choix?: "continuer" | "annuler"): string {
-  const geste = GESTES[type ?? ""] ?? "Un salarié a fait un geste risqué";
+export function phraseSalarie(type?: TypeIncident, choix?: "continuer" | "annuler", contexte?: string | null): string {
+  if (type === "humain_signalement") return "Un salarié a signalé lui-même un mail qu'il trouvait suspect.";
+  const geste =
+    type === "humain_phishing" && contexte === "navigation"
+      ? "Un salarié a ouvert un site qui imite Orbis Pay"
+      : type === "humain_phishing" && contexte === "mail reçu"
+        ? "Un salarié a ouvert le lien d'un faux mail"
+        : GESTES[type ?? ""] ?? "Un salarié a fait un geste risqué";
   if (choix === "annuler") return `${geste}. Dédale l'a prévenu et il a annulé.`;
   if (choix === "continuer") return `${geste}. Dédale l'a prévenu, il a continué quand même.`;
   return `${geste}. Dédale l'a prévenu au moment du geste.`;
@@ -171,7 +214,11 @@ export function etatIncident(inc: Incident): { lib: string; cls: string; aTraite
   const humain = inc.source === "humain" || (inc.type ?? "").startsWith("humain_");
   if (inc.statut === "ignore") return { lib: "Classé sans suite", cls: "neutre", aTraiter: false };
   if (humain) {
+    const derniere = inc.decisions?.[inc.decisions.length - 1]?.action;
+    if (derniere === "accorder") return { lib: "Geste accordé", cls: "neutre", aTraiter: false };
+    if (derniere === "refuser") return { lib: "Geste refusé", cls: "ok", aTraiter: false };
     if (inc.statut === "clos") return { lib: "Clos", cls: "neutre", aTraiter: false };
+    if (inc.quatre_yeux && !inc.quatre_yeux.issue) return { lib: "Geste en attente", cls: "attente", aTraiter: true };
     return { lib: "À traiter", cls: "attente", aTraiter: true };
   }
   if (inc.etat === "coupee") return { lib: "Agent arrêté", cls: "ok", aTraiter: false };
@@ -182,7 +229,12 @@ export function etatIncident(inc: Incident): { lib: string; cls: string; aTraite
     return { lib: "Refusé, à clore", cls: "ok", aTraiter: true };
   }
   if (inc.etat === "suspendue") return { lib: "À décider", cls: "attente", aTraiter: true };
-  if (inc.statut === "surveille" || inc.etat === "active") return { lib: "Repris, surveillé", cls: "libere", aTraiter: false };
+  if (inc.statut === "surveille") return { lib: "Laissé passer, surveillé", cls: "libere", aTraiter: false };
+  // Alerte qui n'a pas arrêté l'agent (règle « alerter », comportement inhabituel) :
+  // elle reste à lire et à clore.
+  if (inc.etat === "active" && (!inc.statut || inc.statut === "ouvert"))
+    return { lib: "À lire", cls: "neutre", aTraiter: true };
+  if (inc.etat === "active") return { lib: "Surveillé", cls: "libere", aTraiter: false };
   if ((inc.correctifs?.length ?? 0) > 0) return { lib: "Droit retiré", cls: "ok", aTraiter: false };
   return { lib: "Traité", cls: "ok", aTraiter: false };
 }
@@ -211,15 +263,30 @@ export const ACTION_CONSEILLEE: Record<string, string> = {
   reprendre: "Laisser passer l'action",
   ignorer: "Classer sans suite",
   clore: "Clore le dossier",
+  accorder: "Accorder le geste",
+  refuser: "Refuser le geste",
 };
 
 // Retire les codes techniques d'un texte : « (canari C-0021) », « (C-0033) »,
 // identifiants de session entre parenthèses.
 export function sansCodes(t: string): string {
+  return sansJargon(
+    t
+      .replace(/\s*\((?:canari|leurre)?\s*[CL]-[A-Z0-9-]+\)/gi, "")
+      .replace(/\s*\((?:poste|sess|session|badge|banc|jury)[^)]*\)/gi, "")
+      .trim()
+  );
+}
+
+// Noms d'attaques et de repères que seul un spécialiste connaît : expliqués en
+// une demi-phrase, ou retirés quand la phrase se suffit.
+export function sansJargon(t: string): string {
   return t
-    .replace(/\s*\((?:canari|leurre)?\s*[CL]-[A-Z0-9-]+\)/gi, "")
-    .replace(/\s*\((?:poste|sess|session|badge|banc|jury)[^)]*\)/gi, "")
-    .trim();
+    .replace(/\s*\(EchoLeak[^)]*\)/gi, " (une image invisible emporte les données)")
+    .replace(/\bEchoLeak\b/g, "fuite par image invisible")
+    .replace(/\s*\(tool poisoning\)/gi, " (outil empoisonné)")
+    .replace(/\btool poisoning\b/gi, "outil empoisonné")
+    .replace(/\(repère Palisade ([\d.,]+) s pour un agent\)/gi, "(un agent IA agit toutes les $1 s environ)");
 }
 
 export function decoder(t: string): string {

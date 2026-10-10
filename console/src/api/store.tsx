@@ -8,7 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import type {
+  ActionRemediation,
   Activite,
+  AgentInventaire,
+  AnalysePolitique,
   DecisionAction,
   DocumentSource,
   EtatFlux,
@@ -17,12 +20,17 @@ import type {
   Mesures,
   MessageWS,
   ModeConnexion,
+  Politique,
+  Remediation,
   RetraitDroit,
+  RevelationIdentite,
+  Verification,
   Session,
   Synthese,
 } from "../types";
 import { backendJoignable, sourceLive, type SourceDonnees } from "./source";
 import { visibleConsole } from "../ui/primitives";
+import { definirAgents } from "../ui/mots";
 import { creerSourceMock } from "./mock";
 
 interface Etat {
@@ -33,11 +41,19 @@ interface Etat {
   leurres: Leurre[];
   mesures: Mesures | null;
   activite: Activite[];
+  inventaire: AgentInventaire[];
+  politiques: Politique[];
   chargement: boolean;
   erreur: string | null;
   rafraichir: () => Promise<void>;
   getIncident: (id: string) => Promise<Incident>;
-  decider: (id: string, action: DecisionAction, analyste: string) => Promise<Incident>;
+  decider: (id: string, action: DecisionAction, analyste: string, motif?: string) => Promise<Incident>;
+  analyserPolitique: (phrase: string) => Promise<AnalysePolitique>;
+  activerPolitique: (phrase: string, regle: Record<string, unknown> | null, analyste: string) => Promise<Politique>;
+  retirerPolitique: (id: string, analyste: string) => Promise<void>;
+  getVerification: (id: string) => Promise<Verification>;
+  revelerIdentite: (id: string, motif: string, analyste: string) => Promise<RevelationIdentite>;
+  remedier: (id: string, action: ActionRemediation, analyste: string) => Promise<Remediation>;
   getSynthese: (id: string) => Promise<Synthese>;
   getSource: (id: string) => Promise<DocumentSource[]>;
   retirerDroit: (id: string, droit: string, analyste: string) => Promise<RetraitDroit>;
@@ -70,6 +86,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [leurres, setLeurres] = useState<Leurre[]>([]);
   const [mesures, setMesures] = useState<Mesures | null>(null);
   const [activite, setActivite] = useState<Activite[]>([]);
+  const [inventaire, setInventaire] = useState<AgentInventaire[]>([]);
+  const [politiques, setPolitiques] = useState<Politique[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -77,8 +95,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const deconnecterRef = useRef<(() => void) | null>(null);
 
   const chargerTout = useCallback(async (src: SourceDonnees) => {
-    const [se, inc, le, me, ac] = await Promise.allSettled([
+    const [se, inc, le, me, ac, inv, pol] = await Promise.allSettled([
       src.getSessions(), src.getIncidents(), src.getLeurres(), src.getMesures(), src.getActivite(TAILLE_FIL),
+      src.getInventaire(), src.getPolitiques(),
     ]);
     if (sourceRef.current !== src) return;
     // Deux piliers seulement, agents IA et salariés : la surface externe et le
@@ -90,6 +109,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Le fil des agents est un plus : une route absente ne compte pas comme
     // une actualisation incomplète.
     if (ac.status === "fulfilled") setActivite((prev) => fusionnerActivite(ac.value, prev));
+    // Inventaire et règles : routes récentes, leur absence ne bloque rien.
+    if (inv.status === "fulfilled") {
+      definirAgents(inv.value);
+      setInventaire(inv.value);
+    }
+    if (pol.status === "fulfilled") setPolitiques(pol.value);
     setErreur([se, inc, le, me].some((r) => r.status === "rejected")
       ? "Actualisation incomplète. Les dernières données reçues restent affichées."
       : null);
@@ -188,10 +213,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [mode, rafraichir]);
 
   const decider = useCallback(
-    async (id: string, action: DecisionAction, analyste: string) => {
+    async (id: string, action: DecisionAction, analyste: string, motif?: string) => {
       const src = sourceRef.current;
       if (!src) throw new Error("Connexion au backend en cours. Réessayez après le chargement.");
-      const incident = await src.postDecision(id, action, analyste);
+      const incident = await src.postDecision(id, action, analyste, motif);
       setIncidents((prev) => prev.map((i) => i.id === id ? { ...i, ...incident } : i));
       setSessions((prev) => prev.map((s) => s.id === incident.session_id ? { ...s, etat: incident.etat } : s));
       void rafraichir();
@@ -232,6 +257,47 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [rafraichir]
   );
 
+  const source = () => {
+    const src = sourceRef.current;
+    if (!src) throw new Error("Connexion au backend en cours. Réessayez après le chargement.");
+    return src;
+  };
+
+  const analyserPolitique = useCallback((phrase: string) => source().analyserPolitique(phrase), []);
+  const activerPolitique = useCallback(
+    async (phrase: string, regle: Record<string, unknown> | null, analyste: string) => {
+      const p = await source().activerPolitique(phrase, regle, analyste);
+      void rafraichir();
+      return p;
+    },
+    [rafraichir]
+  );
+  const retirerPolitique = useCallback(
+    async (id: string, analyste: string) => {
+      await source().retirerPolitique(id, analyste);
+      setPolitiques((prev) => prev.filter((p) => p.id !== id));
+      void rafraichir();
+    },
+    [rafraichir]
+  );
+  const getVerification = useCallback((id: string) => source().getVerification(id), []);
+  const revelerIdentite = useCallback(
+    async (id: string, motif: string, analyste: string) => {
+      const r = await source().revelerIdentite(id, motif, analyste);
+      void rafraichir();
+      return r;
+    },
+    [rafraichir]
+  );
+  const remedier = useCallback(
+    async (id: string, action: ActionRemediation, analyste: string) => {
+      const r = await source().remedier(id, action, analyste);
+      void rafraichir();
+      return r;
+    },
+    [rafraichir]
+  );
+
   const valeur: Etat = {
     mode,
     flux,
@@ -240,6 +306,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     leurres,
     mesures,
     activite,
+    inventaire,
+    politiques,
     chargement,
     erreur,
     rafraichir,
@@ -248,6 +316,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     getSynthese,
     getSource,
     retirerDroit,
+    analyserPolitique,
+    activerPolitique,
+    retirerPolitique,
+    getVerification,
+    revelerIdentite,
+    remedier,
   };
 
   return <Ctx.Provider value={valeur}>{children}</Ctx.Provider>;

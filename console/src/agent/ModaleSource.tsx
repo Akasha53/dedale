@@ -5,9 +5,30 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useDonnees } from "../api/store";
-import type { Incident, SourceLue } from "../types";
+import type { Incident, Leurre, SourceLue } from "../types";
 import { Icone } from "./icones";
+import { desarmer } from "./preuve";
 import { documentDe, sourcePour, versSourceLue } from "./sources";
+
+// Sans texte transmis, on montre ce que Dédale sait du piège touché : jamais une
+// fenêtre vide.
+function depuisLeurre(incident: Incident, leurres: Leurre[], base: SourceLue): SourceLue {
+  const ids = new Set(
+    [
+      ...(incident.chaine ?? []).map((m) => m.canari_id ?? m.leurre_id),
+      ...(incident.evenements ?? []).map((e) => e.leurre_id),
+    ].filter(Boolean) as string[]
+  );
+  const natures = ["consigne_cachee", "outil_mcp_piege", "canari_appel", "injection_chatbot", "memoire_empoisonnee", "canari_mail", "canari_document"];
+  const l = leurres.find((x) => ids.has(x.id) && natures.includes(x.nature));
+  if (!l) return base;
+  return {
+    ...base,
+    titre: desarmer(l.emplacement) || base.titre,
+    morceaux: [{ texte: desarmer(l.description), piege: true }],
+    note: "La passerelle n'a pas transmis le texte d'origine. Voici ce que Dédale sait du piège que l'agent a suivi.",
+  };
+}
 
 const SOURCIL: Record<SourceLue["genre"], string> = {
   mail: "Le mail lu par l'agent",
@@ -16,8 +37,10 @@ const SOURCIL: Record<SourceLue["genre"], string> = {
 };
 
 export function ModaleSource({ incident, fermer }: { incident: Incident; fermer: () => void }) {
-  const { getSource } = useDonnees();
-  const [source, setSource] = useState<SourceLue>(() => sourcePour(incident));
+  const { getSource, leurres } = useDonnees();
+  const [source, setSource] = useState<SourceLue>(() =>
+    documentDe(incident) || incident.source_lue ? sourcePour(incident) : depuisLeurre(incident, leurres, sourcePour(incident))
+  );
   const boite = useRef<HTMLDivElement>(null);
   const bouton = useRef<HTMLButtonElement>(null);
 
@@ -123,7 +146,9 @@ export function ModaleSource({ incident, fermer }: { incident: Incident; fermer:
         </div>
 
         {piegee && source.note && <p className="modale-note">{source.note}</p>}
-        <p className="modale-securite">Liens et adresses désarmés : rien ici n'est cliquable.</p>
+        <p className="modale-securite">
+          Liens et adresses désarmés : rien ici n'est cliquable. Les noms et adresses des salariés sont masqués en partie.
+        </p>
       </div>
     </div>
   );

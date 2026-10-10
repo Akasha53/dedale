@@ -27,7 +27,11 @@ const TRACES: Record<
   | "entreprise"
   | "ecran"
   | "curseur"
-  | "choix",
+  | "choix"
+  | "exporter"
+  | "sceau"
+  | "personne"
+  | "signal",
   JSX.Element
 > = {
   source: (
@@ -116,6 +120,43 @@ const TRACES: Record<
     </>
   ),
   curseur: <path d="M6 4.5 18 11l-5.2 1.6L10.5 18z" />,
+  // Règle du SOC, comportement inhabituel, contenu désarmé avant lecture.
+  regle: (
+    <>
+      <rect x="5" y="3.5" width="14" height="17" rx="2.5" />
+      <path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4" />
+    </>
+  ),
+  anomalie: <path d="M3 13h3.5l2-5 3 9 2.5-7 1.5 3H21" />,
+  desarme: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m7 7 10 10" />
+    </>
+  ),
+  exporter: (
+    <>
+      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+      <path d="M5 19.5h14" />
+    </>
+  ),
+  sceau: (
+    <>
+      <rect x="5.5" y="10.5" width="13" height="9.5" rx="2" />
+      <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />
+    </>
+  ),
+  personne: (
+    <>
+      <circle cx="12" cy="8.5" r="3.5" />
+      <path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" />
+    </>
+  ),
+  signal: (
+    <>
+      <path d="M5 21V4M5 4.5h12l-2.5 4 2.5 4H5" />
+    </>
+  ),
   choix: (
     <>
       <path d="M12 20v-6.5M12 13.5 6.5 8M12 13.5 17.5 8" />

@@ -11,11 +11,13 @@ import { desarmer, preuveInerte } from "../agent/preuve";
 import { fusionnerRefs, lireRef } from "../agent/references";
 import { sansCodes } from "../ui/mots";
 
-export type Genre = "mail_recu" | "lien" | "piece" | "coller" | "mail_sortant" | "depot" | "autre";
+export type Genre = "mail_recu" | "lien" | "piece" | "coller" | "mail_sortant" | "depot" | "signal" | "autre";
 
 const PAR_CONTEXTE: Record<string, Genre> = {
   "mail reçu": "mail_recu",
   "navigation web": "lien",
+  navigation: "lien",
+  signalement: "signal",
   "pièce jointe": "piece",
   "copier-coller": "coller",
   "mail sortant": "mail_sortant",
@@ -27,6 +29,7 @@ const PAR_TYPE: Record<string, Genre> = {
   humain_secret: "coller",
   humain_mail_externe: "mail_sortant",
   humain_upload_ia: "depot",
+  humain_signalement: "signal",
 };
 
 type Details = Record<string, unknown>;
@@ -48,6 +51,7 @@ const CONTEXTE: Record<Genre, string> = {
   coller: "Il travaillait dans un outil en ligne",
   mail_sortant: "Il écrivait un mail",
   depot: "Il préparait un dépôt de fichier",
+  signal: "Un mail est arrivé dans sa boîte",
   autre: "Sur son poste",
 };
 
@@ -59,6 +63,7 @@ const GESTE: Record<Genre, string> = {
   coller: "Il a voulu coller une clé secrète",
   mail_sortant: "Il envoyait des données à l'extérieur",
   depot: "Il déposait un fichier confidentiel en ligne",
+  signal: "Il a signalé un mail",
   autre: "Il a fait un geste risqué",
 };
 
@@ -69,6 +74,7 @@ const POURQUOI: Record<Genre, string> = {
   coller: "Dédale a reconnu une clé secrète dans ce que le salarié allait coller.",
   mail_sortant: "Le destinataire est hors de l'entreprise et le mail contient des données sensibles.",
   depot: "Ce service n'est pas validé par Orbis Pay et le fichier est confidentiel.",
+  signal: "Le salarié a jugé ce mail suspect et l'a signalé lui-même.",
   autre: "Dédale a reconnu un geste qui expose l'entreprise.",
 };
 
@@ -79,8 +85,23 @@ const RISQUE: Record<Genre, string> = {
   coller: "La clé aurait été exposée à un service extérieur, sans retour possible.",
   mail_sortant: "Les données seraient sorties de l'entreprise.",
   depot: "Le fichier serait stocké chez un service que l'entreprise ne contrôle pas.",
+  signal: "Un mail frauduleux non signalé peut piéger d'autres salariés.",
   autre: "Le geste aurait pu exposer des données de l'entreprise.",
 };
+
+// Le salarié a continué : rien ne l'a arrêté. On dit ce qui a pu se passer, au
+// présent, sans affirmer plus que ce que Dédale a vu.
+const RISQUE_PASSE: Record<Genre, string> = {
+  mail_recu: "Le mot de passe a peut-être été saisi sur le faux site.",
+  lien: "Le mot de passe a peut-être été saisi sur le faux site.",
+  piece: "Le fichier a peut-être été ouvert sur le poste.",
+  coller: "La clé a peut-être été collée sur le service extérieur.",
+  mail_sortant: "Les données sont peut-être sorties de l'entreprise.",
+  depot: "Le fichier est peut-être déjà chez un service que l'entreprise ne contrôle pas.",
+  signal: "Le mail est peut-être arrivé chez d'autres salariés.",
+  autre: "Le geste a peut-être exposé des données de l'entreprise.",
+};
+const TITRE_PASSE = "Ce qui a pu se passer";
 
 // Le geste en une phrase, pour l'encadré « Le geste ».
 function phraseGeste(g: Genre, d: Details): string {
@@ -109,6 +130,8 @@ function phraseGeste(g: Genre, d: Details): string {
       return fichier && cible
         ? `Le salarié a voulu déposer « ${fichier} », un fichier confidentiel, sur ${cible}.`
         : "Le salarié a voulu déposer un fichier confidentiel sur un service non autorisé.";
+    case "signal":
+      return "Le salarié a signalé lui-même un mail qu'il trouvait suspect.";
     default:
       return "Le salarié a fait un geste risqué sur son poste.";
   }
@@ -175,6 +198,7 @@ const LIB: Record<string, string> = {
   contexte: "Contexte",
   entree: "Contexte",
   action_risquee: "Geste risqué",
+  signalement: "Signalement",
   avertissement: "Alerte de Dédale",
   choix: "Choix du salarié",
   consequence: "Suite",
@@ -186,6 +210,7 @@ const ICONE: Record<string, string> = {
   contexte: "ecran",
   entree: "ecran",
   action_risquee: "curseur",
+  signalement: "signal",
   avertissement: "bouclier",
   choix: "choix",
   consequence: "resultat",
@@ -196,6 +221,14 @@ const ICONE: Record<string, string> = {
 const DECISION: Record<string, string> = {
   clore: "L'analyste a clos le dossier",
   ignorer: "L'analyste a classé le dossier sans suite",
+  accorder: "L'analyste a accordé le geste",
+  refuser: "L'analyste a refusé le geste",
+};
+
+const REMEDIATION: Record<string, string> = {
+  reinitialiser_mot_de_passe: "Mot de passe réinitialisé",
+  fermer_sessions: "Sessions fermées",
+  bloquer_domaine: "Domaine bloqué pour tous",
 };
 
 function refsDe(m: MaillonChaine) {
@@ -262,7 +295,8 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
             refs,
           },
         };
-      case "action_risquee":
+      case "action_risquee": {
+        const continue_ = d.choix === "continuer";
         return {
           ...base,
           titre: GESTE[g],
@@ -271,10 +305,27 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
           detail: {
             brut: brutsGeste(g, d),
             pourquoi: texte(d.raison) ? `${POURQUOI[g]} Indice : ${texte(d.raison)}.` : POURQUOI[g],
-            risque: RISQUE[g],
+            risque: continue_ ? RISQUE_PASSE[g] : RISQUE[g],
+            risqueTitre: continue_ ? TITRE_PASSE : undefined,
             refs,
           },
         };
+      }
+      case "signalement": {
+        const verdict = /analyseur : (\S+)/.exec(observe)?.[1];
+        return {
+          ...base,
+          titre: "Il a signalé ce mail lui-même",
+          texte: verdict ? `L'analyseur de mails l'avait jugé ${verdict}.` : "Le mail part au SOC pour vérification.",
+          ton: "protege" as TonMaillon,
+          detail: {
+            brut: [{ lib: "Ce qui est remonté", valeur: observe }],
+            pourquoi: POURQUOI.signal,
+            risque: RISQUE.signal,
+            refs,
+          },
+        };
+      }
       case "avertissement": {
         const titre = texte(d.titre);
         const explication = texte(d.explication);
@@ -305,7 +356,8 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
           detail: {
             brut: [{ lib: "Choix", valeur: continue_ ? "continuer quand même" : "annuler" }],
             pourquoi: "Dédale ne bloque pas le poste : le salarié reste libre de choisir.",
-            risque: continue_ ? RISQUE[g] : undefined,
+            risque: continue_ ? RISQUE_PASSE[g] : undefined,
+            risqueTitre: continue_ ? TITRE_PASSE : undefined,
             refs,
           },
         };
@@ -319,7 +371,8 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
           detail: {
             brut: [],
             pourquoi: "Le salarié a continué malgré l'alerte : le dossier remonte au SOC.",
-            risque: RISQUE[g],
+            risque: RISQUE_PASSE[g],
+            risqueTitre: TITRE_PASSE,
             refs,
           },
         };
@@ -328,25 +381,56 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
 
   // La décision de l'analyste : orange tant que le dossier attend, gris ensuite.
   const decisions: Decision[] = [...(inc.decisions ?? [])].sort((a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? ""));
-  decisions.forEach((dec, i) =>
+  const journal = inc.journal_console ?? [];
+  decisions.forEach((dec, i) => {
+    const motif = journal.find(
+      (j) => j.acte === "decision" && j.action === dec.action && (j.horodatage ?? "") >= (dec.horodatage ?? "")
+    )?.motif;
     maillons.push({
       cle: "decision",
       id: `sal-decision-${i}`,
       lib: "Décision",
       titre: DECISION[dec.action] ?? `Décision : ${dec.action}`,
-      texte: `Décision prise par ${dec.analyste}.`,
+      texte: motif ? `Décision prise par ${dec.analyste}. Motif : « ${motif} ».` : `Décision prise par ${dec.analyste}.`,
       horodatage: dec.horodatage,
-      ton: "neutre",
-      detail: { brut: [{ lib: "Par", valeur: dec.analyste }], pourquoi: "Dédale prévient le salarié, l'analyste décide de la suite.", refs: [] },
-    })
-  );
+      ton: dec.action === "refuser" ? "protege" : "neutre",
+      detail: {
+        brut: [{ lib: "Par", valeur: dec.analyste }, ...(motif ? [{ lib: "Motif", valeur: motif }] : [])],
+        pourquoi: "Dédale prévient le salarié, l'analyste décide de la suite.",
+        refs: [],
+      },
+    });
+  });
+  // Ce que le SOC a fait sur le compte ou le domaine : actions simulées, scellées.
+  journal
+    .filter((j) => j.acte === "remediation")
+    .forEach((j, i) =>
+      maillons.push({
+        cle: "correctif",
+        id: `sal-remediation-${i}`,
+        lib: "Suite du SOC",
+        icone: "correctif",
+        titre: REMEDIATION[j.action ?? ""] ?? "Action du SOC",
+        texte: j.message ? desarmer(j.message) : undefined,
+        horodatage: j.horodatage,
+        ton: "protege",
+        detail: {
+          brut: [
+            { lib: "Par", valeur: j.analyste ?? "l'analyste" },
+            ...(j.domaine ? [{ lib: "Domaine", valeur: desarmer(j.domaine), mono: true }] : []),
+          ],
+          pourquoi: "Action simulée dans cette démo, notée au journal scellé comme une vraie.",
+          refs: [],
+        },
+      })
+    );
   if (decisions.length === 0) {
     maillons.push({
       cle: "decision",
       id: "sal-decision-attente",
       lib: "Décision",
       titre: ferme ? "Dossier fermé" : "En attente de votre décision",
-      texte: ferme ? undefined : "Clore le dossier ou le classer sans suite.",
+      texte: ferme ? undefined : inc.quatre_yeux && !inc.quatre_yeux.issue ? "Accorder ou refuser le geste." : "Clore le dossier ou le classer sans suite.",
       horodatage: undefined,
       ton: ferme ? "neutre" : "attente",
       detail: { brut: [], pourquoi: "Dédale prévient le salarié, l'analyste décide de la suite.", refs: [] } as DetailMaillon,

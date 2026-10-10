@@ -43,6 +43,7 @@ const RAISONS: Record<string, [string, string?]> = {
   concordance: ["Plusieurs signes vont dans le même sens.", "Un seul signe : à confirmer."],
   maillons: ["Toutes les étapes ont été observées.", "Peu d'étapes observées."],
   passe_outre: ["Le salarié a été prévenu et a continué quand même."],
+  signalement: ["Le salarié a signalé ce mail lui-même."],
   action_risquee: ["Le geste était risqué en lui-même."],
   consequence: ["Le geste a eu une suite."],
   entree_absente: ["", "On ne sait pas ce que l'agent a lu en premier."],
@@ -81,7 +82,9 @@ export function SyntheseBloc({
 }) {
   const phrases = synthese?.phrases?.map((p) => p.texte) ?? (prete ? repli : []);
   const conf = synthese?.confiance;
-  const conseil = synthese?.decision_recommandee;
+  // Dossier fermé : on ne conseille plus rien qui contredirait la décision prise.
+  const brut = synthese?.decision_recommandee;
+  const conseil = brut && brut.dossier_ferme && !brut.deja_appliquee ? null : brut;
   const correctif = synthese?.correctif_suggere;
   const raisons = [...(conf?.raisons ?? []), ...(conf?.manquants ?? [])].filter((r) => raisonClaire(r));
   const action = conseil ? ACTION_CONSEILLEE[conseil.action] ?? conseil.action : null;

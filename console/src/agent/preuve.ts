@@ -62,7 +62,34 @@ export function desarmer(brut: unknown): string {
   if (brut == null) return "";
   let t = typeof brut === "string" ? brut : JSON.stringify(brut);
   t = sansPrefixe(decoderEntites(t)).texte;
-  return desarmerLiens(t);
+  return masquerPersonnes(desarmerLiens(t));
+}
+
+// Personnes d'Orbis Pay (fictives) qui peuvent apparaître dans un mail lu par un
+// agent ou dans un rapport. On garde l'initiale, assez pour suivre, pas assez
+// pour exposer quelqu'un.
+const PERSONNES = ["Jean Moreau", "Camille Martin", "Claire Vasseur", "Jeanne Roussel"];
+
+function initiale(mot: string): string {
+  return `${mot.charAt(0)}•••`;
+}
+
+// Données personnelles masquées en partie : adresses internes, noms connus,
+// prénom après une formule d'appel. Les adresses extérieures restent lisibles :
+// ce sont des indices de l'attaque, pas des données d'un salarié.
+export function masquerPersonnes(texte: string): string {
+  let t = texte.replace(
+    /\b([\w+-]+)(?:\.[\w+-]+)*@(orbispay(?:\[\.\]|\.)example)\b/gi,
+    (_m, local: string, dom: string) => `${initiale(local)}@${dom}`
+  );
+  for (const nom of PERSONNES) {
+    const [prenom, famille] = nom.split(" ");
+    t = t.replace(new RegExp(`\\b${prenom}\\s+${famille}\\b`, "g"), `${prenom.charAt(0)}. ${initiale(famille)}`);
+  }
+  return t.replace(
+    /\b(Bonjour|Bonsoir|Cher|Chère|Madame|Monsieur)\s+(?!Salari)([A-ZÉÈ][a-zéèêëàâîïôûç-]{2,})\b/g,
+    (_m, formule: string, prenom: string) => `${formule} ${initiale(prenom)}`
+  );
 }
 
 function desarmerLiens(texte: string): string {
@@ -98,9 +125,21 @@ export function domaineExterne(texte: string): string | null {
 }
 
 // Appel d'outil rendu comme une ligne de code inerte : outil(param="…").
+// Paramètres qui portent le texte d'un mail ou d'un rapport : on n'en montre que
+// la taille et les liens, preuves de l'attaque. Le reste peut parler d'un salarié.
+const PARAMS_CONTENU = /^(contenu|corps|texte|body|message|resume|rapport)$/i;
+
+function contenuMasque(v: string): string {
+  const liens = [...v.matchAll(/!?\[[^\]]*\]\(([^)\s]+)\)|https?:\/\/[^\s)"'\]]+/gi)].map((m) => m[1] ?? m[0]);
+  const vus = [...new Set(liens)].slice(0, 2).map((l) => preuveInerte(l, 90).replace(/\?.*$/, ""));
+  const suite = vus.length ? ` + lien ${vus.join(", ")}` : "";
+  return `[${v.length} caractères masqués${suite}]`;
+}
+
 export function appelInerte(outil: string, parametres: unknown, max = 360): string {
   const p = parametres && typeof parametres === "object" ? (parametres as Record<string, unknown>) : {};
   const morceaux = Object.entries(p).map(([k, v]) => {
+    if (typeof v === "string" && PARAMS_CONTENU.test(k) && v.length > 40) return `${k}=${contenuMasque(v)}`;
     const val = typeof v === "string" ? `"${preuveInerte(v, 140)}"` : preuveInerte(v, 80);
     return `${k}=${val}`;
   });

@@ -8,13 +8,23 @@
 // backend. Sans journal (lecture échouée), elle se replie sur la chaîne.
 // Rien n'est inventé : une étape sans preuve n'apparaît pas.
 
-import type { Decision, Evenement, Incident, Leurre, MaillonChaine } from "../types";
+import type { Decision, Evenement, Incident, Leurre, MaillonChaine, Virement } from "../types";
 import { appelInerte, decoderEntites, preuveInerte, sansPrefixe } from "./preuve";
 import { fusionnerRefs, lireRef, type Ref } from "./references";
 import { documentDe, sourcePour } from "./sources";
 import { libelleDroit, libelleOutil, majuscule, sansCodes } from "../ui/mots";
 
-export type CleMaillon = "source" | "consigne" | "intention" | "appel" | "decision" | "resultat" | "correctif";
+export type CleMaillon =
+  | "source"
+  | "consigne"
+  | "intention"
+  | "appel"
+  | "decision"
+  | "resultat"
+  | "correctif"
+  | "regle"
+  | "anomalie"
+  | "desarme";
 // Une seule règle de couleur pour toute la frise :
 // neutre (gris) : ce qui s'est passé sans danger, la lecture, le but annoncé ;
 // alerte (rouge) : l'étape dangereuse, l'instruction cachée et l'action tentée ;
@@ -35,6 +45,9 @@ export interface DetailMaillon {
   brut: Brut[]; // ce qui s'est passé exactement
   pourquoi?: string; // pourquoi Dédale l'a repéré
   risque?: string; // ce que ça aurait pu provoquer
+  // Titre du bloc « risque » : « Si rien ne l'avait arrêté » par défaut. Quand
+  // rien ne l'a arrêté (un salarié a continué), on écrit ce qui a pu se passer.
+  risqueTitre?: string;
   refs: Ref[];
 }
 
@@ -59,6 +72,7 @@ export interface AppelCible {
   horsJeton: boolean;
   porteCanari: boolean;
   retenu: boolean;
+  virement?: Virement;
   ev?: Evenement;
 }
 
@@ -91,6 +105,9 @@ export const LIB: Record<CleMaillon, string> = {
   decision: "Décision",
   resultat: "Résultat",
   correctif: "Correctif",
+  regle: "Règle du SOC",
+  anomalie: "Écart",
+  desarme: "Désarmé",
 };
 
 const NATURES_SOURCE = new Set([
@@ -130,6 +147,23 @@ const DECISION_RISQUE: Record<string, string> = {
   reprendre: "L'action est passée telle quelle, une seule fois : l'agent n'a gagné aucun droit.",
   ignorer: "L'alerte est classée : l'agent reprend son travail, toujours surveillé.",
 };
+
+// Montant lisible : « 3 480,00 € ».
+export function montantLisible(v: Virement): string {
+  const devise = v.devise || "EUR";
+  try {
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: devise }).format(v.montant);
+  } catch {
+    return `${v.montant} ${devise}`;
+  }
+}
+
+// « un virement de 3 480,00 € à Atelier Nord (FR76 •••• •••• 6789) »
+export function phraseVirement(v: Virement): string {
+  const vers = v.beneficiaire ? ` à ${v.beneficiaire}` : "";
+  const iban = v.iban_masque ? ` (${v.iban_masque})` : "";
+  return `un virement de ${montantLisible(v)}${vers}${iban}`;
+}
 
 // Un clos ou un laisser-passer ne protège rien : gris. Couper protège : vert.
 function tonDecision(action: string): TonMaillon {
@@ -189,14 +223,71 @@ function issueDe(inc: Incident, derniere?: Decision, bloqueeParPasserelle = fals
 // Range les étapes par heure. Une étape sans heure garde la place qui suit
 // l'étape précédente. La chaîne du backend arrive déjà triée : c'est une
 // sécurité.
+const AVANT_ACTION: Partial<Record<CleMaillon, number>> = { source: 0, desarme: 1, consigne: 2, intention: 3 };
+
 function trierParHeure(maillons: MaillonAgent[]): MaillonAgent[] {
+  // Lecture, désarmement, instruction et intention précèdent toujours la
+  // première action : l'agent lit avant d'agir, même quand l'événement qui le
+  // prouve (un piège touché) arrive après coup.
+  const avant = maillons.filter((m) => AVANT_ACTION[m.cle] != null).sort((a, b) => AVANT_ACTION[a.cle]! - AVANT_ACTION[b.cle]!);
+  const reste = maillons.filter((m) => AVANT_ACTION[m.cle] == null);
   let precedent = -Infinity;
-  const cles = maillons.map((m, i) => {
+  const cles = reste.map((m, i) => {
     const t = temps(m.horodatage);
     if (!Number.isNaN(t)) precedent = Math.max(precedent, t);
     return { m, i, t: Number.isNaN(t) ? precedent : t };
   });
-  return cles.sort((a, b) => a.t - b.t || a.i - b.i).map((c) => c.m);
+  return [...avant, ...cles.sort((a, b) => a.t - b.t || a.i - b.i).map((c) => c.m)];
+}
+
+// Règle du SOC, écart à l'habitude, contenu désarmé : maillons que le backend pose
+// dans la chaîne (phases regle, anomalie, desarme).
+function gouvernanceDe(inc: Incident): MaillonAgent[] {
+  return (inc.chaine ?? [])
+    .filter((m) => m.phase === "regle" || m.phase === "anomalie" || m.phase === "desarme")
+    .map((m, i) => {
+      const cle = m.phase as CleMaillon;
+      const detail = sansCodes(preuveInerte(m.detail ?? "", 320));
+      const base = { cle, id: `${m.phase}-${m.ordre}-${i}`, lib: LIB[cle], horodatage: m.horodatage };
+      if (cle === "regle") {
+        const bloque = /bloqu/i.test(detail);
+        return {
+          ...base,
+          titre: sansCodes(preuveInerte(m.titre ?? "Règle du SOC déclenchée", 140)),
+          texte: detail,
+          ton: (bloque || /attente/i.test(detail) ? "protege" : "neutre") as TonMaillon,
+          detail: {
+            brut: bruts(brut("Constat", detail)),
+            pourquoi: "Une règle écrite par le SOC s'applique à cette action. Dédale l'a vérifiée avant que l'action parte.",
+            refs: [],
+          },
+        };
+      }
+      if (cle === "anomalie") {
+        return {
+          ...base,
+          titre: sansCodes(preuveInerte(m.titre ?? "Comportement inhabituel", 140)),
+          texte: detail,
+          ton: "alerte" as TonMaillon,
+          detail: {
+            brut: bruts(brut("Écart mesuré", detail)),
+            pourquoi: "Dédale apprend l'habitude de chaque agent et signale un écart net. L'agent n'est pas arrêté.",
+            refs: [],
+          },
+        };
+      }
+      return {
+        ...base,
+        titre: "Instruction retirée avant que l'agent la lise",
+        texte: detail,
+        ton: "protege" as TonMaillon,
+        detail: {
+          brut: bruts(brut("Ce que Dédale a retiré", detail)),
+          pourquoi: "La passerelle nettoie ce que l'agent va lire : il reçoit la version sans l'instruction cachée.",
+          refs: [],
+        },
+      };
+    });
 }
 
 // Références techniques d'une étape : celles que la chaîne du backend pose
@@ -262,53 +353,63 @@ function resultatDe(issue: Issue, dejaPasse: boolean, horodatage: string | undef
     case "coupee":
       return {
         ...base,
-        titre: "Rien n'est sorti",
+        titre: dejaPasse ? "Agent arrêté, une action était passée avant" : "Agent arrêté, rien n'est sorti",
         texte: dejaPasse
-          ? "L'agent est arrêté et a perdu ses accès. Seule l'action autorisée plus tôt est passée."
-          : "L'agent est arrêté et a perdu ses accès.",
+          ? "L'agent n'a plus d'accès. Seule l'action laissée passer plus tôt a eu lieu."
+          : "L'agent n'a plus d'accès. L'action retenue n'a jamais eu lieu.",
         ton: "protege",
       };
     case "bloquee":
-      return { ...base, titre: "Rien n'est sorti", texte: "Dédale a refusé l'action et l'agent a perdu ses accès.", ton: "protege" };
+      return {
+        ...base,
+        titre: "Rien n'est sorti",
+        texte: "Dédale a refusé l'action et retiré à l'agent les accès de cette tâche.",
+        ton: "protege",
+      };
     case "reprise":
-      return { ...base, titre: "L'action est passée", texte: "Seule cette action est passée. L'agent reste surveillé.", ton: "libere" };
+      return { ...base, titre: "L'action est passée, une seule fois", texte: "L'agent garde ses accès et reste surveillé.", ton: "libere" };
     case "attente":
       return {
         ...base,
         horodatage: undefined,
-        titre: "Rien n'est sorti pour l'instant",
-        texte: "L'action reste bloquée tant que vous n'avez pas choisi.",
+        titre: "Rien n'est parti pour l'instant",
+        texte: "L'action reste retenue tant que vous n'avez pas choisi.",
         ton: "neutre",
       };
     default:
-      return { ...base, titre: "Agent actif, sous surveillance", texte: "Aucune action n'attend de décision.", ton: "neutre" };
+      return { ...base, titre: "Agent en service, surveillé", texte: "Aucune action n'attend de décision.", ton: "neutre" };
   }
 }
 
-function decisionMaillon(d: Decision, i: number): MaillonAgent {
+function decisionMaillon(d: Decision, i: number, motif?: string): MaillonAgent {
   return {
     cle: "decision",
     id: `decision-${i}`,
     lib: LIB.decision,
     titre: DECISION_TITRE[d.action] ?? `Décision : ${d.action}`,
-    texte: `Décision prise par ${d.analyste}.`,
+    texte: motif ? `Décision prise par ${d.analyste}. Motif : « ${motif} ».` : `Décision prise par ${d.analyste}.`,
     horodatage: d.horodatage,
     ton: tonDecision(d.action),
     detail: {
-      brut: bruts(brut("Choix", (DECISION_TITRE[d.action] ?? d.action).replace(/^L'analyste a /, "")), brut("Par", d.analyste)),
+      brut: bruts(
+        brut("Choix", (DECISION_TITRE[d.action] ?? d.action).replace(/^L'analyste a /, "")),
+        brut("Par", d.analyste),
+        brut("Motif", motif ?? "")
+      ),
       pourquoi:
-        DECISION_POURQUOI[d.action] ?? "Dédale n'agit jamais seul : il met l'agent en pause et c'est l'analyste qui tranche.",
+        DECISION_POURQUOI[d.action] ?? "Dédale n'agit jamais seul : il retient l'action et c'est l'analyste qui tranche.",
       risque: DECISION_RISQUE[d.action],
       refs: [],
     },
   };
 }
 
-function enJeuDe(appel: AppelCible | null): string {
+function enJeuDe(appel: AppelCible | null, horsOrbis = false): string {
   if (!appel) return "Aucune action n'attend de décision.";
-  const quoi = `L'agent veut ${libelleOutil(appel.outil)}`;
-  if (appel.porteCanari) return `${quoi} et y joindre un canary, vers l'extérieur.`;
+  const quoi = appel.virement ? `L'agent veut faire ${phraseVirement(appel.virement)}` : `L'agent veut ${libelleOutil(appel.outil)}`;
+  if (appel.porteCanari) return `${quoi} en y glissant un faux secret posé par Dédale.`;
   if (appel.horsJeton && appel.scope) return `${quoi}, ce que sa tâche ne prévoit pas.`;
+  if (horsOrbis) return `${quoi}, vers une adresse hors d'Orbis Pay.`;
   return `${quoi}.`;
 }
 
@@ -365,6 +466,32 @@ function horsEntreprise(adresse: string | null): boolean {
   return Boolean(adresse) && !/orbispay(\[\.\]|\.)example/i.test(adresse!);
 }
 
+function lireVirement(v: unknown): Virement | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  if (typeof o.montant !== "number") return undefined;
+  return {
+    montant: o.montant,
+    devise: typeof o.devise === "string" ? o.devise : "EUR",
+    beneficiaire: typeof o.beneficiaire === "string" ? o.beneficiaire : undefined,
+    iban_masque: typeof o.iban_masque === "string" ? o.iban_masque : null,
+    complete_par_demo: o.complete_par_demo === true,
+  };
+}
+
+// Motifs de décision notés au journal scellé, rattachés à leur décision.
+function motifsDe(inc: Incident): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const j of inc.journal_console ?? []) {
+    if (j.acte !== "decision" || !j.motif) continue;
+    const d = [...(inc.decisions ?? [])]
+      .filter((x) => x.action === j.action && (x.horodatage ?? "") <= (j.horodatage ?? "~"))
+      .pop();
+    if (d) m.set(`${d.action}|${d.horodatage}`, j.motif);
+  }
+  return m;
+}
+
 export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
   const evs = [...(inc.evenements ?? [])].sort(
     (a, b) => (a.horodatage ?? "").localeCompare(b.horodatage ?? "") || a.id - b.id
@@ -417,6 +544,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       horsJeton: Boolean(violation) || d.motif === "droits",
       porteCanari: d.motif === "canari" || Boolean(exfil && Array.isArray(exfil.canaris) && exfil.canaris.length),
       retenu: Boolean(d.retenu),
+      virement: lireVirement(d.virement),
       ev: e,
     };
   };
@@ -498,7 +626,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
         ),
         pourquoi: externe
           ? "Ce contenu vient de l'extérieur : Dédale le traite comme non fiable et regarde ce que l'agent en fait."
-          : "Dédale garde la trace de tout ce que l'agent lit.",
+          : "Dédale note ce que l'agent lit, pour pouvoir remonter la chaîne si un incident survient.",
         risque: "Un contenu venu de l'extérieur peut donner des ordres à l'agent sans que personne ne le voie.",
         refs: fusionnerRefs(refsDe(inc, [evSource, mcpEv]), refsBoiteNoire(evs, "source")),
       },
@@ -562,12 +690,12 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
         brut: bruts(
           brut("Texte caché", textePiege ? preuveInerte(textePiege, 900) : "", { piege: true }),
           brut("Constat de Dédale", textePiege ? "" : preuveInerte(extrait || descr, 400)),
-          brut("Canary touché", canary, { mono: true })
+          brut("Piège touché", canary, { mono: true })
         ),
         pourquoi: mcpEv
           ? "La description de l'outil donne des ordres à l'agent : un outil honnête ne fait pas ça."
           : canary
-            ? "Un canary a été touché : ce texte ne s'adresse pas à une personne, seul un agent IA le lit et le suit."
+            ? "Un piège posé par Dédale a été touché : ce texte ne s'adresse pas à une personne, seul un agent IA le lit et le suit."
             : "Le contenu donne des ordres à l'agent, hors de sa tâche.",
         risque: demande
           ? `Si l'agent l'avait suivie jusqu'au bout, il aurait pu ${court(sansCodes(demande), 200)}.`
@@ -638,24 +766,38 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     const canaris = Array.isArray(exfil?.canaris) ? (exfil!.canaris as string[]).join(", ") : "";
     const pourquoi = [
       c.horsJeton && c.scope ? `L'outil n'est pas dans les droits de sa tâche : il exige « ${libelleDroit(c.scope)} ».` : "",
-      c.porteCanari ? "Un canary se trouve dans ce que l'agent voulait envoyer." : "",
+      c.porteCanari ? "Un faux secret posé par Dédale se trouve dans ce que l'agent voulait envoyer." : "",
       horsEntreprise(adresse) ? "L'adresse visée est hors de l'entreprise." : "",
     ]
       .filter(Boolean)
       .join(" ");
-    const suite = ripBlocage && !tranchee ? "Dédale l'a refusée." : "Dédale l'a retenue avant qu'elle parte.";
+    // Une seule vérité par action : retenue puis annulée, laissée passer, ou en attente.
+    const suite =
+      ripBlocage && !tranchee
+        ? "Dédale l'a refusée."
+        : !tranchee
+          ? statutFerme
+            ? "Dédale l'a retenue."
+            : "Dédale l'a retenue : elle attend votre décision."
+          : tranchee.action === "reprendre" || tranchee.action === "ignorer"
+            ? "Dédale l'a retenue, puis l'analyste l'a laissée passer."
+            : "Dédale l'a retenue, puis l'analyste l'a annulée.";
     const touchesLiees = touches.filter((e) => e.outil === c.outil && temps(e.horodatage) >= t);
     maillons.push({
       cle: "appel",
       id: `appel-${i}`,
       lib: LIB.appel,
-      titre: majuscule(libelleOutil(c.outil)),
+      titre: c.virement ? majuscule(phraseVirement(c.virement)) : majuscule(libelleOutil(c.outil)),
       texte: [
         c.porteCanari
-          ? "Elle emporte un canary vers l'extérieur."
+          ? horsEntreprise(adresse)
+            ? "Elle emporte un faux secret posé par Dédale, vers une adresse hors d'Orbis Pay."
+            : "Elle emporte un faux secret posé par Dédale."
           : c.horsJeton && c.scope
             ? `Sa tâche ne prévoit pas l'accès « ${libelleDroit(c.scope)} ».`
-            : "",
+            : horsEntreprise(adresse)
+              ? "L'adresse visée est hors d'Orbis Pay."
+              : "",
         suite,
       ]
         .filter(Boolean)
@@ -664,8 +806,15 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       ton,
       detail: {
         brut: bruts(
+          brut("Montant", c.virement ? montantLisible(c.virement) : ""),
+          brut("Bénéficiaire", c.virement?.beneficiaire ?? ""),
+          brut("IBAN", c.virement?.iban_masque ?? "", { mono: true }),
           brut("Outil appelé", c.outil, { mono: true }),
-          brut("Paramètres", d.parametres ? appelInerte(c.outil, d.parametres, 600) : "", { mono: true }),
+          brut(
+            "Paramètres",
+            d.parametres && Object.keys(d.parametres as object).length ? appelInerte(c.outil, d.parametres, 600) : "",
+            { mono: true }
+          ),
           brut("Droit exigé", c.scope, { mono: true }),
           brut("Adresse visée", adresse ?? "", { mono: true }),
           brut("Canary emporté", canaris, { mono: true })
@@ -706,7 +855,9 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       },
     });
   }
-  decisions.forEach((d, i) => maillons.push(decisionMaillon(d, i)));
+  const motifs = motifsDe(inc);
+  decisions.forEach((d, i) => maillons.push(decisionMaillon(d, i, motifs.get(`${d.action}|${d.horodatage}`))));
+  maillons.push(...gouvernanceDe(inc));
   if (decisions.length === 0 && !ripBlocage) {
     // Orange seulement si un appel est vraiment suspendu et attend un humain.
     const attend = !statutFerme && issue === "attente";
@@ -715,14 +866,14 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
       id: "decision-attente",
       lib: LIB.decision,
       titre: attend ? "En attente de votre décision" : statutFerme ? "Dossier fermé sans décision notée" : "Aucune décision notée",
-      texte: attend ? "Dédale a mis l'agent en pause. Il attend votre choix." : undefined,
+      texte: attend ? "L'action est retenue. Rien ne part avant votre choix." : undefined,
       // Après la dernière action retenue : c'est elle qui attend.
       horodatage: appel?.horodatage ?? detection,
       ton: attend ? "attente" : "neutre",
       enCours: attend,
       detail: {
         brut: [],
-        pourquoi: "Dédale n'agit jamais seul : il met l'agent en pause et c'est l'analyste qui tranche.",
+        pourquoi: "Dédale n'agit jamais seul : il retient l'action et c'est l'analyste qui tranche.",
         risque: attend ? "Tant que personne ne décide, rien ne part." : undefined,
         refs: [],
       },
@@ -752,7 +903,7 @@ export function lireBoiteNoire(inc: Incident, leurres: Leurre[]): LectureAgent {
     detection,
     derniereDecision,
     refus,
-    enJeu: enJeuDe(appel),
+    enJeu: enJeuDe(appel, horsEntreprise(adresseVisee(details(appel?.ev).parametres))),
   };
 }
 
@@ -779,7 +930,9 @@ function depuisChaine(inc: Incident, decisions: Decision[]): LectureAgent {
   const derniere = decisions[decisions.length - 1];
   const issue = issueDe(inc, derniere);
   const statutFerme = inc.statut === "clos" || inc.statut === "ignore";
-  const chaine = [...(inc.chaine ?? [])].filter((m) => m.phase !== "riposte" && m.phase !== "correctif");
+  const chaine = [...(inc.chaine ?? [])].filter(
+    (m) => !["riposte", "correctif", "regle", "anomalie", "desarme"].includes(m.phase)
+  );
   const outil = [...chaine].reverse().find((m) => m.phase === "outil" || m.phase === "sortie");
   const versMaillon = (m: MaillonChaine, i: number): MaillonAgent => {
     const cle = PHASE_CLE[m.phase] ?? "intention";
@@ -805,7 +958,9 @@ function depuisChaine(inc: Incident, decisions: Decision[]): LectureAgent {
     };
   };
   const maillons: MaillonAgent[] = chaine.map(versMaillon);
-  decisions.forEach((d, i) => maillons.push(decisionMaillon(d, i)));
+  const motifs = motifsDe(inc);
+  decisions.forEach((d, i) => maillons.push(decisionMaillon(d, i, motifs.get(`${d.action}|${d.horodatage}`))));
+  maillons.push(...gouvernanceDe(inc));
   if (decisions.length === 0) {
     const attend = !statutFerme && issue === "attente";
     maillons.push({
@@ -813,7 +968,7 @@ function depuisChaine(inc: Incident, decisions: Decision[]): LectureAgent {
       id: "decision-attente",
       lib: LIB.decision,
       titre: attend ? "En attente de votre décision" : statutFerme ? "Dossier fermé" : "Aucune décision notée",
-      texte: attend ? "Dédale a mis l'agent en pause. Il attend votre choix." : undefined,
+      texte: attend ? "L'action est retenue. Rien ne part avant votre choix." : undefined,
       horodatage: chaine.find((m) => m.phase === "consigne")?.horodatage ?? outil?.horodatage,
       ton: attend ? "attente" : "neutre",
       enCours: attend,

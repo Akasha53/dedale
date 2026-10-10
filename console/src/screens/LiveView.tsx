@@ -1,18 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useDonnees } from "../api/store";
-import type { Activite, GestesHumains, Incident, Pilier, Session, Signal } from "../types";
-import {
-  appartientPilier,
-  JaugeScore,
-  PILIERS,
-  SegmentsPiliers,
-  Spinner,
-  heure,
-  tempsRelatif,
-} from "../ui/primitives";
-import { TexteCanary } from "../ui/Canary";
+import type { Activite, AgentInventaire, Incident, Pilier } from "../types";
+import { SegmentsPiliers, Spinner, heure } from "../ui/primitives";
 import { desarmer } from "../agent/preuve";
-import { attendDecision, decoder, estATraiter, libelleOutil, nomAgent, raisonActivite, refusDOffice, sansCodes, VERDICT } from "../ui/mots";
+import { InventaireAgents } from "../agent/Inventaire";
+import { PanneauRegles, type ReglesPoignee } from "../agent/Regles";
+import { ListePostes } from "../salarie/Postes";
+import { compter } from "../ui/compteurs";
+import { attendDecision, decoder, libelleOutil, majuscule, nomAgent, raisonActivite, VERDICT } from "../ui/mots";
 
 const FIL_COURT = 8;
 
@@ -25,35 +20,48 @@ export function LiveView({
   pilier: Pilier;
   setPilier: (p: Pilier) => void;
 }) {
-  const { sessions, incidents, mesures, activite, chargement } = useDonnees();
+  const { sessions, incidents, mesures, activite, inventaire, chargement } = useDonnees();
+  const comptes = useMemo(() => compter(incidents, sessions, inventaire, activite), [incidents, sessions, inventaire, activite]);
+  const regles = useRef<ReglesPoignee>(null);
 
-  const dansVue = sessions.filter((s) => appartientPilier(s.source, pilier));
-  const incidentsVue = incidents.filter((i) => appartientPilier(i.source, pilier));
-
-  const comptes = useMemo(() => {
-    const c = { humain: 0, interne: 0 } as Record<Pilier, number>;
-    for (const p of PILIERS) c[p.id] = sessions.filter((s) => appartientPilier(s.source, p.id)).length;
-    return c;
-  }, [sessions]);
-
-  // Dernier incident de chaque session : celui qu'ouvre le lien de la ligne.
-  const incidentParSession = useMemo(() => {
-    const m = new Map<string, Incident>();
-    for (const i of [...incidents].sort((a, b) => (a.ouvert_le ?? "").localeCompare(b.ouvert_le ?? "")))
-      m.set(i.session_id, i);
-    return m;
-  }, [incidents]);
-
-  // Les plus suspects d'abord.
-  const triees = [...dansVue].sort((a, b) => b.score - a.score);
-  const compteurs =
+  const compteurs: Compteur[] =
     pilier === "interne"
-      ? compteursAgents(dansVue, incidentsVue, activite)
-      : compteursSalaries(dansVue, mesures?.gestes_humains);
+      ? [
+          { lib: "Agents surveillés", val: comptes.agents, sous: "déclarés par Orbis Pay" },
+          {
+            lib: "À traiter",
+            val: comptes.aTraiter.interne,
+            sous:
+              comptes.aDecider.interne > 0
+                ? `dont ${comptes.aDecider.interne} attend${comptes.aDecider.interne > 1 ? "ent" : ""} votre décision`
+                : "aucune action en attente",
+            alerte: comptes.aDecider.interne > 0,
+          },
+          {
+            lib: "Actions arrêtées",
+            val: comptes.actionsArretees,
+            sous: comptes.actionsVues ? `sur les ${comptes.actionsVues} dernières actions` : "aucune action récente",
+          },
+        ]
+      : [
+          { lib: "Postes protégés", val: comptes.postes, sous: "salariés sous pseudonyme" },
+          { lib: "Arrêtés à temps", val: mesures?.gestes_humains?.arretes ?? 0, sous: "le salarié a annulé après l'alerte" },
+          {
+            lib: "À traiter",
+            val: comptes.aTraiter.humain,
+            sous: "dossiers remontés au SOC",
+            alerte: comptes.aTraiter.humain > 0,
+          },
+        ];
+
+  const ecrireRegle = (a: AgentInventaire) => {
+    const sujet = a.libelle ? majuscule(a.libelle) : a.nom;
+    regles.current?.preremplir(`${sujet} ne doit jamais `);
+  };
 
   return (
     <>
-      <SegmentsPiliers pilier={pilier} setPilier={setPilier} comptes={comptes} />
+      <SegmentsPiliers pilier={pilier} setPilier={setPilier} comptes={comptes.aTraiter} titreCompte="à traiter" />
 
       <div className="grille-compteurs">
         {compteurs.map((c) => (
@@ -65,57 +73,48 @@ export function LiveView({
         ))}
       </div>
 
-      {pilier === "interne" && (
-        <FilAgents activite={activite} incidents={incidents} chargement={chargement} ouvrirIncident={ouvrirIncident} />
+      {pilier === "interne" ? (
+        <>
+          <section className="panneau" aria-labelledby="inv-titre">
+            <div className="titre">
+              <span id="inv-titre">Les agents d'Orbis Pay</span>
+              <span className="droite">ceux qui attendent une décision en premier</span>
+            </div>
+            <div className="corps">
+              {chargement ? (
+                <Spinner texte="Connexion…" />
+              ) : (
+                <InventaireAgents
+                  inventaire={inventaire}
+                  sessions={sessions}
+                  incidents={incidents}
+                  ouvrirIncident={ouvrirIncident}
+                  ecrireRegle={ecrireRegle}
+                />
+              )}
+            </div>
+          </section>
+          <FilAgents activite={activite} incidents={incidents} chargement={chargement} ouvrirIncident={ouvrirIncident} />
+          <PanneauRegles ref={regles} />
+        </>
+      ) : (
+        <section className="panneau" aria-labelledby="postes-titre">
+          <div className="titre">
+            <span id="postes-titre">Les postes</span>
+            <span className="droite">sous pseudonyme, dossiers à traiter en premier</span>
+          </div>
+          {chargement ? (
+            <Spinner texte="Connexion…" />
+          ) : (
+            <ListePostes sessions={sessions} incidents={incidents} ouvrirIncident={ouvrirIncident} />
+          )}
+        </section>
       )}
-
-      <div className="panneau">
-        <div className="titre">
-          {pilier === "interne" ? "Les agents" : "Les postes"}
-          <span className="droite">les plus suspects en haut</span>
-        </div>
-        {chargement ? (
-          <Spinner texte="Connexion…" />
-        ) : triees.length === 0 ? (
-          <div className="vide">
-            {pilier === "interne" ? "Aucun agent IA surveillé pour l'instant." : "Aucun poste surveillé pour l'instant."}
-          </div>
-        ) : (
-          <div className="liste-sessions">
-            {triees.map((s) => (
-              <LigneSession key={s.id} s={s} incident={incidentParSession.get(s.id)} ouvrirIncident={ouvrirIncident} />
-            ))}
-          </div>
-        )}
-      </div>
     </>
   );
 }
 
 type Compteur = { lib: string; val: number; sous: string; alerte?: boolean };
-
-function compteursAgents(agents: Session[], incidents: Incident[], activite: Activite[]): Compteur[] {
-  const aDecider = incidents.filter(attendDecision).length;
-  const arretees = activite.filter((a) => a.verdict !== "autorise").length;
-  return [
-    { lib: "Agents surveillés", val: agents.length, sous: "agents IA d'Orbis Pay" },
-    { lib: "À décider", val: aDecider, sous: "actions retenues par Dédale", alerte: aDecider > 0 },
-    {
-      lib: "Actions arrêtées",
-      val: arretees,
-      sous: activite.length ? `sur les ${activite.length} dernières actions` : "aucune action récente",
-    },
-  ];
-}
-
-function compteursSalaries(postes: Session[], gestes: GestesHumains | undefined): Compteur[] {
-  const passes = gestes?.passes_outre ?? 0;
-  return [
-    { lib: "Postes protégés", val: postes.length, sous: "salariés avec Dédale" },
-    { lib: "Arrêtés à temps", val: gestes?.arretes ?? 0, sous: "le salarié a annulé après l'alerte" },
-    { lib: "Continués malgré l'alerte", val: passes, sous: "remontés au SOC", alerte: passes > 0 },
-  ];
-}
 
 // ---------- fil des agents ----------
 
@@ -132,10 +131,7 @@ function FilAgents({
 }) {
   const [tout, setTout] = useState(false);
   // Une action retenue n'attend plus rien une fois son incident tranché.
-  const enAttente = useMemo(
-    () => new Set(incidents.filter(attendDecision).map((i) => i.id)),
-    [incidents]
-  );
+  const enAttente = useMemo(() => new Set(incidents.filter(attendDecision).map((i) => i.id)), [incidents]);
   const lignes = tout ? activite : activite.slice(0, FIL_COURT);
   return (
     <section className="panneau fil" aria-labelledby="fil-titre">
@@ -150,7 +146,7 @@ function FilAgents({
       {chargement ? (
         <Spinner texte="Connexion…" />
       ) : activite.length === 0 ? (
-        <div className="vide">Aucune action d'agent pour l'instant.</div>
+        <div className="vide">Aucune action d'agent pour l'instant. Chaque appel d'outil s'affichera ici.</div>
       ) : (
         <>
           <ol className="fil-liste" aria-live="polite">
@@ -193,10 +189,7 @@ function LigneActivite({
       </span>
       <span className="fil-texte" title={a.raison ? desarmer(decoder(a.raison)) : undefined}>
         <strong>{nomAgent(a.agent)}</strong> veut {libelleOutil(a.outil)}
-        <span className="fil-raison">
-          {" · "}
-          <TexteCanary texte={raisonActivite(a, enAttente)} />
-        </span>
+        <span className="fil-raison"> · {raisonActivite(a, enAttente)}</span>
       </span>
       {a.incident_id && a.verdict !== "autorise" ? (
         <button type="button" className="lien-incident" onClick={() => ouvrirIncident(a.incident_id!)}>
@@ -206,141 +199,5 @@ function LigneActivite({
         <span />
       )}
     </li>
-  );
-}
-
-// ---------- agents et postes ----------
-
-function statutSession(s: Session, inc?: Incident): { lib: string; cls: string } {
-  const ouvert = inc && estATraiter(inc);
-  if (s.source === "humain") {
-    return ouvert ? { lib: "Geste risqué signalé", cls: "attente" } : { lib: "Rien à signaler", cls: "ok" };
-  }
-  if (s.etat === "coupee") return { lib: "Arrêté", cls: "neutre" };
-  if (s.etat === "suspendue" && inc && refusDOffice(inc)) return { lib: "Action refusée par Dédale", cls: "ok" };
-  if (s.etat === "suspendue") return { lib: "En pause, attend votre décision", cls: "attente" };
-  if (s.classement === "agent_ia" && ouvert) return { lib: "Détourné, surveillé", cls: "alerte" };
-  return { lib: "Normal", cls: "ok" };
-}
-
-function nomSession(s: Session): string {
-  if (s.source === "humain") return s.user_agent || s.id;
-  return nomAgent(s.agent ?? undefined);
-}
-
-function LigneSession({
-  s,
-  incident,
-  ouvrirIncident,
-}: {
-  s: Session;
-  incident?: Incident;
-  ouvrirIncident: (id: string) => void;
-}) {
-  const statut = statutSession(s, incident);
-  return (
-    <div className="session-ligne">
-      <div className="idc">
-        <span className="nom">{nomSession(s)}</span>
-        <span className="srcv">
-          {s.droits?.tache ? `${s.droits.tache.replace(/_/g, " ")} · ` : ""}vu {tempsRelatif(s.derniere_vue)}
-        </span>
-      </div>
-
-      <div>
-        <span className={`statut-pill s-${statut.cls}`}>
-          <span className="pt" />
-          {statut.lib}
-        </span>
-      </div>
-
-      <div className="score-cell" title="Niveau de suspicion, de 0 à 100">
-        <span className="score-lib">suspicion</span>
-        <JaugeScore score={s.score} />
-      </div>
-
-      <div className="session-actions">
-        {incident && (
-          <button type="button" className="lien-incident" onClick={() => ouvrirIncident(incident.id)}>
-            Voir l'incident
-          </button>
-        )}
-        <Signaux s={s} />
-      </div>
-    </div>
-  );
-}
-
-// « Pourquoi ? » : survol pour un aperçu, clic pour garder l'explication
-// ouverte. Échap, la croix ou un clic ailleurs la referment.
-function Signaux({ s }: { s: Session }) {
-  const [epingle, setEpingle] = useState(false);
-  const [survol, setSurvol] = useState(false);
-  const zone = useRef<HTMLDivElement>(null);
-  const ouvert = epingle || survol;
-
-  useEffect(() => {
-    if (!epingle) return;
-    const dehors = (e: MouseEvent) => {
-      if (zone.current && !zone.current.contains(e.target as Node)) setEpingle(false);
-    };
-    const echap = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setEpingle(false);
-    };
-    document.addEventListener("mousedown", dehors);
-    document.addEventListener("keydown", echap);
-    return () => {
-      document.removeEventListener("mousedown", dehors);
-      document.removeEventListener("keydown", echap);
-    };
-  }, [epingle]);
-
-  const n = s.signaux?.length ?? 0;
-  return (
-    <div className="sig-wrap" ref={zone} onMouseEnter={() => setSurvol(true)} onMouseLeave={() => setSurvol(false)}>
-      <button
-        type="button"
-        className={`sig-btn ${epingle ? "epingle" : ""}`}
-        onClick={() => setEpingle((v) => !v)}
-        aria-expanded={ouvert}
-      >
-        Pourquoi ? <span className="sig-n">{n}</span>
-      </button>
-      {ouvert && (
-        <div className="sig-pop" role="dialog" aria-label="Pourquoi Dédale le signale">
-          <div className="sig-tete">
-            <h4>Pourquoi Dédale le signale</h4>
-            {epingle ? (
-              <button type="button" className="sig-fermer" onClick={() => setEpingle(false)} aria-label="Fermer">
-                ×
-              </button>
-            ) : (
-              <span className="sig-astuce">cliquez pour garder ouvert</span>
-            )}
-          </div>
-          {n === 0 && <p className="sig-vide">Rien de particulier pour l'instant.</p>}
-          {(s.signaux ?? []).map((sig, i) => (
-            <LigneSignal key={i} sig={sig} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function forceSignal(poids: number): { lib: string; cls: string } {
-  if (poids <= 0) return { lib: "rassurant", cls: "rassure" };
-  if (poids >= 0.35) return { lib: "signe fort", cls: "fort" };
-  if (poids >= 0.15) return { lib: "signe moyen", cls: "moyen" };
-  return { lib: "signe faible", cls: "faible" };
-}
-
-function LigneSignal({ sig }: { sig: Signal }) {
-  const f = forceSignal(sig.poids);
-  return (
-    <div className="sig">
-      <span className="lib">{sansCodes(decoder(sig.libelle))}</span>
-      <span className={`force ${f.cls}`}>{f.lib}</span>
-    </div>
   );
 }

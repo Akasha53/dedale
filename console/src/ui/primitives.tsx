@@ -22,6 +22,11 @@ const TYPE_INCIDENT: Record<string, { lib: string }> = {
   interne_chatbot: { lib: "Message piégé" },
   interne_inter_agent: { lib: "Faux collègue" },
   interne_memoire: { lib: "Fausse mémoire" },
+  interne_desarme: { lib: "Désarmé avant lecture" },
+  interne_envoi_externe: { lib: "Envoi vers l'extérieur" },
+  interne_politique: { lib: "Règle du SOC" },
+  interne_anomalie: { lib: "Comportement inhabituel" },
+  humain_signalement: { lib: "Signalement" },
 };
 
 // Les deux piliers, dans l'ordre d'affichage : les agents IA d'abord (le
@@ -53,29 +58,41 @@ export function appartientPilier(source: Source | undefined, pilier: Pilier): bo
 }
 
 // Contrôle segmenté des piliers, partagé par le temps réel et les incidents.
+// Le nombre d'un onglet est celui des dossiers à traiter du pilier : le même que
+// le badge de la barre latérale et les compteurs (ui/compteurs.ts).
 export function SegmentsPiliers({
   pilier,
   setPilier,
   comptes,
+  titreCompte = "à traiter",
 }: {
   pilier: Pilier;
   setPilier: (p: Pilier) => void;
   comptes: Record<Pilier, number>;
+  titreCompte?: string;
 }) {
   return (
     <div className="segments" role="tablist">
-      {PILIERS.map((p) => (
-        <button
-          key={p.id}
-          role="tab"
-          data-pilier={p.id}
-          aria-selected={pilier === p.id}
-          className={pilier === p.id ? "actif" : ""}
-          onClick={() => setPilier(p.id)}
-        >
-          {p.lib} <span className="pastille-compte">{comptes[p.id] ?? 0}</span>
-        </button>
-      ))}
+      {PILIERS.map((p) => {
+        const n = comptes[p.id] ?? 0;
+        return (
+          <button
+            key={p.id}
+            role="tab"
+            data-pilier={p.id}
+            aria-selected={pilier === p.id}
+            className={pilier === p.id ? "actif" : ""}
+            onClick={() => setPilier(p.id)}
+          >
+            {p.lib}
+            {n > 0 && (
+              <span className="pastille-compte a-traiter" title={`${n} ${titreCompte}`}>
+                {n}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

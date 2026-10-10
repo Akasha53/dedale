@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDonnees } from "./api/store";
 import { LiveView } from "./screens/LiveView";
 import { IncidentView } from "./screens/IncidentView";
 import { MesuresView } from "./screens/MesuresView";
 import { pilierDeSource } from "./ui/primitives";
-import { estATraiter } from "./ui/mots";
+import { compter } from "./ui/compteurs";
+import { SelecteurAnalyste } from "./ui/analyste";
 import { Icone } from "./agent/icones";
 import type { Pilier } from "./types";
 
@@ -30,7 +31,7 @@ const ENTETE_PILIER: Record<
   humain: {
     reel: {
       titre: "Salariés en direct",
-      desc: "Dédale prévient le salarié avant un geste risqué et le laisse choisir.",
+      desc: "Dédale prévient le salarié avant un geste risqué et le laisse choisir. Les noms restent masqués.",
     },
     incident: {
       titre: "Incidents des salariés",
@@ -51,7 +52,7 @@ function enteteDe(ecran: Ecran, pilier: Pilier): { titre: string; desc: string }
 }
 
 export function App() {
-  const { incidents } = useDonnees();
+  const { incidents, sessions, inventaire, activite } = useDonnees();
   const [ecran, setEcran] = useState<Ecran>(() =>
     new URLSearchParams(window.location.search).has("incident") ? "incident" : "temps-reel"
   );
@@ -97,7 +98,9 @@ export function App() {
     setEcran("incident");
   };
 
-  const aTrancher = incidents.filter(estATraiter).length;
+  // Même nombre que les onglets et les compteurs : une seule source (ui/compteurs.ts).
+  const comptes = useMemo(() => compter(incidents, sessions, inventaire, activite), [incidents, sessions, inventaire, activite]);
+  const aTrancher = comptes.aTraiter.humain + comptes.aTraiter.interne;
   const nav = [
     { id: "temps-reel" as const, pic: "direct" as const, lib: "Temps réel" },
     { id: "incident" as const, pic: "incidents" as const, lib: "Incidents", compte: aTrancher },
@@ -126,7 +129,7 @@ export function App() {
             </span>
             {n.lib}
             {n.compte != null && n.compte > 0 && (
-              <span className="compte" title="Incidents à traiter">{n.compte}</span>
+              <span className="compte" title="Dossiers à traiter">{n.compte}</span>
             )}
           </button>
         ))}
@@ -150,6 +153,7 @@ export function App() {
             <h1>{entete.titre}</h1>
             <div className="desc">{entete.desc}</div>
           </div>
+          <SelecteurAnalyste />
         </header>
 
         <div className="contenu">

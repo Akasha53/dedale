@@ -3,7 +3,7 @@
 // passer, retirer un droit). Tout le texte est en mots simples ; le contenu
 // lu par l'agent s'ouvre en entier depuis l'étape « Lecture ».
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useDonnees } from "../api/store";
 import type { DecisionAction, Incident } from "../types";
 import { dureeCourte, lireBoiteNoire, type Issue, type LectureAgent, type MaillonAgent } from "./boiteNoire";
@@ -12,8 +12,11 @@ import { sourcePour } from "./sources";
 import { SyntheseBloc, useSynthese } from "./Synthese";
 import { ModaleSource } from "./ModaleSource";
 import { DetailEtape, Depliant } from "./Depliant";
+import { BadgeIntegrite, MenuExport } from "./OutilsDossier";
 import { TexteCanary } from "../ui/Canary";
-import { GRAVITE, libelleDroit, nomAgent, titreIncident } from "../ui/mots";
+import { useAnalyste } from "../ui/analyste";
+import { BandeauAnnulation, BlocConfirmation, estPetitEcran, useDifferee } from "../ui/Confirmation";
+import { GRAVITE, libelleDroit, nomAgent, proprietaireAgent, titreIncident } from "../ui/mots";
 
 // ---------- temps ----------
 
@@ -74,12 +77,12 @@ export function etatVue(incident: Incident, issue: Issue): EtatVue {
 
 const ETAT: Record<EtatVue, { lib: string; cls: string }> = {
   attente: { lib: "À décider", cls: "attente" },
-  refusee: { lib: "Action refusée", cls: "bloquee" },
+  refusee: { lib: "Refusée par Dédale", cls: "bloquee" },
   coupee: { lib: "Agent arrêté", cls: "coupee" },
-  reprise: { lib: "Repris, surveillé", cls: "reprise" },
+  reprise: { lib: "Laissé passer, surveillé", cls: "reprise" },
   close: { lib: "Clos", cls: "surveillee" },
   classee: { lib: "Classé sans suite", cls: "surveillee" },
-  surveillee: { lib: "Actif", cls: "surveillee" },
+  surveillee: { lib: "En service, surveillé", cls: "surveillee" },
 };
 
 function PiluleEtat({ vue }: { vue: EtatVue }) {
@@ -92,13 +95,31 @@ function PiluleEtat({ vue }: { vue: EtatVue }) {
   );
 }
 
-// Résumé de repli quand le copilote du backend ne répond pas.
-function repliAgent(lecture: LectureAgent): string[] {
+// Résumé de repli quand le copilote du backend n'écrit rien pour ce type.
+function repliAgent(lecture: LectureAgent, type?: string): string[] {
   const piege = lecture.maillons.find((m) => m.cle === "consigne");
   const resultat = lecture.maillons.find((m) => m.cle === "resultat");
+  const fin = resultat ? `${resultat.titre}.` : "";
+  if (type === "interne_desarme")
+    return [
+      "Un contenu venu de l'extérieur cachait une instruction pour l'agent. Dédale l'a retirée avant que l'agent le lise.",
+      "L'agent a reçu la version propre et n'a rien suivi. Vous pouvez relire ce qui a été retiré, puis clore.",
+    ];
+  if (type === "interne_envoi_externe")
+    return [
+      "L'agent a voulu envoyer quelque chose à une adresse hors d'Orbis Pay. Dédale retient tout envoi vers l'extérieur avant qu'il parte.",
+      `${lecture.enJeu} ${fin}`.trim(),
+    ];
+  if (type === "interne_politique")
+    return ["Une règle écrite par le SOC s'est appliquée à une action de l'agent.", `${lecture.enJeu} ${fin}`.trim()];
+  if (type === "interne_anomalie")
+    return [
+      "L'agent est sorti de son habitude de travail. Dédale le signale sans l'arrêter.",
+      "Relisez l'écart dans la boîte noire, puis clorez le dossier ou coupez l'agent.",
+    ];
   return [
     piege ? "L'agent a lu un contenu piégé qui lui demandait d'agir hors de sa tâche." : "L'agent a tenté une action hors de sa tâche.",
-    `${lecture.enJeu} ${resultat ? `${resultat.titre}.` : ""}`.trim(),
+    `${lecture.enJeu} ${fin}`.trim(),
   ];
 }
 
@@ -115,7 +136,7 @@ export function IncidentAgent({
   majEnCours: boolean;
   decisionEnCours: DecisionAction | null;
   erreurDecision: string | null;
-  trancher: (a: DecisionAction) => void;
+  trancher: (a: DecisionAction, motif?: string) => void;
 }) {
   const { leurres, sessions } = useDonnees();
   const lecture = useMemo(() => lireBoiteNoire(incident, leurres), [incident, leurres]);
@@ -137,14 +158,19 @@ export function IncidentAgent({
           <div className="ag-entete-haut">
             <span className={`gravite ${incident.gravite}`}>{GRAVITE[incident.gravite] ?? incident.gravite}</span>
             <PiluleEtat vue={vue} />
-            <span className="ag-meta">
-              {nomAgent(agent)}
-              {lecture.detection && <> · repéré à <Heure iso={lecture.detection} /></>}
-              {majEnCours ? " · mise à jour…" : ""}
+            <span className="ag-outils">
+              <BadgeIntegrite incident={incident} />
+              <MenuExport incident={incident} />
             </span>
           </div>
+          <p className="ag-qui">
+            <strong>{nomAgent(agent)}</strong>
+            {proprietaireAgent(agent) && <span> · {proprietaireAgent(agent)}</span>}
+            {lecture.detection && <span className="ag-meta"> · repéré à <Heure iso={lecture.detection} /></span>}
+            {majEnCours ? <span className="ag-meta"> · mise à jour…</span> : null}
+          </p>
           <h2 id="ag-titre" className="ag-titre">{titreIncident(incident)}</h2>
-          <SyntheseBloc synthese={synthese} prete={prete} repli={repliAgent(lecture)} />
+          <SyntheseBloc synthese={synthese} prete={prete} repli={repliAgent(lecture, incident.type)} />
           <Chrono incident={incident} lecture={lecture} vue={vue} maintenant={maintenant} />
         </div>
       </section>
@@ -383,13 +409,20 @@ const JOURNAL: Record<string, string> = {
 };
 
 const ETAT_LONG: Record<EtatVue, string> = {
-  attente: "L'agent attend votre décision",
-  refusee: "Action refusée, rien n'est sorti",
-  coupee: "Agent arrêté",
-  reprise: "Action autorisée, agent surveillé",
+  attente: "L'action est retenue, elle attend votre décision",
+  refusee: "Action refusée, rien n'est parti",
+  coupee: "Agent arrêté, rien n'est sorti",
+  reprise: "Action laissée passer une fois, agent surveillé",
   close: "Incident clos",
   classee: "Classé sans suite",
-  surveillee: "Agent actif",
+  surveillee: "Agent en service, surveillé",
+};
+
+type Lourde = "couper" | "reprendre";
+
+const PREAVIS: Record<Lourde, string> = {
+  couper: "Coupure de l'agent",
+  reprendre: "L'action part",
 };
 
 function PanneauDecision({
@@ -411,27 +444,33 @@ function PanneauDecision({
   droitSuggere: string | null;
   decisionEnCours: DecisionAction | null;
   erreurDecision: string | null;
-  trancher: (a: DecisionAction) => void;
+  trancher: (a: DecisionAction, motif?: string) => void;
 }) {
-  const { retirerDroit } = useDonnees();
-  const [confirme, setConfirme] = useState(false);
+  const { retirerDroit, sessions } = useDonnees();
+  const analyste = useAnalyste();
+  const [confirmation, setConfirmation] = useState<DecisionAction | null>(null);
   const [retrait, setRetrait] = useState<{ enCours: boolean; erreur: string | null; fait: string | null }>({
     enCours: false,
     erreur: null,
     fait: null,
   });
-  const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (minuteur.current) clearTimeout(minuteur.current);
-  }, []);
-  useEffect(() => setConfirme(false), [incident.id, lecture.issue]);
+  const differee = useDifferee<Lourde>((action, motif) => trancher(action, motif), incident.id);
+  useEffect(() => setConfirmation(null), [incident.id, lecture.issue]);
   useEffect(() => setRetrait({ enCours: false, erreur: null, fait: null }), [incident.id]);
 
+  const agent = nomAgent(sessions.find((s) => s.id === incident.session_id)?.agent);
   const ferme = incident.statut === "clos" || incident.statut === "ignore";
-  const occupe = decisionEnCours !== null || retrait.enCours;
+  const occupe = decisionEnCours !== null || retrait.enCours || differee.attente !== null;
+  // Incident critique, ou téléphone : Couper et Laisser passer demandent une
+  // confirmation avec un motif, puis laissent cinq secondes pour annuler.
+  const critique = incident.gravite === "critique";
+  const garde = critique || estPetitEcran();
   const peutCouper = !occupe && lecture.issue !== "coupee" && !ferme;
   const peutReprendre = !occupe && lecture.appelLiberable;
-  const peutClore = !occupe && vue === "refusee";
+  // Clore : après un refus d'office, ou pour une alerte qui n'a pas arrêté l'agent.
+  const alerteALire = !ferme && incident.etat === "active" && (!incident.statut || incident.statut === "ouvert");
+  const proposerClore = Boolean(lecture.refus) || alerteALire;
+  const peutClore = !occupe && (vue === "refusee" || alerteALire);
   // « Couper » n'est l'action principale, rouge plein, que si un appel attend.
   const couperPrincipal = vue === "attente";
   const dejaPasse = (incident.decisions ?? []).some((d) => d.action === "reprendre");
@@ -448,6 +487,7 @@ function PanneauDecision({
 
   const conseilCouper = couperPrincipal && (conseil === "couper" || conseil === "valider_riposte");
   const conseilReprendre = conseil === "reprendre";
+  const conseilClore = conseil === "clore";
 
   const aideCouper =
     lecture.issue === "coupee"
@@ -455,14 +495,12 @@ function PanneauDecision({
       : ferme
         ? "Le dossier est fermé."
         : vue === "refusee"
-          ? "Pour l'arrêter quand même : sa session est coupée et toute action suivante sera refusée."
+          ? "Pour arrêter aussi sa session : toute action suivante sera refusée."
           : vue === "attente"
-            ? "L'agent est arrêté et perd ses accès, rien ne sort."
-            : "L'agent est arrêté et perd ses accès.";
+            ? "L'action retenue n'a pas lieu et l'agent perd ses accès."
+            : "L'agent perd ses accès : toute action suivante sera refusée.";
   const aideReprendre = lecture.appelLiberable
-    ? confirme
-      ? "Cliquez encore pour confirmer : l'action part telle quelle."
-      : "Seule cette action passe, l'agent reste surveillé."
+    ? "Seule cette action passe, une fois. L'agent reste surveillé."
     : lecture.issue === "coupee"
       ? "L'agent est arrêté : plus rien à laisser passer."
       : lecture.issue === "reprise"
@@ -475,36 +513,42 @@ function PanneauDecision({
     : droit
       ? `L'agent ne pourra plus ${libelleDroit(droit.code, droit.libelle)}. Le reste de son travail continue.`
       : "Aucun accès en trop à retirer pour cet agent.";
-  const aideClore =
-    vue === "refusee"
-      ? "L'action est déjà refusée : le dossier se ferme, l'agent reste en pause."
+  const aideClore = alerteALire
+    ? "Vous avez lu l'alerte : le dossier se ferme, l'agent continue son travail."
+    : vue === "refusee"
+      ? "L'action est déjà refusée : le dossier se ferme."
       : "Déjà fait : le dossier est clos.";
 
-  const cliquerReprendre = () => {
-    if (!peutReprendre) return;
-    if (!confirme) {
-      setConfirme(true);
-      if (minuteur.current) clearTimeout(minuteur.current);
-      minuteur.current = setTimeout(() => setConfirme(false), 6000);
+  // Couper et Laisser passer : confirmation quand il le faut, sinon envoi direct.
+  const demander = (action: DecisionAction) => {
+    if (occupe) return;
+    const lourde = action === "couper" || action === "reprendre";
+    if ((lourde && garde) || action === "reprendre" || !analyste) {
+      setConfirmation(action);
       return;
     }
-    setConfirme(false);
-    trancher("reprendre");
+    trancher(action);
+  };
+  const confirmer = (motif: string) => {
+    const action = confirmation;
+    setConfirmation(null);
+    if (!action) return;
+    if ((action === "couper" || action === "reprendre") && garde) differee.lancer(action, motif);
+    else trancher(action, motif || undefined);
   };
 
   const cliquerRetirer = async () => {
     if (!droit || !peutRetirer) return;
     setRetrait({ enCours: true, erreur: null, fait: null });
     try {
-      await retirerDroit(incident.id, droit.code, "analyste-soc");
+      await retirerDroit(incident.id, droit.code, analyste || "analyste");
       setRetrait({ enCours: false, erreur: null, fait: libelleDroit(droit.code, droit.libelle) });
     } catch (e) {
       setRetrait({ enCours: false, erreur: e instanceof Error ? e.message : "Le retrait n'a pas pu être envoyé.", fait: null });
     }
   };
 
-  const etatLong =
-    vue === "coupee" && !dejaPasse ? "Agent arrêté, rien n'est sorti" : ETAT_LONG[vue];
+  const etatLong = vue === "coupee" && dejaPasse ? "Agent arrêté, une action était passée avant" : ETAT_LONG[vue];
   // Sous le titre : le compteur s'il y a une attente, la durée du refus sinon.
   const sousTitre =
     vue === "attente" && lecture.detection
@@ -514,25 +558,33 @@ function PanneauDecision({
         : null;
   const enJeu = vue === "attente" ? lecture.enJeu : lecture.enJeu.replace(/^L'agent veut /, "L'agent voulait ");
 
-  // Journal : décisions et retraits de droits, dans l'ordre.
+  // Journal : décisions (avec leur motif), retraits de droits, dans l'ordre.
+  const motifs = (incident.journal_console ?? []).filter((j) => j.acte === "decision" && j.motif);
   const journal = [
-    ...(incident.decisions ?? []).map((d) => ({ h: d.horodatage, qui: d.analyste, quoi: JOURNAL[d.action] ?? d.action })),
+    ...(incident.decisions ?? []).map((d) => {
+      const m = motifs.find((j) => j.action === d.action && (j.horodatage ?? "") >= (d.horodatage ?? ""));
+      return { h: d.horodatage, qui: d.analyste, quoi: JOURNAL[d.action] ?? d.action, motif: m?.motif };
+    }),
     ...(incident.correctifs ?? []).map((c) => ({
       h: c.horodatage,
       qui: c.analyste ?? "l'analyste",
       quoi: `a retiré l'accès « ${libelleDroit(c.code, c.libelle)} »`,
+      motif: undefined as string | undefined,
     })),
   ].sort((a, b) => (a.h ?? "").localeCompare(b.h ?? ""));
 
-  const boutonClore = lecture.refus ? (
+  const boutonClore = proposerClore ? (
     <div className="ag-action" key="clore">
       <button
         type="button"
-        className={`ag-pilule ${vue === "refusee" ? "ag-pilule-clore" : "ag-pilule-reprendre"}`}
+        className={`ag-pilule ${peutClore ? "ag-pilule-clore" : "ag-pilule-reprendre"}`}
         disabled={!peutClore}
-        onClick={() => trancher("clore")}
+        onClick={() => demander("clore")}
       >
-        <span>{decisionEnCours === "clore" ? "Clôture…" : "Clore l'incident"}</span>
+        <span>
+          {decisionEnCours === "clore" ? "Clôture…" : "Clore l'incident"}
+          {conseilClore && peutClore && <span className="ag-conseil">conseillé</span>}
+        </span>
         <span className="ag-rond">
           <Icone nom="decision" taille={15} />
         </span>
@@ -547,7 +599,7 @@ function PanneauDecision({
         type="button"
         className={`ag-pilule ${couperPrincipal ? "ag-pilule-couper" : "ag-pilule-couper-second"}`}
         disabled={!peutCouper}
-        onClick={() => trancher("couper")}
+        onClick={() => demander("couper")}
       >
         <span>
           {decisionEnCours === "couper" ? "Coupure…" : "Couper l'agent"}
@@ -565,29 +617,19 @@ function PanneauDecision({
     <div className="ag-action" key="reprendre">
       <button
         type="button"
-        className={`ag-pilule ag-pilule-reprendre ${confirme ? "confirme" : ""}`}
+        className="ag-pilule ag-pilule-reprendre"
         disabled={!peutReprendre}
-        onClick={cliquerReprendre}
+        onClick={() => demander("reprendre")}
       >
         <span>
-          {decisionEnCours === "reprendre" ? "Reprise…" : confirme ? "Confirmer" : "Laisser passer cette action"}
+          {decisionEnCours === "reprendre" ? "Envoi…" : "Laisser passer cette action"}
           {conseilReprendre && peutReprendre && <span className="ag-conseil">conseillé</span>}
         </span>
         <span className="ag-rond">
           <Icone nom="reprendre" taille={14} />
         </span>
       </button>
-      <p className="ag-aide">
-        {aideReprendre}
-        {confirme && (
-          <>
-            {" "}
-            <button type="button" className="ag-lien" onClick={() => setConfirme(false)}>
-              Annuler
-            </button>
-          </>
-        )}
-      </p>
+      <p className="ag-aide">{aideReprendre}</p>
     </div>
   );
 
@@ -606,13 +648,28 @@ function PanneauDecision({
     </div>
   );
 
+  const titreConfirmation =
+    confirmation === "couper"
+      ? `Couper ${agent} ?`
+      : confirmation === "reprendre"
+        ? `Laisser passer l'action de ${agent} ?`
+        : confirmation === "clore"
+          ? "Clore l'incident ?"
+          : "";
+  const aideConfirmation =
+    confirmation === "couper"
+      ? "Il perd ses accès tout de suite. Vous aurez cinq secondes pour annuler."
+      : confirmation === "reprendre"
+        ? `${lecture.enJeu.replace(/^L'agent veut /, "Elle va ")} Rien d'autre ne passe.`
+        : undefined;
+
   return (
     <section className={`ag-coque ag-zone-decision issue-${vue}`} aria-labelledby="ag-decision-titre">
       <div className="ag-noyau">
         <header className="ag-carte-tete">
           <div>
             <span className="ag-sourcil">Votre décision</span>
-            <h3 id="ag-decision-titre" className="ag-etat-long" key={vue} aria-live="polite">
+            <h3 id="ag-decision-titre" className="ag-etat-long decision-cible" tabIndex={-1} key={vue} aria-live="polite">
               <span className="ag-etat-point" />
               {etatLong}
             </h3>
@@ -626,12 +683,26 @@ function PanneauDecision({
           </p>
         )}
 
-        <div className="ag-actions" aria-busy={occupe}>
-          {boutonClore}
-          {boutonCouper}
-          {boutonReprendre}
-          {boutonRetirer}
-        </div>
+        {differee.attente ? (
+          <BandeauAnnulation texte={PREAVIS[differee.attente.action]} restant={differee.restant} annuler={differee.annuler} />
+        ) : confirmation ? (
+          <BlocConfirmation
+            titre={titreConfirmation}
+            aide={aideConfirmation}
+            libelle={confirmation === "couper" ? "Couper l'agent" : confirmation === "reprendre" ? "Laisser passer" : "Clore"}
+            danger={confirmation === "couper"}
+            motifObligatoire={(confirmation === "couper" || confirmation === "reprendre") && garde}
+            confirmer={confirmer}
+            annuler={() => setConfirmation(null)}
+          />
+        ) : (
+          <div className="ag-actions" aria-busy={occupe}>
+            {boutonClore}
+            {boutonCouper}
+            {boutonReprendre}
+            {boutonRetirer}
+          </div>
+        )}
 
         {erreurDecision && (
           <p className="decision-erreur" role="alert">
@@ -651,6 +722,7 @@ function PanneauDecision({
                 <Heure iso={j.h} />
                 <span>
                   {j.qui} {j.quoi}
+                  {j.motif && <span className="ag-motif"> · « {j.motif} »</span>}
                 </span>
               </li>
             ))}

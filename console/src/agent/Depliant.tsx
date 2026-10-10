@@ -59,7 +59,7 @@ export function DetailEtape({ detail, horodatage }: { detail: DetailMaillon; hor
       )}
       {detail.risque && (
         <section className="dp-bloc">
-          <h5>Si rien ne l'avait arrêté</h5>
+          <h5>{detail.risqueTitre ?? "Si rien ne l'avait arrêté"}</h5>
           <p className="dp-texte">
             <TexteCanary texte={detail.risque} />
           </p>

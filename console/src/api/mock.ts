@@ -1,6 +1,9 @@
 import type {
   Activite,
+  AgentInventaire,
   DecisionAction,
+  IdentiteSalarie,
+  Politique,
   DocumentSource,
   Evenement,
   Incident,
@@ -198,7 +201,7 @@ const sessions: Session[] = [
     leurres_touches: 0,
     premiere_vue: ilYA(5400),
     derniere_vue: ilYA(20),
-    user_agent: "Amélie, compta",
+    user_agent: "Poste Windows · compta",
     signaux: [
       {
         code: "phishing",
@@ -221,7 +224,7 @@ const sessions: Session[] = [
     leurres_touches: 0,
     premiere_vue: ilYA(7200),
     derniere_vue: ilYA(45),
-    user_agent: "Karim, support",
+    user_agent: "Poste Windows · support",
     signaux: [
       {
         code: "mail_externe",
@@ -239,7 +242,7 @@ const sessions: Session[] = [
     leurres_touches: 0,
     premiere_vue: ilYA(3600),
     derniere_vue: ilYA(120),
-    user_agent: "Sophie, RH",
+    user_agent: "Poste macOS · RH",
     signaux: [
       {
         code: "upload_ia",
@@ -263,7 +266,7 @@ const incidents: Incident[] = [
     titre: "Clé secrète sur le point de sortir",
     gravite: "haute",
     ouvert_le: ilYA(40),
-    resume: "Amélie allait coller une clé secrète dans un chat IA. Prévenue, elle a annulé.",
+    resume: "Salarié 2731 allait coller une clé secrète dans un chat IA. Prévenue, elle a annulé.",
     choix: "annuler",
     chaine: [],
     decisions: [],
@@ -279,7 +282,7 @@ const incidents: Incident[] = [
     titre: "Base clients envoyée à une adresse personnelle",
     gravite: "critique",
     ouvert_le: ilYA(30),
-    resume: "Karim a envoyé la base clients à une adresse personnelle, malgré l'alerte.",
+    resume: "Salarié 5408 a envoyé la base clients à une adresse personnelle, malgré l'alerte.",
     geste: "Fichier « clients_orbis.csv » (1 240 lignes) joint à un mail pour une adresse personnelle, hors d'Orbis Pay.",
     avertissement:
       "Ce mail part vers une adresse extérieure à Orbis Pay et contient ce qui ressemble à une base clients. Une fois parti, il ne peut plus être rattrapé. Envoyer quand même ?",
@@ -290,7 +293,7 @@ const incidents: Incident[] = [
         phase: "contexte",
         horodatage: ilYA(50),
         titre: "Il prépare un mail",
-        detail: "Karim écrit un mail et y joint un fichier depuis son poste.",
+        detail: "Salarié 5408 écrit un mail et y joint un fichier depuis son poste.",
       },
       {
         ordre: 2,
@@ -305,7 +308,7 @@ const incidents: Incident[] = [
         phase: "consequence",
         horodatage: ilYA(31),
         titre: "Le mail est parti malgré l'alerte",
-        detail: "Karim a continué. Le dossier remonte au SOC : prévenir le salarié, demander la suppression du mail.",
+        detail: "Salarié 5408 a continué. Le dossier remonte au SOC : prévenir le salarié, demander la suppression du mail.",
         techniques: [{ id: "T1048", nom: "Exfiltration Over Alternative Protocol", cadre: "ATT&CK" }],
       },
     ],
@@ -322,7 +325,7 @@ const incidents: Incident[] = [
     titre: "Fichier de paie vers une IA non autorisée",
     gravite: "moyenne",
     ouvert_le: ilYA(110),
-    resume: "Sophie allait déposer un fichier de paie sur une IA non autorisée. Prévenue, elle a renoncé.",
+    resume: "Salarié 1906 allait déposer un fichier de paie sur une IA non autorisée. Prévenue, elle a renoncé.",
     choix: "annuler",
     chaine: [],
     decisions: [],
@@ -338,7 +341,7 @@ const incidents: Incident[] = [
     titre: "Clic sur un lien piégé",
     gravite: "haute",
     ouvert_le: ilYA(15),
-    resume: "Amélie a cliqué sur un lien d'un faux mail du service informatique et a saisi son mot de passe.",
+    resume: "Salarié 2731 a cliqué sur un lien d'un faux mail du service informatique et a saisi son mot de passe.",
     geste:
       "Clic sur « réinitialiser votre mot de passe » dans un mail qui imite le service informatique. Le lien mène à orbispay-securite[.]example, un faux site.",
     avertissement:
@@ -350,7 +353,7 @@ const incidents: Incident[] = [
         phase: "contexte",
         horodatage: ilYA(25),
         titre: "Elle ouvre un faux mail",
-        detail: "Mail « Service informatique : action requise » dans la boîte d'Amélie.",
+        detail: "Mail « Service informatique : action requise » dans la boîte du salarié.",
         techniques: [{ id: "T1566", nom: "Phishing", cadre: "ATT&CK" }],
       },
       {
@@ -366,7 +369,7 @@ const incidents: Incident[] = [
         phase: "consequence",
         horodatage: ilYA(15),
         titre: "Mot de passe saisi malgré l'alerte",
-        detail: "Amélie a continué et a saisi son mot de passe sur le faux site. Il faut le changer.",
+        detail: "Salarié 2731 a continué et a saisi son mot de passe sur le faux site. Il faut le changer.",
       },
     ],
     decisions: [],
@@ -714,7 +717,7 @@ function syntheseDe(i: Incident): Synthese {
       return {
         incident_id: i.id,
         phrases: [
-          { texte: "Karim, au support, a joint la base clients à un mail pour une adresse personnelle." },
+          { texte: "Salarié 5408, au support, a joint la base clients à un mail pour une adresse personnelle." },
           { texte: "Dédale l'a prévenu au moment de l'envoi. Il a continué quand même : le fichier est parti." },
         ],
         confiance: { score: 0.8, niveau: "elevee", raisons: [r("passe_outre", 0.35, "Il a continué malgré l'alerte.")] },
@@ -725,7 +728,7 @@ function syntheseDe(i: Incident): Synthese {
       return {
         incident_id: i.id,
         phrases: [
-          { texte: "Amélie, à la compta, a cliqué sur un lien dans un faux mail qui imitait le service informatique." },
+          { texte: "Salarié 2731, à la compta, a cliqué sur un lien dans un faux mail qui imitait le service informatique." },
           { texte: "Dédale l'a prévenue que le site était faux. Elle a continué et a saisi son mot de passe : il faut le changer." },
         ],
         confiance: { score: 0.85, niveau: "elevee", raisons: [r("passe_outre", 0.35, "Elle a continué malgré l'alerte.")] },
@@ -737,6 +740,66 @@ function syntheseDe(i: Incident): Synthese {
   }
 }
 
+// Pseudonymes des postes simulés : la console ne montre jamais un nom.
+const IDENTITES: Record<string, IdentiteSalarie> = {
+  "poste-amelie-02": { pseudonyme: "Salarié 2731", service: "Comptabilité", libelle: "Salarié 2731 · Comptabilité", connu: true },
+  "poste-karim-05": { pseudonyme: "Salarié 5408", service: "Support", libelle: "Salarié 5408 · Support", connu: true },
+  "poste-sophie-01": { pseudonyme: "Salarié 1906", service: "Ressources humaines", libelle: "Salarié 1906 · Ressources humaines", connu: true },
+};
+
+// Inventaire simulé : un agent par identifiant vu dans les sessions.
+const AGENTS_MOCK: Record<string, { nom: string; proprietaire: string; service: string }> = {
+  "assistant-courrier": { nom: "Agent de tri des mails", proprietaire: "Direction des opérations", service: "Opérations" },
+  "assistant-rapprochement": { nom: "Agent de rapprochement bancaire", proprietaire: "Direction financière", service: "Finance" },
+  "assistant-factures": { nom: "Agent des factures fournisseurs", proprietaire: "Direction financière", service: "Finance" },
+  "assistant-support": { nom: "Agent de support client", proprietaire: "Direction de la relation client", service: "Relation client" },
+  "assistant-rh": { nom: "Assistant RH", proprietaire: "Direction des ressources humaines", service: "Ressources humaines" },
+};
+
+function inventaireMock(): AgentInventaire[] {
+  return Object.entries(AGENTS_MOCK).map(([id, a]) => {
+    const sess = sessions.filter((s) => s.agent === id);
+    const incs = incidents.filter((i) => sess.some((s) => s.id === i.session_id));
+    const droits = sess.find((s) => s.droits)?.droits;
+    const codes = (l: unknown[] | undefined) => (l ?? []).map((d) => (typeof d === "string" ? d : (d as { code: string }).code));
+    const accordes = codes(droits?.accordes);
+    const necessaires = codes(droits?.necessaires);
+    const surplus = accordes.filter((c) => !necessaires.includes(c));
+    const ouverts = incs.filter((i) => !i.statut || i.statut === "ouvert").length;
+    const points = surplus.length * 2 + ouverts * 3;
+    return {
+      id,
+      nom: a.nom,
+      proprietaire: a.proprietaire,
+      service: a.service,
+      declare: true,
+      outils: [],
+      droits: {
+        accordes: accordes.map((code) => ({ code })),
+        utilises: [],
+        necessaires: necessaires.map((code) => ({ code })),
+        surplus,
+      },
+      sessions: sess.length,
+      appels: sess.length * 6,
+      derniere_activite: sess[0]?.derniere_vue ?? null,
+      resistance: { mesure: true, score: 1, essais: 8, bloques: 6, ignores: 2, suivis: 0, date: ilYA(3600), trafic: "synthetique" },
+      incidents: { total: incs.length, ouverts, recents_24h: incs.length, ids: incs.map((i) => i.id) },
+      risque: {
+        niveau: points >= 8 ? "eleve" : points >= 4 ? "moyen" : "faible",
+        score: points,
+        raisons: [
+          ...(surplus.length ? [{ code: "droits_en_trop", points: surplus.length * 2, texte: `${surplus.length} droit(s) en trop pour son travail.` }] : []),
+          ...(ouverts ? [{ code: "incidents_recents", points: ouverts * 3, texte: `${ouverts} incident(s) ouvert(s).` }] : []),
+        ],
+      },
+    };
+  });
+}
+
+let politiques: Politique[] = [];
+let prochainePolitique = 1;
+
 function incidentsVisibles(): Incident[] {
   return incidents.filter((i) => i.choix !== "annuler");
 }
@@ -744,6 +807,7 @@ function incidentsVisibles(): Incident[] {
 function copie(i: Incident): Incident {
   return {
     ...i,
+    identite: IDENTITES[i.session_id] ?? i.identite,
     chaine: [...i.chaine],
     decisions: [...i.decisions],
     evenements: i.evenements ? [...i.evenements] : undefined,
@@ -763,6 +827,8 @@ function mesuresCourantes(): Mesures {
     faux_positifs: 0.06,
     temps_detection_s: 2.4,
     temps_confinement_s: 11,
+    temps_detection: { mediane_ms: 2100, moyenne_ms: 2400, echantillons: 5 },
+    temps_confinement: { mediane_ms: 9200, moyenne_ms: 11000, echantillons: 3 },
     sessions_total: sessions.length,
     agents_detectes: sessions.filter((s) => s.classement === "agent_ia").length,
     incidents_ouverts: incidentsVisibles().filter((i) => !i.statut || i.statut === "ouvert").length,
@@ -796,7 +862,51 @@ export function creerSourceMock(): SourceDonnees {
 
   return {
     nom: "mock",
-    getSessions: async () => sessions.map((s) => ({ ...s })),
+    getSessions: async () => sessions.map((s) => ({ ...s, identite: IDENTITES[s.id] })),
+    getInventaire: async () => inventaireMock(),
+    getPolitiques: async () => politiques.map((p) => ({ ...p })),
+    analyserPolitique: async (phrase) => {
+      const comprise = /ne (doit|peut) (jamais|pas)|interdi/i.test(phrase);
+      return {
+        phrase,
+        comprise,
+        regle: comprise ? { effet: "bloquer" } : null,
+        manques: comprise ? [] : ["interdiction"],
+        texte: comprise
+          ? `Voilà ce que j'ai compris : ${phrase.trim().replace(/\.$/, "")}. Si cela arrive, Dédale bloque l'action avant qu'elle parte. Activer ?`
+          : "Je n'ai pas compris ce qu'il faut interdire. Exemple : « L'agent de tri des mails ne doit jamais envoyer de mail hors d'Orbis Pay ».",
+      };
+    },
+    activerPolitique: async (phrase, _regle, analyste) => {
+      const n = prochainePolitique++;
+      const p: Politique = { id: `R-${String(n).padStart(4, "0")}`, numero: n, texte: `règle n°${n} : ${phrase}`, enonce: phrase, active: true, creee_a: new Date().toISOString(), par: analyste, declenchements: 0 };
+      politiques = [...politiques, p];
+      return { ...p };
+    },
+    retirerPolitique: async (id) => {
+      politiques = politiques.filter((p) => p.id !== id);
+    },
+    getVerification: async () => ({ statut: "intacte", verdict: "intacte", sceau: "simulé", verifie_a: new Date().toISOString() }),
+    revelerIdentite: async (id, motif, analyste) => {
+      const i = incidents.find((x) => x.id === id);
+      if (!i) throw new Error("incident inconnu");
+      if (motif.trim().length < 5) throw new Error("Un motif est obligatoire pour révéler une identité (5 caractères au moins).");
+      const ident = IDENTITES[i.session_id];
+      i.journal_console = [...(i.journal_console ?? []), { acte: "reveler_identite", analyste, motif, horodatage: new Date().toISOString() }];
+      return { pseudonyme: ident?.pseudonyme ?? "Salarié", service: ident?.service, nom: "Nom fictif (démo hors ligne)", message: "Identité révélée. L'acte est noté au journal." };
+    },
+    remedier: async (id, action, analyste) => {
+      const i = incidents.find((x) => x.id === id);
+      if (!i) throw new Error("incident inconnu");
+      const messages = {
+        reinitialiser_mot_de_passe: "Mot de passe réinitialisé : il en choisira un nouveau à sa prochaine connexion.",
+        fermer_sessions: "Sessions ouvertes fermées sur tous ses appareils.",
+        bloquer_domaine: "orbis-it-support[.]example est bloqué pour tous les salariés d'Orbis Pay.",
+      };
+      const horodatage = new Date().toISOString();
+      i.journal_console = [...(i.journal_console ?? []), { acte: "remediation", action, analyste, message: messages[action], horodatage }];
+      return { action, message: messages[action], horodatage };
+    },
     getIncidents: async () => incidentsVisibles().map(copie),
     getIncident: async (id) => {
       const i = incidentsVisibles().find((x) => x.id === id);
@@ -829,14 +939,17 @@ export function creerSourceMock(): SourceDonnees {
       }
       return { incident_id: id, droit, libelle: d.libelle, message: `Droit ${droit} retiré.`, incident: copie(i) };
     },
-    postDecision: async (id, action: DecisionAction, analyste) => {
+    postDecision: async (id, action: DecisionAction, analyste, motif) => {
       const i = incidents.find((x) => x.id === id);
       if (!i) throw new Error("incident inconnu");
       const humain = i.source === "humain";
-      if (humain && !["clore", "ignorer"].includes(action)) {
+      if (humain && !["clore", "ignorer", "accorder", "refuser"].includes(action)) {
         throw new Error("Cette action n'est pas disponible pour un poste salarié.");
       }
       i.decisions.push({ action, analyste, horodatage: new Date().toISOString() });
+      if (motif) {
+        i.journal_console = [...(i.journal_console ?? []), { acte: "decision", action, analyste, motif, horodatage: new Date().toISOString() }];
+      }
       i.statut = action === "ignorer" ? "ignore" : action === "reprendre" ? "surveille" : "clos";
       // « clore » ferme le dossier sans toucher à la session (refus d'office).
       if (!humain && action !== "clore") {

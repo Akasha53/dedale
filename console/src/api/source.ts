@@ -1,6 +1,13 @@
 import type {
+  ActionRemediation,
   Activite,
+  AgentInventaire,
+  AnalysePolitique,
   DocumentSource,
+  Politique,
+  Remediation,
+  RevelationIdentite,
+  Verification,
   Incident,
   Leurre,
   Mesures,
@@ -26,8 +33,21 @@ export interface SourceDonnees {
   postDecision(
     id: string,
     action: DecisionAction,
-    analyste: string
+    analyste: string,
+    motif?: string
   ): Promise<Incident>;
+  // Inventaire des agents déclarés : nom, propriétaire, droits, risque, résistance.
+  getInventaire(): Promise<AgentInventaire[]>;
+  // Règles écrites en français par le SOC.
+  getPolitiques(): Promise<Politique[]>;
+  analyserPolitique(phrase: string): Promise<AnalysePolitique>;
+  activerPolitique(phrase: string, regle: Record<string, unknown> | null, analyste: string): Promise<Politique>;
+  retirerPolitique(id: string, analyste: string): Promise<void>;
+  // Journal scellé : l'incident est-il intact ?
+  getVerification(id: string): Promise<Verification>;
+  // Salarié : identité levée sur motif, actions simulées et scellées.
+  revelerIdentite(id: string, motif: string, analyste: string): Promise<RevelationIdentite>;
+  remedier(id: string, action: ActionRemediation, analyste: string): Promise<Remediation>;
   // Copilote SOC : résumé en phrases, confiance, décision conseillée.
   getSynthese(id: string): Promise<Synthese>;
   // Contenu lu par l'agent (mail, document), désarmé, partie piégée repérée.
@@ -63,6 +83,26 @@ async function liste<T>(chemin: string, cle: string, signal?: AbortSignal): Prom
   return [];
 }
 
+// POST/DELETE avec un message d'erreur lisible : le backend explique ses refus dans `detail`.
+async function envoyer<T>(chemin: string, corps: unknown, methode = "POST"): Promise<T> {
+  const r = await fetch(BASE + chemin, {
+    method: methode,
+    headers: { "content-type": "application/json" },
+    body: corps === undefined ? undefined : JSON.stringify(corps),
+  });
+  if (!r.ok) {
+    let detail = "";
+    try {
+      const c = (await r.json()) as { detail?: unknown };
+      detail = typeof c.detail === "string" ? c.detail : "";
+    } catch {
+      /* corps non JSON */
+    }
+    throw new Error(detail || `Refusé par le backend (HTTP ${r.status}).`);
+  }
+  return (await r.json()) as T;
+}
+
 export const sourceLive: SourceDonnees = {
   nom: "live",
   getSessions: () => liste<Session>("/api/sessions", "sessions"),
@@ -94,7 +134,7 @@ export const sourceLive: SourceDonnees = {
   },
   getLeurres: () => liste<Leurre>("/api/leurres", "leurres"),
   getMesures: () => j<Mesures>("/api/mesures"),
-  postDecision: async (id, action, analyste) => {
+  postDecision: async (id, action, analyste, motif) => {
     const ctrl = new AbortController();
     const minuteur = setTimeout(() => ctrl.abort(), 10000);
     try {
@@ -103,11 +143,20 @@ export const sourceLive: SourceDonnees = {
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action, analyste }),
+          body: JSON.stringify({ action, analyste, motif: motif ?? "" }),
           signal: ctrl.signal,
         }
       );
-      if (!r.ok) throw new Error(`Décision refusée par le backend (HTTP ${r.status}).`);
+      if (!r.ok) {
+        let detail = "";
+        try {
+          const c = (await r.json()) as { detail?: unknown };
+          detail = typeof c.detail === "string" ? c.detail : "";
+        } catch {
+          /* corps non JSON */
+        }
+        throw new Error(detail ? `Décision refusée : ${detail}` : `Décision refusée par le backend (HTTP ${r.status}).`);
+      }
       return (await r.json()) as Incident;
     } catch (erreur) {
       if (ctrl.signal.aborted || erreur instanceof TypeError) {
@@ -120,6 +169,22 @@ export const sourceLive: SourceDonnees = {
   },
 
   getSynthese: (id) => j<Synthese>(`/api/incidents/${encodeURIComponent(id)}/synthese`),
+  getInventaire: () => liste<AgentInventaire>("/api/agents", "inventaire"),
+  getPolitiques: () => liste<Politique>("/api/politiques", "politiques"),
+  analyserPolitique: (phrase) => envoyer<AnalysePolitique>("/api/politiques/analyser", { phrase }),
+  activerPolitique: (phrase, regle, analyste) => envoyer<Politique>("/api/politiques", { phrase, regle, analyste }),
+  retirerPolitique: async (id, analyste) => {
+    await envoyer<unknown>(
+      `/api/politiques/${encodeURIComponent(id)}?analyste=${encodeURIComponent(analyste)}`,
+      undefined,
+      "DELETE"
+    );
+  },
+  getVerification: (id) => j<Verification>(`/api/incidents/${encodeURIComponent(id)}/verification`),
+  revelerIdentite: (id, motif, analyste) =>
+    envoyer<RevelationIdentite>(`/api/incidents/${encodeURIComponent(id)}/identite`, { motif, analyste }),
+  remedier: (id, action, analyste) =>
+    envoyer<Remediation>(`/api/incidents/${encodeURIComponent(id)}/remediation`, { action, analyste }),
   getSource: (id) => liste<DocumentSource>(`/api/incidents/${encodeURIComponent(id)}/source`, "documents"),
   getActivite: (limite) => liste<Activite>(`/api/activite?limite=${limite}`, "activite"),
   retirerDroit: async (id, droit, analyste) => {

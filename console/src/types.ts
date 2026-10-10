@@ -23,6 +23,19 @@ export interface Signal {
   libelle: string; // explication en clair
   poids: number; // contribution au score, -1..1
   valeur?: string; // mesure observée, ex. "1,7 s"
+  // Le backend envoie aussi les signaux absents (« Aucune consigne cachée suivie ») :
+  // `present` dit s'ils ont été observés. `categorie` : ia, automatisation, humain.
+  present?: boolean;
+  categorie?: string;
+}
+
+// Pseudonyme d'un salarié (le nom ne sort de l'API que sur motif).
+export interface IdentiteSalarie {
+  pseudonyme: string;
+  service?: string | null;
+  libelle: string;
+  connu?: boolean;
+  revelations?: { analyste?: string; horodatage?: string; motif?: string }[];
 }
 
 export interface Session {
@@ -39,6 +52,7 @@ export interface Session {
   user_agent?: string | null;
   droits?: DroitsAgent; // optionnel : droits de l'agent interne de la session
   agent?: string | null; // nom de l'agent interne annoncé par la passerelle
+  identite?: IdentiteSalarie; // poste d'un salarié : pseudonyme
 }
 
 export type Cadre = "ATLAS" | "ATT&CK";
@@ -133,7 +147,29 @@ export type DecisionAction =
   | "couper"
   | "reprendre"
   | "clore"
-  | "ignorer";
+  | "ignorer"
+  // Geste critique du salarié (quatre yeux) : l'analyste l'accorde ou le refuse.
+  | "accorder"
+  | "refuser";
+
+// Acte de la console noté au journal scellé : motif d'une décision, identité levée,
+// remédiation simulée.
+export interface ActeConsole {
+  acte: "decision" | "reveler_identite" | "remediation" | (string & {});
+  analyste?: string;
+  action?: string;
+  motif?: string;
+  message?: string;
+  domaine?: string;
+  horodatage?: string;
+}
+
+export interface QuatreYeux {
+  demande_id?: string;
+  delai_s?: number;
+  horodatage?: string;
+  issue?: "accorde" | "refuse" | "expire" | null;
+}
 
 export interface Decision {
   action: DecisionAction;
@@ -179,6 +215,112 @@ export interface Incident {
   // Contenu lu par l'agent (mail, document, description d'outil), quand le
   // backend le transmet. Sinon la console prend sa copie de démonstration.
   source_lue?: SourceLue | null;
+  journal_console?: ActeConsole[];
+  // Dossier salarié : pseudonyme, contexte du geste (« mail reçu », « navigation »,
+  // « signalement »), demande de quatre yeux.
+  identite?: IdentiteSalarie;
+  contexte_humain?: string | null;
+  quatre_yeux?: QuatreYeux | null;
+}
+
+// Inventaire des agents déclarés (GET /api/agents, champ `inventaire`).
+export interface RaisonRisque {
+  code: string;
+  points: number;
+  texte: string;
+  references?: string[];
+}
+export interface ResistanceAgent {
+  mesure?: boolean;
+  campagne?: string;
+  date?: string;
+  score?: number | null;
+  essais?: number;
+  suivis?: number;
+  bloques?: number;
+  ignores?: number;
+  trafic?: string;
+}
+export interface AgentInventaire {
+  id: string;
+  nom: string;
+  libelle?: string;
+  role?: string;
+  service?: string | null;
+  proprietaire?: string | null;
+  declare?: boolean;
+  outils: { nom: string; droit?: string | null; libelle?: string; sortant?: boolean }[];
+  droits: {
+    accordes: { code: string; libelle?: string }[];
+    utilises: string[];
+    necessaires: { code: string; libelle?: string }[];
+    surplus: string[];
+    inutilises?: string[];
+    retires?: string[];
+  };
+  derniere_activite?: string | null;
+  sessions: number;
+  appels: number;
+  resistance?: ResistanceAgent | null;
+  incidents: { total: number; ouverts: number; recents_24h: number; ids: string[] };
+  risque: { niveau: "faible" | "moyen" | "eleve"; score: number; raisons: RaisonRisque[]; explication?: string };
+}
+
+// Règles écrites en français par le SOC (GET/POST /api/politiques).
+export interface Politique {
+  id: string;
+  numero: number;
+  texte: string;
+  enonce?: string;
+  active?: boolean;
+  creee_a?: string;
+  par?: string;
+  declenchements?: number;
+  dernier_declenchement?: string | null;
+  agent?: string;
+  effet?: string;
+}
+export interface AnalysePolitique {
+  phrase: string;
+  comprise: boolean;
+  texte: string;
+  regle: Record<string, unknown> | null;
+  manques?: string[];
+}
+
+// Intégrité du journal d'un incident (GET /api/incidents/{id}/verification).
+export interface Verification {
+  statut: "intacte" | "alteree" | "anterieure_au_scellement" | "non_persiste" | (string & {});
+  verdict: string;
+  raison?: string | null;
+  sceau?: string | null;
+  verifie_a?: string;
+}
+
+export interface RevelationIdentite {
+  pseudonyme: string;
+  service?: string | null;
+  nom?: string | null;
+  poste?: string | null;
+  message?: string;
+  horodatage?: string;
+}
+
+export type ActionRemediation = "reinitialiser_mot_de_passe" | "fermer_sessions" | "bloquer_domaine";
+export interface Remediation {
+  action: ActionRemediation;
+  message: string;
+  domaine?: string | null;
+  horodatage?: string;
+}
+
+// Virement demandé par un agent (details.virement d'un appel de paiement).
+export interface Virement {
+  montant: number;
+  devise?: string;
+  beneficiaire?: string;
+  iban_masque?: string | null;
+  complete_par_demo?: boolean;
 }
 
 // Document source tel que le backend l'envoie (maillon source de la chaîne,
@@ -240,6 +382,7 @@ export interface Synthese {
     justification?: string;
     rappel?: string;
     deja_appliquee?: boolean;
+    dossier_ferme?: boolean;
   } | null;
   correctif_suggere?: { droit: string; libelle?: string; texte?: string } | null;
 }
@@ -312,6 +455,11 @@ export interface Mesures {
   faux_positifs: number | null; // 0..1, absent sans vérité terrain
   temps_detection_s: number | null; // moyenne, secondes
   temps_confinement_s: number | null; // moyenne, secondes
+  // Médiane et moyenne en millisecondes, avec le nombre de mesures.
+  temps_detection?: DureeMesuree;
+  temps_confinement?: DureeMesuree;
+  matrice?: { vrais_positifs: number; faux_positifs: number; vrais_negatifs: number; faux_negatifs: number };
+  sessions_sans_verite_terrain?: number;
   sessions_total: number;
   agents_detectes: number;
   incidents_ouverts: number;
@@ -323,10 +471,17 @@ export interface Mesures {
 
 // Bloc du pilier salariés dans /api/mesures (toléré absent). « arretes » =
 // avertissements annulés, « passes_outre » = avertissements continués.
+export interface DureeMesuree {
+  mediane_ms: number | null;
+  moyenne_ms: number | null;
+  echantillons: number;
+}
+
 export interface GestesHumains {
   arretes: number;
   passes_outre: number;
   total: number;
+  signalements?: number;
   passes_outre_par_type?: Record<string, number>;
   incidents_humains?: number;
 }
