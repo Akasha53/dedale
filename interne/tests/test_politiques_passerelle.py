@@ -170,6 +170,35 @@ def test_parametres_masques_avant_de_partir(backend, monkeypatch):
     assert JETON_COFFRE not in str(questions[0]["parametres"])
 
 
+@pytest.mark.parametrize("encodage", ["base64", "url", "hex", "base64 dans url"])
+def test_canari_encode_ne_part_jamais_en_clair(backend, monkeypatch, encodage):
+    import base64
+    import json
+    from urllib.parse import quote
+
+    questions: list = []
+    _verdict(monkeypatch, None, questions)
+    b64 = base64.b64encode(JETON_COFFRE.encode()).decode()
+    charge = {"base64": b64, "url": quote(JETON_COFFRE, safe=""), "hex": JETON_COFFRE.encode().hex(),
+              "base64 dans url": quote(b64, safe="")}[encodage]
+    p = _passerelle(backend.base)
+    p.appel_outil("envoyer_rapport", {"destinataire": "jean.moreau@orbispay.example",
+                                      "contenu": f"Rapport du mois. Clé : {charge}"}, _envoi()[0])
+    corps = json.dumps(questions[0], ensure_ascii=False)
+    for forme in (JETON_COFFRE, b64, charge, JETON_COFFRE.lower(), "2B91-a7f9c3e1d05b"):
+        assert forme not in corps, forme
+    # Ce qui sert aux règles reste lisible : le destinataire n'est pas masqué.
+    assert questions[0]["parametres"]["destinataire"] == "jean.moreau@orbispay.example"
+    assert "masqué" in questions[0]["parametres"]["contenu"]
+
+
+def test_parametres_surs_dernier_filet(monkeypatch):
+    # Si le masquage laissait passer quoi que ce soit, l'inspection coupe tout l'envoi.
+    monkeypatch.setattr(politiques.mediation, "masquer", lambda v, j=None: v)
+    sortie = politiques.parametres_surs({"contenu": JETON_COFFRE}, jetons_secrets())
+    assert sortie == politiques.NON_TRANSMIS
+
+
 def test_profils_coherents():
     assert set(agents_orbis.PROFILS) == {"orbis-assistant", "orbis-rapprochement", "orbis-support"}
     for profil in agents_orbis.PROFILS.values():

@@ -22,10 +22,26 @@ from __future__ import annotations
 
 import os
 
+from . import mediation
 from .boite_noire import _poster
-from .enregistreur import maintenant_iso, masquer
+from .enregistreur import maintenant_iso
 
 CHEMIN = "/api/politiques/evaluer"
+NON_TRANSMIS = {"masque": "paramètres non transmis : la passerelle y voit encore un secret"}
+
+
+def parametres_surs(params, jetons: dict[str, str]) -> dict:
+    """Paramètres tels qu'ils peuvent partir au backend pour l'évaluation des règles.
+
+    Masquage de la médiation (canaris et secrets, en clair ou encodés en base64, URL ou
+    hexadécimal), puis inspection du résultat par la même médiation : s'il y reste un canari, un
+    secret ou un passage trop encodé pour être relu, rien ne part. Une règle sur le destinataire
+    ou le montant lit des valeurs que ce masquage laisse intactes."""
+    propres = mediation.masquer(params if isinstance(params, dict) else {}, jetons)
+    reste = mediation.inspecter_parametres(propres, jetons, destinations=False)
+    if reste.canaris or reste.secrets or reste.incomplete:
+        return dict(NON_TRANSMIS)
+    return propres
 
 
 def actif() -> bool:
@@ -47,7 +63,7 @@ def appliquer(passerelle, nom: str, params: dict, scope: str | None):
         return None
     rep = demander(base, {
         "agent": passerelle.agent, "session_id": passerelle.session_id, "outil": nom,
-        "scope": scope, "parametres": masquer(params, passerelle.jetons),
+        "scope": scope, "parametres": parametres_surs(params, passerelle.jetons),
         "horodatage": maintenant_iso(),
     })
     if isinstance(rep, dict) and rep.get("verdict") == "droit_retire":
