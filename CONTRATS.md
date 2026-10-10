@@ -1568,3 +1568,79 @@ Les entrées `memoire` portent maintenant `signature`, un HMAC-SHA-256 calculé 
 
 `/api/mesures`, bloc `relecteur.gestes_verifies` : `{"passe": n, "accorde": n, "retenu": n}`.
 
+
+## Avenant du 10 octobre 2026 : médiation universelle de la passerelle interne
+
+Un testeur a montré que la passerelle ne contrôlait que les outils qu'elle connaissait : un outil MCP absent du catalogue (`envoyer_mail`) sortait un canari sans être retenu, et un outil de lecture servait de canal de sortie. Désormais, chaque appel d'outil, connu ou non, passe le même contrôle avant exécution (`interne/orbis/mediation.py`). Les champs et types ci-dessous s'ajoutent ; aucune forme existante ne change.
+
+### Trois règles, publiées comme des canaris
+
+Même usage que `C-4E6B` : chaque règle part avec les canaris par `POST /api/leurres` (`source: "interne"`, `surface: "outil"`) et nomme l'incident quand elle est le premier canari touché de la session.
+
+| Règle | Nature | Quand | Incident | Titre backend |
+|---|---|---|---|---|
+| `C-8A61` | `outil_inconnu` | outil absent de l'inventaire de l'agent, ou servi par un autre serveur MCP que celui de l'inventaire | `interne_outil_inconnu` | Outil absent de l’inventaire de l’agent, retenu avant exécution |
+| `C-5B27` | `canal_detourne` | outil qui n'envoie rien, dont les paramètres portent un canari, un secret ou une destination externe ; ou paramètre impossible à inspecter en entier | `interne_canal_detourne` | Outil détourné en canal de sortie, retenu avant exécution |
+| `C-3F90` | `outil_modifie` | description d'un outil MCP changée depuis sa première lecture dans la session | `interne_outil_modifie` | Outil MCP modifié en cours de session, appel retenu |
+
+La retenue suit le chemin existant : session suspendue, décision de l'analyste, rien d'exécuté avant. `reprendre` libère un seul appel. Il n'ajoute rien à l'inventaire et n'approuve pas la nouvelle description : l'appel suivant du même outil est retenu à nouveau.
+
+### Inventaire, refus par défaut
+
+- L'inventaire est la boîte à outils du profil de l'agent (`agents_orbis.PROFILS[agent].outils`). `Passerelle(..., inventaire=[...])` le remplace. Un agent sans profil a un inventaire vide : tout ce qu'il appelle est retenu.
+- Un outil MCP doit venir du serveur que lui attribue `mcp.CATALOGUE`. Le même nom servi par un autre serveur, ou un outil interne imité par un serveur MCP, compte comme inconnu.
+- `AgentInterne` confie à la passerelle un outil qu'il ne sait pas exécuter, au lieu de l'écarter seul. Un serveur MCP branché en cours de route (`serveurs_mcp=[ServeurMCP(...)]`) est relu à chaque pas.
+
+### Empreintes des descriptions MCP
+
+`Passerelle.observer_outils(catalogue)` garde l'empreinte (sha256, 16 caractères) de la première description vue de chaque outil `(serveur, nom)`. `AgentInterne` l'appelle à chaque liste d'outils, `presenter_outils` aussi, et le descripteur passé à `appel_outil` est relu. Un changement retient le prochain appel de l'outil. Un retour à la description d'origine ne lève pas le constat : l'agent a pu lire la version piégée entre-temps.
+
+### Paramètres inspectés
+
+- Toutes les chaînes, à toute profondeur, clés comprises, puis leurs décodages enchaînés sur trois niveaux : encodage d'URL, base64 (standard et URL), hexadécimal.
+- Canaris : le jeton exact, sans tirets, en minuscules, ou un morceau d'au moins 8 caractères mêlant lettres et chiffres (`a7f9c3e1d05b`), et toute la famille `ORBISPAY-CANARY-xxxx`.
+- Secrets de format connu : clé privée, AWS `AKIA…`, `sk-ant-…`, `sk-…`, jetons GitHub, Slack, Google, JWT, mot de passe ou secret nommé (`token=…`).
+- Destinations : URL de tout schéma, adresse mail, `www.…`, domaine nu sur un suffixe courant, adresse IPv4 hors 127.0.0.0/8, domaine nu sous une clé de destination. Externe veut dire hors de `HOTES_INTERNES` et de leurs sous-domaines.
+- `resumer` et `memoriser` sont des fonctions locales, sans entrée-sortie : on n'y cherche pas de destination (un mail lu cite des adresses), mais canaris et secrets y sont cherchés.
+- Outil d'envoi (`envoyer_rapport`, `exporter_contacts`, outil marqué sortant) : la détection existante reste, et un canari encodé s'y ajoute en `faux_secret`. La réponse finale de l'agent est inspectée de la même façon.
+- Ce qui ne se relit pas en entier retient l'appel, outil d'envoi compris : chaîne de plus de 1 000 000 caractères, plus de 128 passages encodés, encodage imbriqué sur plus de trois niveaux.
+
+### Événements
+
+`appel_outil` retenu : `details.verdict: "retenu"`, `retenu: true`, `motif` (`outil_inconnu`, `canal_detourne` ou `outil_modifie`), `raison`, et un objet rangé sous le nom du motif :
+
+```json
+{"outil_inconnu": {"outil": "envoyer_mail", "serveur_mcp": "messagerie-express-mcp",
+  "agent": "orbis-assistant", "regle": "C-8A61", "libelle": "outil absent de l’inventaire de l’agent",
+  "canaris": ["C-2B91"], "secrets": [], "destinations": ["audit-externe.example"],
+  "encodages": [], "inspection_incomplete": null}}
+```
+
+- `outil_modifie` ajoute `empreinte_avant` et `empreinte_apres`. `encodages` liste les chemins de décodage (`base64`, `encodage d’URL dans base64`…).
+- Puis un `leurre_touche` par canari relevé, la règle d'abord (`C-8A61`, puis `C-2B91`).
+- Mode protégé : `motif` vaut l'une des trois valeurs, `details.exfiltration.canaris` liste la règle et les canaris, le maillon `appel_outil` de la boîte noire dit pourquoi (« envoyer_mail : outil envoyer_mail (serveur MCP messagerie-express-mcp) absent de l’inventaire de l’agent ; ses paramètres portent le canari C-2B91 et une destination externe audit-externe.example. Appel retenu avant exécution. »).
+- Masquage de tout ce qui part au backend, paramètres compris : en plus des jetons et des requêtes d'URL, les canaris encodés ou recopiés en morceaux et les secrets de format connu. Une valeur qui ne se relit pas en entier devient `[paramètre masqué : <raison>]`.
+
+### Console, à brancher
+
+Libellés proposés, sur le modèle de `interne_envoi_externe` :
+
+| Type | `TITRES` (`ui/mots.ts`) | `lib` (`ui/primitives.tsx`) |
+|---|---|---|
+| `interne_outil_inconnu` | Outil inconnu de l'agent retenu | Outil inconnu |
+| `interne_canal_detourne` | Outil de lecture détourné pour sortir des données | Canal détourné |
+| `interne_outil_modifie` | Outil modifié en cours de route, appel retenu | Outil modifié |
+
+Résumés de repli (`repliAgent` dans `agent/IncidentAgent.tsx`) :
+
+- `interne_outil_inconnu` : « L'agent a appelé un outil qui n'est pas dans sa boîte à outils. Dédale retient tout outil qu'il ne connaît pas avant qu'il s'exécute. »
+- `interne_canal_detourne` : « L'agent a glissé une donnée sensible ou une adresse extérieure dans un outil qui ne sert pas à envoyer. Dédale l'a retenu avant qu'il s'exécute. »
+- `interne_outil_modifie` : « Un outil déjà utilisé a changé de description pendant la session. Dédale retient son prochain appel jusqu'à votre décision. »
+
+### Scénario
+
+`uv run python -m orbis.demo --scenario outil-inconnu [--backend URL]` joue trois sessions sur la passerelle en mode protégé, l'analyste scripté coupe à chaque fois : `envoyer_mail` d'un serveur MCP hors inventaire avec la clé du coffre, une recherche de documents qui glisse la clé en base64 dans une URL externe, la conversion de devises dont la description change après un premier appel. Code de sortie 0 si aucun appel retenu n'a tourné et si chaque incident porte le type attendu.
+
+### Latence mesurée
+
+Coût de l'examen et du masquage d'un appel, médiane sur 3 000 appels : 0,010 ms pour `lire_mail`, 0,024 ms pour une recherche de document, 0,036 ms pour un outil MCP, 0,048 ms pour une lecture qui porte une URL et un canari en base64, 0,73 ms pour un rapport de 2 Ko. Sur un appel autorisé de bout en bout contre un backend isolé, la médiane passe de 0,96 ms à 1,03 ms (+0,07 ms). Pire cas mesuré : 6 ms pour 10 Ko de base64, 56 ms pour 100 Ko.
