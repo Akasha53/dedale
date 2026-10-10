@@ -122,6 +122,33 @@ def test_avertissement_sans_geste_risque_rien(client):
     assert client.get("/api/incidents").json()["incidents"] == []
 
 
+# --------------------------------------------------------- repro « POST isolé » du garde du corps
+# Scénario exact de la démo : Camille passe outre un avertissement de phishing. Un seul POST
+# avertissement (aucun événement de contexte avant), source humain / surface poste. L'incident
+# humain_phishing doit remonter côté console, avec la boîte noire à phases. « annuler » n'ouvre rien.
+def test_avertissement_continuer_ouvre_incident_sur_post_isole(client):
+    _avertir(client, "H-iso-cont", "phishing", "continuer",
+             lien="http://orbispay-verification.net/reactivation", gravite="haute",
+             message="Lien de phishing hors domaine.")
+    incs = client.get("/api/incidents").json()["incidents"]
+    assert len(incs) == 1
+    inc = incs[0]
+    assert inc["type"] == "humain_phishing"
+    assert inc["source"] == "humain"
+    assert inc["statut"] == "ouvert"
+    # Boîte noire du geste : pas de contexte (POST isolé), puis les quatre phases du geste.
+    d = client.get(f"/api/incidents/{inc['id']}").json()
+    assert [e["phase"] for e in d["chaine"]] == [
+        "action_risquee", "avertissement", "choix", "consequence"]
+
+
+def test_avertissement_annuler_sur_post_isole_n_ouvre_rien(client):
+    _avertir(client, "H-iso-annul", "phishing", "annuler",
+             lien="http://orbispay-verification.net/reactivation",
+             message="Lien de phishing hors domaine.")
+    assert client.get("/api/incidents").json()["incidents"] == []
+
+
 # --------------------------------------------------------- mesures et SIEM
 def test_mesures_gestes_arretes_vs_passes_outre(client):
     _avertir(client, "H-a", "phishing", "annuler", message="lien douteux")
