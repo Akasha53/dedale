@@ -58,6 +58,10 @@ def _epoch(horodatage) -> float | None:
     return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).timestamp()
 
 
+def _minute(t: float) -> str:
+    return datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M")
+
+
 def volume(details: dict) -> int | None:
     """Volume demandé ou lu par un appel : `volume_lu`, sinon un paramètre de taille."""
     v = details.get("volume_lu")
@@ -95,8 +99,15 @@ class Habitude:
     def prete(self) -> bool:
         return self.appels >= MIN_APPELS and len(self.minutes) >= MIN_MINUTES
 
-    def par_minute(self) -> float:
-        return self.appels / len(self.minutes) if self.minutes else 0.0
+    def par_minute(self, avant: float | None = None) -> float:
+        """Appels par minute active. Avec `avant`, seules les minutes antérieures à cet instant
+        comptent : les premiers appels d'une rafale ne font pas monter leur propre seuil."""
+        minutes = self.minutes
+        if avant is not None:
+            limite = _minute(avant)
+            anciennes = {k: n for k, n in minutes.items() if k < limite}
+            minutes = anciennes or minutes
+        return sum(minutes.values()) / len(minutes) if minutes else 0.0
 
     def resume(self) -> dict:
         return {
@@ -140,7 +151,7 @@ class Suivi:
         exclure = False
 
         dans_fenetre = 1 + sum(1 for x in h.recents if t - FENETRE_S <= x <= t)
-        moyenne = h.par_minute()
+        moyenne = h.par_minute(avant=t - FENETRE_S)
         seuil = max(PLANCHER_PIC, math.ceil(FACTEUR_PIC * moyenne))
         if dans_fenetre >= seuil:
             exclure = True
@@ -211,7 +222,7 @@ class Suivi:
             anomalie["agent"] = agent
         if not exclure and anomalie is None:
             h.appels += 1
-            minute = datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M")
+            minute = _minute(t)
             h.minutes[minute] = h.minutes.get(minute, 0) + 1
             h.outils[ev["outil"]] = h.outils.get(ev["outil"], 0) + 1
             v = volume(ev.get("details") or {})
