@@ -105,7 +105,7 @@ export function Pourquoi({
             <div className="sig" key={i}>
               <span className="lib">{l.texte}</span>
               <span className={`force ${l.force === "rassurant" ? "rassure" : l.force}`}>
-                {l.points != null ? `+${l.points} pt${l.points > 1 ? "s" : ""}` : LIB_FORCE[l.force]}
+                {l.points != null ? `+${l.points} point${l.points > 1 ? "s" : ""}` : LIB_FORCE[l.force]}
               </span>
             </div>
           ))}

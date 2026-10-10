@@ -42,6 +42,27 @@ function lignesSignaux(signaux: Signal[]): LignePourquoi[] {
   return sortie;
 }
 
+// « 1 point », « 2 points ».
+function points(n: number): string {
+  return `${n} point${n > 1 ? "s" : ""}`;
+}
+
+// Libellé lisible d'un outil : « Convertir un montant (outil externe) ».
+function libelleOutil(o: { nom: string; libelle?: string }): string {
+  return (o.libelle ?? o.nom).replace(/\(MCP externe\)/i, "(outil externe)");
+}
+
+// Une raison du risque, en clair. Les outils qui font sortir des données sont nommés,
+// pour que l'analyste puisse vérifier le compte du backend.
+function texteRaison(a: AgentInventaire, raison: AgentInventaire["risque"]["raisons"][number]): string {
+  if (raison.code !== "outils_sortants" || !raison.references?.length) return raison.texte;
+  const noms = raison.references.map((ref) => {
+    const o = a.outils.find((x) => x.nom === ref);
+    return o ? libelleOutil(o) : ref;
+  });
+  return `${raison.texte.replace(/\.$/, "")} : ${noms.join(", ")}.`;
+}
+
 function forcePoints(points: number): Force {
   if (points >= 4) return "fort";
   if (points >= 2) return "moyen";
@@ -235,11 +256,16 @@ function CarteAgent({
 }) {
   const a = v.agent;
   const niveau = NIVEAU[a.risque.niveau] ?? NIVEAU.faible;
-  const sortants = a.outils.filter((o) => o.sortant).length;
+  // Un outil dont le droit a été retiré est coupé : la passerelle le refuse. Les comptes
+  // portent sur les outils encore actifs, comme `risque.raisons` du backend.
+  const retires = new Set((a.droits.retires ?? []).map(codeDroit));
+  const coupes = a.outils.filter((o) => o.droit && retires.has(o.droit)).length;
+  const actifs = a.outils.length - coupes;
+  const sortants = a.outils.filter((o) => o.sortant && !(o.droit && retires.has(o.droit))).length;
   const res = a.resistance;
   const signaux = v.sessions.flatMap((s) => s.signaux ?? []);
   const lignes: LignePourquoi[] = [
-    ...a.risque.raisons.map((r) => ({ texte: r.texte, force: forcePoints(r.points), points: r.points })),
+    ...a.risque.raisons.map((r) => ({ texte: texteRaison(a, r), force: forcePoints(r.points), points: r.points })),
     ...lignesSignaux(signaux),
   ];
   const incident = v.attente ?? v.aTraiter ?? v.incidents[0];
@@ -267,7 +293,20 @@ function CarteAgent({
           <dt>Outils</dt>
           <dd>
             {a.outils.length} outil{a.outils.length > 1 ? "s" : ""}
-            {sortants > 0 && <span className="inv-doux">, dont {sortants} qui font sortir des données ou de l'argent</span>}
+            {coupes > 0 ? (
+              <span className="inv-doux">
+                , dont {coupes} coupé{coupes > 1 ? "s" : ""}.{" "}
+                {sortants > 0
+                  ? `${sortants} des ${actifs} actifs ${sortants > 1 ? "peuvent" : "peut"} faire sortir des données ou de l'argent.`
+                  : `Aucun des ${actifs} actifs ne fait sortir de données ni d'argent.`}
+              </span>
+            ) : (
+              sortants > 0 && (
+                <span className="inv-doux">
+                  , dont {sortants} qui {sortants > 1 ? "font" : "fait"} sortir des données ou de l'argent
+                </span>
+              )
+            )}
           </dd>
         </div>
         <div>
@@ -316,7 +355,7 @@ function CarteAgent({
       <footer className="inv-pied">
         <span className={`inv-risque r-${niveau.cls}`}>
           {niveau.lib}
-          <span className="inv-points">{a.risque.score} pts</span>
+          <span className="inv-points">{points(a.risque.score)}</span>
         </span>
         <Pourquoi
           titre={`Pourquoi ce niveau de risque`}
