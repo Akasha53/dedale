@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dédale — le garde du corps de vos agents internes</title>
+<meta name="description" content="Dédale pose des pièges que seul un agent IA détourné déclenche, rejoue toute la chaîne d'attaque et laisse un humain trancher la riposte. Projet hackathon Secure Horizons, données fictives.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#05070e;
+  --bg2:#070b16;
+  --ink:#eaf0ff;
+  --muted:#9aa7c7;
+  --muted2:#6b779a;
+  --cyan:#35d6ff;
+  --blue:#4c7bff;
+  --red:#ff5a6a;
+  --amber:#ffbb45;
+  --green:#36e0a0;
+  --line:rgba(140,170,255,.12);
+  --line2:rgba(140,170,255,.07);
+  --card:rgba(16,24,46,.55);
+  --ease:cubic-bezier(.32,.72,0,1);
+  --maxw:1180px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Space Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  line-height:1.5;
+  overflow-x:hidden;
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace}
+
+/* Ambient field */
+.field{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5}
+.orb.a{width:620px;height:620px;left:-180px;top:-200px;background:radial-gradient(circle,rgba(76,123,255,.45),transparent 70%)}
+.orb.b{width:560px;height:560px;right:-160px;top:12%;background:radial-gradient(circle,rgba(53,214,255,.30),transparent 70%)}
+.orb.c{width:520px;height:520px;left:30%;bottom:-220px;background:radial-gradient(circle,rgba(255,90,106,.14),transparent 70%)}
+.grid-tex{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(var(--line2) 1px,transparent 1px),linear-gradient(90deg,var(--line2) 1px,transparent 1px);
+  background-size:64px 64px;mask-image:radial-gradient(ellipse 80% 60% at 50% 20%,#000 20%,transparent 85%)}
+.noise{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:.035;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+main{position:relative;z-index:1}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+/* Nav */
+header.nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;justify-content:center;padding:18px 16px}
+.navbar{display:flex;align-items:center;gap:22px;width:min(100%,980px);
+  background:rgba(10,15,28,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid var(--line);border-radius:999px;padding:9px 10px 9px 16px;
+  box-shadow:0 10px 40px -20px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.04)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+.logo{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:13px;color:#06101e;
+  background:linear-gradient(145deg,#6fe6ff,#3f73ff);box-shadow:0 0 18px rgba(53,214,255,.5)}
+.navlinks{display:flex;gap:4px;margin-left:auto}
+.navlinks a{color:var(--muted);text-decoration:none;font-size:13.5px;padding:7px 12px;border-radius:999px;transition:all .4s var(--ease)}
+.navlinks a:hover{color:var(--ink);background:rgba(140,170,255,.08)}
+.nav-cta{margin-left:4px}
+.pill-btn{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(145deg,#eaf3ff,#c6d6ff);color:#06101e;
+  text-decoration:none;font-weight:600;font-size:13.5px;border-radius:999px;padding:8px 8px 8px 16px;transition:transform .4s var(--ease)}
+.pill-btn:active{transform:scale(.97)}
+.pill-btn .ic{width:26px;height:26px;border-radius:999px;background:rgba(6,16,30,.14);display:grid;place-items:center;transition:transform .4s var(--ease)}
+.pill-btn:hover .ic{transform:translate(2px,-1px)}
+.menu-btn{display:none}
+
+/* Hero */
+.hero{min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:150px 0 90px;position:relative}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--cyan);border:1px solid var(--line);background:rgba(53,214,255,.05);
+  padding:7px 14px;border-radius:999px;margin-bottom:28px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 2.4s var(--ease) infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+h1.title{font-size:clamp(52px,9vw,116px);line-height:.92;letter-spacing:-.04em;font-weight:700;margin:0;
+  background:linear-gradient(180deg,#fff 30%,#b9c7f0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.baseline{font-size:clamp(20px,3.3vw,34px);font-weight:500;letter-spacing:-.02em;margin:22px 0 0;color:var(--ink)}
+.baseline b{background:linear-gradient(90deg,var(--cyan),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lede{max-width:620px;font-size:clamp(16px,2vw,19px);color:var(--muted);margin:26px 0 0}
+.hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:38px}
+.ghost{display:inline-flex;align-items:center;gap:9px;color:var(--ink);text-decoration:none;font-size:14px;font-weight:500;
+  border:1px solid var(--line);background:rgba(140,170,255,.04);border-radius:999px;padding:12px 20px;transition:all .4s var(--ease)}
+.ghost:hover{background:rgba(140,170,255,.1);border-color:rgba(140,170,255,.25)}
+
+/* Hero visual */
+.hero-visual{margin-top:66px;position:relative}
+.frame{position:relative;border-radius:30px;padding:8px;background:rgba(140,170,255,.05);
+  border:1px solid var(--line);box-shadow:0 40px 120px -50px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
+.frame .inner{border-radius:22px;overflow:hidden;border:1px solid var(--line2);position:relative;background:#060a13}
+.frame img{display:block;width:100%;height:auto}
+.frame .glow{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 120px rgba(5,7,14,.8);border-radius:22px}
+.caption{text-align:center;color:var(--muted2);font-size:12.5px;margin-top:16px;font-family:"IBM Plex Mono",monospace;letter-spacing:.04em}
+
+/* Section scaffolding */
+section{padding:clamp(80px,12vw,150px) 0;position:relative}
+.sec-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--cyan);margin-bottom:18px}
+.sec-title{font-size:clamp(30px,5vw,54px);line-height:1.02;letter-spacing:-.03em;font-weight:600;margin:0;max-width:16ch}
+.sec-sub{color:var(--muted);font-size:clamp(16px,2vw,18px);margin-top:20px;max-width:60ch}
+.sec-head{margin-bottom:56px}
+
+/* Problème */
+.prob-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:30px;position:relative;overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.pcard .num{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--red);letter-spacing:.1em}
+.pcard h3{font-size:21px;letter-spacing:-.02em;margin:16px 0 10px;font-weight:600}
+.pcard p{color:var(--muted);font-size:14.5px;margin:0}
+.pcard .edge{position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--red),transparent)}
+
+/* Steps */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:26px;position:relative;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.step .k{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--cyan);letter-spacing:.14em}
+.step .icon{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;margin:14px 0 16px;
+  border:1px solid var(--line);background:rgba(53,214,255,.05)}
+.step h3{font-size:18px;letter-spacing:-.01em;margin:0 0 8px;font-weight:600}
+.step p{color:var(--muted);font-size:13.5px;margin:0}
+.step .arrow{position:absolute;right:-13px;top:50%;transform:translateY(-50%);color:var(--muted2);z-index:2}
+.step:last-child .arrow{display:none}
+
+/* Feature split (boîte noire) */
+.split{display:grid;grid-template-columns:.9fr 1.1fr;gap:54px;align-items:center}
+.feat-list{list-style:none;padding:0;margin:28px 0 0}
+.feat-list li{display:flex;gap:14px;padding:14px 0;border-top:1px solid var(--line2);color:var(--muted);font-size:15px}
+.feat-list li:first-child{border-top:none}
+.feat-list .chk{flex:0 0 auto;color:var(--cyan);margin-top:2px}
+.feat-list b{color:var(--ink);font-weight:600}
+.chain{margin-top:30px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-family:"IBM Plex Mono",monospace;font-size:12px}
+.chain span{padding:7px 12px;border-radius:9px;border:1px solid var(--line);background:rgba(140,170,255,.04);color:var(--muted)}
+.chain .hot{color:var(--red);border-color:rgba(255,90,106,.35);background:rgba(255,90,106,.07)}
+.chain i{color:var(--muted2);font-style:normal}
+
+/* Cases grid */
+.cases{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.case{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;transition:all .5s var(--ease);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.case:hover{transform:translateY(-4px);border-color:rgba(53,214,255,.28);background:rgba(20,30,56,.65)}
+.case .icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;margin-bottom:16px;
+  border:1px solid var(--line);background:rgba(76,123,255,.06);color:var(--cyan)}
+.case h4{font-size:16px;letter-spacing:-.01em;margin:0 0 6px;font-weight:600}
+.case p{color:var(--muted2);font-size:13px;margin:0}
+.case.reserve{opacity:.72}
+.case.reserve .icon{color:var(--muted);background:rgba(140,170,255,.04)}
+.case.reserve .tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin-bottom:12px}
+
+/* Metrics */
+.metrics-band{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(8,12,24,.5)}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.metric{text-align:center;padding:16px}
+.metric .big{font-size:clamp(50px,8vw,88px);line-height:1;letter-spacing:-.04em;font-weight:700;
+  background:linear-gradient(180deg,var(--cyan),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent}
+.metric .lab{color:var(--ink);font-size:16px;font-weight:500;margin-top:14px}
+.metric .sub{color:var(--muted2);font-size:12.5px;margin-top:6px;font-family:"IBM Plex Mono",monospace}
+.metric-note{text-align:center;color:var(--muted2);font-size:12.5px;margin-top:40px;font-family:"IBM Plex Mono",monospace}
+
+/* Compliance */
+.comp{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:40px}
+.comp .badge{display:flex;flex-direction:column;gap:3px;border:1px solid var(--line);border-radius:16px;padding:18px 26px;
+  background:var(--card);min-width:190px}
+.comp .badge b{font-size:15px;letter-spacing:-.01em}
+.comp .badge span{color:var(--muted2);font-size:12px;font-family:"IBM Plex Mono",monospace;letter-spacing:.03em}
+
+/* Gallery */
+.gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:10px}
+.gallery .frame{padding:6px;border-radius:22px}
+.gallery .frame .inner{border-radius:16px}
+.gallery figcaption{color:var(--muted2);font-size:12.5px;margin-top:12px;font-family:"IBM Plex Mono",monospace}
+
+/* CTA band */
+.closer{text-align:center}
+.closer .sec-title{margin:0 auto}
+.closer .sec-sub{margin:20px auto 0}
+
+/* Footer */
+footer{border-top:1px solid var(--line);padding:48px 0 60px;position:relative;z-index:1}
+.foot{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;color:var(--muted2);font-size:13px}
+.foot .brand{color:var(--muted)}
+.foot .mono{font-size:12px}
+.fictif{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 14px;
+  color:var(--amber);font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.08em}
+
+/* Reveal */
+.reveal{opacity:0;transform:translateY(34px);filter:blur(6px);transition:opacity .9s var(--ease),transform .9s var(--ease),filter .9s var(--ease)}
+.reveal.in{opacity:1;transform:none;filter:none}
+.stagger>*{opacity:0;transform:translateY(28px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+.stagger.in>*{opacity:1;transform:none}
+.stagger.in>*:nth-child(2){transition-delay:.08s}
+.stagger.in>*:nth-child(3){transition-delay:.16s}
+.stagger.in>*:nth-child(4){transition-delay:.24s}
+.stagger.in>*:nth-child(5){transition-delay:.32s}
+.stagger.in>*:nth-child(6){transition-delay:.4s}
+.stagger.in>*:nth-child(7){transition-delay:.48s}
+.stagger.in>*:nth-child(8){transition-delay:.56s}
+
+@media (max-width:900px){
+  .prob-grid,.steps,.cases,.metrics,.gallery{grid-template-columns:1fr}
+  .split{grid-template-columns:1fr;gap:34px}
+  .step .arrow{display:none}
+  .navlinks{display:none}
+  .cases{grid-template-columns:1fr 1fr}
+}
+@media (max-width:620px){
+  .wrap{padding:0 18px}
+  .cases{grid-template-columns:1fr}
+  .hero{padding:130px 0 70px}
+}
+@media (prefers-reduced-motion:reduce){
+  .reveal,.stagger>*{transition:none;opacity:1;transform:none;filter:none}
+  .dot{animation:none}
+}
+</style>
+</head>
+<body>
+<div class="field" aria-hidden="true"><div class="orb a"></div><div class="orb b"></div><div class="orb c"></div></div>
+<div class="grid-tex" aria-hidden="true"></div>
+<div class="noise" aria-hidden="true"></div>
+
+<header class="nav">
+  <nav class="navbar">
+    <a class="brand" href="#top" style="text-decoration:none;color:inherit"><span class="logo">D</span>Dédale</a>
+    <div class="navlinks">
+      <a href="#probleme">Le problème</a>
+      <a href="#mecanique">Comment ça marche</a>
+      <a href="#cas">Cas couverts</a>
+      <a href="#mesures">Chiffres</a>
+    </div>
+    <a class="pill-btn nav-cta" href="#mecanique">Voir la méthode
+      <span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+  </nav>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="reveal in">
+        <span class="eyebrow"><span class="dot"></span>Secure Horizons · ESSEC · 10–11 oct. 2026</span>
+        <h1 class="title">Dédale</h1>
+        <p class="baseline">Le garde du corps de <b>vos agents internes</b>.</p>
+        <p class="lede">Vos agents IA lisent les mails, ouvrent les documents, appellent les outils. Un seul message piégé peut les retourner contre vous. Dédale repère l'instant où un agent décroche, rejoue toute la chaîne, et laisse un humain décider de la riposte.</p>
+        <div class="hero-cta">
+          <a class="pill-btn" href="#mecanique">Comment ça marche
+            <span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span>
+          </a>
+          <a class="ghost" href="#cas">Les cas couverts</a>
+        </div>
+      </div>
+
+      <figure class="hero-visual reveal" style="margin:66px 0 0">
+        <div class="frame">
+          <div class="inner">
+            <img id="heroImg" src="img/gen/hero.png" alt="Labyrinthe cyber : un agent piégé mène à un noeud d'alerte au coeur du dédale">
+            <div class="glow"></div>
+          </div>
+        </div>
+        <figcaption class="caption">Un agent détourné entre dans le labyrinthe. Le canari qu'il touche révèle sa trajectoire.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- PROBLÈME -->
+  <section id="probleme">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Le problème</div>
+        <h2 class="sec-title">Vos agents IA sont naïfs, et ils ont les clés.</h2>
+        <p class="sec-sub">On branche des agents sur les mails, les documents, les outils, parfois les uns sur les autres. Personne ne garde la porte quand ils agissent seuls.</p>
+      </div>
+      <div class="prob-grid stagger">
+        <div class="pcard"><span class="edge"></span>
+          <div class="num">01</div>
+          <h3>Ils obéissent au contenu piégé</h3>
+          <p>Un mail, une pièce jointe, un serveur MCP vérolé, une mémoire empoisonnée : l'ordre caché arrive par les données, et l'agent l'exécute comme s'il venait de vous.</p>
+        </div>
+        <div class="pcard"><span class="edge"></span>
+          <div class="num">02</div>
+          <h3>L'exfiltration ne demande aucun clic</h3>
+          <p>Pas d'humain devant l'écran. L'agent sort les données tout seul, en une poignée d'appels d'outils. C'est le scénario qu'a montré EchoLeak en 2025.</p>
+        </div>
+        <div class="pcard"><span class="edge"></span>
+          <div class="num">03</div>
+          <h3>On leur a donné trop de droits</h3>
+          <p>Un jeton trop large transforme une consigne cachée en virement, en accès, en fuite. Les droits accordés dépassent largement ceux dont la tâche a besoin.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMENT ÇA MARCHE -->
+  <section id="mecanique">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Comment ça marche</div>
+        <h2 class="sec-title">Des pièges, une détection nette, une boîte noire.</h2>
+        <p class="sec-sub">Dédale ne cherche pas une signature d'attaque. Il pose des appâts qu'un agent sain n'a aucune raison de toucher.</p>
+      </div>
+      <figure class="hero-visual reveal" style="margin:0 0 56px">
+        <div class="frame">
+          <div class="inner"><img src="img/gen/concept.png" alt="Dédale veille sur les agents internes : un bouclier-sentinelle au-dessus des agents, l'un d'eux retourné en rouge"><div class="glow"></div></div>
+        </div>
+        <figcaption class="caption">Dédale veille sur chaque agent interne. Celui qui se fait retourner bascule au rouge.</figcaption>
+      </figure>
+      <div class="steps stagger">
+        <div class="step">
+          <div class="k">01 · PIÈGES</div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4z"/><circle cx="12" cy="11" r="2.2"/></svg></div>
+          <h3>Des canaris</h3>
+          <p>Faux secrets, fausses routes, faux outils MCP, semés dans les mails et les documents. Invisibles pour un humain, saillants pour un lecteur automatique.</p>
+          <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        </div>
+        <div class="step">
+          <div class="k">02 · DÉTECTION</div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg></div>
+          <h3>Zéro faux positif</h3>
+          <p>Un agent qui fait son travail ne mord jamais. Celui qui touche un canari est détourné, sans ambiguïté. Pas de seuil à régler, pas d'alerte à trier.</p>
+          <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        </div>
+        <div class="step">
+          <div class="k">03 · BOÎTE NOIRE</div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M3 7h18v12H3zM3 7l3-4h12l3 4" stroke-linejoin="round"/><path d="M8 12h8" stroke-linecap="round"/></svg></div>
+          <h3>La chaîne reconstruite</h3>
+          <p>Entrée piégée, consigne lue, appels d'outils, tentative de sortie. Chaque maillon horodaté, relié à OWASP et MITRE ATLAS.</p>
+          <div class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        </div>
+        <div class="step">
+          <div class="k">04 · RIPOSTE</div>
+          <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35d6ff" stroke-width="1.4"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4z"/><path d="m9 11 2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <h3>L'humain tranche</h3>
+          <p>Dédale suspend l'agent et propose la riposte. L'analyste valide. En sortie : un brouillon de notification NIS2 et un export SIEM (ECS / Sigma).</p>
+          <div class="arrow"></div>
+        </div>
+      </div>
+
+      <figure class="hero-visual reveal" style="margin-top:64px">
+        <div class="frame">
+          <div class="inner"><img src="img/shots/dashboard-temps-reel.png" alt="Console Dédale : flux des agents internes surveillés en temps réel"><div class="glow"></div></div>
+        </div>
+        <figcaption class="caption">Console SOC — flux des agents internes en temps réel, canaris touchés, incidents à trancher.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- BOÎTE NOIRE -->
+  <section id="boitenoire" style="padding-top:0">
+    <div class="wrap">
+      <div class="split">
+        <div class="reveal">
+          <div class="sec-eyebrow">La boîte noire</div>
+          <h2 class="sec-title" style="font-size:clamp(28px,4vw,44px)">Toute l'attaque, maillon par maillon.</h2>
+          <p class="sec-sub">Dès qu'un canari tombe, Dédale rejoue la session complète. L'analyste voit d'où vient l'ordre, ce que l'agent a lu, ce qu'il a tenté de faire sortir.</p>
+          <div class="chain">
+            <span class="hot">mail / doc piégé</span><i>→</i>
+            <span>consigne cachée</span><i>→</i>
+            <span>appels d'outils</span><i>→</i>
+            <span class="hot">tentative de sortie</span>
+          </div>
+          <ul class="feat-list">
+            <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Brouillon NIS2</b> prêt en 24 h, référence d'incident incluse, à relire avant envoi.</span></li>
+            <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Export SIEM</b> au format ECS ou Sigma, pour brancher sur l'outillage existant.</span></li>
+            <li><span class="chk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span><span><b>Vue des droits</b> : accès accordés face aux accès vraiment nécessaires.</span></li>
+          </ul>
+        </div>
+        <figure class="reveal" style="margin:0">
+          <div class="frame"><div class="inner"><img src="img/shots/incident-boite-noire.png" alt="Incident reconstruit : chaîne d'attaque, brouillon NIS2 et export SIEM"><div class="glow"></div></div></div>
+          <figcaption class="caption" style="text-align:left">Incident interne — chaîne reconstruite, notification NIS2, export SIEM.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAS COUVERTS -->
+  <section id="cas">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Les cas couverts</div>
+        <h2 class="sec-title">Partout où un agent peut se faire retourner.</h2>
+      </div>
+      <div class="cases stagger">
+        <div class="case">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6" stroke-linecap="round"/></svg></div>
+          <h4>Mails piégés</h4><p>Une consigne cachée dans un message reçu.</p>
+        </div>
+        <div class="case">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 5c0 9 6 15 15 15 1 0 1.5-.8 1-1.6l-2-3c-.4-.6-1.2-.7-1.8-.3l-1.6 1C12.5 14.5 9.5 11.5 8 9l1-1.6c.4-.6.3-1.4-.3-1.8l-3-2C4.8 3 4 3.5 4 5z" stroke-linejoin="round"/></svg></div>
+          <h4>Appels piégés</h4><p>Une instruction glissée dans un appel entrant.</p>
+        </div>
+        <div class="case">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3 3 8v8l9 5 9-5V8l-9-5z" stroke-linejoin="round"/><path d="M12 12v9M3 8l9 4 9-4" stroke-linecap="round"/></svg></div>
+          <h4>Outils / MCP vérolés</h4><p>Un serveur ou un outil dont la description cache un ordre.</p>
+        </div>
+        <div class="case">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M7 8h10a4 4 0 0 1 4 4 4 4 0 0 1-4 4h-1l-4 3v-3H7a4 4 0 0 1-4-4 4 4 0 0 1 4-4z" stroke-linejoin="round"/></svg></div>
+          <h4>Chatbots détournés</h4><p>Un agent conversationnel retourné par son interlocuteur.</p>
+        </div>
+        <div class="case">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5M15 15c3 0 6 2 6 5" stroke-linecap="round"/></svg></div>
+          <h4>Usurpation d'agent</h4><p>Un agent qui se fait passer pour un autre.</p>
+        </div>
+        <div class="case">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" stroke-linecap="round"/></svg></div>
+          <h4>Mémoire empoisonnée</h4><p>Un faux souvenir implanté dans la mémoire long terme.</p>
+        </div>
+        <div class="case">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v4M15 12v3" stroke-linecap="round"/></svg></div>
+          <h4>Droits excessifs</h4><p>Un agent qui agit hors de son périmètre de droits.</p>
+        </div>
+        <div class="case reserve">
+          <span class="tag">En réserve</span>
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" stroke-linecap="round"/></svg></div>
+          <h4>Agents attaquants externes</h4><p>Détecter l'agent qui attaque la surface exposée, et le perdre dans le labyrinthe.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MÉTRIQUES -->
+  <section id="mesures" class="metrics-band">
+    <div class="wrap">
+      <div class="sec-head reveal" style="text-align:center;margin-bottom:48px">
+        <div class="sec-eyebrow" style="color:var(--cyan)">Les chiffres</div>
+        <h2 class="sec-title" style="margin:0 auto">Détecter vite, confiner avant la fuite.</h2>
+      </div>
+      <div class="metrics stagger">
+        <div class="metric"><div class="big">~0 %</div><div class="lab">de faux positifs</div><div class="sub">un canari = un agent détourné</div></div>
+        <div class="metric"><div class="big">~0,6 s</div><div class="lab">pour détecter</div><div class="sub">du canari touché à l'alerte</div></div>
+        <div class="metric"><div class="big">~2 s</div><div class="lab">pour confiner</div><div class="sub">session suspendue, appel retenu</div></div>
+      </div>
+      <p class="metric-note">Chiffres de démonstration, mesurés sur le banc d'attaque fictif. Entreprise et trafic simulés.</p>
+    </div>
+  </section>
+
+  <!-- GALERIE -->
+  <section id="galerie">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Dans la console</div>
+        <h2 class="sec-title" style="font-size:clamp(28px,4vw,44px)">Ce que voit l'analyste.</h2>
+      </div>
+      <div class="gallery stagger">
+        <figure style="margin:0" class="reveal"><div class="frame"><div class="inner"><img src="img/shots/outil-mcp-piege.png" alt="Signal : outil MCP piégé par sa description"><div class="glow"></div></div></div><figcaption>Un outil MCP piégé par sa propre description.</figcaption></figure>
+        <figure style="margin:0" class="reveal"><div class="frame"><div class="inner"><img src="img/shots/droits-trop-larges.png" alt="Signal : agent interne hors de son périmètre de droits"><div class="glow"></div></div></div><figcaption>Agent hors de son périmètre de droits.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONFORMITÉ -->
+  <section id="conformite">
+    <div class="wrap closer">
+      <div class="reveal">
+        <div class="sec-eyebrow" style="text-align:center">Rattachements</div>
+        <h2 class="sec-title">Aligné sur les cadres de référence.</h2>
+        <div class="comp stagger">
+          <div class="badge"><b>OWASP</b><span>Top 10 for Agentic Apps</span></div>
+          <div class="badge"><b>MITRE ATLAS</b><span>tactiques & techniques</span></div>
+          <div class="badge"><b>NIST CSF</b><span>Detect · Respond</span></div>
+          <div class="badge"><b>NIS2</b><span>notification 24 h</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div class="brand"><span class="logo" style="display:inline-grid;vertical-align:middle;margin-right:8px">D</span>Dédale — le garde du corps de vos agents internes</div>
+    <span class="fictif"><span class="dot" style="background:var(--amber);box-shadow:0 0 10px var(--amber)"></span>Données entièrement fictives</span>
+    <div class="mono">Projet Secure Horizons · ESSEC · 10–11 oct. 2026 · entité Orbis Pay (fictive)</div>
+  </div>
+</footer>
+
+<script>
+// Scroll reveal
+(function(){
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+  },{threshold:.12,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.reveal,.stagger').forEach(function(el){ io.observe(el); });
+})();
+// Hide generated images that failed to load, keep layout clean
+document.querySelectorAll('img').forEach(function(img){
+  img.addEventListener('error',function(){
+    var fig=img.closest('figure'); if(fig){ fig.style.display='none'; }
+  });
+});
+</script>
+</body>
+</html>
