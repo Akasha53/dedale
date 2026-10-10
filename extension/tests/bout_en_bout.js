@@ -8,7 +8,7 @@
 //   - Chrome sans fenêtre, sur un profil temporaire, avec l'extension non
 //     empaquetée. --host-resolver-rules envoie *.example vers le faux site :
 //     pas de /etc/hosts, et l'extension voit le vrai nom de domaine.
-// Puis visite un domaine neutre, le vrai domaine et trois sosies, clique sur les
+// Puis visite un domaine neutre, le vrai domaine et quatre sosies, clique sur les
 // deux boutons et vérifie ce qui arrive au backend.
 //
 // Chrome stable ignore --load-extension depuis la version 137 : l'extension est
@@ -330,6 +330,14 @@ async function principal() {
   await attendre(async () => !(await surAvertissement()), "retour arrière (punycode)");
   verifier((await onglet.adresse()) === sosie, "retour arrière vers la page précédente (punycode)", await onglet.adresse());
 
+  // 8 bis. Domaine qui n'existe nulle part (.invalid) : la règle bloque avant le DNS.
+  await onglet.aller("http://orbispay-securite.invalid/");
+  await attendre(surAvertissement, "avertissement sans serveur");
+  await attendre(async () => (await texte("#domaine")) === "orbispay-securite.invalid", "domaine affiché (.invalid)");
+  verifier(true, "avertissement affiché pour un domaine qui ne résout pas", "orbispay-securite.invalid");
+  await onglet.eval(`document.getElementById("revenir").click()`);
+  await attendre(async () => !(await surAvertissement()), "retour arrière (.invalid)");
+
   // 9. Backend absent : la navigation continue, l'échec est seulement noté.
   await reglages.eval(`chrome.storage.local.set({ reglages: { nom: "Orbis Pay", domaines: ["orbispay.example"], backend: "http://127.0.0.1:${pFerme}" } })`);
   const sosie2 = `http://0rbispay.example${port}/`;
@@ -348,12 +356,12 @@ async function principal() {
   // 10. Compteur et badge de l'icône.
   const fin = await etat();
   const badge = await reglages.eval("chrome.action.getBadgeText({})");
-  verifier(fin.affiches === 4 && fin.passes === 2 && fin.evites === 2, "compteurs : 4 avertissements, 2 ignorés, 2 évités", JSON.stringify(fin));
-  verifier(badge === "2", "badge de l'icône", badge);
+  verifier(fin.affiches === 5 && fin.passes === 2 && fin.evites === 3, "compteurs : 5 avertissements, 2 ignorés, 3 évités", JSON.stringify(fin));
+  verifier(badge === "3", "badge de l'icône", badge);
 
   // Captures de la fenêtre de l'icône et des réglages.
   const popup = await Onglet.ouvrir(pCdp, `chrome-extension://${id}/popup.html`);
-  await attendre(async () => (await popup.eval(`document.getElementById("evites").textContent`)) === "2", "fenêtre de l'icône");
+  await attendre(async () => (await popup.eval(`document.getElementById("evites").textContent`)) === "3", "fenêtre de l'icône");
   await popup.cmd("Emulation.setDeviceMetricsOverride", { width: 332, height: 300, deviceScaleFactor: 2, mobile: false });
   await popup.cmd("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
   await pause(400);
