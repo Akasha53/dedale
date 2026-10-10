@@ -1785,3 +1785,22 @@ Un geste retenu sans fraude est tranché par le responsable du salarié ou la fi
 - Un jeton `validateur` pour tous les responsables et la finance : un responsable voit les gestes des autres équipes. En production, le rattachement salarié → responsable vient de l'annuaire et filtre la file.
 - La minimisation est faite par l'API : la base SQLite garde le détail en clair, comme elle garde le reste du journal.
 - Un nom de bénéficiaire écrit autrement que « à <Nom> » dans un texte libre peut passer sans être masqué.
+
+## Avenant du 11 octobre 2026 : une seule certitude par incident, l'agent de sAIfe à part
+
+### Certitude
+
+`GET /api/incidents/{id}/synthese` reste la seule source de la certitude d'un incident (champ `confiance`). Quand une règle fixe de la passerelle a retenu l'appel (types `interne_outil_inconnu`, `interne_canal_detourne` et `interne_outil_modifie`, règles C-8A61, C-5B27 et C-3F90 de l'avenant « médiation universelle »), ce n'est pas un faisceau d'indices et `confiance` ne donne pas de score :
+
+```json
+{"score": null, "niveau": "regle", "regle": "C-8A61", "raisons": [], "manquants": [], "base": 0.15, "plafond": 0.95,
+ "signaux_concordants": 2, "maillons": 5}
+```
+
+La règle vient de `details.<motif>.regle` de l'appel retenu, sinon du type de l'incident. La console affiche « Règle C-8A61 », en gris, sans pourcentage ni jauge.
+
+`GET /api/incidents/{id}/tri` ajoute `certitude: {"score", "niveau", "regle"}`, recopiée de la synthèse au moment de la lecture. La console l'écrit dans le pré-tri avec le même texte que le résumé (« sûr à 95 % » ou « règle C-8A61 »). `confiance` reste l'avis chiffré du relecteur : il ne s'affiche plus et ne sert qu'à `doute` et à la file « à regarder ». À côté d'une règle, la console n'écrit pas « à vérifier ».
+
+### Inventaire
+
+Chaque fiche de `GET /api/agents` (`inventaire[]`) porte `dedale: bool`, vrai pour l'agent des règles (`dedale-regles`). Il appartient à sAIfe, pas à Orbis Pay : la console le range dans une rangée à part sous les cartes et ne le compte pas dans « Agents surveillés ». Un client qui ignore le champ peut s'en tenir au préfixe `dedale-` de l'identifiant.

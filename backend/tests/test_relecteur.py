@@ -352,6 +352,19 @@ def test_pre_tri_en_regles_sans_modele(client, monkeypatch):
     assert tri["decision_proposee"] == "couper" and tri["priorite"] == "haute"
 
 
+def test_pre_tri_affiche_la_certitude_de_la_synthese(client):
+    """Le modèle se dit sûr à 85 %, la synthèse calcule autre chose : le pré-tri porte la
+    certitude de la synthèse, la seule que la console affiche."""
+    relecteur.definir_modele(FauxModele(tri=TRI_HAUT))
+    _incident_interne(client)
+    assert _calme()
+    iid = client.get("/api/incidents").json()["incidents"][0]["id"]
+    conf = client.get(f"/api/incidents/{iid}/synthese").json()["confiance"]
+    tri = client.get(f"/api/incidents/{iid}/tri").json()
+    assert isinstance(conf["score"], float) and conf.get("regle") is None
+    assert tri["certitude"] == {"score": conf["score"], "niveau": conf["niveau"], "regle": None}
+
+
 def test_mesures_par_mode_et_duree(client):
     relecteur.definir_modele(FauxModele(geste=REFUSE, tri=TRI_HAUT), mode="cli")
     _incident_interne(client)

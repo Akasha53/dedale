@@ -717,6 +717,42 @@ def _confiance(r: _Redaction, faits: dict | None, humain: dict | None) -> dict:
             "manquants": manquants, "signaux_concordants": familles, "maillons": n}
 
 
+# Médiation de la passerelle (interne/orbis/mediation.py) : une règle fixe retient l'appel. Ce
+# n'est pas un faisceau d'indices, la certitude ne se dit donc pas en pourcentage.
+_REGLES_MEDIATION = {
+    "interne_outil_inconnu": ("outil_inconnu", "C-8A61"),
+    "interne_canal_detourne": ("canal_detourne", "C-5B27"),
+    "interne_outil_modifie": ("outil_modifie", "C-3F90"),
+}
+
+
+def regle_de_retenue(detail: dict, evenements: list[dict]) -> str | None:
+    """Règle fixe de la passerelle qui a retenu l'appel, ou None si l'incident vient d'indices.
+    La règle nommée dans le constat de la passerelle prime sur celle du type."""
+    motif, defaut = _REGLES_MEDIATION.get(str(detail.get("type") or ""), (None, None))
+    if motif is None:
+        return None
+    for ev in reversed(evenements or []):
+        constat = (ev.get("details") or {}).get(motif)
+        if isinstance(constat, dict) and isinstance(constat.get("regle"), str) and constat["regle"]:
+            return constat["regle"][:12]
+    return defaut
+
+
+def _par_regle(confiance: dict, regle: str) -> dict:
+    """Certitude d'un appel retenu par une règle fixe : la règle, sans score ni raisons."""
+    return {"score": None, "niveau": "regle", "regle": regle, "base": confiance["base"],
+            "plafond": confiance["plafond"], "raisons": [], "manquants": [],
+            "signaux_concordants": confiance["signaux_concordants"], "maillons": confiance["maillons"]}
+
+
+def certitude(detail: dict, evenements: list[dict]) -> dict:
+    """La certitude de l'incident, telle que la synthèse l'affiche. Seule source : le pré-tri et
+    toute autre vue la reprennent au lieu d'en calculer une autre."""
+    c = construire(detail, evenements)["confiance"]
+    return {"score": c["score"], "niveau": c["niveau"], "regle": c.get("regle")}
+
+
 # --- décision recommandée --------------------------------------------------------------------
 def _decision(r: _Redaction, faits: dict | None, humain: dict | None, confiance: dict) -> tuple[dict, dict | None]:
     d = r.d
@@ -876,6 +912,9 @@ def construire(detail: dict, evenements: list[dict]) -> dict:
             r.rediger_interne(faits)
     confiance = _confiance(r, faits, humain)
     decision, correctif = _decision(r, faits, humain, confiance)
+    regle = regle_de_retenue(detail, evenements)
+    if regle:
+        confiance = _par_regle(confiance, regle)
     return {
         "incident_id": detail.get("id"),
         "mode": "regles",

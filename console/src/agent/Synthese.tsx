@@ -8,6 +8,7 @@ import { useDonnees } from "../api/store";
 import type { Incident, RaisonConfiance, Synthese } from "../types";
 import { TexteCanary } from "../ui/Canary";
 import { ACTION_CONSEILLEE, libelleDroit, sansCodes } from "../ui/mots";
+import { lireCertitude, type VueCertitude } from "../ui/certitude";
 import { desarmer } from "./preuve";
 
 export function useSynthese(incident: Incident): { synthese: Synthese | null; prete: boolean } {
@@ -60,14 +61,19 @@ function raisonClaire(r: RaisonConfiance): string {
   return t || sansCodes(r.texte);
 }
 
-function Certitude({ score }: { score: number }) {
-  const pct = Math.round(Math.min(1, Math.max(0, score > 1 ? score / 100 : score)) * 100);
-  const cls = pct >= 75 ? "haute" : pct >= 50 ? "moyenne" : "basse";
+function Certitude({ vue }: { vue: VueCertitude }) {
+  if (vue.genre === "regle") {
+    return (
+      <div className="syn-certitude c-regle" title="Une règle fixe de la passerelle a retenu l'appel">
+        <span className="syn-certitude-val">{vue.texte}</span>
+      </div>
+    );
+  }
   return (
-    <div className={`syn-certitude c-${cls}`} title="Certitude calculée par Dédale à partir des signes observés">
-      <span className="syn-certitude-val">Sûr à {pct} %</span>
+    <div className={`syn-certitude c-${vue.niveau}`} title="Certitude calculée par Dédale à partir des signes observés">
+      <span className="syn-certitude-val">{vue.texte}</span>
       <span className="syn-jauge" aria-hidden="true">
-        <span style={{ transform: `scaleX(${pct / 100})` }} />
+        <span style={{ transform: `scaleX(${vue.pct / 100})` }} />
       </span>
     </div>
   );
@@ -88,6 +94,7 @@ export function SyntheseBloc({
 }) {
   const phrases = synthese?.phrases?.map((p) => p.texte) ?? (prete ? repli : []);
   const conf = synthese?.confiance;
+  const certitude = lireCertitude(conf);
   // Dossier fermé : on ne conseille plus rien qui contredirait la décision prise.
   const brut = synthese?.decision_recommandee;
   const conseil = brut && brut.dossier_ferme && !brut.deja_appliquee ? null : brut;
@@ -99,7 +106,7 @@ export function SyntheseBloc({
     <section className="syn" aria-labelledby="syn-titre">
       <div className="syn-tete">
         <h3 id="syn-titre" className="syn-titre">Ce qui s'est passé</h3>
-        {conf && typeof conf.score === "number" && <Certitude score={conf.score} />}
+        {certitude && <Certitude vue={certitude} />}
       </div>
       {phrases.length === 0 ? (
         <p className="syn-attente">Lecture du dossier…</p>

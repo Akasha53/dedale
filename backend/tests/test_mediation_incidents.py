@@ -43,3 +43,39 @@ def test_regle_de_mediation_nomme_l_incident(client, regle, nature, outil, type_
     inc = next(i for i in incidents if i["session_id"] == sid)
     assert inc["type"] == type_attendu
     assert client.get(f"/api/sessions/{sid}").json()["etat"] == "suspendue"
+
+
+def _incident_mediation(client, regle, nature, outil):
+    client.post("/api/leurres", json=[
+        {"id": regle, "source": "interne", "surface": "outil", "nature": nature,
+         "emplacement": "passerelle de l'agent interne", "description": "Règle, pas un piège."},
+    ])
+    sid = f"S-cert-{nature}"
+    client.post("/api/evenements", json=evenement(
+        session_id=sid, source="interne", surface="outil", type="appel_outil", outil=outil,
+        details={"verdict": "retenu", "retenu": True, "motif": nature, "parametres": {},
+                 nature: {"outil": outil, "regle": regle}},
+        horodatage=horo(BASE, 0)))
+    client.post("/api/evenements", json=evenement(
+        session_id=sid, source="interne", surface="outil", type="leurre_touche",
+        leurre_id=regle, outil=outil, details={"type": nature, "detail": "retenu"},
+        horodatage=horo(BASE, 0.1)))
+    return next(i for i in client.get("/api/incidents").json()["incidents"] if i["session_id"] == sid)["id"]
+
+
+@pytest.mark.parametrize("regle,nature,outil,type_attendu", REGLES)
+def test_retenue_par_regle_sans_pourcentage(client, regle, nature, outil, type_attendu):
+    """Une règle fixe a retenu l'appel : la certitude nomme la règle, sans score ni raisons."""
+    iid = _incident_mediation(client, regle, nature, outil)
+    conf = client.get(f"/api/incidents/{iid}/synthese").json()["confiance"]
+    assert conf["niveau"] == "regle" and conf["regle"] == regle
+    assert conf["score"] is None and conf["raisons"] == []
+
+
+@pytest.mark.parametrize("regle,nature,outil,type_attendu", REGLES[:1])
+def test_pre_tri_reprend_la_certitude_de_la_synthese(client, regle, nature, outil, type_attendu):
+    """Une seule source : le pré-tri porte la certitude de la synthèse, telle quelle."""
+    iid = _incident_mediation(client, regle, nature, outil)
+    conf = client.get(f"/api/incidents/{iid}/synthese").json()["confiance"]
+    tri = client.get(f"/api/incidents/{iid}/tri").json()
+    assert tri["certitude"] == {"score": conf["score"], "niveau": conf["niveau"], "regle": conf["regle"]}

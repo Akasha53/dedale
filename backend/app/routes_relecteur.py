@@ -14,7 +14,7 @@ from typing import Callable
 
 from fastapi import APIRouter, Body, FastAPI, HTTPException
 
-from . import auth, memoire_relecteur, relecteur
+from . import auth, memoire_relecteur, relecteur, synthese
 
 routeur = APIRouter()
 _TAILLE_MAX = 256 * 1024
@@ -86,7 +86,21 @@ async def tri_incident(iid: str):
     d = relecteur.tri_incident(iid)
     if d is None:
         raise HTTPException(status_code=404, detail=f"Incident inconnu : {iid}")
+    d["certitude"] = _certitude(iid)
     return d
+
+
+def _certitude(iid: str) -> dict | None:
+    """Certitude de l'incident, prise à la synthèse : la console l'affiche à l'identique dans le
+    résumé et dans le pré-tri. `confiance` reste l'avis propre du relecteur (son doute)."""
+    detail = relecteur.store.incident_detail(iid)
+    if detail is None:
+        return None
+    sess = relecteur.store.session_detail(detail["session_id"]) or {}
+    try:
+        return synthese.certitude(detail, sess.get("evenements", []))
+    except Exception:  # le pré-tri reste lisible sans certitude
+        return None
 
 
 class Observateur:

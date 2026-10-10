@@ -1,11 +1,12 @@
 // Avis du relecteur IA sur un incident (GET /api/incidents/{id}/tri) : priorité,
-// décision proposée, motif, confiance. Une ligne discrète en haut du panneau de
+// décision proposée, motif, et la certitude du résumé. Une ligne discrète en haut du panneau de
 // décision : un avis, jamais une décision.
 
 import { useEffect, useState } from "react";
 import { useDonnees } from "../api/store";
 import type { Incident, PreTri } from "../types";
 import { ACTION_CONSEILLEE, decoder } from "../ui/mots";
+import { lireCertitude } from "../ui/certitude";
 
 const PRIORITE: Record<string, string> = { haute: "priorité haute", normale: "priorité normale", basse: "priorité basse" };
 
@@ -29,18 +30,23 @@ export function AvisRelecteur({ incident }: { incident: Incident }) {
   if (!tri || !tri.decision_proposee) return null;
   const qui = tri.tranche_par && tri.tranche_par !== "règles" ? `relecteur IA (${tri.tranche_par})` : "règles du relecteur";
   const action = (ACTION_CONSEILLEE[tri.decision_proposee] ?? tri.decision_proposee).toLowerCase();
-  const confiance = typeof tri.confiance === "number" ? `${Math.round(tri.confiance * 100)} %` : null;
+  // La certitude affichée est celle du résumé (tri.certitude), jamais l'avis chiffré
+  // du relecteur (tri.confiance), qui ne sert plus qu'à son doute.
+  const certitude = lireCertitude(tri.certitude);
+  // Une règle fixe a retenu l'appel : le doute chiffré du relecteur ne s'affiche pas
+  // à côté, il contredirait la règle.
+  const aVerifier = Boolean(tri.doute) && certitude?.genre !== "regle";
   const motif = tri.motif_soc ?? tri.motif;
   return (
-    <p className={`avis-relecteur ${tri.doute ? "doute" : ""}`}>
+    <p className={`avis-relecteur ${aVerifier ? "doute" : ""}`}>
       <span className="avis-lib">
         Pré-tri · {qui}
         {tri.statut === "en_cours" ? ", en cours" : ""}
       </span>
       <span className="avis-val">
         {PRIORITE[tri.priorite ?? ""] ?? "priorité inconnue"} · propose de {action}
-        {confiance ? ` · sûr à ${confiance}` : ""}
-        {tri.doute ? " · à vérifier" : ""}
+        {certitude ? ` · ${certitude.texte.charAt(0).toLowerCase()}${certitude.texte.slice(1)}` : ""}
+        {aVerifier ? " · à vérifier" : ""}
       </span>
       {motif && <span className="avis-motif">{decoder(motif)}</span>}
     </p>
