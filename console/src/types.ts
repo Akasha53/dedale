@@ -113,6 +113,12 @@ export interface DroitsAgent {
   accordes: Droit[];
   utilises?: Droit[];
   necessaires: Droit[];
+  // Champs tolérés posés par le backend (moindre privilège) : jeton de la
+  // tâche, tâche, surplus accordé et tentatives hors du jeton.
+  jeton?: string[];
+  tache?: string | null;
+  surplus?: string[];
+  tentatives_hors_scope?: { outil?: string; scope_requis?: string }[];
 }
 
 export type DecisionAction =
@@ -154,6 +160,18 @@ export interface Incident {
   avertissement?: string;
   choix?: ChoixSalarie;
   evenements?: Evenement[];
+  // Repères de temps lus sur la session liée (GET /api/sessions/{id}) : début,
+  // détection (classement agent IA ou canari) et confinement (coupure). Tous
+  // optionnels : le chrono se replie sur la chaîne et les décisions.
+  temps_session?: TempsSession;
+  decide_a?: string | null;
+}
+
+export interface TempsSession {
+  premiere_vue?: string | null;
+  derniere_vue?: string | null;
+  detecte_a?: string | null;
+  confine_a?: string | null;
 }
 
 export interface Evenement {
@@ -161,6 +179,12 @@ export interface Evenement {
   type: string;
   horodatage?: string;
   details: Record<string, unknown>;
+  // Champs du journal backend, lus par la boîte noire de l'agent.
+  source?: string;
+  surface?: string;
+  outil?: string | null;
+  leurre_id?: string | null;
+  leurre_nature?: string | null;
 }
 
 export interface Leurre {

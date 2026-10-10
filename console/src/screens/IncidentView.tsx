@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDonnees } from "../api/store";
 import type {
   ChoixSalarie,
@@ -9,6 +9,7 @@ import type {
   Pilier,
   Session,
 } from "../types";
+import { IncidentAgent } from "../agent/IncidentAgent";
 import {
   appartientPilier,
   BadgeChoixSalarie,
@@ -124,6 +125,28 @@ export function IncidentView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idCourant, getIncident]);
 
+  // Le flux WS et le rafraîchissement périodique mettent la liste à jour (riposte
+  // de la passerelle, nouvelle décision, appel libéré). Quand la version de
+  // l'incident courant change, on relit son détail sans repasser par le spinner.
+  const versionListe = useMemo(() => {
+    const i = incidents.find((x) => x.id === idCourant);
+    return i ? `${i.etat}|${i.statut}|${i.chaine?.length ?? 0}|${i.decisions?.length ?? 0}` : "";
+  }, [incidents, idCourant]);
+  const versionVue = useRef("");
+  useEffect(() => {
+    if (!idCourant || !versionListe) return;
+    const precedente = versionVue.current;
+    versionVue.current = `${idCourant}#${versionListe}`;
+    if (!precedente.startsWith(`${idCourant}#`) || precedente === versionVue.current) return;
+    let vivant = true;
+    getIncident(idCourant)
+      .then((d) => vivant && setDetail(d))
+      .catch(() => undefined);
+    return () => {
+      vivant = false;
+    };
+  }, [idCourant, versionListe, getIncident]);
+
   const trancher = async (action: DecisionAction) => {
     if (!idCourant || decisionEnCours) return;
     setDecisionEnCours(action);
@@ -176,24 +199,37 @@ export function IncidentView({
     <>
       {segments}
       {incidentsVue.length > 1 && (
-        <div className="panneau">
-          <div className="corps" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {incidentsVue.map((i) => (
-              <button
-                key={i.id}
-                className={`btn ${i.id === idCourant ? "primaire" : "fantome"}`}
-                onClick={() => setIncidentSel(i.id)}
-                title={libelleType(i.type)}
-              >
-                {i.id} · {libelleType(i.type)}
-              </button>
-            ))}
-          </div>
-        </div>
+        <nav className="dossiers" aria-label="Incidents du pilier">
+          {incidentsVue.map((i) => (
+            <button
+              key={i.id}
+              type="button"
+              className={`dossier-puce ${i.id === idCourant ? "actif" : ""}`}
+              aria-current={i.id === idCourant ? "true" : undefined}
+              onClick={() => setIncidentSel(i.id)}
+              title={i.titre}
+            >
+              <span className={`dossier-point statut-${i.statut ?? "ouvert"} etat-${i.etat}`} />
+              <span className="dossier-id">{i.id}</span>
+              <span className="dossier-type">{libelleType(i.type)}</span>
+            </button>
+          ))}
+        </nav>
       )}
 
       {!detail || detail.id !== idCourant ? (
         <Spinner />
+      ) : estIncidentAgent(detail) ? (
+        <>
+          {erreurDetail && <div className="decision-erreur" role="alert">{erreurDetail}</div>}
+          <IncidentAgent
+            incident={detail}
+            majEnCours={chargeDetail}
+            decisionEnCours={decisionEnCours}
+            erreurDecision={erreurDecision}
+            trancher={(a) => void trancher(a)}
+          />
+        </>
       ) : (
         <div className="incident-layout">
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -406,6 +442,12 @@ function PanneauLateral({ incident }: { incident: Incident }) {
       </div>
     </div>
   );
+}
+
+// Agent IA interne d'Orbis Pay : écran dédié (boîte noire en six maillons,
+// couper / reprendre). Un incident humain n'y passe jamais.
+function estIncidentAgent(inc: Incident): boolean {
+  return !estIncidentHumain(inc) && (inc.source === "interne" || (inc.type ?? "").startsWith("interne_"));
 }
 
 // Un incident relève du pilier salariés s'il vient d'un poste/physique ou si

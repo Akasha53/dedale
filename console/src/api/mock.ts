@@ -331,7 +331,7 @@ const incidents: Incident[] = [
         titre: "Ouverture d'un chat IA grand public",
         detail:
           "Amélie ouvre un onglet vers un assistant IA externe et prépare un collage depuis le presse-papiers.",
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "OWASP LLM02", nom: "Sensitive Information Disclosure" }],
       },
       {
         ordre: 2,
@@ -341,7 +341,7 @@ const incidents: Incident[] = [
         detail:
           "Pop-up affichée : « Clé API de production détectée dans le presse-papiers. La coller sur un service externe l'expose définitivement. »",
         choix: "annuler",
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "OWASP LLM02", nom: "Sensitive Information Disclosure" }],
       },
       {
         ordre: 3,
@@ -380,7 +380,7 @@ const incidents: Incident[] = [
         horodatage: ilYA(50),
         titre: "Rédaction d'un mail sortant",
         detail: "Karim compose un mail avec une pièce jointe depuis son poste.",
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "OWASP LLM02", nom: "Sensitive Information Disclosure" }],
       },
       {
         ordre: 2,
@@ -390,7 +390,7 @@ const incidents: Incident[] = [
         detail:
           "Pop-up affichée : « Destinataire hors Orbis Pay et pièce jointe de type base clients. »",
         choix: "continuer",
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "OWASP LLM02", nom: "Sensitive Information Disclosure" }],
       },
       {
         ordre: 3,
@@ -402,7 +402,7 @@ const incidents: Incident[] = [
         techniques: [
           { id: "T1567", nom: "Exfiltration via service web", cadre: "ATT&CK" },
         ],
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "OWASP LLM02", nom: "Sensitive Information Disclosure" }],
       },
     ],
     decisions: [],
@@ -433,7 +433,7 @@ const incidents: Incident[] = [
         titre: "Dépôt de fichier vers une IA externe",
         detail:
           "Sophie glisse un fichier RH dans l'interface d'un service d'IA grand public.",
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "OWASP LLM02", nom: "Sensitive Information Disclosure" }],
       },
       {
         ordre: 2,
@@ -443,7 +443,7 @@ const incidents: Incident[] = [
         detail:
           "Pop-up affichée : « Fichier RH nominatif vers une IA non autorisée par Orbis Pay. »",
         choix: "annuler",
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "OWASP LLM02", nom: "Sensitive Information Disclosure" }],
       },
       {
         ordre: 3,
@@ -585,7 +585,7 @@ const incidents: Incident[] = [
         ],
         risques: [
           { id: "ASI01", nom: "Détournement du contrôle de l'agent" },
-          { id: "ASI05", nom: "Usurpation d'outil / de route" },
+          { id: "ASI02", nom: "Abus d'outil" },
         ],
       },
       {
@@ -600,7 +600,7 @@ const incidents: Incident[] = [
           { id: "AML.T0053", nom: "Usage d'outil LLM détourné", cadre: "ATLAS" },
           { id: "T1119", nom: "Collecte automatisée", cadre: "ATT&CK" },
         ],
-        risques: [{ id: "ASI04", nom: "Abus / explosion d'appels d'outils" }],
+        risques: [{ id: "ASI02", nom: "Abus d'outil" }],
       },
       {
         ordre: 4,
@@ -613,7 +613,7 @@ const incidents: Incident[] = [
           { id: "AML.T0057", nom: "Fuite de données via LLM", cadre: "ATLAS" },
           { id: "T1567", nom: "Exfiltration via service web", cadre: "ATT&CK" },
         ],
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "OWASP LLM02", nom: "Sensitive Information Disclosure" }],
       },
       {
         ordre: 5,
@@ -677,7 +677,7 @@ const incidents: Incident[] = [
         techniques: [
           { id: "T1119", nom: "Collecte automatisée", cadre: "ATT&CK" },
         ],
-        risques: [{ id: "ASI06", nom: "Fuite d'informations sensibles" }],
+        risques: [{ id: "ASI02", nom: "Abus d'outil" }],
       },
       {
         ordre: 4,
@@ -687,9 +687,9 @@ const incidents: Incident[] = [
         detail:
           "L'appel de sortie est retenu par la passerelle tant que l'analyste n'a pas tranché (reprendre ou couper).",
         techniques: [
-          { id: "T1041", nom: "Exfiltration via canal C2", cadre: "ATT&CK" },
+          { id: "AML.T0057", nom: "Fuite de données (LLM)", cadre: "ATLAS" },
         ],
-        risques: [{ id: "ASI08", nom: "Exfiltration de données" }],
+        risques: [],
       },
     ],
     decisions: [],
@@ -719,7 +719,7 @@ const incidents: Incident[] = [
         techniques: [
           { id: "AML.T0053", nom: "Usage d'outil LLM détourné", cadre: "ATLAS" },
         ],
-        risques: [{ id: "ASI05", nom: "Usurpation d'outil / de route" }],
+        risques: [{ id: "ASI02", nom: "Abus d'outil" }],
       },
       {
         ordre: 2,
@@ -730,9 +730,9 @@ const incidents: Incident[] = [
           "L'agent appelle reconcilier_tout() au lieu des outils de sa tâche. La passerelle reçoit « suspendre » et retient l'appel.",
         canari_id: "C-0033",
         techniques: [
-          { id: "AML.T0054", nom: "Contournement des garde-fous (LLM)", cadre: "ATLAS" },
+          { id: "AML.T0053", nom: "Outil d'agent détourné", cadre: "ATLAS" },
         ],
-        risques: [{ id: "ASI04", nom: "Abus / explosion d'appels d'outils" }],
+        risques: [{ id: "ASI02", nom: "Abus d'outil" }],
       },
     ],
     decisions: [],

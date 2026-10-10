@@ -32,7 +32,7 @@ const ENTETE_PILIER: Record<
     },
     incident: {
       titre: "Agent IA détourné — boîte noire",
-      desc: "Chaîne reconstruite, droits de l'agent, décision de l'analyste, exports.",
+      desc: "Ce que l'agent a lu et tenté, ce que la passerelle a retenu. Vous coupez ou vous reprenez.",
     },
   },
   externe: {

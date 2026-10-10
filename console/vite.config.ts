@@ -5,6 +5,11 @@ import react from "@vitejs/plugin-react";
 // URL /api et /ws marchent telles quelles une fois le build servi par le backend.
 // Si le backend est absent, le proxy renvoie une erreur et la console bascule
 // sur le mock local (voir src/api/source.ts).
+// DEDALE_BACKEND pointe le proxy vers un autre backend (ex. une base de test sur
+// un autre port) sans toucher au 8700 partagé.
+declare const process: { env: Record<string, string | undefined> };
+const BACKEND = (process.env.DEDALE_BACKEND || "http://127.0.0.1:8700").replace(/\/$/, "");
+
 export default defineConfig({
   plugins: [react()],
   base: "./",
@@ -13,11 +18,11 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8700",
+        target: BACKEND,
         changeOrigin: true,
       },
       "/ws": {
-        target: "ws://127.0.0.1:8700",
+        target: BACKEND.replace(/^http/, "ws"),
         ws: true,
       },
     },

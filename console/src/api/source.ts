@@ -6,6 +6,7 @@ import type {
   Session,
   DecisionAction,
   Evenement,
+  TempsSession,
 } from "../types";
 
 // Interface unique que la console consomme. Deux implémentations : le backend
@@ -71,12 +72,23 @@ export const sourceLive: SourceDonnees = {
   getIncidents: () => liste<Incident>("/api/incidents", "incidents"),
   getIncident: async (id) => {
     const incident = await j<Incident>(`/api/incidents/${encodeURIComponent(id)}`);
-    if (incident.source === "humain" || incident.source === "physique") {
+    // Salarié et agent interne : le journal de session porte le geste, ou les
+    // appels d'outils et canaris dont la boîte noire de l'agent a besoin.
+    if (incident.source === "humain" || incident.source === "physique" || incident.source === "interne") {
       try {
-        const session = await j<{ evenements: Evenement[] }>(
+        const session = await j<{ evenements: Evenement[] } & TempsSession>(
           `/api/sessions/${encodeURIComponent(incident.session_id)}`
         );
-        return { ...incident, evenements: session.evenements };
+        return {
+          ...incident,
+          evenements: session.evenements,
+          temps_session: {
+            premiere_vue: session.premiere_vue,
+            derniere_vue: session.derniere_vue,
+            detecte_a: session.detecte_a,
+            confine_a: session.confine_a,
+          },
+        };
       } catch {
         // Le détail de l'incident reste consultable si le journal de session échoue.
       }
