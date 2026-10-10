@@ -1,4 +1,4 @@
-# Règles Sigma — traces Dédale (agents IA + pilier humain)
+# Règles Sigma — traces sAIfe (agents IA + pilier humain)
 
 Règles génériques sur les traces, complémentaires du tri en direct du backend.
 Le backend reste la détection temps réel ; ces règles servent à rejouer les traces dans un SIEM
@@ -30,7 +30,7 @@ Champs humains : `event.action = avertissement`, `dedale.details.categorie`
 Les règles ciblent les champs produits par l'export ECS du backend
 (`GET /api/incidents/{id}/export?format=ecs`), avec `logsource.product = dedale` :
 
-- `event.action` : type d'événement Dédale (`requete`, `appel_outil`, `leurre_touche`,
+- `event.action` : type d'événement sAIfe (`requete`, `appel_outil`, `leurre_touche`,
   `sortie_agent`, `entree_agent`, `riposte`) ;
 - `dedale.session_id`, `dedale.surface`, `dedale.leurre_id`, `dedale.leurre_nature`,
   `dedale.outil` ;

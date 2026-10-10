@@ -1,6 +1,6 @@
 # poste/ : le garde du corps du poste du salarié
 
-Avenant « humain, le maillon faible » de Dédale. Un agent local observe une
+Avenant « humain, le maillon faible » de sAIfe. Un agent local observe une
 action risquée **avant** qu'elle n'aboutisse, décide selon des règles claires,
 avertit le salarié et le laisse choisir (continuer / annuler). Non bloquant :
 il prévient. Chaque avertissement et chaque choix part au backend

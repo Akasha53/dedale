@@ -1,4 +1,4 @@
-# Extension Dédale : sites louches
+# Extension sAIfe : sites louches
 
 Extension Chrome (Manifest V3) qui prévient un salarié d'Orbis Pay avant qu'il n'ouvre un site louche : un sosie d'Orbis Pay ou d'une marque connue, une marque glissée dans un autre domaine, une adresse IP brute, l'astuce « marque@vrai-hôte ». Elle ne lit que l'adresse de la page : ni son contenu, ni les formulaires, ni ce que la personne tape.
 
@@ -41,7 +41,7 @@ node tests/bout_en_bout.js              # parcours complet dans Chrome sans fen�
 ../partage/verifier.sh                  # même corpus passé au moteur Swift de l'app, résultats comparés
 ```
 
-`bout_en_bout.js` demande Node 22 ou plus, `uv` et Chrome. Il lance sur des ports libres un backend Dédale isolé (`DEDALE_DB` temporaire, jamais le port 8700) et un faux site local, puis Chrome sur un profil temporaire. `--host-resolver-rules` envoie `*.example` vers le faux site, sans toucher à `/etc/hosts`. Chrome stable ignore `--load-extension` depuis la version 137 : le script charge l'extension par le canal CDP `Extensions.loadUnpacked`. La variable `CHROME` choisit un autre binaire, `--captures <dossier>` garde les captures d'écran.
+`bout_en_bout.js` demande Node 22 ou plus, `uv` et Chrome. Il lance sur des ports libres un backend sAIfe isolé (`DEDALE_DB` temporaire, jamais le port 8700) et un faux site local, puis Chrome sur un profil temporaire. `--host-resolver-rules` envoie `*.example` vers le faux site, sans toucher à `/etc/hosts`. Chrome stable ignore `--load-extension` depuis la version 137 : le script charge l'extension par le canal CDP `Extensions.loadUnpacked`. La variable `CHROME` choisit un autre binaire, `--captures <dossier>` garde les captures d'écran.
 
 Le script visite un domaine neutre, le vrai domaine et quatre sosies d'Orbis Pay (dont un qui ne résout nulle part), clique sur les deux boutons, coupe le backend, puis vérifie l'incident `humain_phishing`, le contenu exact de l'événement (ni chemin ni paramètres), les compteurs et le badge. Il finit par une marque connue détournée (`paypal.com.verif-compte.example`) et une adresse IP brute.
 
@@ -51,4 +51,4 @@ Le script visite un domaine neutre, le vrai domaine et quatre sosies d'Orbis Pay
 - Un site légitime qui contient le nom de l'entreprise, comme `orbispay-partenaires.fr`, est signalé : la personne le débloque d'un clic pour la session.
 - Seuls les sosies des domaines de l'entreprise sont bloqués avant la requête. Pour les autres sites louches, sur un site très rapide, la première requête peut partir et la page commencer à s'afficher avant que l'avertissement la remplace.
 - Seul le cadre principal est examiné. Un site louche chargé dans une iframe d'un autre site n'est pas vu.
-- Un retour arrière n'est pas envoyé au backend : les « gestes arrêtés » des mesures Dédale ne comptent pas ceux de l'extension.
+- Un retour arrière n'est pas envoyé au backend : les « gestes arrêtés » des mesures sAIfe ne comptent pas ceux de l'extension.

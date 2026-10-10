@@ -1,4 +1,4 @@
-# Console SOC — Dédale
+# Console SOC — sAIfe
 
 Écran de l'analyste. Lit l'API du backend (`127.0.0.1:8700`) et son WebSocket
 `/ws`. Stack : Vite + React + TypeScript.
@@ -59,7 +59,7 @@ qu'il répond.
 3. **Incident d'agent IA** (`src/agent/`). En tête, « Ce qui s'est passé »
    (`GET /api/incidents/{id}/synthese`) : les phrases du copilote, la certitude
    et la décision conseillée. Puis la boîte noire, triée par heure : chaque
-   étape se déplie et montre la donnée brute désarmée, pourquoi Dédale l'a
+   étape se déplie et montre la donnée brute désarmée, pourquoi sAIfe l'a
    repérée, ce qu'elle aurait pu provoquer, l'heure précise et les références
    OWASP / ATLAS / ATT&CK, repliées. L'étape « Lecture » ouvre le mail ou le
    document en entier, partie piégée surlignée (`document_source` du maillon
@@ -67,7 +67,7 @@ qu'il répond.
    chacun expliqué en une ligne : couper l'agent, laisser passer l'action,
    retirer un droit (`POST /api/incidents/{id}/retirer-droit`). Quand la
    passerelle a déjà refusé l'action d'office (droit absent du jeton, faux
-   collègue), l'écran le dit (« Refusé par Dédale en 1 ms »), sans compteur,
+   collègue), l'écran le dit (« Refusé par sAIfe en 1 ms »), sans compteur,
    et propose d'abord « Clore l'incident » ; couper reste possible en second.
 4. **Incident salarié** (`src/salarie/lecture.ts`). Le geste, le vrai message
    de la pop-up avec le lien désarmé en dessous, puis les étapes, dépliables

@@ -15,7 +15,7 @@ curl -s http://127.0.0.1:8715/verdicts | python3 -m json.tool
 
 `./demarrer.sh` seul lance la boîte sans le service, et ne relance rien de ce qui tourne déjà. L'interface de Mailpit (http://127.0.0.1:8716) montre les mails reçus. Le service relève la boîte chaque seconde et pousse chaque nouveau verdict sur `GET /flux` (SSE) et `WS /ws`.
 
-Chaque mail frauduleux part aussi au backend Dédale, à l'adresse `DEDALE_BACKEND` (8700 par défaut). `MESSAGERIE_SIGNALER=0` coupe cet envoi. Pour essayer sur un backend isolé, arrêter d'abord un service déjà lancé (il garde son backend), puis :
+Chaque mail frauduleux part aussi au backend sAIfe, à l'adresse `DEDALE_BACKEND` (8700 par défaut). `MESSAGERIE_SIGNALER=0` coupe cet envoi. Pour essayer sur un backend isolé, arrêter d'abord un service déjà lancé (il garde son backend), puis :
 
 ```bash
 cd backend && DEDALE_DB=/tmp/dedale-essai.db uv run uvicorn app.main:app --port 8790
