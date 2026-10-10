@@ -890,6 +890,11 @@ function mesuresCourantes(): Mesures {
     number
   >;
   for (const s of sessions) repartition[s.classement]++;
+  // Le mock garde ses gestes annulés comme incidents : on en tire le bloc
+  // gestes_humains que le backend calcule sur ses avertissements.
+  const humains = incidents.filter((i) => i.source === "humain" || i.source === "physique");
+  const arretes = humains.filter((i) => i.choix === "annuler").length;
+  const passesOutre = humains.filter((i) => i.choix === "continuer").length;
   return {
     taux_detection: 0.94,
     faux_positifs: 0.06,
@@ -909,6 +914,12 @@ function mesuresCourantes(): Mesures {
       { t: "-1 min", valeur: 0.94 },
       { t: "maintenant", valeur: 0.94 },
     ],
+    gestes_humains: {
+      arretes,
+      passes_outre: passesOutre,
+      total: arretes + passesOutre,
+      incidents_humains: humains.length,
+    },
   };
 }
 

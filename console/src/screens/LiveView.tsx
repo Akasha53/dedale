@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useDonnees } from "../api/store";
-import type { Incident, Pilier, Session } from "../types";
+import type { GestesHumains, Incident, Pilier, Session } from "../types";
 import {
   appartientPilier,
   BadgeClassement,
@@ -12,25 +12,20 @@ import {
   tempsRelatif,
 } from "../ui/primitives";
 
-// Choix du salarié résolu depuis l'incident (champ direct, sinon maillon
-// `avertissement` de la chaîne). Renvoie null si inconnu.
-function choixIncident(i: Incident): "continuer" | "annuler" | null {
-  if (i.choix) return i.choix;
-  const m = (i.chaine ?? []).find((x) => x.phase === "avertissement" && x.choix);
-  return m?.choix ?? null;
-}
-
 // Compteurs propres à chaque pilier. Pour les salariés, on met en tête le
 // nombre de salariés surveillés et les gestes risqués arrêtés (l'argument).
+// Arrêtés et passés outre viennent de /api/mesures : un geste annulé n'ouvre
+// aucun incident, on ne peut donc pas les compter sur la liste d'incidents.
 function compteursPilier(
   pilier: Pilier,
   dansVue: Session[],
-  incidentsVue: Incident[]
+  incidentsVue: Incident[],
+  gestes: GestesHumains | undefined
 ): { lib: string; val: number; sous: string; alerte?: boolean }[] {
   const incidentsOuverts = incidentsVue.filter((i) => i.etat !== "coupee").length;
   if (pilier === "humain") {
-    const arretes = incidentsVue.filter((i) => choixIncident(i) === "annuler").length;
-    const passesOutre = incidentsVue.filter((i) => choixIncident(i) === "continuer").length;
+    const arretes = gestes?.arretes ?? 0;
+    const passesOutre = gestes?.passes_outre ?? 0;
     return [
       { lib: "Salariés surveillés", val: dansVue.length, sous: "postes sous garde du corps" },
       {
@@ -90,7 +85,7 @@ export function LiveView({
   pilier: Pilier;
   setPilier: (p: Pilier) => void;
 }) {
-  const { sessions, incidents, chargement } = useDonnees();
+  const { sessions, incidents, mesures, chargement } = useDonnees();
 
   const dansVue = sessions.filter((s) => appartientPilier(s.source, pilier));
   const incidentsVue = incidents.filter((i) => appartientPilier(i.source, pilier));
@@ -102,7 +97,7 @@ export function LiveView({
     return c;
   }, [sessions]);
 
-  const compteurs = compteursPilier(pilier, dansVue, incidentsVue);
+  const compteurs = compteursPilier(pilier, dansVue, incidentsVue, mesures?.gestes_humains);
   const incidentParSession = new Map(incidents.map((i) => [i.session_id, i.id]));
 
   // Les plus suspects d'abord.

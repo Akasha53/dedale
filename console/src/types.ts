@@ -178,6 +178,17 @@ export interface Mesures {
   incidents_clos: number;
   repartition: Record<Classement, number>;
   serie_detection: PointSerie[];
+  gestes_humains?: GestesHumains;
+}
+
+// Bloc du pilier salariés dans /api/mesures (toléré absent). « arretes » =
+// avertissements annulés, « passes_outre » = avertissements continués.
+export interface GestesHumains {
+  arretes: number;
+  passes_outre: number;
+  total: number;
+  passes_outre_par_type?: Record<string, number>;
+  incidents_humains?: number;
 }
 
 // Message du WebSocket /ws
