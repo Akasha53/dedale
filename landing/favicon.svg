@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dédale">
-  <rect width="64" height="64" rx="13" fill="#091820"/>
-  <path d="M10 10h29v9H19v26h20v9H10V10Zm27 0h17v44H37v-9h8V19h-8v-9Z" fill="#61e1d0"/>
+  <rect width="64" height="64" rx="14" fill="#F7F9FD"/>
+  <rect x=".75" y=".75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="#0F172A" stroke-opacity=".12" stroke-width="1.5"/>
+  <path d="M10 10h29v9H19v26h20v9H10V10Zm27 0h17v44H37v-9h8V19h-8v-9Z" fill="#0E7490"/>
 </svg>
