@@ -1881,3 +1881,9 @@ Menu « Exporter » d'un dossier : « Lignes CEF » et « Alertes et SMS » (fen
 - Pas de nouvel essai : un webhook en échec reste `echec`. UDP peut perdre une trame ; pas de TLS (`tls://`) pour le syslog.
 - Le domaine enregistré (`registered_domain`) est approché par les deux derniers labels, sans liste des suffixes publics.
 - Les variantes proxy citent la marque fictive Orbis Pay et une liste de services d'IA et de collecte : à adapter chez le client.
+
+## Avenant du 11 octobre 2026 : phrase piégée refusée, repli expliqué (règles du SOC)
+
+- `POST /api/politiques/analyser` refuse une phrase qui demande à l'agent des règles de s'activer ou d'appliquer lui-même une règle, d'ignorer ses consignes, ou qui lui parle comme une consigne système : `refusee: true`, `refuse_par` (`"motifs"` ou `"modèle"`), `comprise: false`, `regle: null`, `question: null`, texte « Phrase refusée : elle demande à l'agent de s'activer lui-même. Rien n'est proposé. ». Repérée par les motifs, aucune instance de l'agent n'est lancée (`agent_regles: null`, `lecteur.moteur: "garde"`).
+- L'agent des règles a une seconde fin, l'appel `refuser` avec un champ `motif` (ajouté au schéma de chaque appel). Quand il refuse, les motifs ne proposent rien derrière lui, même s'ils liraient la phrase.
+- Repli quand le modèle dépasse son délai : `repli` vaut « le modèle a mis trop de temps (plus de 8 s) : lecture par motifs » (ou « le modèle a atteint sa limite d'usage », « modèle injoignable »). La console écrit « Lu par les motifs : le modèle a mis trop de temps (plus de 8 s). ».
