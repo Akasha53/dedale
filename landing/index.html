@@ -370,33 +370,33 @@
           <article class="case l5 apparait" style="--d:1">
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-globe"/></svg></span>
             <p class="case-lieu">Navigateur</p>
-            <h3>Les sites sosies arrêtés</h3>
-            <p>Une extension Chrome compare l'adresse de la page aux domaines de l'entreprise. Un sosie comme 0rbispay ou orbispay-verification est remplacé par un avertissement. Elle ne lit que l'adresse.</p>
+            <h3>Les sites sosies et louches arrêtés</h3>
+            <p>Une extension Chrome juge l'adresse de la page avec les mêmes règles que l'app Mac. Un sosie comme 0rbispay ou un site louche est remplacé par un avertissement. Elle ne lit que l'adresse.</p>
           </article>
           <article class="case l5 apparait">
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-pause"/></svg></span>
             <p class="case-lieu">Agents IA</p>
             <h3>L'appel retenu avant l'exécution</h3>
-            <p>La passerelle retient un appel d'outil qui sort des droits de la tâche, un envoi hors de l'entreprise ou une action dictée par une consigne cachée. L'agent attend la décision de l'analyste.</p>
+            <p>La passerelle retient un appel d'outil qui sort des droits de la tâche, part hors de l'entreprise ou suit une consigne cachée. Elle contrôle tous les outils, même inconnus : un outil absent de l'inventaire, détourné ou modifié en cours de route attend la décision de l'analyste.</p>
           </article>
           <article class="case l7 apparait" style="--d:1">
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-texte"/></svg></span>
             <p class="case-lieu">Console SOC</p>
             <h3>Des règles écrites en français</h3>
             <p class="citation">« L'agent de tri ne doit jamais envoyer de mail hors d'Orbis Pay. »</p>
-            <p>L'analyste écrit sa règle en une phrase. sAIfe la reformule, montre ce qu'il a compris et attend un feu vert avant de l'activer.</p>
+            <p>L'analyste écrit sa règle en une phrase. Un agent ouvert pour cette seule phrase la lit, propose la règle, puis se ferme et perd ses accès. sAIfe montre ce qu'il a compris, dit ce qu'il n'a pas su traduire et attend un feu vert avant de l'activer.</p>
           </article>
           <article class="case l7 apparait">
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-liste"/></svg></span>
             <p class="case-lieu">Console SOC</p>
             <h3>L'inventaire des agents et leur résistance</h3>
-            <p>Chaque agent a sa fiche : son rôle, les droits accordés, ceux qu'il utilise, ceux qu'il a en trop. Le banc lui envoie des contenus piégés et compte ceux qui ont abouti, avec le nombre d'essais.</p>
+            <p>Chaque agent a sa fiche : son rôle, les droits accordés, ceux qu'il utilise, ceux qu'il a en trop. « Retire les droits en trop aux agents » les retire pour de bon : la passerelle refuse ensuite l'appel. Le banc envoie des contenus piégés et compte ceux qui ont abouti.</p>
           </article>
           <article class="case l5 apparait" style="--d:1">
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-yeux"/></svg></span>
             <p class="case-lieu">Geste critique</p>
-            <h3>Un relecteur IA, puis l'analyste</h3>
-            <p>Pour un virement ou un export de données, un modèle rapide accorde ou refuse le geste en quelques secondes. L'analyste peut revenir sur cette décision après coup.</p>
+            <h3>Un virement n'arrête personne sans raison</h3>
+            <p>Un virement habituel part sans rien afficher. Un RIB qui change ou un bénéficiaire inconnu le retient pour le responsable ou la finance. Après un mail frauduleux, un relecteur IA tranche en quelques secondes, sans lire le mail, et la sécurité est prévenue.</p>
           </article>
         </div>
       </div>
@@ -407,14 +407,14 @@
         <div>
           <p class="surtitre apparait">Exporter</p>
           <h2 id="exporter-titre" class="apparait" style="--d:1">Ce qui sort de la console.</h2>
-          <p class="chapeau apparait" style="--d:2">Le menu « Exporter » d'un incident donne quatre pièces.</p>
+          <p class="chapeau apparait" style="--d:2">Le menu « Exporter » d'un incident donne quatre pièces. L'incident part aussi vers votre SIEM en lignes CEF par syslog, et l'alerte vers Teams ou Slack, au SOC ou au responsable selon le cas.</p>
           <ul class="liste-exports apparait" style="--d:2">
-            <li><svg class="ic" aria-hidden="true"><use href="#i-json"/></svg><div><b>Export ECS</b><span>Les événements de l'incident en JSON, au format d'Elastic.</span></div></li>
-            <li><svg class="ic" aria-hidden="true"><use href="#i-regle"/></svg><div><b>Règle Sigma</b><span>Une règle calquée sur l'incident, à convertir pour votre SIEM.</span></div></li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-json"/></svg><div><b>Export ECS</b><span>Les événements de l'incident en JSON, au format ECS 8.11 d'Elastic, techniques ATT&amp;CK comprises.</span></div></li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-regle"/></svg><div><b>Règles Sigma</b><span>Les règles qui attrapent l'incident, validées par sigma-cli, à convertir pour Splunk ou Elastic.</span></div></li>
             <li><svg class="ic" aria-hidden="true"><use href="#i-page"/></svg><div><b>Rapport d'une page</b><span>Ce qui s'est passé, la décision et son auteur, l'état de l'agent, la chronologie. Il s'imprime ou s'enregistre en PDF.</span></div></li>
-            <li><svg class="ic" aria-hidden="true"><use href="#i-sceau"/></svg><div><b>Journal scellé</b><span>Chaque événement et chaque décision porte une empreinte SHA-256 liée à la précédente. La vérification relit la base et nomme l'étape modifiée, s'il y en a une.</span></div></li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-sceau"/></svg><div><b>Journal scellé</b><span>Chaque événement et chaque décision porte une empreinte SHA-256 liée à la précédente et la signature de son émetteur ; la base refuse toute modification. La vérification relit le dossier et nomme le champ modifié, s'il y en a un.</span></div></li>
           </ul>
-          <p class="limite apparait" style="--d:3">Limite : une base réécrite en entier, empreintes recalculées comprises, ne se repère qu'en la comparant à une empreinte gardée ailleurs, celle du rapport imprimé par exemple.</p>
+          <p class="limite apparait" style="--d:3">Limite : un administrateur qui tient le serveur peut réécrire la base et la signer à nouveau. Cela ne se repère qu'en comparant le journal à une empreinte gardée ailleurs, celle du rapport imprimé par exemple.</p>
         </div>
         <figure class="apparait" style="--d:1">
           <div class="cadre"><div class="cadre-coeur"><img src="img/v2/rapport-incident.webp" width="1400" height="1042" loading="lazy" alt="Haut du rapport d'incident : ce qui s'est passé, décision humaine « Agent coupé » avec son auteur, état actuel et intégrité du journal « Journal intact » avec son empreinte"></div></div>
@@ -449,6 +449,11 @@
           </div>
         </div>
 
+        <article class="dora apparait" style="margin-top:14px">
+          <h3>Besoin d'en connaître</h3>
+          <p>L'équipe sécurité suit les menaces sans lire les affaires de l'entreprise : montants en tranches, bénéficiaires et IBAN masqués. Le détail ne s'ouvre qu'en cas de signal de fraude, et chaque consultation est notée au journal scellé. Un virement retenu sans fraude va au responsable du salarié ou à la finance, qui voit le montant, le bénéficiaire et la raison, puis accorde ou refuse avec un motif signé. La sécurité n'en apprend que l'issue.</p>
+        </article>
+
         <div class="engagements">
           <div class="bloc apparait">
             <div class="bloc-tete"><span class="etat fait">Dans le prototype</span></div>
@@ -466,6 +471,7 @@
               <li><b>Une durée de conservation.</b> 90 jours par défaut, valeur retenue pour la démonstration et réglable. Passé ce délai, l'incident sera effacé.</li>
               <li><b>Information et CSE.</b> Les salariés seront informés et le CSE consulté avant la mise en service.</li>
               <li><b>Aucun score sur une personne.</b> Le score de suspicion sera réservé aux agents IA.</li>
+              <li><b>Un modèle hébergé dans l'UE.</b> Le relecteur IA tourne déjà sans modèle, sur ses seules règles. En production, il passera par un modèle hébergé dans l'UE ou sur place.</li>
             </ul>
           </div>
         </div>
@@ -500,9 +506,35 @@
           <li><strong>MITRE ATLAS</strong><span>AML.T0051 · T0053</span></li>
           <li><strong>MITRE ATT&amp;CK</strong><span>T1566 hameçonnage</span></li>
           <li><strong>NIST CSF 2.0</strong><span>Détecter · Répondre</span></li>
-          <li><strong>ECS · Sigma</strong><span>exports vers un SIEM</span></li>
+          <li><strong>ECS · CEF · Sigma</strong><span>vers votre SIEM</span></li>
         </ul>
         <p class="note apparait" style="--d:2">Ces repères situent les risques et les contrôles. Aucune certification ni notification réglementaire automatique, et personne n'a encore audité ces correspondances.</p>
+      </div>
+    </section>
+    <section class="section gris" id="feuille-de-route" aria-labelledby="route-titre">
+      <div class="shell">
+        <div class="tete-section">
+          <p class="surtitre apparait">Feuille de route</p>
+          <h2 id="route-titre" class="apparait" style="--d:1">Ce qui viendra après ce week-end.</h2>
+          <p class="chapeau apparait" style="--d:2">Rien de ce qui suit ne tourne dans le prototype.</p>
+        </div>
+        <div class="engagements">
+          <div class="bloc apparait">
+            <div class="bloc-tete"><span class="etat prevu">Demandé par les testeurs</span></div>
+            <ul>
+              <li><b>Une app Windows.</b> Le volet poste existe aujourd'hui sur Mac et dans Chrome.</li>
+              <li><b>Microsoft 365.</b> Le garde-mail branché sur Outlook et Exchange, puis sur Google Workspace, à la place de la boîte de démo.</li>
+              <li><b>Le SSO.</b> Un compte par analyste et par responsable, avec les rôles de l'annuaire de l'entreprise.</li>
+            </ul>
+          </div>
+          <div class="bloc apparait" style="--d:1">
+            <div class="bloc-tete"><span class="etat prevu">Ensuite</span></div>
+            <ul>
+              <li><b>Un journal vérifiable de l'extérieur.</b> Publier son empreinte sur Avalanche le rendrait vérifiable même contre l'administrateur du serveur. Nous explorons cette voie ; rien n'est publié aujourd'hui.</li>
+              <li><b>Des envois réels.</b> Le SMS d'astreinte part aujourd'hui dans un journal local, et le résumé du lundi reste un aperçu. Viendront de vrais envois et des connecteurs pour Sentinel et Splunk.</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </section>
   </main>
