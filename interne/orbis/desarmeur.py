@@ -322,7 +322,13 @@ _FORMULES: list[tuple[str, str, int, re.Pattern]] = [
     ("exfiltration", "it", 1, _m(
         r"\b(?:invia|inoltra|includi|allega|copia|incolla)\b[^.!?\n]{0,60}?\b(?:chiavi?|password|"
         r"token|segreto|credenziali)\b")),
-    ("exfiltration", "*", 1, _m(r"!\[[^\]]*\]\(\s*https?://")),
+    # Lien ou image markdown vers une cible externe, avec ou sans schéma : http(s)://,
+    # protocol-relative //hôte, www.hôte, ou hôte.tld suivi d'un chemin. Signal faible compté
+    # dans un passage caché, comme l'ancien motif qui n'attrapait que les images en https://.
+    ("exfiltration", "*", 1, _m(
+        r"!?\[[^\]]*\]\(\s*(?:https?:)?//"
+        r"|!?\[[^\]]*\]\(\s*www\.[a-z0-9-]"
+        r"|!?\[[^\]]*\]\(\s*(?:[a-z0-9-]+\.)+[a-z]{2,}[/?#]")),
 ]
 
 # Verbes qui demandent à un agent d'agir sur des données : un signal faible, compté seulement

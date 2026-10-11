@@ -22,10 +22,18 @@ from urllib.parse import urlparse
 
 from . import config, desarmeur
 
-# Liens markdown : [texte](url) et images ![texte](url). On capture l'URL.
+# Liens markdown : [texte](url) et images ![texte](url). On capture l'URL, avec ou sans schéma.
 _MD_LIEN = re.compile(r"!?\[[^\]]*\]\(\s*(?P<url>[^)\s]+)")
-# URL nue http(s) dans un texte, en secours.
-_URL_NUE = re.compile(r"https?://[^\s<>\"')]+")
+# URL nue dans un texte, en secours : http(s)://, protocol-relative //hôte, www.hôte, ou un
+# hôte.tld suivi d'un chemin. Le hôte nu exige un chemin (et un lookbehind qui l'isole d'un
+# schéma ou d'une adresse mail) pour ne pas confondre une phrase ordinaire avec une destination.
+_URL_FORMES = re.compile(
+    r"https?://[^\s<>\"')\]]+"
+    r"|(?<![\w./@:-])//(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#][^\s<>\"')\]]*)?"
+    r"|(?<![\w./@:-])www\.(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#][^\s<>\"')\]]*)?"
+    r"|(?<![\w./@:-])(?:[a-z0-9-]+\.)+[a-z]{2,}/[^\s<>\"')\]]*",
+    re.IGNORECASE,
+)
 
 # Ancien motif de la détection par simple motif en français. Il vit désormais dans le désarmeur,
 # où il n'est plus qu'un signal faible parmi d'autres ; le nom reste pour les appelants.
@@ -46,8 +54,16 @@ class Trouvaille:
 
 
 def _hote(url: str) -> str | None:
+    u = (url or "").strip()
+    if not u:
+        return None
+    # Protocol-relative (//hôte/…) et URL sans schéma (hôte/…) : on pose un schéma pour urlparse.
+    if u.startswith("//"):
+        u = "http:" + u
+    elif "://" not in u:
+        u = "http://" + u
     try:
-        n = urlparse(url if "://" in url else "http://" + url)
+        n = urlparse(u)
         return (n.hostname or "").lower() or None
     except ValueError:
         return None
@@ -65,19 +81,19 @@ def _est_externe(hote: str | None) -> bool:
 
 
 def detecter_exfiltration(texte: str) -> list[Trouvaille]:
-    """Liens/images markdown (et URL nues) pointant vers un domaine externe."""
+    """Liens/images markdown et URL nues (avec ou sans schéma) pointant vers un domaine externe."""
     if not texte:
         return []
     urls: list[str] = list(_MD_LIEN.findall(texte))
-    # URL nues non déjà capturées en markdown.
-    for u in _URL_NUE.findall(texte):
+    # Formes nues non déjà capturées en markdown : http(s)://, //hôte, www.hôte, hôte.tld/chemin.
+    for u in _URL_FORMES.findall(texte):
         if u not in urls:
             urls.append(u)
     trouvailles: list[Trouvaille] = []
     vus: set[str] = set()
     for url in urls:
-        hote = _hote(url)
-        if _est_externe(hote) and url not in vus:
+        hote = _hote_cible(url)
+        if hote and _est_externe(hote) and url not in vus:
             vus.add(url)
             trouvailles.append(
                 Trouvaille(
@@ -165,6 +181,35 @@ _CLES_CIBLE = {"destinataire", "destinataires", "a", "to", "cc", "cci", "bcc", "
                "courriel", "site", "uri"}
 _MAIL = re.compile(r"[\w.+-]+@((?:[\w-]+\.)+[\w-]+)")
 _DOMAINE = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$", re.IGNORECASE)
+# Un nom de fichier (rapport.md, data.json) n'est pas un hôte : son « TLD » est une extension.
+_EXT_FICHIER = {
+    "md", "txt", "json", "csv", "pdf", "png", "jpg", "jpeg", "gif", "svg", "webp", "ico",
+    "py", "js", "ts", "tsx", "jsx", "html", "htm", "xml", "yml", "yaml", "toml", "ini",
+    "cfg", "conf", "env", "log", "lock", "zip", "tar", "gz", "doc", "docx", "xls", "xlsx",
+    "ppt", "pptx", "sh", "bat", "exe", "bin", "dat", "db", "sqlite",
+}
+
+
+def _hote_cible(morceau: str) -> str | None:
+    """Hôte d'un jeton isolé — URL à schéma ou non, protocol-relative, hôte nu, www. ou adresse
+    mail nue — ou None si ce n'est pas un hôte. Écarte les chemins de fichiers locaux (./x, /tmp/x,
+    ~/x), les versions (3.14) et les noms de fichiers ; exige un TLD alphabétique plausible."""
+    m = (morceau or "").strip().strip("<>\"'()[]")
+    if not m:
+        return None
+    if m.startswith("//") or "://" in m:          # protocol-relative (//hôte) ou URL à schéma
+        return _hote(m)
+    if m.startswith((".", "/", "~", "\\")):        # chemin de fichier local
+        return None
+    if "@" in m:                                    # adresse mail nue : local@hôte.tld
+        mm = _MAIL.search(m)
+        return mm.group(1).lower() if mm else None
+    autorite = re.split(r"[/?#]", m, maxsplit=1)[0]  # hôte nu, avec ou sans chemin
+    if not _DOMAINE.match(autorite):
+        return None
+    if autorite.rsplit(".", 1)[-1].lower() in _EXT_FICHIER:
+        return None
+    return _hote(autorite)
 
 
 def _cibles(valeur, cle: str | None = None) -> list[str]:
@@ -186,15 +231,7 @@ def cibles_externes(params: dict) -> list[tuple[str, str]]:
         for morceau in re.split(r"[,;\s]+", brut.strip()):
             if not morceau:
                 continue
-            if "://" in morceau:
-                hote = _hote(morceau)
-            elif "@" in morceau:
-                m = _MAIL.search(morceau)
-                hote = m.group(1).lower() if m else None
-            elif _DOMAINE.match(morceau):
-                hote = morceau.lower()
-            else:
-                hote = None
+            hote = _hote_cible(morceau)
             if hote and _est_externe(hote) and (morceau, hote) not in trouvees:
                 trouvees.append((morceau, hote))
     return trouvees
