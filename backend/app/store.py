@@ -572,7 +572,8 @@ class Store:
                     sess.geste_categorie = cat
                 if details.get("origine") == "relecteur" and details.get("quatre_yeux") == "demande":
                     sess.flag_geste_retenu = True
-                    if cat:
+                    if cat and not sess.geste_incident_categorie:
+                        # Rejoint le dossier d'une alerte : le type reste celui de l'alerte.
                         sess.geste_incident_categorie = cat
                     if details.get("gravite") in ("faible", "moyenne", "haute", "critique"):
                         sess.geste_gravite = details["gravite"]

@@ -72,12 +72,15 @@ def test_la_boite_noire_ne_prete_pas_un_continuer_jamais_clique(client):
                             "IBAN HK12 3456 7890 1234 5678, demandé par le PDG.", "poste-ferral-compta-03", "c2")
     assert pdg["fraude"] is True and pdg["incident_id"]
     _calme()
-    for iid in (v["incident_id"], pdg["incident_id"]):
-        inc = client.get(f"/api/incidents/{iid}").json()
-        etapes = [e["etape"] for e in inc["chaine"]]
-        assert "choix" not in etapes and "avertissement" not in etapes, etapes
-        assert "continuer" not in " ".join(e.get("detail") or "" for e in inc["chaine"])
-        assert "passé outre" not in (inc.get("resume") or "")
+    # Le virement rejoint le dossier de la vraie alerte : un seul « Continuer », celui du salarié.
+    inc = client.get(f"/api/incidents/{v['incident_id']}").json()
+    assert [e["etape"] for e in inc["chaine"]].count("choix") == 1
+    # Le virement lu seul, sans alerte avant : aucun choix prêté au salarié.
+    inc = client.get(f"/api/incidents/{pdg['incident_id']}").json()
+    etapes = [e["etape"] for e in inc["chaine"]]
+    assert "choix" not in etapes and "avertissement" not in etapes, etapes
+    assert "continuer" not in " ".join(e.get("detail") or "" for e in inc["chaine"])
+    assert "passé outre" not in (inc.get("resume") or "")
     sess = client.get(f"/api/sessions/{client.get(f'/api/incidents/{pdg['incident_id']}').json()['session_id']}").json()
     assert all((e.get("details") or {}).get("choix") is None for e in sess["evenements"])
     # Mesures : un seul « Continuer » simulé, un seul compté.

@@ -905,6 +905,11 @@ def _apres_alerte(base: str, details: dict, reference: datetime | None) -> bool:
     """Le geste arrive juste après une alerte passée outre ou un signalement (mail ou site douteux),
     dans les 30 dernières minutes, sur ce poste seulement : le signal reste attaché au salarié qui
     a vu l'alerte, jamais aux virements des autres postes."""
+    return _session_de_l_alerte(base, details, reference) is not None
+
+
+def _session_de_l_alerte(base: str, details: dict, reference: datetime | None) -> str | None:
+    """Session de l'alerte qui précède le geste sur ce poste (voir `_apres_alerte`), ou None."""
     reference = reference or datetime.now(timezone.utc)
     for s in _sessions_du_poste(base, details):
         for e in _evenements(s):
@@ -916,8 +921,8 @@ def _apres_alerte(base: str, details: dict, reference: datetime | None) -> bool:
                 continue
             if (e.get("type") == "avertissement" and d.get("choix") == "continuer"
                     and d.get("categorie") in ("phishing", "site_louche", "site")) or e.get("type") == "signalement":
-                return True
-    return False
+                return s.id
+    return None
 
 
 def faits_depuis(d: dict, sid: str, horodatage: datetime | None, exclure: int | None = None) -> dict:
@@ -1958,6 +1963,15 @@ async def verifier_geste(corps: dict) -> dict:
     sid_inc = f"{base[:60]}-4y-{did}"
     b = faits.get("beneficiaire") or {}
     with store.lock:
+        # Un geste qui suit une alerte sur ce poste rejoint le dossier ouvert de cette alerte : un
+        # même enchaînement (« Continuer » puis virement) n'ouvre qu'un incident.
+        alerte = _session_de_l_alerte(base, details, maintenant) if faits.get("apres_alerte") else None
+        inc_alerte = _incident_de(store.sessions[alerte]) if alerte in store.sessions else None
+        if inc_alerte is not None and inc_alerte.statut == "ouvert":
+            sid_inc = alerte
+    cle_q = f"q:{did}"
+    _en_cours.add(cle_q)  # l'observateur ne relance pas ce geste pendant qu'on le tranche ici
+    with store.lock:
         res = _ingerer({
             "categorie": details.get("categorie") if details.get("categorie") in _NATURES else "mail_externe",
             # Aucun « choix » : le salarié n'a vu aucune alerte avant cette vérification.
@@ -1995,6 +2009,7 @@ async def verifier_geste(corps: dict) -> dict:
                                                               statut="retenu_soc", incident_id=iid))
         else:
             job = None
+    _en_cours.discard(cle_q)
     if job:
         persister(job)
         if resultat.get("enrichir"):
