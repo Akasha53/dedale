@@ -43,3 +43,7 @@ data/*.json.tmp
 
 # Journal de démo des SMS simulés (backend/app/notifications.py) : jamais envoyés
 data/sms-demo.log
+.build/
+captures/
+README_OLLAMA.md
+**/generated_images/
