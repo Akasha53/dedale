@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 # Construit Dedale.app (application de barre de menus) dans app-mac/.
 # Usage : ./construire.sh [--lancer]
+# DEDALE_APP_SORTIE construit l'app dans un autre dossier, et DEDALE_SWIFT_SCRATCH compile
+# ailleurs que dans .build/ : de quoi vérifier la construction sans toucher à l'app qui tourne.
 set -euo pipefail
 
 ICI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ICI"
 
-swift build -c release
-BIN="$(swift build -c release --show-bin-path)/Dedale"
-APP="$ICI/Dedale.app"
+SCRATCH=()
+if [ -n "${DEDALE_SWIFT_SCRATCH:-}" ]; then SCRATCH=(--scratch-path "$DEDALE_SWIFT_SCRATCH"); fi
+swift build -c release ${SCRATCH[@]+"${SCRATCH[@]}"}
+BIN="$(swift build -c release ${SCRATCH[@]+"${SCRATCH[@]}"} --show-bin-path)/Dedale"
+SORTIE="${DEDALE_APP_SORTIE:-$ICI}"
+mkdir -p "$SORTIE"
+APP="$SORTIE/Dedale.app"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"

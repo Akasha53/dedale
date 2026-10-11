@@ -230,6 +230,9 @@ async function principal() {
     `--remote-debugging-port=${pCdp}`,
     "--host-resolver-rules=MAP *.example 127.0.0.1",
     "--headless=new",
+    // Profil neuf sans trousseau macOS : pas de fenêtre « Chrome Safe Storage ».
+    "--use-mock-keychain",
+    "--password-store=basic",
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-features=HttpsUpgrades",
