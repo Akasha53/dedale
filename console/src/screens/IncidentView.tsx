@@ -452,6 +452,9 @@ interface Relecture {
   tranche_par?: string;
   duree_ms?: number;
   modele?: string;
+  // Après un refus sûr des règles, le modèle donne son explication en tâche de fond.
+  explication?: string;
+  explicationPar?: string;
 }
 
 function relectureDe(inc: Incident): Relecture | null {
@@ -460,7 +463,16 @@ function relectureDe(inc: Incident): Relecture | null {
     .find((e) => e.type === "relecture" && (e.details as Record<string, unknown>)?.acte === "quatre_yeux");
   if (!ev) return null;
   const d = ev.details as Record<string, unknown>;
+  const expl = [...(inc.evenements ?? [])]
+    .reverse()
+    .find((e) => {
+      const x = e.details as Record<string, unknown>;
+      return e.type === "relecture" && x?.acte === "explication" && x?.demande_id === d.demande_id;
+    });
+  const dx = (expl?.details ?? {}) as Record<string, unknown>;
   return {
+    explication: typeof dx.motif_soc === "string" ? desarmer(dx.motif_soc) : undefined,
+    explicationPar: typeof dx.tranche_par === "string" ? dx.tranche_par : undefined,
     decision: typeof d.decision === "string" ? d.decision : undefined,
     // Le relecteur écrit un motif pour la SOC et un autre pour le salarié : la console lit le premier.
     motif: typeof d.motif_soc === "string" ? desarmer(d.motif_soc) : typeof d.motif === "string" ? desarmer(d.motif) : undefined,
@@ -623,6 +635,12 @@ function IncidentSalarie({
                   {phraseRelecture(relecture)}
                 </p>
                 {relecture.motif && <p className="relecture-motif">Motif : {relecture.motif}</p>}
+                {relecture.explication && (
+                  <p className="relecture-motif">
+                    Explication du relecteur IA{relecture.explicationPar ? ` (${relecture.explicationPar})` : ""} :{" "}
+                    {relecture.explication}
+                  </p>
+                )}
                 {!ferme && <p className="relecture-recours">Vous pouvez revenir sur cette décision, avec un motif.</p>}
               </div>
             ) : (

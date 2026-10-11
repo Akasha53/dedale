@@ -151,7 +151,8 @@ def test_repli_sur_panne_les_regles_tranchent(client):
              message="Ce mail réclame un virement urgent.")
     rel = _relecture(client, "d3")
     assert rel["decision"] == "refuse" and rel["tranche_par"] == "règles" and rel["mode"] == "regles"
-    assert rel["repli"] == "panne"
+    # Refus sûr des règles : réponse immédiate, le modèle ne tourne qu'après, pour l'explication.
+    assert rel["repli"] is None
     assert "frauduleux" in rel["motif"]
 
 
@@ -237,7 +238,12 @@ def test_garde_fou_les_regles_bloquent_un_accord_du_modele(client):
     sid = _mail_frauduleux(client, "M2")
     _demande(client, did="d8", sid=sid, geste="virement", categorie="phishing", message="Virement demandé.")
     rel = _relecture(client, "d8")
-    assert rel["decision"] == "refuse" and rel["garde_fou"] is True and rel["tranche_par"] == "règles"
+    assert rel["decision"] == "refuse" and rel["tranche_par"] == "règles"
+    # Le modèle convaincu d'accorder ne s'exprime qu'après coup, dans l'explication : la décision reste.
+    _calme()
+    inc = next(i for i in client.get("/api/incidents").json()["incidents"] if i["session_id"] == sid)
+    detail = client.get(f"/api/incidents/{inc['id']}").json()["relecteur"]
+    assert detail["decision"] == "refuse" and detail["explication_modele"]["avis_modele"] == "accorde"
 
 
 def test_relecteur_coupe_rien_ne_change(client, monkeypatch):

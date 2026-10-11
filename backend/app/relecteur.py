@@ -1326,7 +1326,13 @@ async def decider_geste(faits: dict, modele_permis: bool = True) -> dict:
     debut = time.perf_counter()
     regles = regles_geste(faits)
     mode, repli, sortie = mode_prevu(), None, None
+    enrichir = False
     if not modele_permis:
+        mode = "regles"
+    elif regles["decision"] == "refuse" and regles["ferme"]:
+        # Refus sûr : les règles répondent tout de suite, le salarié n'attend pas le modèle. Le
+        # modèle peut ensuite enrichir l'explication pour la console (`_enrichir`), jamais la décision.
+        enrichir = mode in ("api", "cli") and time.time() >= _etat["suspendu_jusqua"]
         mode = "regles"
     elif mode == "regles":
         repli = None if mode_configure() == "regles" else "sans_modele"
@@ -1399,8 +1405,48 @@ async def decider_geste(faits: dict, modele_permis: bool = True) -> dict:
         "priorite": None, "motif": motif, "motif_soc": motif, "motif_salarie": salarie,
         "confiance": confiance, "tranche_par": par, "mode": mode,
         "modele": modele() if mode in ("api", "cli") else None, "repli": repli, "garde_fou": garde_fou,
-        "duree_ms": round((time.perf_counter() - debut) * 1000),
+        "duree_ms": round((time.perf_counter() - debut) * 1000), "enrichir": enrichir,
     }
+
+
+async def _enrichir(sid: str, did: str, faits: dict) -> None:
+    """Après un refus sûr des règles, demande au modèle son explication, en tâche de fond. Elle
+    entre au journal comme une relecture `explication` : la console l'affiche à côté du motif des
+    règles. Elle ne change jamais la décision, déjà rendue au salarié."""
+    cle = f"e:{did}"
+    if cle in _en_cours:
+        return
+    _en_cours.add(cle)
+    try:
+        mode = mode_prevu()
+        if mode not in ("api", "cli") or time.time() < _etat["suspendu_jusqua"]:
+            return
+        debut = time.perf_counter()
+        sortie = valider_geste(await _appeler(SYSTEME_GESTE, message_utilisateur(faits_pour_le_modele(faits)),
+                                              SCHEMA_GESTE, mode))
+        if sortie is None:
+            return
+        resultat = {"acte": "explication", "decision": None, "action": None, "priorite": None,
+                    "decision_proposee": None, "motif": sortie["motif_soc"], "motif_soc": sortie["motif_soc"],
+                    "motif_salarie": None, "confiance": sortie["confiance"], "tranche_par": nom_modele(),
+                    "mode": mode, "modele": modele(), "repli": None, "garde_fou": False,
+                    "duree_ms": round((time.perf_counter() - debut) * 1000), "precedents": None,
+                    "appui_memoire": None}
+        with store.lock:
+            sess = store.sessions.get(sid)
+            inc = _incident_de(sess) if sess else None
+            if inc is None:
+                return
+            job = _sceller(sess, inc, resultat, {"demande_id": did, "avis_modele": sortie["decision"]})
+        persister(job)
+    except ErreurModele as exc:
+        if exc.repli == "limite_usage":
+            _etat["suspendu_jusqua"] = time.time() + SUSPENSION_APRES_LIMITE_S
+        _journal.info("Relecteur : pas d'explication du modèle pour %s (%s)", did, exc.repli)
+    except Exception:
+        _journal.exception("Relecteur : explication impossible pour %s", did)
+    finally:
+        _en_cours.discard(cle)
 
 
 def _quota_tri() -> bool:
@@ -1589,6 +1635,8 @@ async def _traiter_demande(sid: str, eid: int, did: str) -> None:
                 return
             job = _sceller(sess, inc, resultat, {"demande_id": did})
         persister(job)
+        if resultat.get("enrichir"):
+            _lancer(_enrichir(sid, did, faits))
         _journal.info("Relecteur : demande %s %s par %s en %d ms", did, resultat["decision"],
                       resultat["tranche_par"], resultat["duree_ms"])
     except Exception:
@@ -1689,7 +1737,12 @@ def resume_incident(iid: str, evs: list[dict], decisions: list[dict]) -> dict | 
     if not rels:
         return None
     d = rels[-1].get("details") or {}
+    expl = [e.get("details") or {} for e in _relectures(evs, "explication")
+            if (e.get("details") or {}).get("demande_id") == d.get("demande_id")]
+    explication = ({"motif_soc": expl[-1].get("motif_soc"), "avis_modele": expl[-1].get("avis_modele"),
+                    "modele": expl[-1].get("modele"), "duree_ms": expl[-1].get("duree_ms")} if expl else None)
     return {"demande_id": d.get("demande_id"), "decision": d.get("decision"), "motif_soc": d.get("motif_soc"),
+            "explication_modele": explication,
             "motif_salarie": d.get("motif_salarie"), "confiance": d.get("confiance"),
             "tranche_par": d.get("tranche_par"), "mode": d.get("mode"), "duree_ms": d.get("duree_ms"),
             "horodatage": rels[-1].get("horodatage"), "suivi": suivi_humain(rels[-1], decisions),
@@ -1773,7 +1826,8 @@ def file_a_regarder() -> dict:
 
 def mesures(evenements: list[dict]) -> dict:
     """Bloc `relecteur` de `/api/mesures` : décisions par acte et par mode, durées."""
-    rel = [e.get("details") or {} for e in evenements if e.get("type") == "relecture"]
+    rel = [e.get("details") or {} for e in evenements if e.get("type") == "relecture"
+           and (e.get("details") or {}).get("acte") in ("quatre_yeux", "pre_tri")]
     durees = [d["duree_ms"] for d in rel if isinstance(d.get("duree_ms"), (int, float))]
     par_mode: dict[str, dict] = {}
     for d in rel:
@@ -1943,6 +1997,8 @@ async def verifier_geste(corps: dict) -> dict:
             job = None
     if job:
         persister(job)
+        if resultat.get("enrichir"):
+            _lancer(_enrichir(sid_inc, did, faits))
     sortie["incident_id"] = iid
     return fin("refuse" if resultat["decision"] == "refuse" else "retenu", resultat["motif_salarie"], resultat)
 
@@ -1992,9 +2048,11 @@ def valider_metier(demande_id: str, verdict: str, validateur: str, motif: str = 
         sess = store.sessions.get(demande["session_id"])
         moment = datetime.now(timezone.utc).isoformat()
         motif_propre_ = motif_propre(motif) if motif and motif.strip() else None
+        qualite = re.search(r"\((responsable|finance)\)\s*$", str(validateur or ""))
         decision = memoire.sceller(sess, "validation_decidee", {
             "acte": "validation_decidee", "demande_id": demande_id, "verdict": verdict,
-            "validateur": str(validateur or "validateur")[:40], "motif": motif_propre_, "date": moment},
+            "validateur": str(validateur or "validateur")[:40], "motif": motif_propre_, "date": moment,
+            "qualite": qualite.group(1) if qualite else None},
             user_agent="dedale-relecteur")
         evenements = [decision]
         faits = (demande.get("details") or {}).get("faits_memoire") or {}
