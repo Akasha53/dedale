@@ -10,8 +10,8 @@
   "marques": [
     { "nom": "PayPal", "mots": ["paypal"], "domaines": ["paypal.com", "paypal.fr", "paypal.me", "paypalobjects.com", "paypal-community.com"] },
     { "nom": "Amazon", "mots": ["amazon"], "domaines": ["amazon.com", "amazon.fr", "amazon.de", "amazon.co.uk", "amazon.it", "amazon.es", "amazon.ca", "amazon.nl", "amazon.co.jp", "amazon.jobs", "amazonaws.com", "amazon-adsystem.com", "media-amazon.com", "ssl-images-amazon.com", "primevideo.com"] },
-    { "nom": "Apple", "mots": ["apple", "icloud", "appleid"], "domaines": ["apple.com", "apple.fr", "icloud.com", "me.com", "mac.com", "cdn-apple.com", "mzstatic.com"] },
-    { "nom": "Microsoft", "mots": ["microsoft", "office365", "onedrive", "sharepoint", "outlook"], "domaines": ["microsoft.com", "microsoftonline.com", "microsoft365.com", "live.com", "outlook.com", "office.com", "office.net", "office365.com", "onedrive.com", "sharepoint.com", "msn.com", "bing.com", "azure.com", "windows.com", "windows.net", "xbox.com", "skype.com", "msauth.net", "msftauth.net"] },
+    { "nom": "Apple", "mots": ["apple", "icloud", "appleid"], "domaines": ["apple.com", "apple.fr", "icloud.com", "me.com", "mac.com", "cdn-apple.com", "mzstatic.com", "apple"] },
+    { "nom": "Microsoft", "mots": ["microsoft", "office365", "onedrive", "sharepoint", "outlook"], "domaines": ["microsoft.com", "microsoftonline.com", "microsoft365.com", "live.com", "outlook.com", "office.com", "office.net", "office365.com", "onedrive.com", "sharepoint.com", "msn.com", "bing.com", "azure.com", "windows.com", "windows.net", "xbox.com", "skype.com", "msauth.net", "msftauth.net", "microsoft", "cloud.microsoft"] },
     { "nom": "Google", "mots": ["google", "gmail"], "domaines": ["google", "google.com", "google.fr", "google.de", "google.co.uk", "google.be", "google.ch", "google.ca", "google.es", "google.it", "gmail.com", "googlemail.com", "youtube.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "googlevideo.com", "googleblog.com", "googlesource.com", "google-analytics.com", "googletagmanager.com", "googlesyndication.com", "googleadservices.com", "doubleclick.net", "withgoogle.com"] },
     { "nom": "Netflix", "mots": ["netflix"], "domaines": ["netflix.com", "netflix.net", "nflxext.com", "nflximg.net", "nflxvideo.net", "nflxso.net"] },
     { "nom": "Doctolib", "mots": ["doctolib"], "domaines": ["doctolib.fr", "doctolib.de", "doctolib.it"] },
@@ -44,6 +44,16 @@
   ],
 
   "domaines_surs": ["paypay.ne.jp"],
+
+  "mots_courants": [
+    "cloud", "mail", "webmail", "secure", "account", "accounts", "pay", "office", "login", "logon", "signin",
+    "home", "store", "shop", "support", "help", "team", "teams", "work", "live", "drive", "photo", "photos",
+    "news", "map", "maps", "play", "meet", "doc", "docs", "site", "sites", "info", "online", "app", "apps",
+    "web", "portal", "admin", "user", "users", "data", "file", "files", "media", "service", "services",
+    "group", "groups", "member", "members", "zone", "space", "link", "links", "connect", "access", "update",
+    "center", "centre", "compte", "client", "clients", "espace", "aide", "mon", "cloud", "hub", "studio",
+    "dashboard", "console", "panel", "status", "blog", "shopping", "search", "video", "music", "chat"
+  ],
 
   "appats": [
     "verification", "verif", "verifier", "verify", "valider", "validation", "confirm", "confirmation",

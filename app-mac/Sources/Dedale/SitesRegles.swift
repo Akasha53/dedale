@@ -50,6 +50,7 @@ struct ReglesSites: Decodable {
     let organisation: Organisation
     let marques: [Marque]
     let domaines_surs: [String]
+    let mots_courants: [String]?
     let appats: [String]
     let extensions_risque: [String]
     let raccourcisseurs: [String]
@@ -118,6 +119,7 @@ final class MoteurSites {
     private let risque: Set<String>
     private let appats: [(mot: String, sq: String)]
     private let appatParSq: [String: String]
+    private let motsCourants: Set<String>
     private static let alphabets = ["latin", "grec", "cyrillique", "armenien"]
 
     init(_ regles: ReglesSites) {
@@ -140,6 +142,19 @@ final class MoteurSites {
         var parSq: [String: String] = [:]
         for a in calcules where parSq[a.sq] == nil { parSq[a.sq] = a.mot }
         appatParSq = parSq
+        motsCourants = Set((regles.mots_courants ?? []).map { $0.lowercased() })
+    }
+
+    /// Un label qui n'est qu'un mot courant (« cloud », « mail », « office »…) n'imite pas
+    /// une marque, même à une lettre près : le « i » manquant d'« icloud » ne compte pas.
+    /// Vrai seulement sans chiffre, sans punycode ni caractère d'un autre alphabet.
+    private func motCourantSimple(_ nomUni: String) -> Bool {
+        if nomUni.unicodeScalars.contains(where: { ("0"..."9").contains($0) }) { return false }
+        if nomUni.hasPrefix("xn--") { return false }
+        if nomUni.unicodeScalars.contains(where: { $0.value > 0x7F }) { return false }
+        let brut = nomUni.replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: "_", with: "").lowercased()
+        return motsCourants.contains(brut)
     }
 
     // MARK: Squelette
@@ -412,10 +427,12 @@ final class MoteurSites {
                     return Trouve(categorie: "sosie", raison: "confusables", imite: vrai, valeurs: ["nom": lu.nom, "mot": mot])
                 }
             }
-            // c. Une ou deux lettres d'écart.
+            // c. Une ou deux lettres d'écart. Un mot courant proche d'une marque (« cloud »
+            // d'« icloud ») ne compte pas : il faut une vraie preuve de sosie.
             let max = m.ecart ?? seuil(mot, palier)
             let ecart = Self.distance(sq(ctx.nomUni), skm)
             if ecart > 0, ecart <= max {
+                if !m.strict, motCourantSimple(ctx.nomUni) { continue }
                 let n = Self.distance(ctx.nomUni, mot)
                 let texte = n == 1 ? regles.textes.ecart_un : Self.remplir(regles.textes.ecart_plusieurs, ["n": String(n)])
                 return Trouve(categorie: "sosie", raison: "distance", imite: vrai,
@@ -479,7 +496,10 @@ final class MoteurSites {
             for mot in m.mots {
                 let max = m.ecart ?? seuil(mot, palier)
                 let skm = sq(mot)
-                if let proche = jetons.first(where: { let e = Self.distance(sq($0), skm); return e > 0 && e <= max }) {
+                if let proche = jetons.first(where: { jeton in
+                    if motCourantSimple(jeton) { return false }
+                    let e = Self.distance(sq(jeton), skm); return e > 0 && e <= max
+                }) {
                     return Trouve(categorie: "sosie", raison: "nom_proche", imite: domainePour(mot),
                                   valeurs: ["proche": proche, "mot": mot, "proprietaire": ctx.proprietaire])
                 }

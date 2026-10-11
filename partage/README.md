@@ -29,7 +29,9 @@ Chaque alerte porte la marque imitée (ou aucune) et une raison en une phrase, t
 
 - `organisation` : le nom et les domaines de l'entreprise protégée (Orbis Pay par défaut). Les règles y sont plus strictes : son nom n'a rien à faire dans un autre domaine. L'extension remplace ces valeurs par celles de ses réglages.
 - `marques` : 33 marques visées en France (administrations, banques, transporteurs, Microsoft, Google, Apple, PayPal, Amazon, Netflix, Doctolib…), avec leurs mots et leurs vrais domaines. Une marque connue n'alerte dans un autre domaine qu'avec un second signal : mot d'appât, extension à risque, vrai domaine en sous-domaine. `ecart: 0` coupe l'écart d'une lettre pour un nom trop proche d'un mot courant (Fortuneo et fortune.com).
+  Un TLD de marque fermé figure dans `domaines` comme libellé nu (`microsoft`, `google`, `apple`) : tout ce qui finit par `.microsoft`, `.google` ou `.apple` appartient à la marque et passe en confiance, jamais en sosie (`outlook.cloud.microsoft`).
 - `domaines_surs` : sites légitimes qui ressemblent à une marque (`paypay.ne.jp`).
+- `mots_courants` : mots ordinaires (`cloud`, `mail`, `office`, `login`…) qu'un label peut porter sans imiter une marque. L'écart d'une ou deux lettres sur une marque ne compte pas quand le label n'est que l'un de ces mots, écrit sans chiffre, sans punycode ni alphabet étranger : `cloud` n'imite pas `icloud`. Un déguisement (`cl0ud`, homoglyphe) garde le label suspect, et l'organisation reste jugée strictement.
 - `appats`, `extensions_risque`, `raccourcisseurs`, `suffixes_doubles` : listes à plat.
 - `confusables`, `sequences`, `chiffres` : le « squelette » d'un nom, ce que l'œil lit une fois les déguisements retirés.
 - `seuils` : écarts tolérés, longueur à partir de laquelle un nom se cherche en sous-chaîne, nombre de sous-domaines.
@@ -37,9 +39,9 @@ Chaque alerte porte la marque imitée (ou aucune) et une raison en une phrase, t
 
 ## Le corpus
 
-`corpus-sites.json` sert aux deux côtés. `legitimes` : 109 adresses qui ne doivent rien déclencher (vraies banques, administrations, sites courants, `orbispay.example`, adresses locales). `louches` : 74 adresses, chacune avec sa catégorie et sa marque attendues. `raccourcis` : 5 liens. `comparaison_seule` : 79 cas limites (Unicode, ports, identifiants, IPv6, entrées illisibles) que les deux moteurs doivent traiter à l'identique.
+`corpus-sites.json` sert aux deux côtés. `legitimes` : 133 adresses qui ne doivent rien déclencher (vraies banques, administrations, sites courants, domaines de marque sous TLD fermé comme `outlook.cloud.microsoft`, `orbispay.example`, adresses locales). `louches` : 74 adresses, chacune avec sa catégorie et sa marque attendues. `raccourcis` : 5 liens. `comparaison_seule` : 79 cas limites (Unicode, ports, identifiants, IPv6, entrées illisibles) que les deux moteurs doivent traiter à l'identique.
 
-Mesure du 10 octobre 2026 : 0 alerte sur les 109 légitimes, 74 louches sur 74, et des résultats identiques entre l'extension et l'app sur les 267 adresses.
+Mesure du 11 octobre 2026 : 0 alerte sur les 133 légitimes, 74 louches sur 74, et des résultats identiques entre l'extension et l'app sur les 291 adresses. Avant ce correctif, 5 des 133 légitimes alertaient à tort (3,8 %), toutes sur `cloud` pris pour `icloud`.
 
 ## Limites
 

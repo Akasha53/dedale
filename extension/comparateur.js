@@ -271,6 +271,7 @@ export function preparer(regles) {
     surs: regles.domaines_surs ?? [],
     appats,
     appatParSq: new Map([...appats].reverse().map((a) => [a.sq, a.mot])), // le premier de la liste l'emporte
+    motsCourants: new Set((regles.mots_courants ?? []).map((m) => m.toLowerCase())),
     marques: (regles.marques ?? []).map((m) => ({ ...m, strict: false })),
     seuils: regles.seuils,
     textes: regles.textes,
@@ -286,6 +287,18 @@ export function squelette(texte, regles) {
 
 function couvre(hote, domaine) {
   return hote === domaine || hote.endsWith("." + domaine);
+}
+
+/**
+ * Un label qui n'est qu'un mot courant (« cloud », « mail », « office »…) n'imite pas
+ * une marque, même s'il n'en est qu'à une lettre : le « i » manquant d'« icloud » ne
+ * compte pas. Vrai seulement pour un mot écrit sans chiffre, sans punycode et sans
+ * caractère d'un autre alphabet — un déguisement garde le label suspect.
+ */
+function motCourantSimple(nomUni, p) {
+  if (/\d/.test(nomUni) || nomUni.startsWith("xn--")) return false;
+  if (Array.from(nomUni).some((c) => c.codePointAt(0) > 0x7f)) return false;
+  return p.motsCourants.has(nomUni.replace(/[-_]/g, "").toLowerCase());
 }
 
 // ---------------------------------------------------------------- analyse
@@ -454,10 +467,12 @@ function comparerMarque(m, ctx) {
         return r("sosie", "confusables", vrai, { nom: lu.nom, mot });
       }
     }
-    // c. Une ou deux lettres d'écart.
+    // c. Une ou deux lettres d'écart. Un mot courant proche d'une marque (« cloud »
+    // d'« icloud ») ne compte pas : il faut une vraie preuve de sosie.
     const max = m.ecart ?? seuil(mot, palier);
     const ecart = distance(p.sq(nomUni), skm);
     if (ecart > 0 && ecart <= max) {
+      if (!m.strict && motCourantSimple(nomUni, p)) continue;
       const n = distance(nomUni, mot);
       const texte = n === 1 ? p.textes.ecart_un : remplir(p.textes.ecart_plusieurs, { n });
       return r("sosie", "distance", vrai, { nom: nomUni, mot, ecart: texte });
@@ -513,6 +528,7 @@ function comparerMarque(m, ctx) {
       const max = m.ecart ?? seuil(mot, palier);
       const skm = p.sq(mot);
       const proche = jetons.find((x) => {
+        if (motCourantSimple(x, p)) return false;
         const e = distance(p.sq(x), skm);
         return e > 0 && e <= max;
       });
