@@ -20,17 +20,17 @@ pptx.theme = {
   lang: 'fr-FR',
 };
 
-// Mesures du 10 octobre (22 h 10), reprises de docs/mesures/resultats.md.
+// Mesures du 11 octobre (9 h 35), reprises de docs/mesures/resultats.md.
 const M = {
-  quand: '10 octobre 2026 à 22 h 10',
-  commit: 'a1a7321',
-  agents: 'Agent piégé : 25/25 sessions arrêtées, 0 rapport sorti ; repéré en 10 ms, coupé en 19 ms (médianes)',
-  detection: 'médiane 10 ms, moyenne 11 ms, 25 sessions',
-  confinement: 'médiane 19 ms, moyenne 20 ms, 25 sessions',
+  quand: '11 octobre 2026 à 9 h 35',
+  commit: 'fb6fa41',
+  agents: 'Agent piégé : 25/25 sessions arrêtées, 0 rapport sorti ; repéré en 12 ms, coupé en 32 ms (médianes)',
+  detection: 'médiane 12 ms, moyenne 17 ms, 25 sessions',
+  confinement: 'médiane 32 ms, moyenne 31 ms, 25 sessions',
   fauxPositifs: '0 faux positif sur 50 sessions humaines ou scriptées',
   mails: 'Mails de démo : 8/8 frauduleux repérés, 0/3 légitime signalé, 2/2 consignes cachées retirées',
   desarmeur: 'consigne cachée retirée dans 2/2 mails qui en portent une, 0/10 ailleurs',
-  relecteur: 'Relecteur IA : 6/6 gestes critiques tranchés par Claude Haiku, 3,3 s en médiane',
+  relecteur: 'Relecteur IA : 6 gestes critiques, 4 refusés par les règles dures, 2 relus par Claude Haiku (4,0 et 4,8 s)',
   tests: '926 tests réussis le 11 octobre 2026 à 8 h 55 (commit cb8b6bc), hors tests Swift de l’app Mac',
 };
 
