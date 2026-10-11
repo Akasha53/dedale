@@ -64,6 +64,7 @@ type Analyse = AnalysePolitique & {
   conclusion?: string;
   changement?: Changement | null;
   agent_regles?: SessionAgent | null;
+  refusee?: boolean;
 };
 type PolitiqueVue = Politique & { intention?: string; retraits?: LigneRetrait[] };
 
@@ -89,7 +90,8 @@ function lecture(a: Analyse): string | null {
     const duree = ms != null ? `, ${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s` : "";
     return `Compris par le modèle (${nomModele(a.lecteur?.modele)}${duree})`;
   }
-  return a.repli ? `Compris par les motifs : ${a.repli.replace(/ : lecture par motifs$/, "")}` : "Compris par les motifs";
+  // Repli : dit pourquoi le modèle n'a pas lu (« le modèle a mis trop de temps »).
+  return a.repli ? `Lu par les motifs : ${a.repli.replace(/ : lecture par motifs$/, "")}.` : "Lu par les motifs.";
 }
 
 function secondes(ms?: number | null): string {
@@ -140,7 +142,7 @@ async function suivreSession(apres: number, arret: { fini: boolean }, maj: (s: S
 }
 
 function nonCompris(a: Analyse): string | null {
-  if (a.comprise || !a.repli) return null;
+  if (a.comprise || a.refusee || !a.repli) return null;
   return `Ni le modèle ni les motifs n'ont trouvé de règle : ${a.repli}.`;
 }
 

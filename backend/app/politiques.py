@@ -740,6 +740,41 @@ def texte_intraduisible(fragments: list[str]) -> str:
             "plusieurs phrases.")
 
 
+# ------------------------------------------------------------------ phrase piégée
+# Une phrase qui s'adresse à l'agent des règles au lieu de décrire une règle : elle est refusée,
+# et ni le modèle ni les motifs ne proposent quoi que ce soit à partir d'elle.
+_MANIPULATIONS = [
+    (re.compile(r"\b(?:active|applique|valide|execute|ajoute|retire|supprime|fais|mets|change)\w*"
+                r"[^.!?\n]{0,60}\btoi[- ]meme\b|\btoi[- ]meme\b[^.!?\n]{0,30}\b(?:active|applique|valide)\w*"),
+     "elle demande à l'agent de s'activer lui-même"),
+    (re.compile(r"\b(?:ignore|oublie|outrepasse|contourne|ne tiens pas compte d)\w*\s+(?:de\s+)?"
+                r"(?:tes|les|vos|ses|toutes les|tes anciennes|les anciennes)?\s*"
+                r"(?:consignes|instructions|regles de securite|garde-fous|directives)"),
+     "elle demande à l'agent d'ignorer ses consignes"),
+    (re.compile(r"\b(?:tu es|vous etes) (?:maintenant|desormais)\b|"
+                r"\b(?:system|systeme|assistant|developer)\s*:|</?\s*(?:phrase_analyste|resultats|system)\b"),
+     "elle essaie de parler à l'agent à la place de ses consignes"),
+]
+
+
+def manipulation(phrase: str) -> str | None:
+    """Motif du refus si la phrase cherche à faire agir l'agent hors de son rôle, sinon None."""
+    t = _normaliser(phrase)
+    for motif, raison in _MANIPULATIONS:
+        if motif.search(t):
+            return raison
+    return None
+
+
+def analyse_refusee(phrase: str, raison: str, par: str = "motifs") -> dict:
+    """Réponse à une phrase refusée : rien n'est proposé, pas même par les motifs."""
+    raison = _court(raison or "elle cherche à faire agir l'agent hors de son rôle", 160)
+    return {"phrase": _court(phrase), "mode": "regles", "compris_par": None, "refusee": True,
+            "refuse_par": par, "exemples": _exemples(), "intention": "refus", "comprise": False,
+            "regle": None, "forme": None, "manques": ["refus"], "question": None,
+            "texte": f"Phrase refusée : {raison}. Rien n'est proposé."}
+
+
 # --------------------------------------------------------------------- analyse
 def valider(regle: dict) -> dict:
     """Valide une règle structurée (venue de l'analyseur, du modèle ou de la console) et la
@@ -807,6 +842,9 @@ def _exemples() -> list[str]:
 
 def analyser(phrase: str, store=None) -> dict:
     """Phrase → règle proposée par les motifs, à faire relire par un humain avant activation."""
+    raison = manipulation(phrase)
+    if raison:
+        return analyse_refusee(phrase, raison)
     t = _normaliser(phrase)
     if est_moindre_privilege(t):
         return analyser_moindre(_cibles(t), phrase, store)
@@ -963,6 +1001,10 @@ async def analyser_avec_modele(phrase: str, store=None) -> dict:
     from . import agent_regles  # import tardif : l'agent importe le Store, qui importe ce module
 
     motifs = analyser(phrase, store)
+    if motifs.get("refusee"):
+        # Phrase piégée repérée sans modèle : aucune instance n'est lancée, rien n'est proposé.
+        return {**motifs, "repli": None, "agent_regles": None,
+                "lecteur": {"moteur": "garde", "modele": None, "duree_ms": None}}
     moteur, raison = moteur_modele()
     lecteur = {"moteur": moteur or "motifs", "modele": _nom_modele() if moteur else None,
                "duree_ms": None}
@@ -970,6 +1012,10 @@ async def analyser_avec_modele(phrase: str, store=None) -> dict:
         return {**motifs, "repli": raison, "lecteur": lecteur, "agent_regles": None}
     res = await agent_regles.traiter(phrase, store, moteur)
     lecteur["duree_ms"] = res["session"]["duree_ms"]
+    if res.get("refus") is not None:
+        # Le modèle a refusé la phrase : les motifs ne proposent rien derrière lui.
+        return {**analyse_refusee(phrase, res["refus"], par="modèle"), "repli": None,
+                "lecteur": lecteur, "agent_regles": res["session"]}
     prop = res["analyse"]
     repli = None
     if prop is not None and motifs_gardent_la_main(phrase, motifs) and prop.get("intention") != MOINDRE:
