@@ -76,19 +76,14 @@ function nomDroit(d: DroitVu | string): string {
   return typeof d === "string" ? majuscule(libelleDroit(d)) : majuscule(libelleDroit(d.code, d.libelle));
 }
 
-function nomModele(m?: string | null): string {
-  const bas = (m ?? "").toLowerCase();
-  for (const n of ["haiku", "sonnet", "opus"]) if (bas.includes(n)) return n.charAt(0).toUpperCase() + n.slice(1);
-  return "le modèle";
-}
-
-// « Compris par le modèle (Haiku, 2,4 s) » ou « Compris par les motifs ».
+// « Compris par le modèle (2,4 s) » ou « Compris par les motifs ». Le nom du
+// modèle ne s'affiche jamais dans la console (marque sAIfe).
 function lecture(a: Analyse): string | null {
   if (!a.compris_par) return null;
   if (a.compris_par === "modèle") {
     const ms = a.lecteur?.duree_ms;
-    const duree = ms != null ? `, ${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s` : "";
-    return `Compris par le modèle (${nomModele(a.lecteur?.modele)}${duree})`;
+    const duree = ms != null ? ` (${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s)` : "";
+    return `Compris par le modèle${duree}`;
   }
   // Repli : dit pourquoi le modèle n'a pas lu (« le modèle a mis trop de temps »).
   return a.repli ? `Lu par les motifs : ${a.repli.replace(/ : lecture par motifs$/, "")}.` : "Lu par les motifs.";
@@ -98,11 +93,11 @@ function secondes(ms?: number | null): string {
   return `${((ms ?? 0) / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
 }
 
-// « Agent des règles (Haiku) · session regles-0012 · lit les règles · prépare la
+// « Agent des règles · session regles-0012 · lit les règles · prépare la
 // modification · session fermée · jeton révoqué · 2 appels en 7,8 s », rempli au
-// fil des appels.
+// fil des appels. Le nom du modèle reste hors du libellé courant (marque sAIfe).
 function traceAgent(s: SessionAgent): string {
-  const morceaux = [`Agent des règles (${nomModele(s.modele)}) · session ${s.session}`];
+  const morceaux = [`Agent des règles · session ${s.session}`];
   for (const e of s.etapes ?? []) morceaux.push(e.verdict === "refuse" ? `${e.libelle}, refusé` : e.libelle);
   if (s.etat === "fermée") {
     const n = s.appels;

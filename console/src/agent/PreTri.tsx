@@ -28,7 +28,8 @@ export function AvisRelecteur({ incident }: { incident: Incident }) {
   }, [version, getTri]);
 
   if (!tri || !tri.decision_proposee) return null;
-  const qui = tri.tranche_par && tri.tranche_par !== "règles" ? `relecteur IA (${tri.tranche_par})` : "règles du relecteur";
+  // Le libellé courant ne nomme jamais le modèle (tri.tranche_par) : « relecteur sAIfe ».
+  const qui = tri.tranche_par && tri.tranche_par !== "règles" ? "relecteur sAIfe" : "règles du relecteur";
   const action = (ACTION_CONSEILLEE[tri.decision_proposee] ?? tri.decision_proposee).toLowerCase();
   // La certitude affichée est celle du résumé (tri.certitude), jamais l'avis chiffré
   // du relecteur (tri.confiance), qui ne sert plus qu'à son doute.

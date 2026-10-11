@@ -455,7 +455,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
           detail: {
             brut: etat ? [{ lib: "État", valeur: etat }] : [],
             pourquoi: etat
-              ? "Un geste critique ne part qu'avec une validation : du relecteur IA, puis de l'analyste."
+              ? "Un geste critique ne part qu'avec une validation : du relecteur sAIfe, puis de l'analyste."
               : "Le salarié a continué malgré l'alerte : le dossier remonte au SOC.",
             risque: etat ? undefined : RISQUE_PASSE[g],
             risqueTitre: etat ? undefined : TITRE_PASSE,
@@ -478,7 +478,7 @@ export function lireGesteSalarie(inc: Incident): LectureSalarie {
       id: `sal-decision-${i}`,
       lib: "Décision",
       titre: /^relecteur/i.test(dec.analyste)
-        ? (DECISION[dec.action] ?? `Décision : ${dec.action}`).replace("L'analyste", "Le relecteur IA")
+        ? (DECISION[dec.action] ?? `Décision : ${dec.action}`).replace("L'analyste", "Le relecteur sAIfe")
         : DECISION[dec.action] ?? `Décision : ${dec.action}`,
       texte: `Décision prise par ${dec.analyste.replace(/\.$/, "")}.${motif ? ` Motif : « ${motif} ».` : ""}`,
       horodatage: dec.horodatage,

@@ -303,7 +303,7 @@ function ListeIncidents({
               type="button"
               className={`liste-regles-btn filtre-regarder ${filtreActif ? "actif" : ""}`}
               aria-pressed={filtreActif}
-              title="Signalés par le relecteur IA : priorité haute ou avis incertain"
+              title="Signalés par le relecteur sAIfe : priorité haute ou avis incertain"
               onClick={() => setFiltre((v) => !v)}
             >
               à regarder ({fileIci.length})
@@ -423,11 +423,6 @@ function choixDe(inc: Incident): ChoixSalarie | undefined {
   );
 }
 
-const ACTIONS_HUMAIN: { action: DecisionAction; lib: string; aide: string; cls: string }[] = [
-  { action: "clore", lib: "Clore le dossier", aide: "Vous avez traité le cas : le dossier est fermé.", cls: "primaire" },
-  { action: "ignorer", lib: "Classer sans suite", aide: "Fausse alerte : le dossier est fermé sans suite.", cls: "fantome" },
-];
-
 const JOURNAL_HUMAIN: Record<string, string> = {
   clore: "a clos le dossier",
   ignorer: "a classé le dossier sans suite",
@@ -489,7 +484,8 @@ function dureeCourte(ms?: number): string {
 }
 
 function phraseRelecture(r: Relecture): string {
-  const qui = r.tranche_par && r.tranche_par !== "règles" ? `le relecteur IA (${r.tranche_par})` : "les règles du relecteur";
+  // Libellé courant : « le relecteur sAIfe », jamais le modèle qui a tranché (r.tranche_par).
+  const qui = r.tranche_par && r.tranche_par !== "règles" ? "le relecteur sAIfe" : "les règles du relecteur";
   const issue = r.decision === "accorde" ? "accordé" : "refusé";
   return `Relu par ${qui}${dureeCourte(r.duree_ms)} : ${issue}.`;
 }
@@ -531,6 +527,8 @@ function IncidentSalarie({
   const restant = useDelaiRestant(q?.horodatage, q?.delai_s, quatreYeux);
   const [confirmation, setConfirmation] = useState<DecisionAction | null>(null);
   useEffect(() => setConfirmation(null), [incident.id]);
+  // Nombre d'actions déjà passées sur le compte : il conditionne la clôture et nourrit le récapitulatif.
+  const nbActions = (incident.journal_console ?? []).filter((j) => j.acte === "remediation").length;
 
   const avant = (
     <div className="sal-avant">
@@ -563,7 +561,7 @@ function IncidentSalarie({
       ? "Un geste attend votre accord"
       : recours && relecture
         ? `Geste ${relecture.decision === "accorde" ? "accordé" : "refusé"} par ${
-            relecture.tranche_par && relecture.tranche_par !== "règles" ? "le relecteur IA" : "les règles du relecteur"
+            relecture.tranche_par && relecture.tranche_par !== "règles" ? "le relecteur sAIfe" : "les règles du relecteur"
           }`
         : recours && q?.issue === "expire"
           ? "Délai dépassé, le poste a refusé le geste"
@@ -637,8 +635,7 @@ function IncidentSalarie({
                 {relecture.motif && <p className="relecture-motif">Motif : {relecture.motif}</p>}
                 {relecture.explication && (
                   <p className="relecture-motif">
-                    Explication du relecteur IA{relecture.explicationPar ? ` (${relecture.explicationPar})` : ""} :{" "}
-                    {relecture.explication}
+                    Explication du relecteur sAIfe : {relecture.explication}
                   </p>
                 )}
                 {!ferme && <p className="relecture-recours">Vous pouvez revenir sur cette décision, avec un motif.</p>}
@@ -670,54 +667,50 @@ function IncidentSalarie({
                 annuler={() => setConfirmation(null)}
               />
             ) : quatreYeux || recours ? (
-              <div className="ag-actions" aria-busy={decisionEnCours !== null}>
-                <div className="ag-action">
-                  <button
-                    type="button"
-                    className="ag-pilule ag-pilule-clore"
-                    disabled={decisionEnCours !== null || (quatreYeux && restant === 0)}
-                    onClick={() => setConfirmation("refuser")}
-                  >
-                    <span>{decisionEnCours === "refuser" ? "Envoi…" : "Refuser"}</span>
-                  </button>
-                  <p className="ag-aide">Le geste n'a pas lieu. Le poste reste utilisable.</p>
-                </div>
-                <div className="ag-action">
-                  <button
-                    type="button"
-                    className="ag-pilule ag-pilule-reprendre"
-                    disabled={decisionEnCours !== null || (quatreYeux && restant === 0)}
-                    onClick={() => setConfirmation("accorder")}
-                  >
-                    <span>{decisionEnCours === "accorder" ? "Envoi…" : "Accorder"}</span>
-                  </button>
-                  <p className="ag-aide">Le geste part, avec votre nom et votre motif au journal.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="ag-actions" aria-busy={decisionEnCours !== null}>
-                {ACTIONS_HUMAIN.map((a) => (
-                  <div className="ag-action" key={a.action}>
+              <>
+                <div className="ag-actions" aria-busy={decisionEnCours !== null}>
+                  <div className="ag-action">
                     <button
                       type="button"
-                      className={`ag-pilule ${a.cls === "primaire" ? "ag-pilule-clore" : "ag-pilule-reprendre"}`}
-                      disabled={decisionEnCours !== null || ferme}
-                      onClick={() => trancher(a.action)}
+                      className="ag-pilule ag-pilule-clore"
+                      disabled={decisionEnCours !== null || (quatreYeux && restant === 0)}
+                      onClick={() => setConfirmation("refuser")}
                     >
-                      <span>{decisionEnCours === a.action ? "Envoi…" : a.lib}</span>
+                      <span>{decisionEnCours === "refuser" ? "Envoi…" : "Refuser"}</span>
                     </button>
-                    <p className="ag-aide">{a.aide}</p>
+                    <p className="ag-aide">Le geste n'a pas lieu. Le poste reste utilisable.</p>
                   </div>
-                ))}
-              </div>
-            )}
-            {erreurDecision && (
-              <p className="decision-erreur" role="alert">
-                {erreurDecision}
-              </p>
+                  <div className="ag-action">
+                    <button
+                      type="button"
+                      className="ag-pilule ag-pilule-reprendre"
+                      disabled={decisionEnCours !== null || (quatreYeux && restant === 0)}
+                      onClick={() => setConfirmation("accorder")}
+                    >
+                      <span>{decisionEnCours === "accorder" ? "Envoi…" : "Accorder"}</span>
+                    </button>
+                    <p className="ag-aide">Le geste part, avec votre nom et votre motif au journal.</p>
+                  </div>
+                </div>
+                {erreurDecision && <p className="decision-erreur" role="alert">{erreurDecision}</p>}
+                <Remediations incident={incident} />
+              </>
+            ) : (
+              // Incident salarié courant (hameçonnage humain) : les actions sur le
+              // compte passent en premier ; clore n'est que l'étape finale.
+              <>
+                <Remediations incident={incident} ferme={ferme} enAvant />
+                <ClotureSalarie
+                  incident={incident}
+                  ferme={ferme}
+                  nbActions={nbActions}
+                  decisionEnCours={decisionEnCours}
+                  trancher={trancher}
+                />
+                {erreurDecision && <p className="decision-erreur" role="alert">{erreurDecision}</p>}
+              </>
             )}
 
-            <Remediations incident={incident} />
             <JournalSalarie incident={incident} />
           </div>
         </section>
@@ -828,7 +821,7 @@ function Identite({ incident }: { incident: Incident }) {
 
 // Actions sur le compte du salarié ou sur le domaine en cause : simulées dans la
 // démo, notées au journal scellé comme de vraies.
-function Remediations({ incident }: { incident: Incident }) {
+function Remediations({ incident, enAvant, ferme }: { incident: Incident; enAvant?: boolean; ferme?: boolean }) {
   const { remedier } = useDonnees();
   const analyste = useAnalyste();
   const [enCours, setEnCours] = useState<ActionRemediation | null>(null);
@@ -838,6 +831,9 @@ function Remediations({ incident }: { incident: Incident }) {
     (incident.journal_console ?? []).filter((j) => j.acte === "remediation").map((j) => [j.action, j])
   );
   if (incident.type === "humain_intrusion_physique") return null;
+  // Dossier clos : les actions sont rappelées par le récapitulatif et le journal,
+  // plus de boutons actifs.
+  if (ferme) return null;
   // Un mail signalé : le compte du salarié n'est pas en cause, seul le domaine l'est.
   const possibles =
     incident.type === "humain_signalement"
@@ -860,8 +856,13 @@ function Remediations({ incident }: { incident: Incident }) {
   };
 
   return (
-    <div className="remediations" aria-label="Agir sur le compte">
+    <div className={`remediations ${enAvant ? "remediations-avant" : ""}`} aria-label="Agir sur le compte">
       <p className="remediations-titre">Agir sur le compte</p>
+      {enAvant && (
+        <p className="remediations-chapo">
+          Sécurisez d'abord le compte du salarié. Chaque action est simulée dans cette démo, puis scellée au journal.
+        </p>
+      )}
       <div className="remediations-boutons">
         {possibles.map((r) => {
           const fait = faites.get(r.action);
@@ -882,10 +883,111 @@ function Remediations({ incident }: { incident: Incident }) {
       </div>
       {retour && (
         <p className={retour.erreur ? "decision-erreur" : "remediation-retour"} role="status">
-          {retour.texte}
+          {!retour.erreur && <Icone nom="decision" taille={14} />}
+          {retour.erreur ? retour.texte : `Fait : ${retour.texte}`}
         </p>
       )}
-      <p className="remediations-note">Actions simulées dans cette démo, notées au journal scellé.</p>
+      {!enAvant && <p className="remediations-note">Actions simulées dans cette démo, notées au journal scellé.</p>}
+    </div>
+  );
+}
+
+// Clôture d'un incident salarié courant : on agit sur le compte d'abord, et
+// « Clore le dossier » ne devient l'action pleine qu'une fois une action passée.
+// Classer sans suite reste la sortie « fausse alerte ». Un dossier clos montre
+// un court récapitulatif.
+function ClotureSalarie({
+  incident,
+  ferme,
+  nbActions,
+  decisionEnCours,
+  trancher,
+}: {
+  incident: Incident;
+  ferme: boolean;
+  nbActions: number;
+  decisionEnCours: DecisionAction | null;
+  trancher: (a: DecisionAction, motif?: string) => void;
+}) {
+  const [confirmSansAction, setConfirmSansAction] = useState(false);
+  useEffect(() => setConfirmSansAction(false), [incident.id]);
+
+  if (ferme) {
+    const dec = [...(incident.decisions ?? [])].reverse().find((d) => d.action === "clore" || d.action === "ignorer");
+    if (!dec) return null;
+    const quand = dec.horodatage ? ` à ${heure(dec.horodatage).slice(0, 5)}` : "";
+    const recap =
+      dec.action === "ignorer"
+        ? `Fausse alerte : dossier classé sans suite par ${dec.analyste}${quand}.`
+        : `${nbActions > 0 ? `${nbActions} action${nbActions > 1 ? "s" : ""} sur le compte` : "Aucune action sur le compte"}, dossier clos par ${dec.analyste}${quand}.`;
+    return (
+      <div className="cloture cloture-faite">
+        <p className="cloture-recap" role="status">{recap}</p>
+      </div>
+    );
+  }
+
+  const prete = nbActions > 0;
+  const clore = () => {
+    // Sans action sur le compte, on demande une confirmation discrète avant de clore.
+    if (!prete && !confirmSansAction) {
+      setConfirmSansAction(true);
+      return;
+    }
+    setConfirmSansAction(false);
+    trancher("clore");
+  };
+
+  return (
+    <div className="cloture">
+      <p className="cloture-sourcil">Clôture</p>
+      {confirmSansAction ? (
+        <div className="cloture-confirm" role="status">
+          <span className="cloture-confirm-texte">Clore sans action sur le compte ?</span>
+          <div className="cloture-confirm-boutons">
+            <button
+              type="button"
+              className="ag-pilule cloture-clore prete"
+              disabled={decisionEnCours !== null}
+              onClick={clore}
+            >
+              <span>{decisionEnCours === "clore" ? "Envoi…" : "Clore quand même"}</span>
+            </button>
+            <button
+              type="button"
+              className="ag-pilule ag-pilule-reprendre"
+              disabled={decisionEnCours !== null}
+              onClick={() => setConfirmSansAction(false)}
+            >
+              <span>Revenir aux actions</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="cloture-boutons">
+          <button
+            type="button"
+            className={`ag-pilule cloture-clore ${prete ? "prete" : "attenuee"}`}
+            disabled={decisionEnCours !== null}
+            onClick={clore}
+          >
+            <span>{decisionEnCours === "clore" ? "Envoi…" : "Clore le dossier"}</span>
+          </button>
+          <button
+            type="button"
+            className="ag-pilule ag-pilule-reprendre cloture-fausse"
+            disabled={decisionEnCours !== null}
+            onClick={() => trancher("ignorer")}
+          >
+            <span>{decisionEnCours === "ignorer" ? "Envoi…" : "Classer sans suite"}</span>
+          </button>
+        </div>
+      )}
+      <p className="cloture-aide">
+        {prete
+          ? `${nbActions} action${nbActions > 1 ? "s" : ""} sur le compte. Clôturez une fois le compte sécurisé.`
+          : "Agissez sur le compte avant de clore. Une fausse alerte se classe sans suite."}
+      </p>
     </div>
   );
 }

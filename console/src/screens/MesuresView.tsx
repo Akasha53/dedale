@@ -145,7 +145,7 @@ export function MesuresView() {
       {relecteur && (
         <div className="grille-mesures">
           <Kpi
-            lib="Relectures de l'IA"
+            lib="Relectures de sAIfe"
             val={relecteur.decisions}
             sous={relecteur.duree?.mediane_ms != null ? `médiane ${duree(relecteur.duree.mediane_ms)}` : "gestes critiques et pré-tris"}
           />

@@ -5852,6 +5852,115 @@ mark.piege {
   color: var(--texte-faible);
 }
 
+/* ---- Incident salarié : actions sur le compte mises en avant, avant la clôture ---- */
+.remediations-avant {
+  margin-top: 4px;
+  padding: 16px;
+  border: 1px solid var(--bord);
+  border-radius: 14px;
+  background: var(--puits);
+}
+.remediations-avant .remediations-titre {
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--texte);
+}
+.remediations-chapo {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--texte-faible);
+}
+.remediations-avant .remediations-boutons {
+  gap: 8px;
+}
+.remediations-avant .remediation {
+  padding: 9px 15px;
+  font-size: 14px;
+}
+.remediation-retour {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- Clôture d'un incident salarié : étape finale, après les actions ---- */
+.cloture {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bord);
+}
+.cloture-sourcil {
+  margin: 0 0 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--texte-faible);
+}
+.cloture-boutons,
+.cloture-confirm-boutons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cloture-clore,
+.cloture-fausse {
+  justify-content: center;
+  padding: 7px 18px;
+}
+.cloture-clore.prete {
+  border-color: transparent;
+  color: #ffffff;
+  background: var(--accent);
+}
+.cloture-clore.prete:hover:not(:disabled) {
+  background: var(--accent-survol);
+}
+.cloture-clore.attenuee {
+  border: 1px solid var(--bord-fort);
+  background: #ffffff;
+  color: var(--texte-faible);
+}
+.cloture-clore.attenuee:hover:not(:disabled) {
+  background: var(--survol);
+  color: var(--texte);
+}
+.cloture-aide {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--texte-faible);
+}
+.cloture-confirm {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--texte) 18%, transparent);
+  border-radius: 12px;
+  background: var(--puits);
+}
+.cloture-confirm-texte {
+  font-size: 14px;
+  color: var(--texte);
+}
+.cloture-faite {
+  padding-top: 0;
+  border-top: 0;
+}
+.cloture-recap {
+  margin: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--bord);
+  border-radius: 12px;
+  background: var(--puits);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--texte);
+}
+
 /* ---- « canary » : définition au survol comme au toucher ---- */
 abbr.canary {
   position: relative;
