@@ -8,7 +8,7 @@ Deux minutes dans le pitch de 5 minutes (Round 1), une minute vingt-cinq en fina
 2. `cd app-mac && ./construire.sh --lancer` : le menu du bouclier doit afficher « Boîte de démo : N mails ».
 3. Répétition complète : `./demo.sh jury`, puis « Couper l'agent » dans la console.
 4. À la racine, taper sans valider `./demo.sh jury`. Grande police.
-5. Console sur `http://localhost:5173`, zoom à 125 %. Second onglet prêt : `http://127.0.0.1:8700/api/incidents/INC-000/rapport`.
+5. Console sur `http://localhost:5173`, zoom à 125 %, nom de l'analyste choisi en haut à droite (sans lui, « Appliquer » une règle attend sans rien dire). Le rapport s'ouvre depuis le dossier, « Exporter » puis « Rapport » : une adresse `/api/…/rapport` tapée dans un onglet, sur 8700 comme sur 5173, répond « Jeton absent ou invalide. ».
 6. Ne pas lancer `./lancer.sh`. Mode Ne pas déranger, messageries fermées.
 
 La pop-up Mac passe avant la commande : « Annuler » n'ouvre aucun incident, et `./demo.sh jury` repart ensuite d'une base vide.
@@ -27,7 +27,7 @@ La pop-up Mac passe avant la commande : « Annuler » n'ouvre aucun incident, et
 | 1:10 | « Voir le mail en entier », puis Échap | « La consigne surlignée, les liens désarmés. » |
 | 1:25 | montrer « Décision conseillée » | « sAIfe conseille de couper. Il n'applique rien seul. » |
 | 1:35 | « Couper l'agent », motif en trois mots, Entrée, puis montrer le terminal après le bandeau de 5 s | « L'agent perd ses accès, aucun rapport n'est parti. » |
-| 1:45 | second onglet : compléter le numéro, Entrée | « Une page pour le RSSI, avec le sceau du journal. » |
+| 1:45 | « Exporter », puis « Rapport » : il s'ouvre dans un nouvel onglet | « Une page pour le RSSI, avec le sceau du journal. » |
 | 2:00 | rendre la main | |
 
 En finale : sauter « Voir le mail en entier » et le rapport.
@@ -58,7 +58,7 @@ Les numéros d'incident changent avec l'ordre des scènes : le lien imprimé par
 |---|---|
 | pas de pop-up après 5 s | `curl -X POST 127.0.0.1:8712/avertir -d '{"categorie":"phishing","message":"Ce mail est sûrement frauduleux."}'` |
 | app Mac morte | captures `app-mac/captures/mail.png` et `mail-coach.png` |
-| `./demo.sh jury` s'arrête | lire l'erreur ; port occupé : `./demo.sh jury --arreter`, puis relancer ; au-delà de 20 s, passer la vidéo |
+| `./demo.sh jury` s'arrête | lire l'erreur ; port occupé : `./demo.sh jury --arreter`, puis relancer ; « appel sortant … pas retenu » : une règle du SOC bloque l'envoi, la retirer ou relancer sans `--garder-base` ; au-delà de 20 s, passer la vidéo |
 | console figée | recharger ; sinon le chrono du terminal et le rapport |
 | réseau coupé | rien à changer : agent scripté, aucun modèle appelé. Ne pas montrer le relecteur IA sans l'avoir répété Wi-Fi coupé |
 

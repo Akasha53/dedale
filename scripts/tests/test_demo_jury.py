@@ -44,6 +44,15 @@ class BaseTest(unittest.TestCase):
         self.assertFalse(self.base.exists())
         self.assertEqual(jury.compter_evenements(copie), 3)
 
+    def test_regles_du_soc_mises_de_cote_avec_la_base(self):
+        creer_base(self.base, 2)
+        regles = self.base.with_name("dedale-politiques.json")
+        regles.write_text('{"regles": [{"id": "R-0001", "active": true}]}', encoding="utf-8")
+        copie, _ = self.mettre_de_cote()
+        self.assertFalse(regles.exists())
+        self.assertEqual(copie.with_name(copie.stem + "-politiques.json").read_text(encoding="utf-8"),
+                         '{"regles": [{"id": "R-0001", "active": true}]}')
+
     def test_deux_sauvegardes_la_meme_seconde_ne_s_ecrasent_pas(self):
         creer_base(self.base, 1)
         premiere, _ = self.mettre_de_cote()

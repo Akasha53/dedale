@@ -374,13 +374,25 @@ def mettre_base_de_cote(base: Path, *, maintenant: datetime | None = None,
     originaux = [p for p in (base, Path(f"{base}-wal"), Path(f"{base}-shm")) if p.exists()]
     for original in originaux:
         shutil.copy2(original, Path(str(copie) + original.name[len(base.name):]))
+    # Les règles du SOC vivent à côté de la base (backend/app/politiques.py). Une règle restée
+    # d'une répétition, « l'agent de tri des mails ne doit pas envoyer de mail » par exemple,
+    # bloquerait l'envoi avant la passerelle et changerait la scène agent : elles partent avec.
+    regles = regles_de(base)
+    if regles.exists():
+        shutil.copy2(regles, regles_de(copie))
     try:
         evenements = compter_evenements(copie)
     except sqlite3.Error as exc:
         raise ErreurDemo(f"Copie de la base illisible ({exc}). Original laissé en place : {base}.") from exc
     for original in originaux:
         original.unlink()
+    regles.unlink(missing_ok=True)
     return copie, evenements
+
+
+def regles_de(base: Path) -> Path:
+    """Fichier des règles du SOC rangé à côté d'une base (même règle que backend/app/politiques.py)."""
+    return base.with_name(base.stem + "-politiques.json")
 
 
 def preparer_journaux() -> None:
@@ -455,12 +467,15 @@ def preparer_services(options, afficher=print) -> None:
         elif port_ouvert(port):
             raise ErreurDemo(f"Le port {port} est occupé par autre chose que le backend sAIfe.")
         base = chemin_base()
+        avait_regles = regles_de(base).exists()
         mise = mettre_base_de_cote(base)
         if mise is None:
             afficher(f"  base      aucune base à mettre de côté ({relatif(base)})")
         else:
             copie, evenements = mise
             afficher(f"  base      ancienne base copiée dans {relatif(copie)} ({evenements} événements)")
+            if avait_regles:
+                afficher("  règles    règles du SOC mises de côté avec la base")
         processus = lancer("backend", ["uv", "run", "uvicorn", "app.main:app", "--host", "127.0.0.1",
                                        "--port", str(port)], RACINE / "backend")
         etat = attendre_reponse(options.backend, processus, "backend", 60)
@@ -688,6 +703,11 @@ def scene_agent(api: commune.Api, flux: FluxConsole, session_id: str, options, l
         afficher("\nFin sans décision (--sans-decision). L'appel n'a pas été exécuté ; "
                  "Couper reste possible dans la console.")
         return {"verdict": None}
+    if "ouvert" not in mesures:
+        raise ErreurDemo(
+            "L'appel sortant de l'agent n'a pas été retenu par la passerelle : une règle du SOC l'a "
+            "sans doute bloqué avant. Retirez-la dans la console, ou relancez sans --garder-base."
+        )
     etat = api.session(session_id).get("etat")
     if etat != resultat["etat"]:
         raise ErreurDemo("L'état local de l'agent diffère de celui du backend.")

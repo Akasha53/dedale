@@ -30,6 +30,28 @@ Les durées sont celles de cette machine, un MacBook qui faisait tourner en mêm
 | 7 | `verifier_journal`, puis motif altéré dans une copie de la base | OK | 0,5 s |
 | 8 | 401 sans jeton, 403 avec le jeton du poste | OK | immédiat |
 | 9 | rapport d'une page, ECS, CEF, Sigma, résumé du lundi | OK | 44 à 52 ms par export |
+| 9b | rapport ouvert dans un onglet par son adresse (ce que disait `DEMO_JURY.md`) | KO, corrigé dans la doc | 401 |
+| 1d | `./demo.sh jury` avec la règle « l'agent de tri des mails ne doit pas envoyer de mail » active | KO, corrigé | plantage `KeyError` |
+| 10 | extension : `node tests/bout_en_bout.js` | OK | 6,9 s, 32 vérifications |
+| 11 | app Mac : `swift test`, `deposer_telechargements.sh`, construction dans un dossier temporaire | OK | 9 s, 4,6 s, 23,9 s |
+| 12 | suites complètes | OK | 920 tests, 0 échec |
+
+## Bilan
+
+Onze étapes sur douze passent. La seule en échec est le scénario réel (2b), qui n'est pas dans le déroulé principal. Deux pannes auraient touché la démo sur scène ; elles sont corrigées :
+
+1. `./demo.sh jury` plantait avec une trace Python (`KeyError: 'ouvert'`) dès qu'une règle du SOC bloquait l'envoi de l'agent de tri des mails. Le 8700 de Guilhem en porte une active depuis le 10 au soir (R-0001, « l'agent de tri des mails ne doit pas envoyer de mail ni de message »), et la « base neuve » ne touchait pas au fichier des règles. Le script met maintenant `dedale-politiques.json` de côté avec la base, et dit en clair quelle règle gêne au lieu de planter.
+2. Le second onglet du rapport (`http://127.0.0.1:8700/api/incidents/INC-000/rapport`) répond « Jeton absent ou invalide. » depuis l'authentification. `DEMO_JURY.md` passe par « Exporter », puis « Rapport », dans le dossier.
+
+Restent, du plus gênant au moins gênant pour la démo :
+
+1. Scénario réel : Haiku n'a suivi la consigne cachée dans aucun des six essais. La preuve « sans sAIfe, le mail part vraiment » ne s'affiche pas, et la commande sort avec le code 0. Fichiers de l'agent « réel ou simulé », non touchés.
+2. Relecteur sur un geste en fraude : 7,1 s avant la réponse, à attendre Haiku, alors que les règles refusent d'office (bénéficiaire inconnu, plus de 10 000 €). Le salarié attend sa pop-up 7 s.
+3. Agent des règles : sous charge, il dépasse son délai de 8 s et les motifs prennent la main. Sur la phrase piégée, Haiku refuse à raison (« aucun changement de règle dans la phrase »), puis les motifs proposent quand même la règle inverse, « aucun agent ne doit faire de virement vers une adresse hors d'Orbis Pay ». Rien ne s'applique sans clic, mais l'écran se contredit.
+4. Validation métier : la SOC lit encore, dans l'événement `memoire` du relecteur, le nom du validateur, son motif libre et une tranche fine (« 1 000 à 5 000 € »). `validation_metier` dit « confirmé par le responsable » quand c'est la finance qui a signé.
+5. « Couper l'agent » laisse 5 s pour annuler ; changer d'onglet pendant ce temps annule la coupure sans le dire (noté dans `DEMO_JURY.md`).
+6. Détails : un geste après une alerte ouvre deux incidents (le choix « Continuer » puis le virement) ; le rapport nomme « Document/mail piégé rencontré » la demande légitime de Jean ; le lien `cs6` du CEF vise toujours 5173 ; l'export Sigma n'a pas de nom de fichier ; `messagerie/README.md` annonce 72 tests, il y en a 73.
+7. Non vérifiable sans toucher à l'app de Guilhem : la pop-up de l'app Mac (8712), donc les deux `curl … 8712/avertir` de `DEMO_JURY.md`. Leur équivalent côté backend (`/api/relecteur/verifier`) passe.
 
 ## Détail
 
@@ -102,3 +124,38 @@ Côté SOC (`GET /api/sessions/poste-repet-b`, jeton analyste), ni montant, ni b
 - ECS (8.11.0), CEF, Sigma : 200 en 44 à 52 ms. `sigma check` sur quatre règles exportées (INC-0002, 0009, 0012, 0013) et sur `sigma/` : « Found 0 errors, 0 condition errors and 0 issues ». La règle exportée ne porte pas de nom de fichier (`Content-Disposition` absent) ; un nom trop court déclenche `FilenameLengthIssue`.
 - Le lien `cs6` du CEF pointe toujours vers `http://127.0.0.1:5173`, même quand la console tourne ailleurs.
 - `GET /api/resume-hebdo?jours=7&format=html` et `format=json` : 200, le HTML tient sur une page imprimée.
+
+Rapport ouvert par son adresse : `http://localhost:5294/api/incidents/INC-0002/rapport` et `http://127.0.0.1:8794/api/incidents/INC-0002/rapport`, tapés dans un onglet de Chrome, répondent `{"detail": "Jeton absent ou invalide."}`. Le proxy de Vite ne signe qu'une requête venue de la console elle-même (`Sec-Fetch-Site: same-origin`) ; une adresse tapée arrive en `none`. Vérifié par requête : même cookie, `same-origin` donne 200, `none` donne 401. Le menu « Exporter », « Rapport » de la console ouvre le rapport par `window.open`, donc en `same-origin`. Dans Chrome sans fenêtre, ce nouvel onglet ne s'est pas ouvert (fenêtre surgissante bloquée), ce chemin n'a donc été vérifié que par la requête.
+
+### 1d. La démo du jury et les règles du SOC
+
+Rejoué après l'étape 4 : avec la règle « l'agent de tri des mails ne doit pas envoyer de mail ni de message », recréée à l'identique de R-0001 du 8700, `./demo.sh jury --garder-base` s'arrêtait sur une trace Python : la règle refuse `envoyer_rapport` avant que la passerelle le retienne, et le script attendait une retenue. La règle de moindre privilège seule ne gêne pas la scène.
+
+Corrigé dans `scripts/demo_jury.py` : la base neuve met aussi `dedale-politiques.json` dans `sauvegardes/` (copie vérifiée avant retrait), et affiche « règles du SOC mises de côté avec la base ». Avec `--garder-base`, le script s'arrête sur « L'appel sortant de l'agent n'a pas été retenu par la passerelle : une règle du SOC l'a sans doute bloqué avant. Retirez-la dans la console, ou relancez sans --garder-base. » (code 2). Rejoué sur la base neuve avec la règle présente : préparation en moins de 2 s, INC-0001 et INC-0002 `interne_canari` comme d'habitude. Un test couvre la mise de côté des règles.
+
+À savoir pour le 8700 : le prochain `./demo.sh jury` y mettra de côté R-0001 et R-0002, avec la base.
+
+### 10. Extension
+
+`tests/bout_en_bout.js` lançait Chrome sans `--use-mock-keychain --password-store=basic` : sur un profil neuf, macOS peut ouvrir la fenêtre « Chrome Safe Storage » et figer un lancement sans surveillance. Les deux options sont ajoutées. Lancé avec le backend isolé que le test démarre lui-même : « Tout est vert (32 vérifications) », 6,9 s. Domaine neutre, vrai domaine, quatre sosies, punycode, domaine qui ne résout pas, backend absent, marque connue, adresse IP : tous conformes, aucune requête vers le sosie avant le choix.
+
+### 11. App Mac
+
+- `swift test --scratch-path <tmp>` : 42 tests, 0 échec, 9 s.
+- `demo/deposer_telechargements.sh --dossier <tmp>` : trois fichiers déposés avec leur provenance (`com.apple.quarantine` au nom de Safari, Mail et Chrome, `kMDItemWhereFroms`), 4,6 s ; `--nettoyer` les retire tous.
+- `construire.sh` effaçait et reconstruisait toujours `app-mac/Dedale.app`, celle qui tourne. Ajout de `DEDALE_APP_SORTIE` (dossier de sortie) et `DEDALE_SWIFT_SCRATCH` (dossier de compilation). Construite dans un dossier temporaire en 23,9 s, signée ad hoc (`example.dedale.garde`). L'app de Guilhem n'a pas bougé (binaire daté de 00:36, processus 15482 toujours là).
+
+### 12. Suites complètes
+
+| Suite | Commande | Résultat | Durée |
+|---|---|---|---|
+| backend | `uv run --extra dev pytest` | 522 réussis | 103 s |
+| interne | `uv run --extra dev pytest` | 205 réussis | 52 s |
+| scripts | `uv run --project interne python -m unittest discover -s scripts/tests` | 35 réussis (34 avant le test ajouté) | 0,1 s |
+| poste | `uv run --extra dev pytest` | 17 réussis | 0,03 s |
+| messagerie | `uv run --extra dev pytest` | 73 réussis | 0,5 s |
+| extension | `npm test` | 26 réussis | 0,1 s |
+| app Mac | `swift test` | 42 réussis | 9 s |
+| console | `tsc --noEmit`, puis `vite build` vers un dossier temporaire | sans erreur | 1 s chacun |
+
+Total : 920 tests, 0 échec, plus les 32 vérifications de bout en bout de l'extension. La console a été construite hors de `console/dist`, pour ne pas changer ce que sert le 8700.
