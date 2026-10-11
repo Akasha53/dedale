@@ -18,7 +18,7 @@
 \begin{document}
 \fontsize{8.6}{10.2}\selectfont\raggedright\sloppy
 {\Large s\textbf{AI}fe}\hfill{\bfseries\color{accent}Secure Horizons, Track 2 · 10--11 octobre 2026}\par
-Fiche de défense pour le jury\hfill Orbis Pay est une entreprise fictive. Vidéo de démo : lien à ajouter après le tournage.\par\vspace{1.5pt}
+Fiche de défense pour le jury\hfill Orbis Pay est une entreprise fictive. Vidéo de démo : \href{video/sAIfe-demo.mp4}{\cmd{docs/video/sAIfe-demo.mp4}}.\par\vspace{1.5pt}
 
 {\bfseries La menace.} Un contenu piégé vise deux lecteurs. Le salarié clique un lien trompeur, ouvre un site sosie ou valide un virement réclamé par un faux dirigeant. L’agent IA interne lit un mail qui cache une consigne, la prend pour une tâche et tente d’envoyer des données dehors avec ses propres droits. sAIfe suit les deux chemins jusqu’au même dossier SOC, où un humain décide. Hors sAIfe : 33,1~\% des salariés non formés échouent aux tests de phishing simulés (\href{https://www.knowbe4.com/resources/reports/2025-phishing-by-industry-benchmarking-report}{KnowBe4 2025}) ; EchoLeak, CVE-2025-32711, fuite par Microsoft~365 Copilot sans clic (\href{https://thehackernews.com/2025/06/zero-click-ai-vulnerability-exposes.html}{The Hacker News}) ; injection via le serveur MCP de GitHub, mai 2025 (\href{https://invariantlabs.ai/blog/mcp-github-vulnerability}{Invariant Labs}).
 
@@ -26,11 +26,11 @@ Fiche de défense pour le jury\hfill Orbis Pay est une entreprise fictive. Vidé
 \begin{multicols}{2}
 \h{Les contrôles}
 \begin{itemize}
-\item Poste : l’app Mac prévient avant le geste (mail frauduleux, site louche, fichier à risque) et tient l’inventaire des agents IA du poste ; l’extension Chrome arrête un site sosie ou louche, avec les mêmes règles. Le salarié choisit, le poste n’est jamais bloqué. Quatre modules qu’on peut couper ; au SOC partent la catégorie, le domaine et le choix, jamais un contenu.
-\item Geste critique (virement, export de clients) : des règles cherchent un signal de risque. Sans signal, il part sans pop-up. Signal sans fraude (RIB qui change, bénéficiaire inconnu) : retenu, le responsable ou la finance le tranche dans l’espace \cmd{/validation}. Signal de fraude : relecteur IA et incident SOC.
+\item Poste : l’app Mac prévient avant le geste (mail frauduleux, site louche, fichier à risque) et tient l’inventaire des agents IA du poste ; l’extension Chrome arrête un site sosie ou louche, avec les mêmes règles. Le salarié choisit ; le poste n’est jamais bloqué ni verrouillé. Quatre modules qu’on peut couper ; au SOC partent la catégorie, le domaine et le choix. Pour un mail jugé frauduleux, une copie désarmée part du serveur de messagerie ; sinon, jamais le contenu d’un fichier ni la valeur d’un secret.
+\item Geste critique (virement, export de clients) : l’app du poste le déclare à sAIfe (appel local \cmd{/avertir}, ou geste repéré dans un mail), des règles y cherchent un signal avant de laisser le salarié continuer ; rien ne s’interpose dans le vrai flux de paiement, ce branchement est une étape de déploiement. Sans signal, il part sans pop-up. Signal sans fraude (RIB qui change, bénéficiaire inconnu) : retenu, le responsable ou la finance le tranche dans l’espace \cmd{/validation}. Signal de fraude : relecteur IA et incident SOC.
 \item Garde-mail : chaque mail est jugé sûr, suspect ou frauduleux, avec une phrase par signal.
 \item Passerelle de l’agent : désarmeur des consignes cachées avant lecture, jeton limité à la tâche, canaris, envoi hors d’Orbis Pay retenu. Médiation de tous les outils : outil absent de l’inventaire, outil de lecture détourné (paramètres décodés en URL, base64, hexadécimal), outil MCP modifié en cours de session, retenus avant exécution, pour 0,07~ms de plus en médiane.
-\item Journal chaîné en SHA-256, signé en Ed25519 par son émetteur, en ajout seul ; \cmd{/verification} nomme le champ modifié. Rapport d’une page pour le RSSI. Ancrage sur Avalanche : voie d’exploration, aucune ancre publiée.
+\item Journal chaîné en SHA-256, signé en Ed25519 par le backend (une clé locale par canal d’origine), en ajout seul ; \cmd{/verification} nomme le champ modifié. Qui n’a que la base ne peut pas la réécrire sans que ça se voie ; qui tient la machine, oui. Rapport d’une page pour le RSSI. Ancrage sur Avalanche : voie d’exploration, aucune ancre publiée.
 \item Intégrations : ECS 8.11, CEF par syslog, 29 règles Sigma validées par sigma-cli, webhooks Slack et Teams, SMS simulé, résumé du lundi, brouillon NIS2 à relire. Quatre identités authentifiées : analyste, passerelle, poste, validateur.
 \end{itemize}
 
@@ -47,12 +47,12 @@ Fiche de défense pour le jury\hfill Orbis Pay est une entreprise fictive. Vidé
 
 \columnbreak
 \h{Ce qu’on a mesuré}
-Le 10 octobre 2026 à 22~h~10, commit \cmd{a1a7321}, sur des backends isolés. Trafic et mails écrits pour la démo. Avant la vérification sur signal, la validation métier et la médiation.
+Le 11 octobre 2026 à 9~h~35, commit \cmd{fb6fa41}, sur des backends isolés. Trafic et mails écrits pour la démo ; les durées sont celles de la chaîne technique sur le banc, pas une cadence d’attaque.
 \begin{itemize}
-\item Agent interne piégé, vraie passerelle : 25/25 sessions classées agent IA, 25/25 incidents, 0 rapport sorti. Détection : médiane 10~ms, moyenne 11~ms. Confinement : médiane 19~ms, moyenne 20~ms, coupure envoyée par script. 25 échantillons chacun.
+\item Agent interne piégé, vraie passerelle : 25/25 sessions classées agent IA, 25/25 incidents, 0 rapport sorti. Détection : médiane 12~ms, moyenne 17~ms. Confinement : médiane 32~ms, moyenne 31~ms, coupure envoyée par script. 25 échantillons chacun.
 \item Agent IA externe : 25/25 incidents. Faux positifs : 0/50 sessions humaines ou scriptées classées agent IA.
 \item 12 mails de démo : 8/8 frauduleux repérés, 0/3 légitime signalé, le douteux classé «~suspect~». Désarmeur : consigne retirée dans 2/2 mails qui en portent une, 0/10 ailleurs.
-\item Relecteur IA, 6 gestes critiques : 6/6 tranchés par Haiku sans repli, 1 accordé, 5 refusés, médiane 3,3~s.
+\item Relecteur IA, 6 gestes critiques : 4 refusés d’office par les règles dures (modèle non appelé), 2 relus par Haiku (1 accordé, 1 retenu) en 4,0~s et 4,8~s.
 \item Mode réel, 11 octobre : Haiku pilote l’agent sur de vrais services locaux et a résisté à l’injection (0/3, puis 0/5). Un attaquant déterministe sur les mêmes services : mail livré sans sAIfe, retenu avec.
 \end{itemize}
 \textbf{Non mesuré} : le temps de décision d’un analyste ou d’un responsable, un vrai poste.
@@ -64,7 +64,7 @@ Le 10 octobre 2026 à 22~h~10, commit \cmd{a1a7321}, sur des backends isolés. T
 Trafic et mails écrits pour la démo, entreprise fictive : ces chiffres montrent la cohérence du moteur, pas une détection en production. Désarmeur, analyseur de mails et extension reposent sur des motifs : une consigne paraphrasée et polie peut passer, d’où le contrôle de l’action. Le relecteur reste attaquable comme tout modèle. Pas de branchement sur Outlook ou Gmail ; volet poste sur macOS et Chrome seulement. Un jeton par rôle, pas par personne ; SQLite et un seul écrivain. Prévu avant un déploiement : purge à 90 jours, analyse d’impact, information des salariés et du CSE, relecteur sur un modèle hébergé dans l’UE ou en mode règles. Brouillon NIS2 et correspondances jamais audités.
 
 \h{Feuille de route}
-Demandé par les testeurs, pas fait pour le 11 octobre : app Windows, Microsoft~365 (Outlook, Exchange), SSO (OIDC) avec les rôles de l’annuaire. Ensuite : ancrage Avalanche, SMS et résumé réellement envoyés, connecteurs Sentinel et Splunk.
+Demandé par les testeurs (des personas joués par des agents, pas de vraies personnes), pas fait pour le 11 octobre : app Windows, Microsoft~365 (Outlook, Exchange), SSO (OIDC) avec les rôles de l’annuaire. Ensuite : ancrage Avalanche, SMS et résumé réellement envoyés, connecteurs Sentinel et Splunk.
 
 \h{Correspondances (repères, pas une certification)}
 OWASP Agentic ASI01 (détournement d’objectif), ASI02 (usage abusif des outils), ASI03 (abus d’identité et de privilèges) ; MITRE ATLAS AML.T0051.001, T0053, T0057 ; ATT\&CK T1566 phishing, T1657 virement frauduleux, T1048, T1555 dans les règles Sigma ; NIST CSF 2.0 DE.CM-09, DE.AE-02, DE.AE-08, RS.MA-02, RS.AN-03, RS.MI-01 ; NIS2 art.~23 : sAIfe prépare le brouillon d’alerte sous 24~h, l’humain qualifie et notifie.

@@ -412,7 +412,7 @@
             <li><svg class="ic" aria-hidden="true"><use href="#i-json"/></svg><div><b>Export ECS</b><span>Les événements de l'incident en JSON, au format ECS 8.11 d'Elastic, techniques ATT&amp;CK comprises.</span></div></li>
             <li><svg class="ic" aria-hidden="true"><use href="#i-regle"/></svg><div><b>Règles Sigma</b><span>Les règles qui attrapent l'incident, validées par sigma-cli, à convertir pour Splunk ou Elastic.</span></div></li>
             <li><svg class="ic" aria-hidden="true"><use href="#i-page"/></svg><div><b>Rapport d'une page</b><span>Ce qui s'est passé, la décision et son auteur, l'état de l'agent, la chronologie. Il s'imprime ou s'enregistre en PDF.</span></div></li>
-            <li><svg class="ic" aria-hidden="true"><use href="#i-sceau"/></svg><div><b>Journal scellé</b><span>Chaque événement et chaque décision porte une empreinte SHA-256 liée à la précédente et la signature de son émetteur ; la base refuse toute modification. La vérification relit le dossier et nomme le champ modifié, s'il y en a un.</span></div></li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-sceau"/></svg><div><b>Journal scellé</b><span>Chaque événement et chaque décision porte une empreinte SHA-256 liée à la précédente, et le backend la signe avec une clé locale propre à son canal d'origine ; la base refuse toute modification. La vérification relit le dossier et nomme le champ modifié, s'il y en a un.</span></div></li>
           </ul>
           <p class="limite apparait" style="--d:3">Limite : un administrateur qui tient le serveur peut réécrire la base et la signer à nouveau. Cela ne se repère qu'en comparant le journal à une empreinte gardée ailleurs, celle du rapport imprimé par exemple.</p>
         </div>
@@ -537,7 +537,7 @@
         <div class="tete-section">
           <p class="surtitre apparait">Feuille de route</p>
           <h2 id="route-titre" class="apparait" style="--d:1">Ce qui viendra après ce week-end.</h2>
-          <p class="chapeau apparait" style="--d:2">Rien de ce qui suit ne tourne dans le prototype.</p>
+          <p class="chapeau apparait" style="--d:2">Rien de ce qui suit ne tourne dans le prototype. Les testeurs étaient des personas joués par des agents, pas de vraies personnes.</p>
         </div>
         <div class="engagements">
           <div class="bloc apparait">

@@ -55,11 +55,25 @@ def port_libre() -> int:
         return s.getsockname()[1]
 
 
-def appel(base: str, chemin: str, corps: dict | None = None, delai: float = 5.0):
+def jeton(role: str) -> str:
+    """Le jeton d'une identité, lu où le backend l'a tiré (`DEDALE_JETONS` ou `~/.config/dedale`).
+
+    Depuis l'avenant « authentification des appels au backend », chaque route demande un jeton :
+    le banc s'authentifie déjà, ce script doit en faire autant pour lire les mesures et poser
+    les gestes du relecteur."""
+    base = os.environ.get("DEDALE_JETONS", "").strip()
+    dossier = Path(base).expanduser() if base else Path.home() / ".config" / "dedale"
+    return (dossier / f"jeton-{role}").read_text(encoding="ascii").strip()
+
+
+def appel(base: str, chemin: str, corps: dict | None = None, delai: float = 5.0,
+          role: str | None = "analyste"):
     donnees = json.dumps(corps).encode() if corps is not None else None
     req = urllib.request.Request(base + chemin, data=donnees, method="POST" if corps is not None else "GET")
     if donnees is not None:
         req.add_header("Content-Type", "application/json")
+    if role is not None:
+        req.add_header("Authorization", f"Bearer {jeton(role)}")
     with urllib.request.urlopen(req, timeout=delai) as rep:
         return json.loads(rep.read().decode("utf-8"))
 
@@ -91,7 +105,7 @@ class BackendIsole:
         fin = time.time() + 60
         while time.time() < fin:
             try:
-                appel(self.base, "/api/sante", delai=1.0)
+                appel(self.base, "/api/sante", delai=1.0, role=None)
                 return self
             except (urllib.error.URLError, OSError, json.JSONDecodeError):
                 time.sleep(0.3)
@@ -177,7 +191,7 @@ def mesurer_relecteur(backend: "BackendIsole") -> list[dict]:
         appel(backend.base, "/api/evenements", {
             "horodatage": datetime.now().astimezone().isoformat(), "source": "humain", "surface": "poste",
             "type": "avertissement", "session_id": f"poste-essai{i}-4y-{did}", "user_agent": "dedale-mesures",
-            "details": details})
+            "details": details}, role="poste")
         verdict = None
         fin = time.time() + 60
         while time.time() < fin:

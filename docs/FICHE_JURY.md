@@ -2,7 +2,7 @@
 
 Secure Horizons, Track 2 · 10–11 octobre 2026 · Orbis Pay est une entreprise fictive. [Version PDF, une page](FICHE_JURY.pdf), source LaTeX dans [FICHE_JURY.tex](FICHE_JURY.tex).
 
-Vidéo de démo : lien à ajouter après le tournage.
+Vidéo de démo : [video/sAIfe-demo.mp4](video/sAIfe-demo.mp4).
 
 ## La menace défendue
 
@@ -12,11 +12,11 @@ Preuves hors sAIfe : 33,1 % des salariés non formés échouent aux tests de phi
 
 ## Les contrôles
 
-- Poste : l’app Mac prévient avant le geste (mail frauduleux, site louche, fichier à risque) et tient l’inventaire des agents IA du poste ; l’extension Chrome arrête un site sosie ou louche, avec les mêmes règles. Le salarié choisit, le poste n’est jamais bloqué. Quatre modules qu’on peut couper (mails, onglet actif, téléchargements, agents IA du poste) ; au SOC partent la catégorie, le domaine et le choix, jamais le contenu d’un fichier ni la valeur d’un secret.
-- Geste critique (virement, export de clients) : des règles cherchent un signal de risque. Sans signal, il part sans pop-up. Signal sans fraude (RIB qui change, bénéficiaire inconnu, montant hors des habitudes) : retenu, le responsable ou la finance le tranche dans l’espace `/validation`. Signal de fraude (geste après un mail frauduleux, consigne cachée, rafale) : relecteur IA et incident SOC.
+- Poste : l’app Mac prévient avant le geste (mail frauduleux, site louche, fichier à risque) et tient l’inventaire des agents IA du poste ; l’extension Chrome arrête un site sosie ou louche, avec les mêmes règles. Le salarié choisit ; le poste n’est jamais bloqué ni verrouillé. Quatre modules qu’on peut couper (mails, onglet actif, téléchargements, agents IA du poste) ; au SOC partent la catégorie, le domaine et le choix. Pour un mail jugé frauduleux, une copie désarmée part du serveur de messagerie ; sinon, jamais le contenu d’un fichier ni la valeur d’un secret.
+- Geste critique (virement, export de clients) : l’app du poste le déclare à sAIfe (appel local `/avertir`, ou geste repéré dans un mail), et des règles y cherchent un signal de risque avant de laisser le salarié continuer ; rien ne s’interpose dans le vrai flux de paiement, ce branchement est une étape de déploiement. Sans signal, le geste part sans pop-up. Signal sans fraude (RIB qui change, bénéficiaire inconnu, montant hors des habitudes) : retenu, le responsable ou la finance le tranche dans l’espace `/validation`. Signal de fraude (geste après un mail frauduleux, consigne cachée, rafale) : relecteur IA et incident SOC.
 - Garde-mail : chaque mail est jugé sûr, suspect ou frauduleux, avec une phrase par signal (sosie, lien menteur, pièce piégée, fraude au président, consigne cachée).
 - Passerelle de l’agent : désarmeur des consignes cachées avant lecture, jeton limité à la tâche, canaris, envoi hors d’Orbis Pay retenu avant exécution. Médiation de tous les outils : un outil absent de l’inventaire de l’agent, un outil de lecture détourné pour sortir une donnée (paramètres décodés en URL, base64, hexadécimal) et un outil MCP modifié en cours de session sont retenus avant exécution. Coût : 0,07 ms de plus en médiane sur un appel autorisé.
-- Journal chaîné en SHA-256, signé en Ed25519 par son émetteur, en ajout seul : `GET /api/incidents/{id}/verification` nomme le champ modifié. Rapport d’une page pour le RSSI. Ancrage sur Avalanche : voie d’exploration, aucune ancre publiée.
+- Journal chaîné en SHA-256, signé en Ed25519 par le backend (une clé locale par canal d’origine), en ajout seul : `GET /api/incidents/{id}/verification` nomme le champ modifié. Qui n’a que la base ne peut pas la réécrire sans que ça se voie ; qui tient la machine, oui. Rapport d’une page pour le RSSI. Ancrage sur Avalanche : voie d’exploration, aucune ancre publiée.
 - Intégrations : export ECS 8.11, CEF par syslog, 29 règles Sigma validées par sigma-cli, webhooks Slack et Teams, SMS simulé, résumé du lundi, brouillon NIS2 à relire ([INTEGRATIONS.md](INTEGRATIONS.md)). Quatre identités authentifiées : analyste, passerelle, poste, validateur.
 
 Ce qu’on ne fait pas : tout bloquer, remplacer votre SIEM, classer vos documents.
@@ -47,12 +47,12 @@ Le détail, fichier par fichier, est dans la section « Comment l’humain garde
 
 ## Ce qu’on a mesuré
 
-Le 10 octobre 2026 à 22 h 10, commit `a1a7321`, sur des backends isolés (port libre, base SQLite temporaire, jamais le backend partagé). Trafic et mails écrits pour la démo. Ces mesures précèdent la vérification des gestes sur signal, la validation métier et la médiation de tous les outils. Détail et dénominateurs : [mesures/resultats.md](mesures/resultats.md). Rejouer : `python3 docs/mesures/mesurer.py`.
+Le 11 octobre 2026 à 9 h 35, commit `fb6fa41`, sur des backends isolés (port libre, base SQLite temporaire, jamais le backend partagé). Trafic et mails écrits pour la démo ; les durées sont celles de la chaîne technique sur le banc, pas une cadence d’attaque ni une prédiction de production. Détail et dénominateurs : [mesures/resultats.md](mesures/resultats.md). Rejouer : `python3 docs/mesures/mesurer.py`.
 
-- Agent interne piégé, joué par la vraie passerelle : 25/25 sessions classées agent IA, 25/25 incidents, 0 rapport sorti. Temps de détection : médiane 10 ms, moyenne 11 ms. Temps de confinement : médiane 19 ms, moyenne 20 ms, avec une coupure envoyée par script. 25 échantillons chacun. Incident ouvert 0,81 ms après l’événement déclencheur (médiane).
+- Agent interne piégé, joué par la vraie passerelle : 25/25 sessions classées agent IA, 25/25 incidents, 0 rapport sorti. Temps de détection : médiane 12 ms, moyenne 17 ms. Temps de confinement : médiane 32 ms, moyenne 31 ms, avec une coupure envoyée par script. 25 échantillons chacun. Incident ouvert 1,52 ms après l’événement déclencheur (médiane).
 - Agent IA externe : 25/25 sessions classées agent IA, 25/25 incidents. Faux positifs : 0/50 sessions humaines ou scriptées classées agent IA.
 - 12 mails de démo : 8/8 frauduleux repérés, 0/3 légitime signalé, le mail douteux classé « suspect ». Désarmeur : consigne cachée retirée dans 2/2 mails qui en portent une, 0/10 ailleurs.
-- Relecteur IA sur 6 gestes critiques : 6/6 tranchés par Haiku sans repli, 1 accordé, 5 refusés, médiane 3,3 s, moyenne 3,6 s.
+- Relecteur IA sur 6 gestes critiques : 4 refusés d’office par les règles dures (modèle non appelé), 2 relus par Haiku (1 accordé, 1 retenu) en 4,0 s et 4,8 s.
 - Mode réel, 11 octobre : Haiku pilote l’agent sur de vrais services locaux (Mailpit, API bancaire locale, fichiers) et a résisté à l’injection, 0 tentative sur 3 puis 0 sur 5. Un attaquant déterministe sur les mêmes services : le mail d’exfiltration est livré sans sAIfe, retenu avec ([REEL_OU_SIMULE.md](REEL_OU_SIMULE.md)).
 
 Non mesuré : le temps de décision d’un analyste ou d’un responsable humain, un vrai poste ou une vraie messagerie.
@@ -67,7 +67,7 @@ Trafic et mails écrits pour la démo, entreprise fictive : ces chiffres montren
 
 ## Feuille de route
 
-Demandé par les testeurs, pas fait pour le 11 octobre : une app Windows, Microsoft 365 (Outlook et Exchange, puis Google Workspace), le SSO (OIDC) avec les rôles et le rattachement aux responsables tirés de l’annuaire. Ensuite : l’ancrage du journal sur Avalanche, l’envoi réel des SMS et du résumé du lundi, les connecteurs Sentinel et Splunk.
+Demandé par les testeurs (des personas joués par des agents, pas de vraies personnes), pas fait pour le 11 octobre : une app Windows, Microsoft 365 (Outlook et Exchange, puis Google Workspace), le SSO (OIDC) avec les rôles et le rattachement aux responsables tirés de l’annuaire. Ensuite : l’ancrage du journal sur Avalanche, l’envoi réel des SMS et du résumé du lundi, les connecteurs Sentinel et Splunk.
 
 ## Cible, modèle, équipe (hypothèses, aucun client)
 
