@@ -49,7 +49,7 @@ cartons() {
   carton_png "${C}/stop.png" "Stop.|120|semibold|0d0d0d|-0.02" "Maintenant, avec s*AI*fe.|58|regular|6e6e73"
   carton_png "${C}/perte.png" "41 760 €|130|semibold|c4262e|-0.02" "partis sur un compte inconnu.|48|regular|3a3a3c"
   carton_png "${C}/garde.png" "41 760 €|130|semibold|0f7b55|-0.02" "restés chez Orbis Pay.|48|regular|3a3a3c"
-  carton_png "${C}/num.png" "41 760 €|118|semibold|ffffff|-0.02" "partis.|52|regular|e8686d"
+  carton_png "${C}/num.png" "41 760 €|130|semibold|ffffff|-0.02" "partis.|54|regular|e8686d"
   carton_png "${C}/hud.png" "◀◀|84|semibold|0d0d0d"
   rsvg-convert -w 200 -h 200 "${ICI}/../../console/src/assets/dedale.svg" -o "${C}/marque.png"
   carton_png "${C}/logo-texte.png" --decalage 150 "s*AI*fe|104|regular|0d0d0d|-0.02" \
