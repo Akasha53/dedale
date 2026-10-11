@@ -396,7 +396,7 @@
             <span class="case-ico" aria-hidden="true"><svg class="ic"><use href="#i-yeux"/></svg></span>
             <p class="case-lieu">Geste critique</p>
             <h3>Un virement n'arrête personne sans raison</h3>
-            <p>Un virement habituel part sans rien afficher. Un RIB qui change ou un bénéficiaire inconnu le retient pour le responsable ou la finance. Après un mail frauduleux, un relecteur IA tranche en quelques secondes, sans lire le mail, et la sécurité est prévenue.</p>
+            <p>Un virement habituel part sans pop-up et sans aucun modèle. Les règles tranchent les cas évidents : un RIB qui change ou un bénéficiaire inconnu retient le geste pour le responsable ou la finance. Claude Haiku, d'Anthropic, ne relit que les gestes qui portent un signal de fraude, sans lire le mail.</p>
           </article>
         </div>
       </div>
@@ -471,7 +471,7 @@
               <li><b>Une durée de conservation.</b> 90 jours par défaut, valeur retenue pour la démonstration et réglable. Passé ce délai, l'incident sera effacé.</li>
               <li><b>Information et CSE.</b> Les salariés seront informés et le CSE consulté avant la mise en service.</li>
               <li><b>Aucun score sur une personne.</b> Le score de suspicion sera réservé aux agents IA.</li>
-              <li><b>Un modèle hébergé dans l'UE.</b> Le relecteur IA tourne déjà sans modèle, sur ses seules règles. En production, il passera par un modèle hébergé dans l'UE ou sur place.</li>
+              <li><b>Un modèle hébergé dans l'UE.</b> Le relecteur utilise Claude Haiku, d'Anthropic, hébergé aux États-Unis. Il tourne déjà en mode règles seul, sans aucun modèle ; un modèle hébergé dans l'UE pourra remplacer Haiku.</li>
             </ul>
           </div>
         </div>
@@ -511,7 +511,28 @@
         <p class="note apparait" style="--d:2">Ces repères situent les risques et les contrôles. Aucune certification ni notification réglementaire automatique, et personne n'a encore audité ces correspondances.</p>
       </div>
     </section>
-    <section class="section gris" id="feuille-de-route" aria-labelledby="route-titre">
+    <section class="section gris" id="pme" aria-labelledby="pme-titre">
+      <div class="shell exports">
+        <div>
+          <p class="surtitre apparait">Pour une PME sans SOC</p>
+          <h2 id="pme-titre" class="apparait" style="--d:1">Sans équipe sécurité à plein temps.</h2>
+          <p class="chapeau apparait" style="--d:2">Personne ne valide les gestes ordinaires. Ce qui reste arrive chez la bonne personne.</p>
+          <ul class="liste-exports apparait" style="--d:2">
+            <li><svg class="ic" aria-hidden="true"><use href="#i-yeux"/></svg><div><b>Le tri se fait seul</b><span>Les règles laissent passer l'habituel et retiennent les cas évidents. Le relecteur IA ne regarde que les gestes qui portent un signal de fraude.</span></div></li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-liste"/></svg><div><b>Le responsable confirme</b><span>Un virement retenu arrive dans l'espace de validation. Le responsable ou la finance accorde ou refuse, avec un motif signé.</span></div></li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg><div><b>Un mail le lundi</b><span>Le résumé de la semaine tient en une page : menaces, gestes retenus et leur issue, agents à surveiller. Il est aujourd'hui en aperçu dans la console, pas encore envoyé.</span></div></li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-page"/></svg><div><b>Une console confiée à un prestataire</b><span>Un prestataire peut tenir la console et recevoir les alertes dans son propre SIEM.</span></div></li>
+          </ul>
+          <p class="limite apparait" style="--d:3">Prix : un pilote de 3 mois, puis un abonnement par poste. Le tarif n'est pas fixé.</p>
+        </div>
+        <figure class="apparait" style="--d:1">
+          <div class="cadre"><div class="cadre-coeur"><img src="img/v2/validation-metier.webp" width="1600" height="1241" loading="lazy" alt="Espace de validation métier de sAIfe : un virement de 41 760 € à Atelier Nord retenu parce que le RIB n'a jamais servi et que le montant dépasse l'habitude, à confirmer par le responsable ou la finance"></div></div>
+          <figcaption>L'espace de validation métier, sur /validation : le montant, le bénéficiaire et la raison de la retenue. Capture du prototype, données fictives.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" id="feuille-de-route" aria-labelledby="route-titre">
       <div class="shell">
         <div class="tete-section">
           <p class="surtitre apparait">Feuille de route</p>
