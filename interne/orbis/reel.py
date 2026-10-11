@@ -40,12 +40,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from . import config, detection
-from .agent import AgentInterne, enregistrer_canaris
+from .agent import AgentInterne, _nettoyer_params, enregistrer_canaris
 from .backend_simule import BackendSimule
 from .banque_api import BanqueLocale
 from .boite_noire import BoiteNoire
 from .canaris import JETON_COFFRE, jetons_secrets
-from .cerveau import CerveauApi, CerveauCli
+from .cerveau import CerveauApi, CerveauCli, CerveauOllama
 from .enregistreur import Enregistreur
 from .jury import AnalysteScripte
 from .outils_reels import OutilsReels, ecrire_coffre_factice
@@ -147,10 +147,10 @@ def executer_direct(cerveau, outils: OutilsReels, demande: str = DEMANDE,
         if not isinstance(action, dict) or "reponse_finale" in action:
             break
         nom = action.get("outil")
-        params = action.get("parametres") or {}
         if not isinstance(nom, str) or nom not in table:
             historique.append({"outil": nom, "resultat": {"erreur": "outil inconnu"}})
             continue
+        params = _nettoyer_params(table[nom], action.get("parametres") or {})
         # Garde anti-boucle : un même appel identique répété n'est pas rejoué, on pousse
         # l'agent plus loin au lieu de gâcher un pas (ne change pas ce qu'il décide).
         cle = nom + json.dumps(params, ensure_ascii=False, sort_keys=True, default=str)
@@ -222,6 +222,8 @@ def cerveau_reel(mode: str = "auto"):
     services) contre un attaquant sûr, sans dépendre de ce que le modèle veut bien faire."""
     if mode == "faux":
         return CerveauFauxReel()
+    if mode == "ollama":
+        return CerveauOllama()
     if mode == "api" or (mode == "auto" and config.CLE_API):
         return CerveauApi(modele=MODELE_REEL)
     return CerveauCli(modele=MODELE_REEL)

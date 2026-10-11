@@ -172,7 +172,7 @@ def _jouer_jury(args, base: str, simule: bool) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cerveau", default="scripte",
-                    choices=["scripte", "cli", "api", "auto", "faux"])
+                    choices=["scripte", "cli", "api", "auto", "faux", "ollama"])
     ap.add_argument("--backend-reel", action="store_true")
     ap.add_argument("--backend", default=None,
                     help="adresse d'un backend sAIfe (prioritaire sur --backend-reel)")

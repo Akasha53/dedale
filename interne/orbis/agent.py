@@ -5,6 +5,8 @@ outils directement : tout passe par la passerelle.
 
 from __future__ import annotations
 
+import inspect
+
 from . import droits, mcp
 from .boite_noire import BoiteNoire
 from .canaris import inventaire_backend, jetons_secrets
@@ -17,6 +19,34 @@ def _introuvable(nom: str):
     def fonction(**_params) -> dict:
         return {"erreur": "outil inconnu", "outil": nom}
     return fonction
+
+
+def _nettoyer_params(fonction, params: dict) -> dict:
+    """Tolère les paramètres approximatifs d'un petit modèle local.
+
+    Un modèle faible écrit parfois `depuis?` au lieu de `depuis`, ou invente une clé. On
+    normalise les clés (on retire espaces et `?`/`:` en trop), puis, quand la fonction a une
+    signature fixe (pas de `**kwargs`), on écarte les clés qu'elle n'accepte pas plutôt que de
+    planter sur un `TypeError`. L'inspection du contenu (canari, exfiltration) se fait plus tard
+    sur les valeurs gardées. Ne change rien pour un modèle qui nomme ses paramètres correctement.
+    """
+    if not isinstance(params, dict):
+        return {}
+    propres: dict = {}
+    for cle, val in params.items():
+        if isinstance(cle, str):
+            cle = cle.strip().rstrip("?:").strip()
+        propres[cle] = val
+    if fonction is None:
+        return propres
+    try:
+        sig = inspect.signature(fonction)
+    except (TypeError, ValueError):
+        return propres
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+        return propres
+    acceptes = set(sig.parameters)
+    return {k: v for k, v in propres.items() if k in acceptes}
 
 
 def enregistrer_canaris(boite: BoiteNoire | None = None) -> bool:
@@ -116,7 +146,7 @@ class AgentInterne:
                 break
 
             nom = action.get("outil")
-            params = action.get("parametres") or {}
+            params = _nettoyer_params(self._table.get(nom), action.get("parametres") or {})
             if not isinstance(nom, str) or not nom:
                 historique.append({"outil": nom, "resultat": {"erreur": "action illisible"}})
                 continue

@@ -450,6 +450,47 @@ class CerveauApi:
         return action or {"reponse_finale": "[réponse API illisible]"}
 
 
+class CerveauOllama:
+    """Pilote un modèle local servi par Ollama (http://localhost:11434).
+
+    Un vrai modèle, mais petit et peu prudent : il suit plus volontiers une consigne cachée
+    que Claude Haiku. Sert à montrer, avec un VRAI modèle, un agent qui se fait piéger et que
+    la passerelle retient. Tout reste local : aucune donnée ne sort de la machine.
+    """
+
+    def __init__(self, modele: str | None = None, hote: str | None = None, timeout_s: int = 120):
+        self.modele = modele or os.environ.get("DEDALE_OLLAMA_MODELE", "qwen2.5:7b")
+        self.hote = (hote or os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
+        self.timeout_s = timeout_s
+
+    def prochaine_action(self, demande: str, historique: list[dict]) -> dict:
+        import urllib.error
+        import urllib.request
+
+        corps = json.dumps({
+            "model": self.modele,
+            "messages": [
+                {"role": "system", "content": SYSTEME},
+                {"role": "user", "content": _construire_prompt(demande, historique)},
+            ],
+            "stream": False,
+            "format": "json",  # Ollama contraint la sortie à du JSON.
+            "options": {"temperature": 0.7},
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            self.hote + "/api/chat", data=corps,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as rep:
+                donnees = json.loads(rep.read().decode("utf-8"))
+            texte = (donnees.get("message") or {}).get("content", "")
+        except (urllib.error.URLError, OSError, json.JSONDecodeError, TimeoutError) as e:
+            return {"reponse_finale": f"[cerveau Ollama indisponible : {type(e).__name__}]"}
+        action = _extraire_json(texte)
+        return action or {"reponse_finale": "[réponse Ollama illisible]"}
+
+
 def choisir_cerveau(mode: str | None = None, temperament: str = "prudent"):
     """Fabrique le cerveau selon la config. 'auto' -> api si clé, sinon cli."""
     mode = mode or config.CERVEAU
@@ -459,5 +500,7 @@ def choisir_cerveau(mode: str | None = None, temperament: str = "prudent"):
         return CerveauApi()
     if mode == "cli":
         return CerveauCli()
+    if mode == "ollama":
+        return CerveauOllama()
     # auto
     return CerveauApi() if config.CLE_API else CerveauCli()
