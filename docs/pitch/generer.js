@@ -148,9 +148,9 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
   titre(slide,2,'La solution','Un seul moteur pour le salarié et pour l’agent','sAIfe intervient une seconde avant le geste, en local, et c’est un humain qui tranche.');
   const cartes = [
     {n:'01',t:'Prévenir',d:'Pop-up avant le clic sur le poste. Consigne cachée retirée avant que l’agent la lise.',c:C.accent},
-    {n:'02',t:'Retenir',d:'Tout envoi d’un agent hors de l’entreprise attend l’analyste avant de partir.',c:C.ardoise},
-    {n:'03',t:'L’humain tranche',d:'Le salarié choisit. L’analyste coupe ou laisse passer, avec un motif.',c:C.accent},
-    {n:'04',t:'Prouver',d:'Boîte noire scellée, rapport d’une page, exports ECS et Sigma.',c:C.ardoise},
+    {n:'02',t:'Retenir',d:'Chaque appel d’outil passe la passerelle : envoi externe, outil inconnu ou détourné attend l’analyste.',c:C.ardoise},
+    {n:'03',t:'L’humain tranche',d:'Le salarié choisit. Son responsable confirme un virement retenu. L’analyste coupe un agent, avec un motif.',c:C.accent},
+    {n:'04',t:'Prouver',d:'Journal scellé et signé, rapport d’une page, exports ECS, CEF et Sigma vers le SIEM.',c:C.ardoise},
   ];
   cartes.forEach((o,i)=>{
     const x=0.68+i*3.07;
@@ -164,7 +164,7 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
         0.68,5.75,12.0,0.4,{fontSize:16,bold:true,fit:'shrink'});
   texte(slide,'On contrôle l’action de l’agent, pas seulement le texte qu’il lit : une consigne paraphrasée peut passer un filtre, pas la retenue.',
         0.68,6.3,12.0,0.4,{fontSize:12.5,color:C.faible,fit:'shrink'});
-  slide.addNotes('VERSION 3 MIN : garder cette slide.\nUn pare-feu protège les tuyaux ; sAIfe protège ceux qui décident d’ouvrir. Le poste du salarié n’est jamais coupé : il avertit, la personne choisit, sauf un geste critique (virement, export de clients) qui attend un second regard. Pour l’agent, la passerelle désarme le contenu avant lecture et retient l’appel sortant avant exécution. Ce qu’on ne fait pas : tout bloquer, remplacer le SIEM (on lui envoie des incidents ECS et des règles Sigma par l’API), classer les documents de l’entreprise. Le brouillon NIS2 est à relire, ce n’est ni une qualification ni une notification envoyée. Référentiels de lecture, sans certification : NIST CSF 2.0, MITRE ATT&CK et ATLAS, OWASP agentique.');
+  slide.addNotes('VERSION 3 MIN : garder cette slide.\nUn pare-feu protège les tuyaux ; sAIfe protège ceux qui décident d’ouvrir. Le poste du salarié n’est jamais coupé : il avertit, la personne choisit, sauf un geste critique (virement, export de clients) qui attend un second regard. Un virement normal part sans rien afficher ; un signal sans fraude le retient pour le responsable ou la finance, un signal de fraude prévient la sécurité. Pour l’agent, la passerelle désarme le contenu avant lecture et contrôle chaque appel d’outil avant exécution, outils inconnus et MCP compris. Ce qu’on ne fait pas : tout bloquer, remplacer le SIEM (on lui envoie ECS, CEF par syslog et des règles Sigma validées par sigma-cli), classer les documents de l’entreprise. Le brouillon NIS2 est à relire, ce n’est ni une qualification ni une notification envoyée. Référentiels de lecture, sans certification : NIST CSF 2.0, MITRE ATT&CK et ATLAS, OWASP agentique.');
 }
 
 // 3. Volet poste
@@ -172,19 +172,19 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
   const slide = pptx.addSlide();
   titre(slide,3,'Volet poste','Protéger le salarié sans le fliquer','Ce que le DPO et le CSE voudront entendre.');
   const lignes = [
-    ['01','Une app visible qui prévient avant le geste et laisse le choix. Seul un virement ou un export de clients attend un second regard.'],
+    ['01','Une app visible qui prévient avant le geste et laisse le choix. Un virement normal part sans rien afficher.'],
     ['02','Quatre modules qu’on peut couper : mails reçus, onglet actif, téléchargements, agents IA du poste. L’analyse se fait sur le poste.'],
-    ['03','Au SOC : la catégorie, le domaine et le choix. « Annuler » compte un piège évité ; seul « Continuer » ouvre un incident.'],
-    ['04','Un pseudonyme par défaut. Lever l’identité demande un motif, scellé au journal sans le nom.'],
+    ['03','Virement retenu sans fraude : le responsable ou la finance le confirme. La sécurité n’en voit que l’issue.'],
+    ['04','Au SOC : un pseudonyme et des montants en tranches. Le détail ne s’ouvre que sur un signal de fraude, et chaque consultation est journalisée.'],
   ];
   lignes.forEach((l,i)=>{
     texte(slide,l[0],0.72,2.35+i*0.98,0.6,0.5,{fontFace:'Courier New',fontSize:15,color:i%2?C.ardoise:C.accent,bold:true});
     texte(slide,l[1],1.4,2.2+i*0.98,5.3,0.8,{fontSize:14.5,fit:'shrink'});
   });
   capture(slide,'app-mac/captures/mail.png',7.1,2.12,4.9,3.81,'Pop-up de l’app Mac, prototype local');
-  texte(slide,'Prévu avant un déploiement : conservation de 90 jours, salariés informés et CSE consulté, aucun score sur une personne.',
+  texte(slide,'Prévu avant un déploiement : purge à 90 jours, analyse d’impact, salariés informés et CSE consulté, score de tri réservé aux agents.',
         0.68,6.45,12.0,0.4,{fontSize:14,color:C.doux,fit:'shrink'});
-  slide.addNotes('VERSION 3 MIN : sauter cette slide, garder une phrase dans la démo : le poste avertit, le salarié décide.\nCe qui est en place, module par module (même texte que la section Vie privée de la landing et le panneau « Ce que sAIfe regarde sur ce poste ») : mails reçus, onglet actif, téléchargements, agents IA installés, chacun avec son interrupteur. Part au SOC : la catégorie, le domaine et le choix du salarié ; l’empreinte d’un fichier ; l’inventaire des agents sans secret. La copie désarmée d’un mail jugé frauduleux part du serveur de messagerie, pas du poste. « Annuler » envoie aussi un événement : la SOC compte un piège évité, sans ouvrir de dossier. Jamais lus : presse-papiers, frappes, écran, contenu des pages, historique. Jamais envoyés : le contenu d’un fichier, la valeur d’un secret, les autres mails.\nPour le DPO : la console montre « Salarié 4821 · Finance », jamais un nom ; lever l’identité demande un motif, l’acte est scellé et le journal ne garde pas le nom révélé.\nPrévu, pas encore fait : durée de conservation de 90 jours, information des salariés et consultation du CSE, aucun score sur une personne. Le volet poste est une option.');
+  slide.addNotes('VERSION 3 MIN : sauter cette slide, garder une phrase dans la démo : le poste avertit, le salarié décide.\nCe qui est en place, module par module (même texte que la section Vie privée de la landing et le panneau « Ce que sAIfe regarde sur ce poste ») : mails reçus, onglet actif, téléchargements, agents IA installés, chacun avec son interrupteur. Part au SOC : la catégorie, le domaine et le choix du salarié ; l’empreinte d’un fichier ; l’inventaire des agents sans secret. La copie désarmée d’un mail jugé frauduleux part du serveur de messagerie, pas du poste. « Annuler » envoie aussi un événement : la SOC compte un piège évité, sans ouvrir de dossier. Jamais lus : presse-papiers, frappes, écran, contenu des pages, historique. Jamais envoyés : le contenu d’un fichier, la valeur d’un secret, les autres mails.\nPour le DPO : la console montre « Salarié 4821 · Finance », jamais un nom ; lever l’identité demande un motif, l’acte est scellé et le journal ne garde pas le nom révélé. Le SOC lit « entre 10 et 50 k€ » et « [bénéficiaire masqué] » ; le détail ne s’ouvre que sur un signal de fraude, et la consultation entre au journal. Un virement retenu sans fraude va au responsable ou à la finance sur /validation, qui voit montant, bénéficiaire et raison, et décide avec un motif signé. Le relecteur reçoit des faits pseudonymisés ; il tourne aussi sans modèle (mode règles), et en production il passerait par un modèle hébergé dans l’UE ou local (pas encore branché).\nPrévu, pas encore fait : purge à 90 jours, analyse d’impact, information des salariés et consultation du CSE, score de tri réservé aux agents IA. Le volet poste est une option.');
 }
 
 // 4. Démo
@@ -197,16 +197,17 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
     'L’assistant de Jean lit un mail qui cache une consigne et veut envoyer son rapport dehors.',
     'La passerelle retient l’appel. La console montre la chaîne, preuve par preuve.',
     'L’analyste coupe l’agent : rien n’est sorti, le rapport porte le sceau du journal.',
+    'Deux virements : l’habituel part sans rien afficher, celui au RIB nouveau attend le responsable.',
   ];
   etapes.forEach((t,i)=>{
-    texte(slide,`${i+1}`,0.98,2.45+i*0.88,0.4,0.4,{fontFace:'Courier New',fontSize:15,color:i%2?C.ardoise:C.accent,bold:true});
-    texte(slide,t,1.45,2.35+i*0.88,3.95,0.75,{fontSize:15.2,fit:'shrink'});
+    texte(slide,`${i+1}`,0.98,2.4+i*0.73,0.4,0.4,{fontFace:'Courier New',fontSize:14,color:i%2?C.ardoise:C.accent,bold:true});
+    texte(slide,t,1.45,2.3+i*0.73,3.95,0.66,{fontSize:14,fit:'shrink'});
   });
   capture(slide,'docs/pitch/img/console-incident-agent.png',5.9,2.28,6.75,3.8,
           'Console SOC, prototype local');
   texte(slide,'Entreprise fictive Orbis Pay. L’agent est scripté pour que la démo se rejoue à l’identique.',
         0.68,6.55,12.0,0.37,{fontSize:12,color:C.faible,fit:'shrink'});
-  slide.addNotes('VERSION 3 MIN : garder cette slide, c’est le cœur.\nAvant de monter : cd messagerie && ./demarrer.sh --service ; cd app-mac && ./construire.sh --lancer. Ne pas lancer ./lancer.sh.\nSur scène : Entrée sur « uv run python envoyer_demo.py --cas sosie » (pop-up, Annuler, coach), puis Entrée sur « ./demo.sh jury » à la racine (base neuve, scènes, chrono). Ouvrir le lien de l’incident imprimé par le script, lire « Ce qui s’est passé », puis « Couper l’agent ». Le terminal confirme qu’aucun rapport n’est parti. Second onglet : le rapport d’une page avec le sceau.\nDire clairement : une tentative retenue n’est pas une fuite réussie, et nous ne revendiquons aucun taux de réussite d’attaque sur des modèles réels. Déroulé complet : docs/DEMO_JURY.md.');
+  slide.addNotes('VERSION 3 MIN : garder cette slide, c’est le cœur.\nAvant de monter : cd messagerie && ./demarrer.sh --service ; cd app-mac && ./construire.sh --lancer. Ne pas lancer ./lancer.sh.\nSur scène : Entrée sur « uv run python envoyer_demo.py --cas sosie » (pop-up, Annuler, coach), puis Entrée sur « ./demo.sh jury » à la racine (base neuve, scènes, chrono). Ouvrir le lien de l’incident imprimé par le script, lire « Ce qui s’est passé », puis « Couper l’agent » (motif court, 5 s pour annuler). Le terminal confirme qu’aucun rapport n’est parti. Second onglet : le rapport d’une page avec le sceau. Puis les deux virements par curl sur 127.0.0.1:8712 (commandes dans docs/DEMO_JURY.md) : 320 € à Imprimerie du Lys passe sans pop-up, 3 480 € à Atelier Nord avec un nouveau RIB est retenu, à trancher sur /validation.\nDire clairement : une tentative retenue n’est pas une fuite réussie, et nous ne revendiquons aucun taux de réussite d’attaque sur des modèles réels. Déroulé complet : docs/DEMO_JURY.md.');
 }
 
 // 5. Résultats et limites
@@ -220,9 +221,9 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
   const res=[M.agents, M.fauxPositifs, M.mails, M.relecteur];
   const lim=[
     'Trafic et mails écrits pour la démo',
-    'Agent scripté : aucun vrai modèle mesuré',
+    'Agent scripté dans le banc ; en mode réel, Haiku a résisté à l’injection (0 tentative en 8 essais)',
     'Désarmeur et analyseur par motifs : une paraphrase peut passer',
-    'Coupure envoyée par script : temps de décision d’un analyste non mesuré',
+    'Coupure envoyée par script : temps de décision humain non mesuré',
   ];
   res.forEach((t,i)=>texte(slide,t,1.0,3.05+i*0.75,6.05,0.66,{fontSize:14.5,fit:'shrink',valign:'top'}));
   lim.forEach((t,i)=>texte(slide,t,7.75,3.05+i*0.75,4.7,0.66,{fontSize:14.5,fit:'shrink',valign:'top'}));
@@ -233,40 +234,41 @@ Mesures du ${M.quand}, commit ${M.commit}, par python3 docs/mesures/mesurer.py :
 Agents : ${M.agents}. Détection : ${M.detection}. Confinement : ${M.confinement} ; la coupure part d’un script qui relève les incidents toutes les 20 ms, donc c’est le temps technique, pas le temps de réflexion d’un analyste.
 Faux positifs : ${M.fauxPositifs}. Mails : ${M.mails}. Désarmeur : ${M.desarmeur}. Relecteur IA : ${M.relecteur}.
 Tests : ${M.tests}.
-Ces chiffres montrent que le moteur tient sur notre jeu, pas un taux de détection en production.`);
+Ces chiffres montrent que le moteur tient sur notre jeu, pas un taux de détection en production. Ils précèdent la vérification des gestes sur signal, la validation métier et la médiation de tous les outils, ajoutées dans la nuit ; la médiation coûte 0,07 ms en médiane sur un appel autorisé. Mode réel (docs/REEL_OU_SIMULE.md) : Haiku a résisté 0/3 puis 0/5 ; avec un attaquant déterministe sur les mêmes services locaux, le mail part sans sAIfe et reste retenu avec.`);
 }
 
 // 6. Ce qu'on a fait, ce qu'on vend
 {
   const slide = pptx.addSlide();
-  titre(slide,6,'Fait et à construire','Ce qu’on a fait, ce qu’on vend','Serveur sur site, données chez le client. Seul le relecteur IA appelle un modèle, avec des faits pseudonymisés.');
+  titre(slide,6,'Fait et à construire','Ce qu’on a fait, ce qu’on vend','Serveur sur site, données chez le client. Seuls le relecteur IA et l’agent des règles appellent un modèle.');
   bloc(slide,0.68,2.19,5.91,3.7,{bord:C.accent});
   bloc(slide,6.77,2.19,5.89,3.7,{bord:C.ardoise});
   etiquette(slide,'FAIT (PROTOTYPE)',0.98,2.49,2.4,C.accent);
   etiquette(slide,'FEUILLE DE ROUTE',7.07,2.49,2.4,C.ardoise);
   const fait=[
-    'Poste : app Mac (mails, sites, téléchargements, agents IA), extension Chrome, garde-mail',
-    'Agent : passerelle, désarmeur, jeton de tâche, canaris',
-    'SOC : console, journal scellé, relecteur IA, règles en français',
+    'Poste : app Mac (mails, sites, téléchargements, agents IA du poste), extension Chrome, garde-mail',
+    'Agent : passerelle et médiation de tous les outils, désarmeur, jeton de tâche, canaris',
+    'SOC : console en tranches, validation par le responsable, relecteur IA, règles en français, journal signé, SIEM',
   ];
   const route=[
-    'Connecteurs réels Microsoft 365 et Google',
-    'Étiquettes de sensibilité',
-    'Authentification et journal persistant',
+    'App Windows',
+    'Microsoft 365 (Outlook, Exchange), puis Google',
+    'SSO (OIDC), rôles tirés de l’annuaire',
+    'Ancrage du journal sur Avalanche (exploration)',
   ];
   fait.forEach((t,i)=>{
     texte(slide,`${i+1}.`,0.99,3.28+i*0.82,0.42,0.39,{fontFace:'Courier New',fontSize:14,color:C.accent});
     texte(slide,t,1.48,3.2+i*0.82,4.9,0.62,{fontSize:16,fit:'shrink'});
   });
   route.forEach((t,i)=>{
-    texte(slide,`${i+1}.`,7.08,3.28+i*0.82,0.42,0.39,{fontFace:'Courier New',fontSize:14,color:C.ardoise});
-    texte(slide,t,7.57,3.2+i*0.82,4.8,0.62,{fontSize:16,fit:'shrink'});
+    texte(slide,`${i+1}.`,7.08,3.2+i*0.62,0.42,0.39,{fontFace:'Courier New',fontSize:14,color:C.ardoise});
+    texte(slide,t,7.57,3.12+i*0.62,4.8,0.55,{fontSize:15.5,fit:'shrink'});
   });
   texte(slide,'On vend la supervision des agents IA, avec le volet poste en option.',
         0.68,6.12,12.0,0.4,{fontSize:16,bold:true,fit:'shrink'});
   texte(slide,'Pas de connexion à Outlook ni à Gmail dans cette démo : le garde-mail lit une boîte locale.',
         0.68,6.6,12.0,0.35,{fontSize:12.3,color:C.faible,fit:'shrink'});
-  slide.addNotes('VERSION 3 MIN : sauter, ou une phrase : ce qui tourne est un prototype, la feuille de route tient en trois étapes.\nFait : sur le poste, l’app Mac (pop-up sur un mail frauduleux, un site louche ou un fichier à risque, inventaire des agents IA, panneau de transparence), l’extension Chrome contre les sites sosies et le garde-mail qui explique chaque verdict ; côté agent, la passerelle, le désarmeur avant lecture, le jeton limité à la tâche, les canaris et la retenue de tout envoi externe ; côté SOC, la console, le journal scellé avec vérification, le relecteur IA (Haiku) qui tranche les gestes critiques, les règles écrites en français et confirmées avant activation.\nAprès le hackathon : connecteurs Microsoft 365 et Google, étiquettes de sensibilité, authentification et journal persistant.');
+  slide.addNotes('VERSION 3 MIN : sauter, ou une phrase : ce qui tourne est un prototype, et les testeurs ont demandé Windows, Microsoft 365 et le SSO.\nFait : sur le poste, l’app Mac (pop-up sur un mail frauduleux, un site louche ou un fichier à risque, vérification des virements sur signal, inventaire des agents IA, panneau de transparence), l’extension Chrome contre les sites sosies ou louches et le garde-mail qui explique chaque verdict ; côté agent, la passerelle qui contrôle chaque appel d’outil (outil inconnu, canal détourné, outil MCP modifié), le désarmeur avant lecture, le jeton limité à la tâche, les canaris et la retenue de tout envoi externe ; côté SOC, la console qui lit des tranches, l’espace /validation du responsable et de la finance, le relecteur IA (Haiku) et sa mémoire alimentée par des humains, les règles en français lues par un agent jetable et le retrait réel des droits en trop, le journal chaîné, signé et en ajout seul, l’authentification par rôle, les exports ECS, CEF, Sigma, le syslog, les alertes par rôle et le résumé du lundi.\nFeuille de route : app Windows, Microsoft 365 puis Google, SSO. Avalanche : voie d’exploration, aucune ancre publiée, ne jamais dire que c’est fait.');
 }
 
 // 7. Cible et modèle
@@ -310,12 +312,12 @@ DORA s’applique depuis le 17 janvier 2025. NIS2 est une directive européenne 
     texte(slide,g[1],x+0.22,3.8,2.36,0.9,{fontSize:15,color:C.doux,fit:'shrink'});
   });
   bloc(slide,6.82,2.39,5.84,2.6,{bord:C.trait,fond:C.panneau});
-  etiquette(slide,'TESTÉ SAMEDI SOIR',7.1,2.62,2.6,C.accent);
-  texte(slide,'Trois agents dans la peau d’une RSSI, d’un analyste SOC et d’une DPO ont parcouru la landing, la console et la pop-up : 4, 5 et 4 sur 10. Corrigé depuis : agents nommés, salariés sous pseudonyme, décisions confirmées et signées, virement lisible, actions sur le compte du salarié.',
+  etiquette(slide,'TESTÉ CE WEEK-END',7.1,2.62,2.6,C.accent);
+  texte(slide,'Deux tours de trois testeurs joués par des agents (RSSI, analyste SOC, DPO, DSI sans SOC, sécurité IA) : 4, 5 et 4 sur 10, puis 5, 5 et 6. Corrigé depuis : authentification, journal signé, médiation des outils, SOC en tranches, validation par le responsable, SIEM et SMS. Demandé, pas fait : Windows, Microsoft 365, SSO.',
         7.1,3.1,5.3,1.75,{fontSize:13.5,fit:'shrink',valign:'top'});
   texte(slide,'Code, tests et mesures dans le dépôt Git. Déroulé de la démo : docs/DEMO_JURY.md',
         0.68,6.45,12.0,0.36,{fontFace:'Courier New',fontSize:11.2,color:C.faible});
-  slide.addNotes('VERSION 3 MIN : sauter ou citer les deux noms en dix secondes.\nLes tests de samedi soir ont été joués par des agents qui incarnaient trois profils (RSSI d’une fintech, analyste SOC, DPO d’une santé numérique), pas par de vraies personnes : le dire si on en parle. Ce qu’ils ont aimé : « Ce qui s’est passé » en deux phrases, le panneau de décision, les chiffres avec leurs dénominateurs. Ce qu’ils ont relevé et qu’on a corrigé : agents tous nommés « Agent IA », prénom du salarié trop visible, décisions au premier clic sans motif, virement sans montant ni bénéficiaire, rien à faire côté salarié.');
+  slide.addNotes('VERSION 3 MIN : sauter ou citer les deux noms en dix secondes.\nLes tests de samedi soir ont été joués par des agents, pas par de vraies personnes : le dire si on en parle. Premier tour : RSSI d’une fintech, analyste SOC, DPO d’une santé numérique. Second tour (22 h 45) : RSSI d’une ETI industrielle, responsable informatique d’un cabinet sans SOC, responsable sécurité IA d’une mutuelle. Le second tour a trouvé l’absence d’authentification, le journal qu’on pouvait réécrire, les règles qui perdaient des conditions et les outils inconnus de la passerelle : tout est corrigé. Ce qu’ils ont aimé : « Ce qui s’est passé » en deux phrases, le panneau de décision, les chiffres avec leurs dénominateurs. Ce qu’ils ont relevé et qu’on a corrigé : agents tous nommés « Agent IA », prénom du salarié trop visible, décisions au premier clic sans motif, virement sans montant ni bénéficiaire, rien à faire côté salarié.');
 }
 
 pptx.writeFile({fileName:sortie}).then(()=>console.log(sortie));
