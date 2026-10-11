@@ -22,8 +22,8 @@ set -euo pipefail
 export LC_ALL=en_US.UTF-8 LC_NUMERIC=C
 ICI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export T="${T:-/tmp/saife-video-v1/montage}"
-REC="${REC:-/tmp/saife-video-v1/rec}"
-MUSIQUE="${MUSIQUE:-/tmp/saife-video-v1/musique-v1.wav}"
+REC="${REC:-${HOME}/Downloads/sAIfe-video-v1-sources}"             # captures de la v1, gardées pour la v2
+MUSIQUE="${MUSIQUE:-${HOME}/Downloads/sAIfe-video-v1-sources/musique-v1.wav}"
 SORTIE="${SORTIE:-${HOME}/Downloads/sAIfe-demo-v1.mp4}"
 CARTON_BIN="${CARTON_BIN:-/tmp/saife-video-v1/bin/carton}"   # swiftc -O carton.swift -o …
 mkdir -p "${T}/c" "${T}/p" "${T}/s"

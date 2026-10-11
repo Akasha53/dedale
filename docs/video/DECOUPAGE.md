@@ -46,6 +46,8 @@ Le scénario suit le guide (`docs/GUIDE_VIDEO.md`), avec un changement : la frau
 
 ## Refaire les captures
 
+Les captures de la v1 et la musique sont gardées dans `~/Downloads/sAIfe-video-v1-sources/`, que `montage-v1.sh` lit par défaut : une v2 qui ne change que les durées n'a rien à recapturer.
+
 Tout tourne en headless (Chromium de Playwright, profil jetable, 1600 × 900 à l'échelle 2), sans fenêtre ni autorisation macOS. Les scripts sont dans `docs/video/capture/` et écrivent dans `/tmp/saife-video-v1/rec/`.
 
 1. Backend isolé : `DEDALE_DB`, `DEDALE_JETONS` et `DEDALE_CONFIG` dans un dossier jetable, `uvicorn app.main:app --port 8790` ; console : `DEDALE_BACKEND=http://127.0.0.1:8790 DEDALE_JETONS=… vite --port 5190`.
