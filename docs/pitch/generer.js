@@ -30,8 +30,8 @@ const M = {
   fauxPositifs: '0 faux positif sur 50 sessions humaines ou scriptées',
   mails: 'Mails de démo : 8/8 frauduleux repérés, 0/3 légitime signalé, 2/2 consignes cachées retirées',
   desarmeur: 'consigne cachée retirée dans 2/2 mails qui en portent une, 0/10 ailleurs',
-  relecteur: 'Relecteur IA : 6/6 gestes critiques tranchés par Haiku, 3,3 s en médiane',
-  tests: '555 tests réussis le 10 octobre 2026 à 22 h 12 (commit a1a7321), hors tests Swift de l’app Mac',
+  relecteur: 'Relecteur IA : 6/6 gestes critiques tranchés par Claude Haiku, 3,3 s en médiane',
+  tests: '926 tests réussis le 11 octobre 2026 à 8 h 55 (commit cb8b6bc), hors tests Swift de l’app Mac',
 };
 
 const W = 13.333;
@@ -281,7 +281,7 @@ Ces chiffres montrent que le moteur tient sur notre jeu, pas un taux de détecti
         0.98,2.95,3.3,2.9,{fontSize:16,fit:'shrink',valign:'top'});
   bloc(slide,4.72,2.19,4.1,3.75,{bord:C.ardoise});
   etiquette(slide,'LES PERSONNES',5.02,2.45,2.1,C.ardoise);
-  texte(slide,'Le RSSI achète. L’analyste SOC utilise. Le responsable IA ou data copilote. Le DPO et la conformité valident. Le CSE est consulté pour le volet poste.',
+  texte(slide,'Le RSSI achète. L’analyste SOC utilise. Le responsable ou la finance confirme les virements retenus. Le DPO valide, le CSE est consulté pour le volet poste.',
         5.02,2.95,3.6,2.9,{fontSize:16.5,fit:'shrink',valign:'top'});
   bloc(slide,8.96,2.19,3.7,3.75,{bord:C.accent});
   etiquette(slide,'MODÈLE',9.26,2.45,1.4,C.accent);
@@ -289,7 +289,7 @@ Ces chiffres montrent que le moteur tient sur notre jeu, pas un taux de détecti
         9.26,2.95,3.1,1.7,{fontSize:16.5,fit:'shrink',valign:'top'});
   texte(slide,'À valider en dix entretiens avec des RSSI.',
         9.26,4.8,3.1,1.0,{fontSize:15,color:C.accent,fit:'shrink',valign:'top'});
-  texte(slide,'Prospects à vérifier : fintech et paiement, assurtech et mutuelles, santé numérique ; grandes banques comme validateurs. Hors cible : moins de 250 salariés, sans équipe sécurité ni agents. Aucun n’est client ni contacté.',
+  texte(slide,'Prospects à vérifier : fintech et paiement, assurtech et mutuelles, santé numérique ; grandes banques comme validateurs. Pas la première cible : moins de 250 salariés, sans équipe sécurité ni agents ; une PME s’en sert avec la validation par le responsable. Aucun n’est client ni contacté.',
         0.68,6.2,12.0,0.7,{fontSize:12,color:C.faible,fit:'shrink',valign:'top'});
   slide.addNotes(`VERSION 3 MIN : garder cette slide, en trente secondes : cible, qui achète, licence par agent supervisé, pilote de 3 mois.
 Deux hypothèses à valider en dix entretiens avec des RSSI : (1) un RSSI finance la supervision d’agents IA sur un budget sécurité existant ; (2) la licence par agent supervisé reste lisible quand le nombre d’agents monte. Méthode : dix RSSI de la cible, un guide d’entretien identique, on note le budget, le décideur et le déclencheur d’achat. Aucun prix n’est affiché : l’ancienne fourchette de 5 à 30 euros par utilisateur est abandonnée.

@@ -4,7 +4,7 @@ sAIfe se prononce « safe ». Le code garde le nom de travail `dedale` : nom du 
 
 [![Scan de secrets : 0 alerte](https://img.shields.io/badge/scan%20de%20secrets-0%20alerte-brightgreen)](docs/SCAN_SECRETS.md)
 
-Projet du hackathon Secure Horizons (ESSEC, 10-11 octobre 2026), Track 2. L'entreprise, les mails, les secrets et les paiements sont fictifs (Orbis Pay). Tout tourne en local, sauf deux appels à Haiku (API ou `claude -p`) : le relecteur IA lui envoie des faits pseudonymisés, jamais le texte d'un mail, et l'agent des règles la phrase écrite par l'analyste. Sans accès au modèle, des règles prennent le relais dans les deux cas.
+Projet du hackathon Secure Horizons (ESSEC, 10-11 octobre 2026), Track 2. L'entreprise, les mails, les secrets et les paiements sont fictifs (Orbis Pay). Tout tourne en local, sauf deux appels à Claude Haiku, d'Anthropic (API ou `claude -p`) : le relecteur IA lui envoie des faits pseudonymisés, jamais le texte d'un mail, et l'agent des règles la phrase écrite par l'analyste. Sans accès au modèle, des règles prennent le relais dans les deux cas.
 
 Vidéo de démo (2 à 3 min) : lien à ajouter après le tournage.
 
@@ -236,7 +236,7 @@ Ce qui n'est pas mesuré : le temps de décision d'un analyste ou d'un validateu
 
 ## Tests
 
-925 tests réussis le 11 octobre 2026 à 8 h 17, au commit `a591ef6` : backend 522, interne 205, messagerie 73, attaque 29, leurres 19, poste 17 (pytest), scripts de démo 34 (unittest), extension 26 (`node --test`). Les tests Swift de l'app Mac (`swift test`) ne sont pas dans ce total. Ces tests vérifient le prototype, pas une détection en production. Chaque ligne part de la racine du dépôt.
+926 tests réussis le 11 octobre 2026 à 8 h 55, au commit `cb8b6bc` : backend 522, interne 205, messagerie 73, attaque 29, leurres 19, poste 17 (pytest), scripts de démo 35 (unittest), extension 26 (`node --test`). Les tests Swift de l'app Mac (`swift test`) ne sont pas dans ce total. Ces tests vérifient le prototype, pas une détection en production. Chaque ligne part de la racine du dépôt.
 
 ```bash
 cd backend && uv run --extra dev pytest

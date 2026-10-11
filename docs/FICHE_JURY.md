@@ -24,7 +24,7 @@ Ce qu’on ne fait pas : tout bloquer, remplacer votre SIEM, classer vos documen
 ## Comment l’humain garde la main
 
 - Le salarié est prévenu avant d’agir, avec la raison, et choisit. « Annuler » envoie un événement : la SOC compte un piège évité, sans ouvrir de dossier.
-- Relecteur IA (Haiku) : il reçoit des faits établis par sAIfe, jamais le mail. Les règles dures passent avant lui (plafond de 10 000 € pour un bénéficiaire hors liste, RIB qui change, consigne cachée, rafale) ; en cas de panne ou de délai de plus de 8 s, les règles tranchent et retiennent dans le doute. Sur un signal de fraude, rien n’est accordé en silence. Sa mémoire ne reçoit que des décisions humaines signées. L’analyste garde « Accorder » et « Refuser », avec un motif scellé.
+- Relecteur IA (Claude Haiku, d’Anthropic) : il reçoit des faits établis par sAIfe, jamais le mail. Les règles dures passent avant lui (plafond de 10 000 € pour un bénéficiaire hors liste, RIB qui change, consigne cachée, rafale) ; en cas de panne ou de délai de plus de 8 s, les règles tranchent et retiennent dans le doute. Sur un signal de fraude, rien n’est accordé en silence. Sa mémoire ne reçoit que des décisions humaines signées. L’analyste garde « Accorder » et « Refuser », avec un motif scellé.
 - Le responsable ou la finance voit le montant, le bénéficiaire et la raison d’un geste retenu, et décide avec un motif signé. La sécurité n’apprend que l’issue.
 - Besoin d’en connaître : le SOC lit des tranches de montant, bénéficiaires et IBAN masqués, salariés sous pseudonyme. Le détail s’ouvre sur un signal de fraude, et chaque consultation entre au journal scellé. Lever l’identité d’un salarié demande un motif, scellé lui aussi.
 - Agent : « Laisser passer » se confirme toujours ; sur un incident critique, « Couper » aussi, avec un motif obligatoire et cinq secondes pour annuler. Sans décision, l’appel retenu est refusé.
@@ -59,7 +59,7 @@ Non mesuré : le temps de décision d’un analyste ou d’un responsable humain
 
 ## Tests
 
-925 tests réussis le 11 octobre 2026 à 8 h 17, au commit `a591ef6` : backend 522, interne 205, messagerie 73, attaque 29, poste 17, ancienne surface externe 19 (pytest), scripts de démo 34 (unittest), extension 26 (`node --test`). Les tests Swift de l’app Mac ne sont pas dans ce total. Ils vérifient le prototype, pas une détection en production.
+926 tests réussis le 11 octobre 2026 à 8 h 55, au commit `cb8b6bc` : backend 522, interne 205, messagerie 73, attaque 29, poste 17, ancienne surface externe 19 (pytest), scripts de démo 35 (unittest), extension 26 (`node --test`). Les tests Swift de l’app Mac ne sont pas dans ce total. Ils vérifient le prototype, pas une détection en production.
 
 ## Limites
 
@@ -71,7 +71,7 @@ Demandé par les testeurs, pas fait pour le 11 octobre : une app Windows, Micros
 
 ## Cible, modèle, équipe (hypothèses, aucun client)
 
-- Cible : entreprises régulées (finance avec DORA, applicable depuis janvier 2025 ; santé), 500 à 5 000 salariés, une équipe sécurité ou SOC, au moins un agent IA en production ou en pilote avancé, Microsoft 365 ou Google Workspace, un SIEM. Hors cible : moins de 250 salariés, sans équipe sécurité ni agents.
+- Cible : entreprises régulées (finance avec DORA, applicable depuis janvier 2025 ; santé), 500 à 5 000 salariés, une équipe sécurité ou SOC, au moins un agent IA en production ou en pilote avancé, Microsoft 365 ou Google Workspace, un SIEM. Pas la première cible : moins de 250 salariés, sans équipe sécurité ni agents ; une PME sans SOC peut s’en servir avec la validation par le responsable et le résumé du lundi.
 - Personnes : le RSSI achète, l’analyste SOC utilise, le responsable métier ou la finance confirme les gestes retenus, le responsable IA ou data copilote, le DPO et la conformité valident, le CSE est consulté pour le volet poste.
 - Modèle : licence annuelle par agent supervisé, poste salarié en option, pilote de 3 mois, pas de prix affiché. Deux hypothèses à tester en dix entretiens avec des RSSI : un RSSI finance la supervision d’agents sur un budget sécurité existant ; la licence par agent reste lisible quand le nombre d’agents monte.
 - NIS2 est une directive européenne : la loi française de transposition est encore attendue, sAIfe ne la présente pas comme déjà applicable en France.
