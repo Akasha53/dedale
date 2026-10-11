@@ -837,13 +837,26 @@ def faits_geste(sess, demande: dict) -> dict:
 _FENETRE_ALERTE = timedelta(minutes=30)
 
 
-def _apres_alerte(base: str, details: dict, reference: datetime | None) -> bool:
-    """Le geste arrive juste après une alerte passée outre ou un signalement : mail ou site douteux,
-    sur ce poste ou dans une boîte de démo (sessions `mail-*`), dans les 30 dernières minutes."""
-    reference = reference or datetime.now(timezone.utc)
+def _sessions_du_poste(base: str, details: dict) -> list:
+    """Sessions qui parlent du même poste, donc du même salarié pseudonymisé : celles du poste
+    (`<poste>`, `<poste>-…`), le mail que cite le geste (`mail_id`), et une boîte `mail-*` dont un
+    événement nomme ce poste (`details.poste`). Jamais la boîte d'un autre salarié."""
+    mail = f"mail-{details['mail_id']}" if details.get("mail_id") else None
+    sortie = []
     for s in store.sessions.values():
-        if not (s.id == base or s.id.startswith(base + "-") or s.id.startswith("mail-")):
-            continue
+        if s.id == base or s.id.startswith(base + "-") or s.id == mail:
+            sortie.append(s)
+        elif s.id.startswith("mail-") and any((e.get("details") or {}).get("poste") == base for e in _evenements(s)):
+            sortie.append(s)
+    return sortie
+
+
+def _apres_alerte(base: str, details: dict, reference: datetime | None) -> bool:
+    """Le geste arrive juste après une alerte passée outre ou un signalement (mail ou site douteux),
+    dans les 30 dernières minutes, sur ce poste seulement : le signal reste attaché au salarié qui
+    a vu l'alerte, jamais aux virements des autres postes."""
+    reference = reference or datetime.now(timezone.utc)
+    for s in _sessions_du_poste(base, details):
         for e in _evenements(s):
             d = e.get("details") or {}
             h = _horo(e)
@@ -1800,7 +1813,8 @@ async def verifier_geste(corps: dict) -> dict:
     with store.lock:
         res = _ingerer({
             "categorie": details.get("categorie") if details.get("categorie") in _NATURES else "mail_externe",
-            "choix": "continuer", "gravite": "critique", "geste": faits.get("geste"),
+            # Aucun « choix » : le salarié n'a vu aucune alerte avant cette vérification.
+            "gravite": "critique", "geste": faits.get("geste"),
             "quatre_yeux": "demande", "demande_id": did, "origine": "relecteur",
             "montant_tranche": memoire.tranche(faits.get("geste"), faits.get("montant_eur"), faits.get("volume")),
             "beneficiaire_masque": (b.get("nom") if b.get("connu") else _masquer_nom(details.get("beneficiaire"))),

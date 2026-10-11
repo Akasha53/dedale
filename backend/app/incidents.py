@@ -515,10 +515,13 @@ def gravite_humaine(type_incident: str, gravite_annoncee: str | None = None) -> 
     return _GRAVITE_HUMAIN.get(type_incident, "moyenne")
 
 
-def resume_humain(chaine: list[dict], type_incident: str, passe_outre: bool) -> str:
+def resume_humain(chaine: list[dict], type_incident: str, passe_outre: bool, retenu: bool = False) -> str:
     quoi = _TITRE_HUMAIN.get(type_incident, "geste humain à risque").lower()
     if type_incident == "humain_signalement":
         return f"Pilier humain : {quoi}. Chaîne de {len(chaine)} étape(s)."
+    if retenu and not passe_outre:
+        return (f"Pilier humain : {quoi}. Geste critique suspendu par sAIfe sur un signal de fraude, "
+                f"avant toute alerte au salarié. Chaîne de {len(chaine)} étape(s).")
     etat = "passé outre (signal fort)" if passe_outre else "respecté par le salarié"
     return (
         f"Pilier humain : {quoi}. Avertissement {etat}. "
@@ -583,7 +586,14 @@ def construire_chaine_humaine(evenements: list[dict], leurres: dict[str, Any]) -
         )
         type_inc = type_humain(cat, intrusion)
 
-        if typ == "avertissement":
+        if typ == "avertissement" and details.get("origine") == "relecteur" and details.get("quatre_yeux") == "demande":
+            # Geste vérifié par l'app et retenu sur un signal de fraude : le salarié n'a vu aucune
+            # alerte avant, et n'a rien choisi. Seul le geste entre au récit, puis sa conséquence.
+            g = _GESTES_CRITIQUES.get(details.get("geste"), "un geste critique")
+            etapes.append(_mk_humain(
+                "action_risquee", f"le salarié demande {g}, vérifié par sAIfe avant exécution", ev,
+                list(_TECH_HUMAIN.get(type_inc, [])), list(_RISQUE_HUMAIN.get(type_inc, []))))
+        elif typ == "avertissement":
             geste = geste_critique(details, cat) or _GESTE_LIBELLE.get(cat, "geste à risque détecté sur le poste")
             cible = details.get("cible")
             d_action = geste + (f" — cible : {_abrege(cible, 160)}" if cible else "")

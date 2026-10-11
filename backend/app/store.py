@@ -107,6 +107,9 @@ class Session:
     geste_incident_categorie: str | None = None # catégorie du geste qui a ouvert l'incident
     geste_gravite: str | None = None            # gravité annoncée d'un geste passé outre
     flag_passe_outre: bool = False              # a cliqué « continuer » sur un avertissement
+    # Geste critique retenu par le relecteur sur un signal de fraude, avant toute pop-up : le
+    # salarié n'a rien vu ni rien choisi, la boîte noire ne lui prête aucun « continuer ».
+    flag_geste_retenu: bool = False
     flag_intrusion_physique: bool = False       # accès d'un intrus à un actif/port-leurre
     flag_signalement: bool = False              # le salarié a signalé un mail lui-même
     geste_contexte: str | None = None           # contexte du geste passé outre (« telechargement »…)
@@ -342,7 +345,7 @@ class Store:
                                    if sess.source in ("humain", "physique")
                                    else incidents.gravite(inc.chaine, sess.source))
                 if inc.resume is None:
-                    inc.resume = (incidents.resume_humain(inc.chaine, inc.type, sess.flag_passe_outre)
+                    inc.resume = (incidents.resume_humain(inc.chaine, inc.type, sess.flag_passe_outre, sess.flag_geste_retenu)
                                   if sess.source in ("humain", "physique")
                                   else incidents.resume(inc.chaine, sess.classement, sess.source))
                 absents = {
@@ -567,6 +570,12 @@ class Store:
                 choix = details.get("choix")
                 if cat:
                     sess.geste_categorie = cat
+                if details.get("origine") == "relecteur" and details.get("quatre_yeux") == "demande":
+                    sess.flag_geste_retenu = True
+                    if cat:
+                        sess.geste_incident_categorie = cat
+                    if details.get("gravite") in ("faible", "moyenne", "haute", "critique"):
+                        sess.geste_gravite = details["gravite"]
                 if choix == "annuler":
                     sess.gestes_arretes += 1
                 elif choix == "continuer":
@@ -761,7 +770,8 @@ class Store:
         if sess.source in ("humain", "physique"):
             # Pilier humain : ouvre sur un geste passé outre, ou une intrusion physique.
             # Un geste annulé (bon réflexe) n'ouvre rien.
-            est_incident = sess.flag_passe_outre or sess.flag_intrusion_physique or sess.flag_signalement
+            est_incident = (sess.flag_passe_outre or sess.flag_intrusion_physique or sess.flag_signalement
+                            or sess.flag_geste_retenu)
         elif sess.source == "externe":
             est_incident = sess.classement == "agent_ia"
         else:  # interne
@@ -803,7 +813,7 @@ class Store:
         if sess.source in ("humain", "physique"):
             inc.chaine = incidents.construire_chaine_humaine(evs, self.leurres)
             inc.gravite = incidents.gravite_humaine(typ, sess.geste_gravite)
-            inc.resume = incidents.resume_humain(inc.chaine, typ, sess.flag_passe_outre)
+            inc.resume = incidents.resume_humain(inc.chaine, typ, sess.flag_passe_outre, sess.flag_geste_retenu)
         else:
             inc.chaine = incidents.construire_chaine(evs, self.leurres)
             inc.gravite = incidents.gravite(inc.chaine, sess.source)
@@ -826,7 +836,7 @@ class Store:
                     etape["ordre"] = position
                 if sess.source in ("humain", "physique"):
                     inc.gravite = incidents.gravite_humaine(typ, sess.geste_gravite)
-                    inc.resume = incidents.resume_humain(inc.chaine, typ, sess.flag_passe_outre)
+                    inc.resume = incidents.resume_humain(inc.chaine, typ, sess.flag_passe_outre, sess.flag_geste_retenu)
                 else:
                     inc.gravite = incidents.gravite(inc.chaine, sess.source)
                     inc.resume = incidents.resume(inc.chaine, sess.classement, sess.source)

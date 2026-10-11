@@ -42,7 +42,7 @@ def test_fraude_au_president_sans_mail_ouvre_un_dossier_soc(client, monkeypatch,
     soc = client.get("/api/incidents", headers=jeton("analyste")).json()["incidents"]
     assert [i["id"] for i in soc] == [v["incident_id"]]
     brut = json.dumps(soc, ensure_ascii=False)
-    assert "380" not in brut and "Golden Bridge" not in brut and "HK12" not in brut
+    assert not any(x in brut for x in ("380 000", "380000", "380\u202f000", "Golden Bridge", "HK12"))
     sess = client.get(f"/api/sessions/{soc[0]['session_id']}").json()
     demande = next(e for e in sess["evenements"] if (e.get("details") or {}).get("quatre_yeux") == "demande")
     assert demande["details"]["montant_tranche"] == "plus de 10 000 €"

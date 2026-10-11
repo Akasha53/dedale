@@ -112,7 +112,9 @@ def _textes(valeur: Any, sortie: list[str]) -> None:
 def identite(session_id: str, evenements: list[dict] | None = None) -> dict:
     """Ce que la console peut afficher : pseudonyme stable et service, jamais le nom."""
     p = personne(session_id, evenements)
-    numero = _numero(p["cle"] if p else session_id)
+    # Un geste critique ouvre sa propre session `<poste>-4y-<id>` : même poste, même salarié,
+    # donc même pseudonyme que l'alerte qui l'a précédé sur ce poste.
+    numero = _numero(p["cle"] if p else (session_id or "").split("-4y-")[0])
     pseudo = f"Salarié {numero}"
     service = p["service"] if p else None
     return {
