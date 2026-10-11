@@ -121,6 +121,9 @@ arret_sur_image() {
 #   sombre en 0,16 s (snap, pas de gris mou), bords brûlés par une vignette, secousse amortie, et le
 #   montant (PNG transparent, montée punch de 1,24 à 1,0) qui claque sous le fantôme de l'écran.
 #   N'utilise que l'opacité, l'échelle et la vignette ; pas de séparation RVB (réservée au rembobinage).
+#   Le centrage de l'overlay est écrit en fonction du même facteur d'échelle (960*(1-S), 540*(1-S)+128)
+#   et non de `(W-w)/2` : avec un `scale` en eval=frame, `w` reste parfois figé sur la taille d'origine
+#   une image ou deux, et le montant apparaissait décalé puis sautait au centre (téléportation).
 arret_dramatique() {
   local img="$1" num="$2" out="$3" d="${4:-4.5}"
   FF -loop 1 -framerate 30 -t "${d}" -i "${img}" \
@@ -136,7 +139,7 @@ hue=s='max(0.08,1-2.8*t)',format=rgba[base];\
 [tint][flash]overlay=format=auto[flashed];\
 [3:v]scale=w='1920*(1.24-0.24*min(1,max(0,(t-0.20)/0.30)))':h=-1:eval=frame,format=rgba,\
 fade=t=in:st=0.20:d=0.16:alpha=1[num];\
-[flashed][num]overlay=x='(W-w)/2':y='(H-h)/2+128':eval=frame:format=auto,format=yuv420p" \
+[flashed][num]overlay=x='960*(1-(1.24-0.24*min(1,max(0,(t-0.20)/0.30))))':y='540*(1-(1.24-0.24*min(1,max(0,(t-0.20)/0.30))))+128':eval=frame:format=auto,format=yuv420p" \
      -t "${d}" "${ENC[@]}" "${out}"
 }
 

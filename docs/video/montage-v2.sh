@@ -28,6 +28,7 @@ source "${ICI}/recettes.sh"
 C="${T}/c"; P="${T}/p"; S="${T}/s"
 SC="${REC}/scene"; VA="${REC}/validation"; CO="${REC}/console"
 APP="${ICI}/../../captures/saife"
+CAPV="${ICI}/../../captures/video-agent-coupe"   # vraies captures de l'incident réel (INC-0016) pour le beat « agent coupé »
 
 if [ -x "${CARTON_BIN}" ]; then
   carton_png() { local s="$1"; shift; perl -e 'alarm 60; exec @ARGV' "${CARTON_BIN}" "${s}" 1920 1080 "$@" </dev/null; }
@@ -61,7 +62,10 @@ cartons() {
   leg l04 "Il vise le coffre de clés."
   leg l05 "Même piège, un salarié."
   leg l06 "Elle valide le virement."
-  leg l10 "sAIfe coupe l'agent."
+  # beat « agent coupé » en vraies images de l'incident réel : lit -> retient -> coupé
+  leg l10a "Un agent IA lit un mail piégé."
+  leg l10b "sAIfe retient l'envoi."
+  leg l10c "Agent coupé. Rien n'est sorti."
   leg l11 "Et retient le virement."
   leg l12 "La finance vérifie."
   leg l13 "Et refuse."
@@ -103,7 +107,13 @@ plans_danger() {
 
 plans_saife() {
   plan_carton "${C}/stop.png" "${P}/09.mp4" 3.0
-  Z0=1 Z1=1.35 CX=1300 CY=620 CX0=1300 CY0=620 plan_ui "${CO}/a07-agent-coupe.png" "${P}/10.mp4" 3.0 "${C}/l10.png"
+  # Séquence réelle de l'incident d'exfiltration (INC-0016, parcours reel) : l'agent lit un mail piégé,
+  # sAIfe retient l'envoi du faux secret hors d'Orbis Pay, puis coupe l'agent. Vraies images de la console.
+  # Mouvement très retenu (grammaire Apple) : poussée douce et centrée sur l'élément clé, sans panoramique
+  # latéral (CX0=CX, CY0=CY) — un seul message par plan, porté par la légende.
+  Z0=1 Z1=1.20 CX=800 CY=470 CX0=800 CY0=470 plan_ui "${CAPV}/a-lit-mail.png" "${P}/10.mp4" 2.0 "${C}/l10a.png"
+  Z0=1 Z1=1.24 CX=470 CY=410 CX0=470 CY0=410 plan_ui "${CAPV}/b-retenu.png" "${P}/10b.mp4" 2.0 "${C}/l10b.png"
+  Z0=1 Z1=1.16 CX=620 CY=400 CX0=620 CY0=400 plan_ui "${CAPV}/c-coupe.png" "${P}/10c.mp4" 2.0 "${C}/l10c.png"
   Z0=1 Z1=1.9 CX=1360 CY=250 ZD=2.6 plan_ui "${SC}/b5-retenu.png" "${P}/11.mp4" 3.0 "${C}/l11.png"
   Z0=1 Z1=1.3 CX=1010 CY=520 plan_ui "${VA}/v0-fiche.png" "${P}/12.mp4" 3.0 "${C}/l12.png"
   Z0=1.3 Z1=1.3 CX=1000 CY=760 CX0=1000 CY0=760 plan_ui "${VA}/v3-refuse.png" "${P}/13.mp4" 3.0 "${C}/l13.png"
@@ -134,9 +144,19 @@ plans_logo() {
      -t 9 "${ENC[@]}" "${P}/27.mp4"
 }
 
-PLANS=(01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27)
+PLANS=(01 02 03 04 05 06 07 08 09 10 10b 10c 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27)
+
+musique_v2() {
+  # Repères calés sur le découpage v2 avec la séquence agent réelle (plans 10/10b/10c) : +3 s à partir
+  # du beat « agent coupé ». Tout ce qui précède (gel 21,0 / rembobinage 24,0 / « Stop » 25,5) ne bouge pas ;
+  # l'accent clair tombe sur le plan « Agent coupé » (32,5). Total 93 s.
+  perl -e 'alarm 300; exec @ARGV' python3 "${ICI}/musique.py" --sortie "${MUSIQUE}" \
+    --freeze 21.0 --silence-duree 1.5 --rewind 24.0 --stop 25.5 --acte2-debut 28.5 \
+    --accent 32.5 --finance 37.5 --acte2-fin 46.5 --montage-fin 54.0 --logo 84.0 --impact --duree 93 </dev/null
+}
 
 final() {
+  [ -f "${MUSIQUE}" ] && [ -n "${GARDER_MUSIQUE:-}" ] || musique_v2
   : > "${P}/liste.txt"
   for n in "${PLANS[@]}"; do printf "file '%s.mp4'\n" "${n}" >> "${P}/liste.txt"; done
   assembler "${P}/liste.txt" "${T}/assemble.mp4"
@@ -153,6 +173,7 @@ case "${1:-tout}" in
   saife) plans_saife ;;
   produit) plans_produit ;;
   logo) plans_logo ;;
+  musique) musique_v2 ;;
   final) final ;;
   tout) cartons; plans; final ;;
 esac

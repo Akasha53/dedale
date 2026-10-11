@@ -1,6 +1,6 @@
 # Vidéo de démo v2 : découpage
 
-Fichier : `~/Downloads/sAIfe-demo-v1.mp4`, 1 min 30 (90,0 s), 1920 × 1080, 30 i/s, H.264 + AAC, ~20 Mo, -16 LUFS. Sans voix, textes en français. La v1 longue (2 min 15) est gardée en `~/Downloads/sAIfe-demo-v1-longue.mp4`. Refaire : `bash docs/video/montage-v2.sh`.
+Fichier : `~/Downloads/sAIfe-demo-v1.mp4`, 1 min 33 (93,0 s), 1920 × 1080, 30 i/s, H.264 + AAC, ~20 Mo, -16 LUFS. Sans voix, textes en français. La v1 longue (2 min 15) est gardée en `~/Downloads/sAIfe-demo-v1-longue.mp4` ; la version d'avant la séquence agent réelle (90 s) en `~/Downloads/sAIfe-demo-v1-avant-sequence-reelle.mp4`. Refaire : `bash docs/video/montage-v2.sh`.
 
 Changements voulus par Guilhem : plus courte et punchy, les agents IA dès les 8 premières secondes, un arrêt sur image dramatique au moment où l'argent part. Mêmes données fictives que la v1 (Orbis Pay, Atelier Nord, Michèle Delaconta au seul premier carton, « Salarié 7751 » dans la console). Captures depuis `~/Downloads/sAIfe-video-v1-sources/`.
 
@@ -26,38 +26,43 @@ Style du guide `docs/GUIDE_VIDEO.md` : grille de 1,5 s (80 BPM), zooms en courbe
 | N° | Temps | Plan | Texte | Source |
 |---|---|---|---|---|
 | 9 | 0:25,5–0:28,5 | carton | « Stop. » / « Maintenant, avec sAIfe. » | carton.swift (choc musique) |
-| 10 | 0:28,5–0:31,5 | agent coupé | « sAIfe coupe l'agent. » | a07 (accent musique) |
-| 11 | 0:31,5–0:34,5 | pop-up Retenu | « Et retient le virement. » | scene b5 (motif réel du relecteur) |
-| 12 | 0:34,5–0:37,5 | espace /validation | « La finance vérifie. » | v0 (console réelle) |
-| 13 | 0:37,5–0:40,5 | refus de la finance | « Et refuse. » | v3 (Claire Dubois, finance ; décision réelle) |
-| 14 | 0:40,5–0:43,5 | carton | « 41 760 € » (vert) / « restés chez Orbis Pay. » | carton.swift |
+| 10 | 0:28,5–0:30,5 | modale du mail, consigne cachée surlignée | « Un agent IA lit un mail piégé. » | video-agent-coupe/a-lit-mail (INC-0016 réel) |
+| 10b | 0:30,5–0:32,5 | étape Action dépliée, canaris C-7A3F/C-2B91 | « sAIfe retient l'envoi. » | video-agent-coupe/b-retenu (INC-0016 réel) |
+| 10c | 0:32,5–0:34,5 | incident « Agent arrêté », « Ce qui s'est passé » | « Agent coupé. Rien n'est sorti. » | video-agent-coupe/c-coupe (INC-0016 réel ; accent musique) |
+| 11 | 0:34,5–0:37,5 | pop-up Retenu | « Et retient le virement. » | scene b5 (motif réel du relecteur) |
+| 12 | 0:37,5–0:40,5 | espace /validation | « La finance vérifie. » | v0 (console réelle) |
+| 13 | 0:40,5–0:43,5 | refus de la finance | « Et refuse. » | v3 (Claire Dubois, finance ; décision réelle) |
+| 14 | 0:43,5–0:46,5 | carton | « 41 760 € » (vert) / « restés chez Orbis Pay. » | carton.swift |
 
-**3. Le reste du produit, puis le logo (0:43,5 – 1:30).** Rafale de 1,5 s, puis les livrables tenus, puis le logo.
+**3. Le reste du produit, puis le logo (0:46,5 – 1:33).** Rafale de 1,5 s, puis les livrables tenus, puis le logo.
 
 | N° | Temps | Plan | Texte | Source |
 |---|---|---|---|---|
-| 15–19 | 0:43,5–0:51 | rafale 1,5 s | « Règle en français » · « Droits retirés » · « Attaque bloquée » · « Site sosie » · « Fichier piégé » | b20, c20, c22, s0, app-telechargement |
-| 20 | 0:51–0:55,5 | journal scellé | « Chaque décision, scellée. » | d01 |
-| 21 | 0:55,5–1:00 | rapport d'une page | « Une page pour le RSSI. » | d02 |
-| 22 | 1:00–1:04,5 | exports | « Exporté vers votre SIEM. » | e03 (ECS, Sigma, CEF réels) |
-| 23 | 1:04,5–1:07,5 | mesures | « 25 sur 25, en 10 ms. » | f02 |
-| 24 | 1:07,5–1:10,5 | salariés | « La sécurité ne voit qu'un pseudonyme. » | f01 (« Salarié 7751 ») |
-| 25 | 1:10,5–1:15 | transparence app | « Le salarié voit ce que sAIfe lit. » | app-transparence |
-| 26 | 1:15–1:21 | landing | — | landing sAIfe (« Deux cibles. Une vigie. ») |
-| 27 | 1:21–1:30 | logo | « sAIfe » / « Salariés prévenus. Agents IA retenus. » | dedale.svg, fondu au blanc |
+| 15–19 | 0:46,5–0:54 | rafale 1,5 s | « Règle en français » · « Droits retirés » · « Attaque bloquée » · « Site sosie » · « Fichier piégé » | b20, c20, c22, s0, app-telechargement |
+| 20 | 0:54–0:58,5 | journal scellé | « Chaque décision, scellée. » | d01 |
+| 21 | 0:58,5–1:03 | rapport d'une page | « Une page pour le RSSI. » | d02 |
+| 22 | 1:03–1:07,5 | exports | « Exporté vers votre SIEM. » | e03 (ECS, Sigma, CEF réels) |
+| 23 | 1:07,5–1:10,5 | mesures | « 25 sur 25, en 10 ms. » | f02 |
+| 24 | 1:10,5–1:13,5 | salariés | « La sécurité ne voit qu'un pseudonyme. » | f01 (« Salarié 7751 ») |
+| 25 | 1:13,5–1:18 | transparence app | « Le salarié voit ce que sAIfe lit. » | app-transparence |
+| 26 | 1:18–1:24 | landing | — | landing sAIfe (« Deux cibles. Une vigie. ») |
+| 27 | 1:24–1:33 | logo | « sAIfe » / « Salariés prévenus. Agents IA retenus. » | dedale.svg, fondu au blanc |
 
 ## Musique
 
-`musique.py --freeze 21.0 --silence-duree 1.5 --rewind 24.0 --stop 25.5 --acte2-debut 28.5 --acte2-fin 43.5 --montage-fin 51.0 --logo 81.0 --finance 34.5 --impact --accent 28.5 --duree 90`, puis `mixer` (-16 LUFS, -1,5 dBTP).
+`musique.py --freeze 21.0 --silence-duree 1.5 --rewind 24.0 --stop 25.5 --acte2-debut 28.5 --accent 32.5 --finance 37.5 --acte2-fin 46.5 --montage-fin 54.0 --logo 84.0 --impact --duree 93`, puis `mixer` (-16 LUFS, -1,5 dBTP). `montage-v2.sh` la génère tout seul dans `final()` (fonction `musique_v2`).
 
 - Choc sourd (`--impact`) sur le gel à 21,0 s, aussitôt suivi d'un silence de 1,5 s (l'argent part, le monde se tait).
 - Montée pendant le rembobinage, puis choc + accord de do majeur sur « Stop » à 25,5 s.
-- Accent clair à 28,5 s quand sAIfe coupe l'agent.
+- Accent clair à 32,5 s sur le plan « Agent coupé » (fin de la séquence agent réelle lit → retient → coupé).
 - Fin sur l'accord tenu du logo, fondu de sortie de 3 s.
+
+Tout ce qui est avant le beat « agent coupé » ne bouge pas (gel 21,0, rembobinage 24,0, « Stop » 25,5). La séquence agent réelle ajoute 3 s (plan 10 unique de 3 s remplacé par 10/10b/10c de 2 s chacun) ; les repères de l'acte 2 et de l'acte 3 et le logo sont décalés d'autant.
 
 ## Décisions et écarts
 
-- **Arrêt sur image.** Pivot du film, soigné à la demande de Guilhem : flash blanc d'une image, désaturation + teinte rouge très sombre en 0,4 s, légère secousse amortie, le montant « 41 760 € partis. » qui monte en punch sous le fantôme de l'écran. Tenu 3 s (court, comme demandé), pas de séparation RVB (réservée au rembobinage).
+- **Séquence agent réelle (plans 10/10b/10c).** À la demande du fondateur, le beat « agent coupé » montre désormais le vrai parcours en images de la console, pas un seul plan de fin. Trois plans de 2 s tirés d'un incident d'exfiltration réel ouvert par `orbis.demo --scenario reel` (modèle local qwen2.5:7b, INC-0016) : l'agent lit un mail piégé (modale, consigne cachée surlignée), sAIfe retient l'envoi du faux secret hors d'Orbis Pay (étape Action, canaris C-7A3F/C-2B91), puis l'agent est coupé (« Agent arrêté, rien n'est sorti »). Captures dans `captures/video-agent-coupe/` (script `capture/console-agent-coupe.js`, proxy Vite 5173 qui signe les requêtes). La console dit l'exfiltration en clair (« emporte un faux secret … vers une adresse hors d'Orbis Pay », « sortie de données ») ; la mention littérale « Tentative d'exfiltration : oui » vit dans la donnée de l'incident et le rapport, pas dans ces écrans.
+- **Arrêt sur image.** Pivot du film, soigné à la demande de Guilhem : flash blanc d'une image, désaturation + teinte rouge très sombre en 0,4 s, légère secousse amortie, le montant « 41 760 € partis. » qui monte en punch sous le fantôme de l'écran. Tenu 3 s (court, comme demandé), pas de séparation RVB (réservée au rembobinage). Le centrage du montant est écrit en fonction du facteur d'échelle (et non de `(W-w)/2`) : avec un `scale` en eval=frame, `w` restait figé une image ou deux et le montant apparaissait décalé à droite puis sautait au centre (téléportation signalée par le fondateur). Corrigé dans `recettes.sh` (`arret_dramatique`).
 - **Agents IA d'abord.** Le carton d'ouverture et le premier incident agent tiennent les 9 premières secondes.
 - **Fraude = faux changement de RIB d'un fournisseur connu** (Atelier Nord, 41 760 €), pour que le geste retenu parte chez la finance (`/validation`) plutôt qu'au SOC.
 - **Bug du rapport corrigé** : le film montre le rapport d'INC-0003 (coupé par le scénario, synthèse cohérente), pas celui d'INC-0002 dont la synthèse restait « aucun analyste n'a décidé ».
