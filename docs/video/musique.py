@@ -49,6 +49,8 @@ T_MONTAGE = (60.0, 70.5)
 T_TOUR = (70.5, 138.0)
 T_LOGO = 138.0
 T_FINANCE = 102.0
+IMPACT = False          # choc sourd sur le gel (l'argent part) ; v2
+ACCENT = None           # instant d'un accent clair (sAIfe coupe l'agent) ; v2
 
 
 def mtof(m: float) -> float:
@@ -213,6 +215,17 @@ def montee(debut: float, fin: float, rembobinage_debut: float):
     return mix
 
 
+def impact_sourd():
+    """Choc sourd et grave pour le gel (l'argent part) : plus bas et plus étouffé que la fin de bande."""
+    n = sec(0.7)
+    fo = 2 * math.pi / SR
+    out = array("d", bytes(8 * n))
+    for i in range(n):
+        t = i / SR
+        out[i] = 0.5 * math.sin(fo * (50 - 16 * t) * i) * math.exp(-t / 0.22)
+    return out
+
+
 def coup_sourd():
     """Fin de bande : un choc grave court, et un clic."""
     n = sec(0.9)
@@ -280,13 +293,20 @@ def composer(duree: float) -> Piste:
     random.seed(80)
     rng = random.Random(80)
     p = Piste(sec(duree))
-    # --- acte 1 : nappe + piano épars
-    for i, ac in enumerate(ACTE1):
-        t0 = i * 4.5
+    # --- acte 1 : nappe + piano épars, jusqu'au gel (silence)
+    i = 0
+    t0 = 0.0
+    while t0 < T_SILENCE[0] - 0.1:
+        ac = ACTE1[i % len(ACTE1)]
         g, d = nappe(ac, 4.5 + 2.0, niveau=0.055, attaque=1.6, relache=2.4)
         p.mixer(t0, g, 1, 0)
         p.mixer(t0, d, 0, 1)
-        motif_acte1(ac, t0 + 0.75 if i == 0 else t0, rng, p, discret=(i in (0, 4)))
+        motif_acte1(ac, t0 + 0.75 if i == 0 else t0, rng, p, discret=(i == 0))
+        i += 1
+        t0 += 4.5
+    if IMPACT:
+        # choc sourd sur le gel, juste avant le silence : on entend l'attaque, le silence coupe la queue
+        p.mixer(max(0.0, T_SILENCE[0] - 0.22), impact_sourd(), 1, 1)
     # --- montée jusqu'à « Stop » : on ne laisse pas de nappe, elle viendrait d'avant le silence
     m = montee(T_MONTEE[0], T_STOP - 0.15, T_REMBOBINAGE[0])
     p.mixer(T_MONTEE[0], m, 0.9, 0.9)
@@ -340,6 +360,9 @@ def composer(duree: float) -> Piste:
     for k, (m_, dt, v) in enumerate([(36, 0.0, 0.6), (60, 0.15, 0.5), (67, 0.9, 0.4), (71, 1.8, 0.35), (74, 2.9, 0.3),
                                      (79, 4.3, 0.25), (83, 6.5, 0.18)]):
         p.mixer(T_LOGO + dt, piano(m_, 9.0 if k < 2 else 6.0, v), 0.95, 0.95)
+    if ACCENT is not None:                                        # sAIfe coupe l'agent : deux notes claires
+        for k, m_ in enumerate([72, 79]):
+            p.mixer(ACCENT + 0.03 * k, piano(m_, 2.4, 0.5), 1, 1)
     return p
 
 
@@ -436,6 +459,7 @@ def finir(p: Piste, duree: float, sortie: Path) -> dict:
 
 def main() -> int:
     global SR, T_ACTE2, T_MONTAGE, T_TOUR, T_LOGO, T_FINANCE
+    global T_SILENCE, T_MONTEE, T_REMBOBINAGE, T_STOP, IMPACT, ACCENT
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sortie", default=str(Path(__file__).with_name("musique-essai.wav")))
     ap.add_argument("--duree", type=float, default=150.0, help="secondes (150 par défaut, 140 au moins)")
@@ -445,7 +469,27 @@ def main() -> int:
     ap.add_argument("--montage-fin", type=float, help=f"fin des notes pincées ({T_MONTAGE[1]} par défaut)")
     ap.add_argument("--logo", type=float, help=f"début du logo ({T_LOGO} par défaut)")
     ap.add_argument("--finance", type=float, help=f"entrée de la basse de piano ({T_FINANCE} par défaut)")
+    # v2 : gel dramatique plus tôt, Stop plus court, choc sourd et accent
+    ap.add_argument("--freeze", type=float, help="instant du gel, début du silence (22,5 par défaut)")
+    ap.add_argument("--silence-duree", type=float, default=3.0, help="durée du silence (3 par défaut)")
+    ap.add_argument("--stop", type=float, help="instant du choc « Stop » (33 par défaut)")
+    ap.add_argument("--rewind", type=float, help="début du rembobinage (28,5 par défaut)")
+    ap.add_argument("--acte2-debut", type=float, help="début des accords de l'acte 2 (37,5 par défaut)")
+    ap.add_argument("--impact", action="store_true", help="choc sourd sur le gel")
+    ap.add_argument("--accent", type=float, help="instant d'un accent clair (sAIfe coupe l'agent)")
     a = ap.parse_args()
+    if a.freeze is not None or a.silence_duree != 3.0:
+        base = a.freeze if a.freeze is not None else T_SILENCE[0]
+        T_SILENCE = (base, base + a.silence_duree)
+    if a.stop is not None:
+        T_STOP = a.stop
+    if a.freeze is not None or a.stop is not None or a.rewind is not None or a.silence_duree != 3.0:
+        T_REMBOBINAGE = (a.rewind if a.rewind is not None else T_SILENCE[1], T_STOP)
+        T_MONTEE = (T_SILENCE[1], T_STOP)
+    if a.acte2_debut is not None:
+        T_ACTE2 = (a.acte2_debut, T_ACTE2[1])
+    IMPACT = a.impact
+    ACCENT = a.accent
     if a.acte2_fin is not None:
         T_ACTE2 = (T_ACTE2[0], a.acte2_fin)
         T_MONTAGE = (a.acte2_fin, max(a.acte2_fin, T_MONTAGE[1]))

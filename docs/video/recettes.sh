@@ -115,6 +115,31 @@ arret_sur_image() {
 [w][c]overlay=shortest=1:format=auto,format=yuv420p" -t "${tot}" "${ENC[@]}" "${out}"
 }
 
+# --- 6 bis. arrêt dramatique : image fixe pleine largeur, flash, teinte rouge sombre, secousse, montant qui claque -
+# arret_dramatique IMAGE.png MONTANT.png SORTIE.mp4 DUREE
+#   Pour le pivot du film (l'argent qui part). Flash blanc d'une image, désaturation puis teinte rouge
+#   très sombre en 0,4 s, légère secousse amortie, et le montant (PNG transparent, montée punch de 1,12
+#   à 1,0) qui apparaît sous le fantôme de l'écran. N'utilise que l'opacité et l'échelle (règles du guide),
+#   sans séparation RVB (réservée au rembobinage).
+arret_dramatique() {
+  local img="$1" num="$2" out="$3" d="${4:-4.5}"
+  FF -loop 1 -framerate 30 -t "${d}" -i "${img}" \
+     -f lavfi -t "${d}" -i "color=c=0x180404:s=1920x1080:r=30" \
+     -f lavfi -t "${d}" -i "color=c=white:s=1920x1080:r=30" \
+     -loop 1 -framerate 30 -t "${d}" -i "${num}" \
+     -filter_complex "[0:v]scale=1952:1098:flags=lanczos,\
+crop=1920:1080:x='16+10*sin(2*PI*11*t)*exp(-t/0.22)':y='9+8*cos(2*PI*9*t)*exp(-t/0.22)',\
+hue=s='max(0.12,1-2.2*t)',format=rgba[base];\
+[1:v]format=rgba,fade=t=in:st=0:d=0.40:alpha=1,colorchannelmixer=aa=0.86[rouge];\
+[base][rouge]overlay=format=auto[tint];\
+[2:v]format=rgba,fade=t=out:st=0:d=0.14:alpha=1[flash];\
+[tint][flash]overlay=format=auto[flashed];\
+[3:v]scale=w='1920*(1.12-0.12*min(1,max(0,(t-0.30)/0.35)))':h=-1:eval=frame,format=rgba,\
+fade=t=in:st=0.30:d=0.22:alpha=1[num];\
+[flashed][num]overlay=x='(W-w)/2':y='(H-h)/2+128':eval=frame:format=auto,format=yuv420p" \
+     -t "${d}" "${ENC[@]}" "${out}"
+}
+
 # --- 7. rembobinage de cassette ----------------------------------------------------------------
 # rembobine ENTREE SORTIE DUREE_SORTIE [HUD.png]
 #   L'entrée est lue à l'envers à 15 i/s et 960x540 (la mémoire de `reverse` est proportionnelle
