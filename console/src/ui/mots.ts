@@ -275,8 +275,8 @@ export function etatIncident(inc: Incident): { lib: string; cls: string; aTraite
     if (derniere === "refuser")
       return { lib: parRelecteur ? "Refusé par le relecteur" : "Geste refusé", cls: "ok", aTraiter: false };
     if (inc.statut === "clos") return { lib: "Clos", cls: "neutre", aTraiter: false };
-    if (inc.quatre_yeux && !inc.quatre_yeux.issue) return { lib: "Geste en attente", cls: "attente", aTraiter: true };
-    return { lib: "À traiter", cls: "attente", aTraiter: true };
+    if (inc.quatre_yeux && !inc.quatre_yeux.issue) return { lib: "À décider", cls: "attente", aTraiter: true };
+    return { lib: "À décider", cls: "attente", aTraiter: true };
   }
   if (inc.etat === "coupee") return { lib: "Agent arrêté", cls: "ok", aTraiter: false };
   if (inc.statut === "clos") return { lib: "Clos", cls: "neutre", aTraiter: false };
@@ -288,9 +288,9 @@ export function etatIncident(inc: Incident): { lib: string; cls: string; aTraite
   if (inc.etat === "suspendue") return { lib: "À décider", cls: "attente", aTraiter: true };
   if (inc.statut === "surveille") return { lib: "Laissé passer, surveillé", cls: "libere", aTraiter: false };
   // Alerte qui n'a pas arrêté l'agent (règle « alerter », comportement inhabituel) :
-  // elle reste à lire et à clore.
+  // aucune action n'attend de décision, le statut reste discret ; la ligne reste à clore.
   if (inc.etat === "active" && (!inc.statut || inc.statut === "ouvert"))
-    return { lib: "À lire", cls: "neutre", aTraiter: true };
+    return { lib: "Surveillé", cls: "neutre", aTraiter: true };
   if (inc.etat === "active") return { lib: "Surveillé", cls: "libere", aTraiter: false };
   if ((inc.correctifs?.length ?? 0) > 0) return { lib: "Droit retiré", cls: "ok", aTraiter: false };
   return { lib: "Traité", cls: "ok", aTraiter: false };
