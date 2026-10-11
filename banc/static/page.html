@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Banc d'essai sAIfe</title>
+  <link rel="icon" href="/logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/banc.css">
+</head>
+<body>
+<main class="page">
+  <header>
+    <div class="tete">
+      <img class="marque" src="/logo.svg" alt="">
+      <div>
+        <div class="logotype">s<b>AI</b>fe</div>
+        <div class="role">Banc d'essai — Orbis Pay</div>
+      </div>
+    </div>
+    <p class="sous-tete">
+      Une page pour conduire sAIfe en marche : les salariés, l'agent IA, les virements d'Orbis Pay.
+      Vous envoyez des mails de test, vous les voyez arriver dans la boîte, vous lancez un vrai
+      agent dessus. Tout reste sur <code>127.0.0.1</code>.
+    </p>
+  </header>
+
+  <div class="grille">
+
+    <!-- 1. Démarrer tout -->
+    <section class="carte large">
+      <div class="coeur">
+        <h2><span class="num">1</span>Démarrer tout</h2>
+        <p class="quoi">Vérifie et lance ce qui manque : backend (8700), console SOC (5173), boîte
+          mail et verdicts (8716/8717/8715). L'app Mac (8712) n'est jamais relancée, son état est
+          seulement lu — elle porte peut-être la session.</p>
+        <div class="rangee">
+          <button class="cta" id="btn-demarrer">
+            Démarrer tout
+            <span class="fleche" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 6h6M6.5 3.5 9 6l-2.5 2.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </button>
+          <button id="btn-rafraichir">Rafraîchir l'état</button>
+        </div>
+        <div class="voyants" id="voyants" style="margin-top:18px"></div>
+      </div>
+    </section>
+
+    <!-- 2. Ouvrir -->
+    <section class="carte">
+      <div class="coeur">
+        <h2><span class="num">2</span>Ouvrir</h2>
+        <p class="quoi">Les écrans de sAIfe, chacun dans son onglet.</p>
+        <div class="liens" style="grid-template-columns:1fr">
+          <a class="lien-grand" href="http://localhost:5173" target="_blank" rel="noopener">
+            <span class="ptitre">Console SOC</span><span class="url">localhost:5173</span>
+          </a>
+          <a class="lien-grand" href="http://localhost:5173/validation" target="_blank" rel="noopener">
+            <span class="ptitre">Validation finance</span><span class="url">/validation</span>
+          </a>
+          <a class="lien-grand" href="http://localhost:8716" target="_blank" rel="noopener">
+            <span class="ptitre">Boîte mail d'Orbis</span><span class="url">localhost:8716</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Bouclier du poste -->
+    <section class="carte">
+      <div class="coeur">
+        <h2><span class="num">3</span>Bouclier du poste</h2>
+        <p class="quoi">L'app Mac lit la vraie config MCP du poste. Ce qu'elle voit en ce moment :</p>
+        <div class="voyants" id="poste"></div>
+        <div class="liens" style="grid-template-columns:1fr; margin-top:12px">
+          <a class="lien-grand" href="http://localhost:5173" target="_blank" rel="noopener">
+            <span class="ptitre">Agents IA de ce poste</span><span class="url">console SOC</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Côté salarié -->
+    <section class="carte">
+      <div class="coeur">
+        <h2><span class="num">4</span>Côté salarié</h2>
+        <p class="quoi">Chaque bouton envoie un mail de test dans la boîte d'Orbis. La pop-up du
+          bouclier arrive à l'écran.</p>
+        <div class="rangee" id="mails"></div>
+        <div class="console-sortie vide" id="sortie-mail">Aucun mail envoyé pour l'instant.</div>
+      </div>
+    </section>
+
+    <!-- 5. Boîte d'Orbis -->
+    <section class="carte">
+      <div class="coeur">
+        <div class="en-tete-carte">
+          <h2 style="margin:0"><span class="num">5</span>Boîte d'Orbis</h2>
+          <span class="etat-agent" id="etat-boite"></span>
+        </div>
+        <p class="quoi" style="margin-top:8px">Les mails présents dans la boîte, et le verdict de
+          sAIfe quand il l'a posé. Vos mails de test se font récupérer ici.</p>
+        <div class="pile" id="boite" style="max-height:300px"></div>
+      </div>
+    </section>
+
+    <!-- 6. Agent IA -->
+    <section class="carte large">
+      <div class="coeur">
+        <div class="en-tete-carte">
+          <h2 style="margin:0"><span class="num">6</span>Agent IA</h2>
+          <span class="etat-agent" id="etat-agent"></span>
+        </div>
+        <p class="quoi" style="margin-top:8px">Un vrai agent, piloté par un modèle local Ollama,
+          lit la boîte mail et tombe sur un mail piégé. Il tape le vrai backend 8700 : l'incident
+          apparaît dans la console SOC. En direct ci-dessous : outils appelés, « retenu » et
+          « coupé » quand sAIfe agit.</p>
+        <div class="champ">
+          <label for="modele">Modèle</label>
+          <select id="modele"></select>
+          <label for="essais">Essais</label>
+          <select id="essais">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+          <button class="cta" id="btn-agent" style="margin-left:auto">
+            Lancer un agent sur la boîte mail
+            <span class="fleche" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 6h6M6.5 3.5 9 6l-2.5 2.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </button>
+        </div>
+        <div class="console-sortie vide" id="flux-agent">L'agent n'a pas encore tourné.</div>
+      </div>
+    </section>
+
+    <!-- 7. Virements -->
+    <section class="carte">
+      <div class="coeur">
+        <h2><span class="num">7</span>Virements</h2>
+        <p class="quoi">Via l'app Mac (8712). Le virement habituel passe sans rien montrer ; le RIB
+          changé ouvre une pop-up « Retenu ».</p>
+        <div class="rangee">
+          <button id="vir-normal">Virement normal</button>
+          <button id="vir-rib" class="danger">Virement vers un RIB changé</button>
+        </div>
+        <div class="console-sortie vide" id="sortie-virement">Aucun virement lancé pour l'instant.</div>
+      </div>
+    </section>
+
+    <!-- 8. Repartir propre -->
+    <section class="carte">
+      <div class="coeur">
+        <h2><span class="num">8</span>Repartir propre</h2>
+        <p class="quoi">Sauvegarde la base du backend, puis repart d'une base vide. De quoi
+          recommencer un essai sans rien redémarrer à la main.</p>
+        <div class="rangee">
+          <button id="btn-repartir" class="danger">Base vide, backend relancé</button>
+        </div>
+        <div class="console-sortie vide" id="sortie-repartir">Base inchangée pour l'instant.</div>
+      </div>
+    </section>
+
+    <!-- 9. Journal -->
+    <section class="carte large">
+      <div class="coeur">
+        <h2><span class="num">9</span>Journal en direct</h2>
+        <p class="quoi">Les incidents et le fil des agents, lus au backend. Les actions lancées
+          depuis ce banc.</p>
+        <div class="journal-grille">
+          <div>
+            <p class="sous-titre">Incidents &amp; fil des agents</p>
+            <div class="pile" id="journal-backend"></div>
+          </div>
+          <div>
+            <p class="sous-titre">Actions du banc</p>
+            <div class="pile" id="journal-actions"></div>
+          </div>
+        </div>
+        <p class="note" id="note-jeton"></p>
+      </div>
+    </section>
+
+  </div>
+</main>
+<script src="/banc.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="sAIfe">
+  <!-- Le sceau : deux anneaux concentriques, coupés par un seuil. La passerelle qui retient. -->
+  <defs>
+    <linearGradient id="g" x1="8" y1="6" x2="40" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0891b2"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <path d="M24 4.5 L39.5 10.5 V24 C39.5 33.5 32.8 40.3 24 43.5 C15.2 40.3 8.5 33.5 8.5 24 V10.5 Z"
+        stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/>
+  <circle cx="24" cy="22.5" r="7.5" stroke="url(#g)" stroke-width="2.2"/>
+  <path d="M13 22.5 H20 M28 22.5 H35" stroke="url(#g)" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="24" cy="22.5" r="2.3" fill="url(#g)"/>
+</svg>

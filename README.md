@@ -6,7 +6,7 @@ sAIfe se prononce « safe ». Le code garde le nom de travail `dedale` : nom du 
 
 Projet du hackathon Secure Horizons (ESSEC, 10-11 octobre 2026), Track 2. L'entreprise, les mails, les secrets et les paiements sont fictifs (Orbis Pay). Tout tourne en local, sauf deux appels à Claude Haiku, d'Anthropic (API ou `claude -p`) : le relecteur IA lui envoie des faits pseudonymisés, jamais le texte d'un mail, et l'agent des règles la phrase écrite par l'analyste. Sans accès au modèle, des règles prennent le relais dans les deux cas.
 
-Vidéo de démo (2 à 3 min) : lien à ajouter après le tournage.
+Vidéo de démo (2 à 3 min) : [docs/video/sAIfe-demo.mp4](docs/video/sAIfe-demo.mp4).
 
 ## Le problème
 
@@ -18,13 +18,13 @@ sAIfe les met dans une même console SOC. Sur le poste, il prévient le salarié
 
 Sur le poste du salarié, l'app Mac de la barre des menus ouvre une pop-up avant le geste : mail jugé frauduleux, site louche dans l'onglet actif de Safari ou de Chrome, fichier à risque arrivé dans Téléchargements. Elle tient l'inventaire des agents IA installés sur le poste et montre, dans un panneau, ce qu'elle regarde. L'extension Chrome remplace un site sosie ou louche par une page d'avertissement ; elle et l'app jugent les adresses avec les mêmes règles (`partage/regles-sites.json`). Le salarié choisit toujours.
 
-Un virement ou un export de fichiers clients est vérifié avant de partir. Sans signal de risque, il part et rien ne s'affiche. Un signal sans fraude (bénéficiaire inconnu, RIB qui change, montant hors des habitudes) retient le geste, que le responsable du salarié ou la finance confirme dans l'espace `/validation`. Un signal de fraude (geste juste après un mail frauduleux, consigne cachée, rafale) passe par le relecteur IA, et l'équipe sécurité reçoit un incident.
+sAIfe reçoit de l'app du poste la déclaration d'un geste sensible, un virement ou un export de fichiers clients (un appel local `/avertir`, ou un geste repéré dans un mail), et la vérifie avant de laisser le salarié continuer. Rien ne s'interpose dans le vrai flux de paiement : brancher sAIfe sur le système de paiement de l'entreprise est une étape de déploiement, pas le prototype. Sans signal de risque, le geste part et rien ne s'affiche. Un signal sans fraude (bénéficiaire inconnu, RIB qui change, montant hors des habitudes) le retient, que le responsable du salarié ou la finance confirme dans l'espace `/validation`. Un signal de fraude (geste juste après un mail frauduleux, consigne cachée, rafale) passe par le relecteur IA, et l'équipe sécurité reçoit un incident.
 
 Côté agents IA, la passerelle de `interne/` contrôle chaque appel d'outil avant exécution. Le désarmeur retire les consignes cachées avant que l'agent lise le contenu. Le jeton de l'agent est limité à sa tâche, des canaris repèrent une fuite, et tout envoi hors d'Orbis Pay est retenu. Un outil absent de l'inventaire de l'agent, un outil de lecture détourné pour sortir une donnée (même encodée) et un outil MCP dont la description change en cours de session sont retenus aussi.
 
 La console du SOC réunit les incidents des agents et des salariés, la boîte noire de chaque dossier et une synthèse dont chaque phrase renvoie à sa preuve. L'analyste y décide avec un motif, écrit ses règles en français et retire les droits en trop des agents. Il y lit les menaces sans les données métier : montants en tranches, bénéficiaires et IBAN masqués. Les incidents partent vers le SIEM (ECS, CEF, Sigma, syslog), les alertes vers la bonne personne, et un résumé tient en un mail le lundi.
 
-Chaque événement et chaque décision sont chaînés en SHA-256 et signés en Ed25519 par leur émetteur, et la base refuse de les modifier ou de les effacer.
+Chaque événement et chaque décision sont chaînés en SHA-256, et le backend les signe en Ed25519 avec une clé locale propre au canal d'où ils viennent. La base refuse ensuite de les modifier ou de les effacer.
 
 ## Architecture
 
@@ -69,6 +69,8 @@ cd app-mac && ./construire.sh --lancer          # bouclier dans la barre des men
 
 `./demo.sh jury` met l'ancienne base de côté dans `data/sauvegardes/`, repart d'une base vide, lance le backend (8700) et la console (`http://localhost:5173`) s'ils manquent, joue la scène du salarié puis celle de l'agent, et attend la décision de l'analyste. Il ne décide jamais à sa place. `./demo.sh jury --arreter` arrête ce qu'il a lancé.
 
+Pour tout piloter depuis une seule page web (démarrer les services, envoyer des mails de test, lancer un vrai agent Ollama sur la boîte, les virements, le journal en direct), lancer le banc d'essai : `./banc/demarrer.sh`, puis ouvrir `http://127.0.0.1:8900`. Détail dans [banc/README.md](banc/README.md).
+
 Deux virements, pour voir sAIfe rester invisible puis retenir un geste sans prévenir la sécurité :
 
 ```bash
@@ -98,7 +100,7 @@ Tout ce qui suit est dans le code du dépôt au 11 octobre 2026 ; le fichier ou 
 
 ### Le salarié choisit, et il est prévenu avant d'agir
 
-L'app Mac ouvre une pop-up avant le geste, avec une ou deux raisons en clair : un mail jugé frauduleux dans la boîte de démo, un site louche dans l'onglet actif de Safari ou de Chrome, un fichier à risque qui arrive dans Téléchargements. L'extension Chrome affiche une page d'avertissement à la place d'un site sosie ou louche. Le salarié choisit « Annuler » ou « Continuer » (« Mettre de côté » ou « Garder » pour un fichier). « Annuler » envoie un événement à la SOC, qui compte un piège évité sans ouvrir de dossier, et affiche un coach de trois lignes. « Continuer » sur un geste sérieux ouvre un incident, mais le backend répond toujours `consigne: aucune` au poste : il ne bloque jamais le salarié (`backend/app/store.py`). Seuls les gestes critiques, ci-dessous, peuvent être retenus.
+L'app Mac ouvre une pop-up avant le geste, avec une ou deux raisons en clair : un mail jugé frauduleux dans la boîte de démo, un site louche dans l'onglet actif de Safari ou de Chrome, un fichier à risque qui arrive dans Téléchargements. L'extension Chrome affiche une page d'avertissement à la place d'un site sosie ou louche. Le salarié choisit « Annuler » ou « Continuer » (« Mettre de côté » ou « Garder » pour un fichier). « Annuler » envoie un événement à la SOC, qui compte un piège évité sans ouvrir de dossier, et affiche un coach de trois lignes. « Continuer » sur un geste sérieux ouvre un incident, mais le backend répond toujours `consigne: aucune` au poste : le poste n'est jamais bloqué ni verrouillé (`backend/app/store.py`). Ce qui peut être retenu, c'est un geste critique, ci-dessous, le temps d'une vérification, jamais la machine du salarié.
 
 ### Un geste critique n'arrête le salarié que s'il y a un signal
 
@@ -108,7 +110,7 @@ L'app Mac soumet chaque virement ou export de fichiers clients à `POST /api/rel
 - signal sans fraude (bénéficiaire inconnu, RIB qui change, montant au-dessus des habitudes ou illisible, export massif) : les règles retiennent le geste. La pop-up dit pourquoi en clair et demande de le faire confirmer par le responsable ou la finance. La SOC n'est pas prévenue ;
 - signal de fraude (geste juste après un mail frauduleux ou une alerte passée outre, consigne cachée, rafale de demandes, compte personnel, export hors de l'entreprise) : le relecteur IA tranche, le geste est refusé ou retenu, jamais accordé en silence, et la SOC reçoit un incident.
 
-Sans réponse du backend en 12 s, le geste est retenu : jamais de refus sec à cause d'un délai.
+Sans réponse du backend en 12 s, le geste attend au lieu de partir ; jamais de refus sec à cause d'un délai.
 
 ### Le relecteur IA, et une mémoire que seuls des humains alimentent
 
@@ -142,7 +144,7 @@ Avant même la lecture, le désarmeur (`interne/orbis/desarmeur.py`) retire les 
 
 Chaque événement, chaque décision et chaque maillon de la boîte noire porte une empreinte SHA-256 chaînée à la précédente (`backend/app/journal_scelle.py`). Les verdicts du relecteur IA, les décisions des validateurs, les motifs, les levées d'anonymat, les consultations du détail et les actions sur le compte d'un salarié entrent dans la même chaîne. `GET /api/incidents/{id}/verification` relit tout le dossier dans la base et nomme ce qui a changé : « altérée à la décision 1 : champ analyste modifié ». `cd backend && uv run python -m app.verifier_journal` passe par la même vérification pour toute la base. Le rapport d'une page pour le RSSI (`GET /api/incidents/{id}/rapport`) imprime le sceau.
 
-Chaque entrée porte en plus la signature Ed25519 de son émetteur : la passerelle des agents, l'app du poste, ou le backend pour une décision, au nom de l'analyste. Les agents IA n'écrivent jamais eux-mêmes dans le journal, ils passent par la passerelle. Les clés restent hors du dépôt, dans `~/.config/dedale/cles/`. SQLite refuse ensuite de modifier ou d'effacer une ligne du journal (`backend/app/ancrage.py`).
+Le backend est seul à écrire en base, et il signe chaque entrée en Ed25519 avec une clé locale choisie selon le canal d'où elle vient : la passerelle pour les agents, le poste pour l'app du salarié, ou le backend lui-même pour une décision. La passerelle et l'app du poste ne signent rien elles-mêmes, et le nom de l'analyste qui signe une décision est celui que la console déclare. Les clés restent hors du dépôt, dans `~/.config/dedale/cles/`, et la vérification ne lit jamais une clé publique dans la base : quelqu'un qui n'a que la base ne peut pas y glisser la sienne. SQLite refuse ensuite de modifier ou d'effacer une ligne du journal (`backend/app/ancrage.py`).
 
 ### Avalanche : une voie d'exploration
 
@@ -209,7 +211,7 @@ Ailleurs : le SMS est simulé, un webhook ou un transfert syslog ne part que si 
 
 ## Métriques
 
-Mesurées le 10 octobre 2026 à 22 h 10 au commit `a1a7321`, sur des backends isolés (port libre, base SQLite temporaire, jamais le backend partagé). Trafic et mails sont synthétiques et écrits pour la démo : ces chiffres montrent que le moteur tient sur ce jeu, pas un taux de détection en production. Détail et dénominateurs : [docs/mesures/resultats.md](docs/mesures/resultats.md).
+Mesurées le 11 octobre 2026 à 9 h 35 au commit `fb6fa41`, sur des backends isolés (port libre, base SQLite temporaire, jamais le backend partagé). Trafic et mails sont synthétiques et écrits pour la démo : ces chiffres montrent que le moteur tient sur ce jeu, pas un taux de détection en production. Les durées en millisecondes sont celles de la chaîne technique sur ce banc, jamais une cadence d'attaque ni une prédiction de production. Détail et dénominateurs : [docs/mesures/resultats.md](docs/mesures/resultats.md).
 
 Tout se rejoue en une commande, qui lance ses propres backends et les arrête :
 
@@ -219,18 +221,18 @@ python3 docs/mesures/mesurer.py          # 25 sessions par type ; --sans-relecte
 
 | Mesure | Résultat | Source |
 |---|---|---|
-| Agent interne piégé, joué par la vraie passerelle | 25/25 sessions classées agent IA, 25/25 incidents, 0 rapport sorti | campagne `c10102210189b77` |
-| Temps de détection (premier événement de la session → classement agent IA) | médiane 10 ms, moyenne 11 ms, 25 échantillons | `GET /api/mesures`, `temps_detection` |
-| Temps de confinement (détection → session coupée) | médiane 19 ms, moyenne 20 ms, 25 échantillons ; la coupure part d'un script qui relève les incidents toutes les 20 ms | `GET /api/mesures`, `temps_confinement` |
-| Ouverture de l'incident après l'événement déclencheur | médiane 0,81 ms, moyenne 1,01 ms, 25 incidents | rapport de campagne |
-| Agent IA externe | 25/25 sessions classées agent IA, 25/25 incidents | campagne `c10102210173b01` |
-| Faux positifs du tri | 0/50 sessions humaines ou scriptées classées agent IA | campagne `c10102210173b01` |
+| Agent interne piégé, joué par la vraie passerelle | 25/25 sessions classées agent IA, 25/25 incidents, 0 rapport sorti | campagne `c10110935193617` |
+| Temps de détection (premier événement de la session → classement agent IA) | médiane 12 ms, moyenne 17 ms, 25 échantillons | `GET /api/mesures`, `temps_detection` |
+| Temps de confinement (détection → session coupée) | médiane 32 ms, moyenne 31 ms, 25 échantillons ; la coupure part d'un script qui relève les incidents toutes les 20 ms | `GET /api/mesures`, `temps_confinement` |
+| Ouverture de l'incident après l'événement déclencheur | médiane 1,52 ms, moyenne 2,27 ms, 25 incidents | rapport de campagne |
+| Agent IA externe | 25/25 sessions classées agent IA, 25/25 incidents | campagne `c10110935175594` |
+| Faux positifs du tri | 0/50 sessions humaines ou scriptées classées agent IA | campagne `c10110935175594` |
 | Taux de détection sur les 12 mails de démo | 8/8 mails frauduleux repérés ; classe exacte 12/12 | analyseur de `messagerie/` |
 | Faux positifs sur les mails | 0/3 mail légitime signalé ; le mail douteux sort « suspect » | analyseur de `messagerie/` |
 | Désarmeur sur les 12 mails | consigne cachée retirée dans 2/2 mails qui en portent une, 0/10 ailleurs | `interne/orbis/desarmeur.py` |
-| Relecteur IA sur 6 gestes critiques | 6/6 tranchés par Haiku (`claude -p`), aucun repli ; 1 accordé, 5 refusés ; médiane 3,3 s, moyenne 3,6 s | `GET /api/relecteur/demandes/{id}` |
+| Relecteur IA sur 6 gestes critiques | 4 refusés d'office par les règles dures (0 ms, modèle non appelé), 2 relus par Haiku (`claude -p`) : 1 accordé, 1 retenu, en 4,0 s et 4,8 s | `GET /api/relecteur/demandes/{id}` |
 
-Ces mesures précèdent la vérification des gestes sur signal, la validation métier et la médiation de tous les outils, ajoutées dans la nuit. Mesuré depuis et consigné dans `CONTRATS.md` : la médiation ajoute 0,07 ms en médiane à un appel autorisé (3 000 appels), et l'agent des règles prépare un changement en 3,8 à 10,3 s avec `claude -p`. Taux du mode réel : section précédente.
+Ces mesures couvrent le moteur à `fb6fa41`, vérification des gestes sur signal, validation métier et médiation de tous les outils comprises. Mesuré par ailleurs et consigné dans `CONTRATS.md` : la médiation ajoute 0,07 ms en médiane à un appel autorisé (3 000 appels), et l'agent des règles prépare un changement en 3,8 à 10,3 s avec `claude -p`. Taux du mode réel : section précédente.
 
 Ce qui n'est pas mesuré : le temps de décision d'un analyste ou d'un validateur humain, un vrai poste ou une vraie messagerie.
 
@@ -291,7 +293,7 @@ Résultats, périmètre et valeurs fictives autorisées : [docs/SCAN_SECRETS.md]
 
 ## Feuille de route
 
-Les testeurs ont demandé trois choses qui ne seront pas faites pour la remise du 11 octobre :
+Les testeurs — des personas joués par des agents, pas de vraies personnes — ont demandé trois choses qui ne seront pas faites pour la remise du 11 octobre :
 
 - une app Windows : le volet poste n'existe que sur macOS et dans Chrome ;
 - Microsoft 365 : brancher le garde-mail sur Outlook et Exchange à la place de la boîte Mailpit, puis Google Workspace ;
