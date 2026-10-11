@@ -5528,6 +5528,11 @@ mark.piege {
   color: var(--texte-faible);
   font-weight: 400;
 }
+/* Le trait de « réglé » (.inc-titre::after, à 52 % de la hauteur) tombait
+   entre la ligne « qui » et le titre depuis que .inc-titre est en colonne. */
+.inc-titre::after {
+  display: none;
+}
 
 /* ---- En-tête d'un dossier : qui, intégrité, export ---- */
 .ag-outils {
