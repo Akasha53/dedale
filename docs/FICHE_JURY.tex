@@ -1,6 +1,6 @@
 % Fiche de défense d'une page. PDF : cd docs && xelatex FICHE_JURY.tex (XeLaTeX, polices Avenir Next et Menlo de macOS).
 \documentclass[7.6pt]{extarticle}
-\usepackage[a4paper,margin=1.1cm,top=0.95cm,bottom=0.85cm]{geometry}
+\usepackage[a4paper,margin=1.0cm,top=0.85cm,bottom=0.75cm]{geometry}
 \usepackage{fontspec}
 \usepackage[french]{babel}
 \usepackage{multicol,xcolor,enumitem,microtype,hyperref,tabularx,booktabs}
@@ -9,16 +9,16 @@
 \definecolor{accent}{HTML}{0E7490}
 \definecolor{doux}{HTML}{5D5D5D}
 \hypersetup{colorlinks,urlcolor=accent,linkcolor=accent,pdftitle={sAIfe, fiche de défense}}
-\setlength{\parindent}{0pt}\setlength{\parskip}{2pt}
-\setlist[itemize]{leftmargin=1em,itemsep=0.6pt,topsep=1pt,parsep=0pt}
-\setlength{\columnsep}{0.65cm}
-\newcommand{\h}[1]{\vspace{2.5pt}{\bfseries\color{accent}\small #1}\par\vspace{0.5pt}}
+\setlength{\parindent}{0pt}\setlength{\parskip}{1.6pt}
+\setlist[itemize]{leftmargin=1em,itemsep=0.4pt,topsep=0.8pt,parsep=0pt}
+\setlength{\columnsep}{0.6cm}
+\newcommand{\h}[1]{\vspace{2pt}{\bfseries\color{accent}\small #1}\par\vspace{0.3pt}}
 \newcommand{\cmd}[1]{{\ttfamily #1}}
 \pagestyle{empty}
 \begin{document}
-\fontsize{9}{10.9}\selectfont\raggedright\sloppy
+\fontsize{8.6}{10.2}\selectfont\raggedright\sloppy
 {\Large s\textbf{AI}fe}\hfill{\bfseries\color{accent}Secure Horizons, Track 2 · 10--11 octobre 2026}\par
-Fiche de défense pour le jury\hfill Orbis Pay est une entreprise fictive. Vidéo de démo : lien à ajouter après le tournage.\par\vspace{2pt}
+Fiche de défense pour le jury\hfill Orbis Pay est une entreprise fictive. Vidéo de démo : lien à ajouter après le tournage.\par\vspace{1.5pt}
 
 {\bfseries La menace.} Un contenu piégé vise deux lecteurs. Le salarié clique un lien trompeur, ouvre un site sosie ou valide un virement réclamé par un faux dirigeant. L’agent IA interne lit un mail qui cache une consigne, la prend pour une tâche et tente d’envoyer des données dehors avec ses propres droits. sAIfe suit les deux chemins jusqu’au même dossier SOC, où un humain décide. Hors sAIfe : 33,1~\% des salariés non formés échouent aux tests de phishing simulés (\href{https://www.knowbe4.com/resources/reports/2025-phishing-by-industry-benchmarking-report}{KnowBe4 2025}) ; EchoLeak, CVE-2025-32711, fuite par Microsoft~365 Copilot sans clic (\href{https://thehackernews.com/2025/06/zero-click-ai-vulnerability-exposes.html}{The Hacker News}) ; injection via le serveur MCP de GitHub, mai 2025 (\href{https://invariantlabs.ai/blog/mcp-github-vulnerability}{Invariant Labs}).
 
@@ -26,46 +26,52 @@ Fiche de défense pour le jury\hfill Orbis Pay est une entreprise fictive. Vidé
 \begin{multicols}{2}
 \h{Les contrôles}
 \begin{itemize}
-\item Poste : l’app Mac prévient avant le geste (mail frauduleux, site louche, fichier à risque) et l’extension Chrome avant un site sosie. Le salarié choisit ; le poste n’est jamais bloqué, sauf un virement ou un export de clients, qui attend un second regard. Quatre modules qu’on peut couper (mails, onglet actif, téléchargements, agents IA du poste) ; au SOC partent la catégorie, le domaine et le choix, jamais le contenu d’un fichier ni la valeur d’un secret. La copie désarmée d’un mail frauduleux part du serveur de messagerie, pas du poste.
-\item Garde-mail : chaque mail est jugé sûr, suspect ou frauduleux, avec une phrase par signal (sosie, lien menteur, pièce piégée, fraude au président, consigne cachée).
-\item Passerelle de l’agent : désarmeur des consignes cachées avant lecture, jeton limité à la tâche, canaris, et tout envoi hors d’Orbis Pay retenu avant exécution.
-\item Boîte noire scellée en SHA-256 : \cmd{/verification} dit à quelle étape un dossier a été modifié ; rapport d’une page pour le RSSI.
-\item Exports par l’API : incident au format ECS, règles Sigma, brouillon NIS2 à relire.
+\item Poste : l’app Mac prévient avant le geste (mail frauduleux, site louche, fichier à risque) et tient l’inventaire des agents IA du poste ; l’extension Chrome arrête un site sosie ou louche, avec les mêmes règles. Le salarié choisit, le poste n’est jamais bloqué. Quatre modules qu’on peut couper ; au SOC partent la catégorie, le domaine et le choix, jamais un contenu.
+\item Geste critique (virement, export de clients) : des règles cherchent un signal de risque. Sans signal, il part sans pop-up. Signal sans fraude (RIB qui change, bénéficiaire inconnu) : retenu, le responsable ou la finance le tranche dans l’espace \cmd{/validation}. Signal de fraude : relecteur IA et incident SOC.
+\item Garde-mail : chaque mail est jugé sûr, suspect ou frauduleux, avec une phrase par signal.
+\item Passerelle de l’agent : désarmeur des consignes cachées avant lecture, jeton limité à la tâche, canaris, envoi hors d’Orbis Pay retenu. Médiation de tous les outils : outil absent de l’inventaire, outil de lecture détourné (paramètres décodés en URL, base64, hexadécimal), outil MCP modifié en cours de session, retenus avant exécution, pour 0,07~ms de plus en médiane.
+\item Journal chaîné en SHA-256, signé en Ed25519 par son émetteur, en ajout seul ; \cmd{/verification} nomme le champ modifié. Rapport d’une page pour le RSSI. Ancrage sur Avalanche : voie d’exploration, aucune ancre publiée.
+\item Intégrations : ECS 8.11, CEF par syslog, 29 règles Sigma validées par sigma-cli, webhooks Slack et Teams, SMS simulé, résumé du lundi, brouillon NIS2 à relire. Quatre identités authentifiées : analyste, passerelle, poste, validateur.
 \end{itemize}
 
 \h{Comment l’humain garde la main}
 \begin{itemize}
-\item Le salarié est prévenu avant d’agir, avec la raison, et choisit. «~Annuler~» envoie un événement : la SOC compte un piège évité, sans ouvrir de dossier.
-\item Geste critique : le relecteur IA (Haiku) accorde ou refuse en quelques secondes, à partir de faits structurés. Les règles refusent d’office un virement au-dessus de 10\,000~€, un export de clients vers l’extérieur ou un geste dont le texte contient une consigne pour une IA ; panne ou délai de plus de 8~s, ce sont les règles qui tranchent. L’analyste garde «~Accorder~» et «~Refuser~», avec motif.
-\item Agent : «~Laisser passer~» se confirme toujours ; sur un incident critique, «~Couper~» aussi, avec un motif obligatoire et cinq secondes pour annuler. Motif et auteur sont scellés. Sans décision, l’appel retenu est refusé.
-\item Le salarié apparaît sous pseudonyme ; lever son identité demande un motif, et l’acte est scellé.
-\item Les règles du SOC s’écrivent en français ; sAIfe montre ce qu’il a compris et n’active rien sans confirmation.
-\item Seuils : session classée agent IA au-dessus de 0,40 ; canari touché ou envoi externe, l’agent est suspendu ; comportement inhabituel (pic d’appels, outil jamais vu, volume lu ×10), simple alerte ; pré-tri du relecteur sous 0,7 de confiance, file «~à regarder~».
+\item Le salarié est prévenu avant d’agir, avec la raison, et choisit. «~Annuler~» compte un piège évité, sans ouvrir de dossier.
+\item Relecteur IA (Haiku) : il reçoit des faits établis par sAIfe, jamais le mail. Les règles dures passent avant lui (plafond de 10\,000~€ hors liste, RIB qui change, consigne cachée, rafale) ; panne ou délai de plus de 8~s, les règles tranchent et retiennent dans le doute. Sur un signal de fraude, rien n’est accordé en silence. Sa mémoire ne reçoit que des décisions humaines signées. L’analyste garde «~Accorder~» et «~Refuser~», motif scellé.
+\item Le responsable ou la finance voit le montant, le bénéficiaire et la raison, et décide avec un motif signé ; la sécurité n’apprend que l’issue.
+\item Besoin d’en connaître : le SOC lit des tranches de montant, bénéficiaires et IBAN masqués, salariés sous pseudonyme. Le détail s’ouvre sur un signal de fraude, et chaque consultation entre au journal.
+\item Agent : «~Couper~» demande confirmation, motif et cinq secondes pour annuler ; sans décision, l’appel retenu est refusé.
+\item Règles en français : chaque phrase lance un agent jetable (six outils qui n’écrivent pas, 20~s, jeton révoqué à la fin). sAIfe montre ce qu’il a compris et ce qu’il n’a pas su traduire, et n’active rien sans clic. Le retrait des droits en trop est réel.
+\item Seuils : session classée agent IA au-dessus de 0,40 ; canari, envoi externe ou outil inconnu, l’agent est suspendu ; droit retiré, tentative bloquée et incident ; comportement inhabituel, simple alerte.
 \end{itemize}
 
 \columnbreak
 \h{Ce qu’on a mesuré}
-Le 10 octobre 2026 à 22~h~10, commit \cmd{a1a7321}, sur des backends isolés (port libre, base temporaire). Trafic et mails écrits pour la démo.
+Le 10 octobre 2026 à 22~h~10, commit \cmd{a1a7321}, sur des backends isolés. Trafic et mails écrits pour la démo. Avant la vérification sur signal, la validation métier et la médiation.
 \begin{itemize}
 \item Agent interne piégé, vraie passerelle : 25/25 sessions classées agent IA, 25/25 incidents, 0 rapport sorti. Détection : médiane 10~ms, moyenne 11~ms. Confinement : médiane 19~ms, moyenne 20~ms, coupure envoyée par script. 25 échantillons chacun.
 \item Agent IA externe : 25/25 incidents. Faux positifs : 0/50 sessions humaines ou scriptées classées agent IA.
 \item 12 mails de démo : 8/8 frauduleux repérés, 0/3 légitime signalé, le douteux classé «~suspect~». Désarmeur : consigne retirée dans 2/2 mails qui en portent une, 0/10 ailleurs.
 \item Relecteur IA, 6 gestes critiques : 6/6 tranchés par Haiku sans repli, 1 accordé, 5 refusés, médiane 3,3~s.
+\item Mode réel, 11 octobre : Haiku pilote l’agent sur de vrais services locaux et a résisté à l’injection (0/3, puis 0/5). Un attaquant déterministe sur les mêmes services : mail livré sans sAIfe, retenu avec.
 \end{itemize}
-\textbf{Non mesuré} : le temps de décision d’un analyste humain, un vrai modèle dans l’agent, un vrai poste.
+\textbf{Non mesuré} : le temps de décision d’un analyste ou d’un responsable, un vrai poste.
 
 \h{Tests}
-555 tests réussis le 10 octobre 2026 à 22~h~12, commit \cmd{a1a7321} : backend 195, interne 162, messagerie 73, attaque 29, poste 17, ancienne surface externe 19, scripts de démo 34, extension 26. Hors tests Swift de l’app Mac. Ils vérifient le prototype, pas une détection en production.
+925 tests réussis le 11 octobre 2026 à 8~h~17, commit \cmd{a591ef6} : backend 522, interne 205, messagerie 73, attaque 29, poste 17, ancienne surface externe 19, scripts de démo 34, extension 26. Hors tests Swift de l’app Mac. Ils vérifient le prototype, pas une détection en production.
 
 \h{Limites}
-Trafic et mails écrits pour la démo, entreprise fictive : ces chiffres montrent la cohérence du moteur, pas une détection en production. Agent scripté, aucun vrai modèle mesuré dans l’agent. Désarmeur, analyseur de mails et extension reposent sur des motifs : une consigne paraphrasée et polie peut passer, d’où le contrôle de l’action. Le relecteur IA peut accorder à tort un geste que les règles laissent ouvert. Pas de branchement sur Outlook ou Gmail, pas d’annuaire d’identités. Prévu avant un déploiement : conservation de 90 jours, information des salariés et du CSE. SQLite et un seul écrivain. Brouillon NIS2 et correspondances jamais audités.
+Trafic et mails écrits pour la démo, entreprise fictive : ces chiffres montrent la cohérence du moteur, pas une détection en production. Désarmeur, analyseur de mails et extension reposent sur des motifs : une consigne paraphrasée et polie peut passer, d’où le contrôle de l’action. Le relecteur reste attaquable comme tout modèle. Pas de branchement sur Outlook ou Gmail ; volet poste sur macOS et Chrome seulement. Un jeton par rôle, pas par personne ; SQLite et un seul écrivain. Prévu avant un déploiement : purge à 90 jours, analyse d’impact, information des salariés et du CSE, relecteur sur un modèle hébergé dans l’UE ou en mode règles. Brouillon NIS2 et correspondances jamais audités.
+
+\h{Feuille de route}
+Demandé par les testeurs, pas fait pour le 11 octobre : app Windows, Microsoft~365 (Outlook, Exchange), SSO (OIDC) avec les rôles de l’annuaire. Ensuite : ancrage Avalanche, SMS et résumé réellement envoyés, connecteurs Sentinel et Splunk.
 
 \h{Correspondances (repères, pas une certification)}
-OWASP Agentic ASI01 (détournement d’objectif), ASI02 (usage abusif des outils), ASI03 (abus d’identité et de privilèges) ; MITRE ATLAS AML.T0051.001, T0053, T0057 ; ATT\&CK T1566 phishing ; T1552, T1048, T1567, T1200 typés pour les gestes du poste, sans mesure ; NIST CSF 2.0 DE.CM-09, DE.AE-02, DE.AE-08, RS.MA-02, RS.AN-03, RS.MI-01 ; NIS2 art.~23 : sAIfe prépare le brouillon d’alerte sous 24~h, l’humain qualifie et notifie.
+OWASP Agentic ASI01 (détournement d’objectif), ASI02 (usage abusif des outils), ASI03 (abus d’identité et de privilèges) ; MITRE ATLAS AML.T0051.001, T0053, T0057 ; ATT\&CK T1566 phishing, T1657 virement frauduleux, T1048, T1555 dans les règles Sigma ; NIST CSF 2.0 DE.CM-09, DE.AE-02, DE.AE-08, RS.MA-02, RS.AN-03, RS.MI-01 ; NIS2 art.~23 : sAIfe prépare le brouillon d’alerte sous 24~h, l’humain qualifie et notifie.
 
 \h{Cible, modèle, équipe}
-Entreprises régulées (finance sous DORA, santé), 500 à 5\,000 salariés, avec un SOC et au moins un agent IA en production ou en pilote. Le RSSI achète, l’analyste SOC utilise, le DPO valide, le CSE est consulté pour le poste. Licence annuelle par agent supervisé, poste en option, pilote de 3 mois, pas de prix : hypothèses à tester en dix entretiens de RSSI, aucun client. Équipe : Guilhem (agents IA et technique), Paul (mails et business).
+Entreprises régulées (finance sous DORA, santé), 500 à 5\,000 salariés, avec un SOC et au moins un agent IA en production ou en pilote. Le RSSI achète, l’analyste SOC utilise, le responsable métier confirme les gestes retenus, le DPO valide, le CSE est consulté pour le poste. Licence annuelle par agent supervisé, poste en option, pilote de 3 mois, pas de prix : hypothèses à tester en dix entretiens de RSSI, aucun client. Équipe : Guilhem (agents IA et technique), Paul (mails et business).
 \end{multicols}
 \vfill
-{\scriptsize\color{doux} Rejouer les mesures : \cmd{python3 docs/mesures/mesurer.py}. Sources : \cmd{docs/mesures/resultats.md}, \cmd{docs/FICHE\_JURY.md}, \cmd{CONTRATS.md}. Orbis Pay et ses données sont fictifs.}
+{\scriptsize\color{doux} Rejouer les mesures : \cmd{python3 docs/mesures/mesurer.py}. Sources : \cmd{docs/mesures/resultats.md}, \cmd{docs/REEL\_OU\_SIMULE.md}, \cmd{CONTRATS.md}. Orbis Pay et ses données sont fictifs.}
 \end{document}

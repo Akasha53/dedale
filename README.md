@@ -189,7 +189,7 @@ La synthèse « Ce qui s'est passé » est écrite par des règles, sans modèle
 
 ## Vie privée
 
-sAIfe protège le poste, il ne note pas les salariés : aucun score sur une personne, ni frappe, ni capture d'écran, ni contenu de page.
+sAIfe protège le poste, il ne surveille pas les salariés : ni frappe, ni capture d'écran, ni contenu de page, et le relecteur IA ne garde ni score ni historique par salarié.
 
 Ce que le poste regarde tient en quatre modules, chacun avec son interrupteur dans le panneau « Ce que sAIfe regarde sur ce poste » (`app-mac/Sources/Dedale/ModulesPoste.swift`) : les mails reçus, l'adresse de l'onglet actif, les nouveaux téléchargements, les agents IA installés. L'analyse se fait sur le poste. Part à la SOC : la catégorie, le domaine et le choix du salarié, l'empreinte d'un fichier, l'inventaire des agents sans secret. La copie désarmée d'un mail jugé frauduleux part du serveur de messagerie (`messagerie/`), pas du poste. Ne sont jamais lus le presse-papiers, les frappes, l'écran, le contenu des pages ni l'historique.
 
@@ -197,7 +197,7 @@ Le salarié apparaît sous pseudonyme dans la console et dans les exports ECS, e
 
 Le relecteur IA reçoit des faits pseudonymisés, jamais un contenu, et sa mémoire garde le geste, pas la personne. Une donnée pseudonymisée reste une donnée personnelle, et Haiku tourne aux États-Unis : le relecteur fonctionne aussi sans aucun modèle (`DEDALE_RELECTEUR=regles`), et pour un déploiement il passerait par un modèle hébergé dans l'UE ou en local, un branchement qui n'est pas fait.
 
-Prévu avant un déploiement, pas encore fait : une durée de conservation (90 jours par défaut) avec purge automatique, l'analyse d'impact, l'information des salariés et la consultation du CSE.
+Prévu avant un déploiement, pas encore fait : une durée de conservation (90 jours par défaut) avec purge automatique, l'analyse d'impact, l'information des salariés et la consultation du CSE, et un score de tri réservé aux agents IA (il note aujourd'hui toutes les sessions pour séparer humains, scripts et agents).
 
 ## Réel ou simulé
 
