@@ -674,8 +674,49 @@ def beneficiaires() -> list[dict]:
     except (OSError, ValueError):
         return []
     liste = data.get("beneficiaires") if isinstance(data, dict) else data
+    # Les bénéficiaires leurres (canari virement) sont retirés de la liste « connus » : ils ne
+    # doivent jamais être reconnus comme un bénéficiaire ordinaire ni accordés. Ils ne vivent que
+    # dans `beneficiaire_leurre()`, lu avant toutes les autres règles.
     return [b for b in (liste or []) if isinstance(b, dict) and isinstance(b.get("nom"), str)
+            and not b.get("leurre")
             and re.fullmatch(r"\d{4}", str(b.get("iban_fin") or "")) and isinstance(b.get("montant_max"), (int, float))]
+
+
+def beneficiaires_leurres() -> list[dict]:
+    """Bénéficiaires-pièges (canari virement) de la liste : aucune tâche légitime ne les paie.
+    Même fichier que `beneficiaires()`, mais ne garde QUE les entrées marquées `leurre`."""
+    chemin = Path(os.environ.get("DEDALE_BENEFICIAIRES") or _FICHIER_BENEFICIAIRES)
+    try:
+        data = json.loads(chemin.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    liste = data.get("beneficiaires") if isinstance(data, dict) else data
+    return [b for b in (liste or []) if isinstance(b, dict) and b.get("leurre")
+            and isinstance(b.get("nom"), str)]
+
+
+def reconnaitre_leurre(details: dict, texte: str, domaine: str | None) -> dict | None:
+    """Un virement vise-t-il un bénéficiaire leurre ? Reconnu par nom, alias, IBAN (complet ou quatre
+    derniers chiffres) ou domaine, exactement comme un bénéficiaire connu. None sinon."""
+    leurres = beneficiaires_leurres()
+    if not leurres:
+        return None
+    brut = _plat(texte_lisible(details.get("beneficiaire")))
+    plat = _plat(texte)
+    fin = _iban_fin(details, texte)
+    for b in leurres:
+        noms = {_plat(b["nom"]), _plat(str(b.get("id", ""))), *(_plat(a) for a in b.get("alias", []))}
+        noms = {n for n in noms if n}
+        if brut and brut in noms:
+            return b
+        if any(re.search(r"\b" + re.escape(n) + r"\b", plat) for n in noms):
+            return b
+        if fin and fin == str(b.get("iban_fin") or ""):
+            return b
+        dom = b.get("domaine")
+        if domaine and dom and (domaine == dom or domaine.endswith("." + dom)):
+            return b
+    return None
 
 
 def _plat(t: str) -> str:
@@ -961,6 +1002,11 @@ def faits_depuis(d: dict, sid: str, horodatage: datetime | None, exclure: int | 
         faits["mention_etranger"] = bool(_RE_ETRANGER.search(texte))
         faits["pression"] = [k for k, motif in _PRESSION.items() if motif.search(texte)]
         faits["horaire_inhabituel"] = horaire_inhabituel(horodatage)
+        # Bénéficiaire leurre (canari virement) : reconnu avant toute autre règle. Un seul fait
+        # suffit à nommer l'alarme et à forcer le refus d'office (regles_geste, signaux_geste).
+        leurre = reconnaitre_leurre(d, texte, destination)
+        if leurre is not None:
+            faits["canari_virement"] = {"id": leurre.get("canari_id") or "C-9F42", "nom": leurre["nom"]}
     if extrait:
         faits["donnees_non_fiables"] = {"texte_popup": extrait}
     if geste == "virement":
@@ -1000,6 +1046,12 @@ def signaux_geste(f: dict) -> list[dict]:
 
     def nombre(n: float) -> str:
         return f"{n:,.0f}".replace(",", "\u202f")
+
+    canari = f.get("canari_virement")
+    if canari:
+        ajouter("beneficiaire_leurre",
+                "Ce virement vise un b\u00e9n\u00e9ficiaire leurre : aucun paiement l\u00e9gitime ne va vers ce "
+                "compte. C'est le signe d'un d\u00e9tournement interne.", True)
 
     mail = f.get("mail") or {}
     if mail.get("verdict") == "frauduleux":
@@ -1153,6 +1205,14 @@ def regles_geste(f: dict) -> dict:
     def nombre(n: float) -> str:
         return f"{n:,.0f}".replace(",", "\u202f")
 
+    canari = f.get("canari_virement")
+    if canari:
+        # Bénéficiaire leurre : reconnu AVANT toute autre règle. Jamais un simple « retenu » —
+        # aucune tâche légitime ne paie ce compte, donc refus d'office et incident canari dédié.
+        return refus(f"Virement vers un bénéficiaire leurre (canari {canari.get('id')}) : aucune tâche "
+                     f"légitime ne paie ce compte, refus d'office et alarme.",
+                     "Ce virement vise un compte piège de l'entreprise, que rien de légitime ne paie : "
+                     "il est bloqué et l'équipe sécurité est alertée.", 0.98)
     if mail.get("verdict") == "frauduleux":
         return refus("Continuer sur un mail que l'analyseur juge frauduleux : refus d'office.",
                      "Ce geste fait suite à un mail que sAIfe a reconnu comme une arnaque.", 0.95)
@@ -1972,17 +2032,22 @@ async def verifier_geste(corps: dict) -> dict:
     cle_q = f"q:{did}"
     _en_cours.add(cle_q)  # l'observateur ne relance pas ce geste pendant qu'on le tranche ici
     with store.lock:
+        canari_v = faits.get("canari_virement")
         res = _ingerer({
-            "categorie": details.get("categorie") if details.get("categorie") in _NATURES else "mail_externe",
+            # Un bénéficiaire leurre nomme un incident canari dédié ; sinon catégorie du geste.
+            "categorie": "beneficiaire_leurre" if canari_v else (
+                details.get("categorie") if details.get("categorie") in _NATURES else "mail_externe"),
             # Aucun « choix » : le salarié n'a vu aucune alerte avant cette vérification.
-            "gravite": "critique", "geste": faits.get("geste"),
+            "gravite": "haute" if canari_v else "critique", "geste": faits.get("geste"),
             "quatre_yeux": "demande", "demande_id": did, "origine": "relecteur",
             "montant_tranche": memoire.tranche(faits.get("geste"), faits.get("montant_eur"), faits.get("volume")),
             "beneficiaire_masque": (b.get("nom") if b.get("connu") else _masquer_nom(details.get("beneficiaire"))),
             # Lu en clair par la SOC seulement sur ce signal de fraude, consultation journalisée.
             "confidentiel": besoin_d_en_connaitre.detail_confidentiel(faits, details),
             "signaux": [x["code"] for x in signaux],
-            "consequence": "Geste suspendu : sAIfe a repéré un signal de fraude.",
+            **({"canari_id": canari_v["id"]} if canari_v else {}),
+            "consequence": (f"Virement vers un bénéficiaire leurre coupé : canari {canari_v['id']} ouvert."
+                            if canari_v else "Geste suspendu : sAIfe a repéré un signal de fraude."),
             **({"mail_id": details["mail_id"]} if details.get("mail_id") else {}),
         }, sid_inc, "avertissement")
         job = _job(res)

@@ -389,6 +389,8 @@ _TYPE_HUMAIN = {
     "upload_ia": "humain_upload_ia",
     "phishing": "humain_phishing",
     "intrusion_physique": "humain_intrusion_physique",
+    # Bénéficiaire leurre (canari virement) : abus de privilège interne, aucune tâche ne le paie.
+    "beneficiaire_leurre": "humain_beneficiaire_leurre",
     # Le salarié signale lui-même un mail (app Mac, « Signaler un mail suspect… »).
     "signalement": "humain_signalement",
 }
@@ -399,6 +401,7 @@ _TITRE_HUMAIN = {
     "humain_upload_ia": "Fichier confidentiel déposé vers une IA non autorisée",
     "humain_phishing": "Salarié piégé par un lien de phishing",
     "humain_intrusion_physique": "Intrusion physique sur un actif-leurre",
+    "humain_beneficiaire_leurre": "Bénéficiaire leurre touché",
     "humain_signalement": "Mail signalé par un salarié",
 }
 
@@ -442,6 +445,7 @@ _GRAVITE_HUMAIN = {
     "humain_upload_ia": "moyenne",
     "humain_phishing": "haute",
     "humain_intrusion_physique": "critique",
+    "humain_beneficiaire_leurre": "haute",
     "humain_signalement": "moyenne",
 }
 

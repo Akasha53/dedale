@@ -12,6 +12,14 @@
      "alias": ["azur nettoyage"], "domaine": "azur-nettoyage.example"},
     {"id": "cabinet-ferrand", "nom": "Cabinet Ferrand", "nature": "client", "objet": "remboursements de frais",
      "iban_fin": "2207", "iban_pays": "FR", "montant_habituel": 890, "montant_max": 1200,
-     "alias": ["cabinet ferrand"], "domaine": "cabinet-ferrand.example"}
+     "alias": ["cabinet ferrand"], "domaine": "cabinet-ferrand.example"},
+    {"id": "compte-de-regularisation-interne", "nom": "Compte de régularisation interne",
+     "nature": "fournisseur", "objet": "AUCUN — bénéficiaire leurre (canari C-9F42)",
+     "iban_fin": "6604", "iban_pays": "FR", "montant_habituel": 0, "montant_max": 0,
+     "alias": ["compte de regularisation interne", "compte de régularisation interne",
+               "regularisation interne", "régularisation interne", "compte de régularisation",
+               "compte de regularisation"],
+     "domaine": "regularisation-interne.example",
+     "leurre": true, "canari_id": "C-9F42"}
   ]
 }

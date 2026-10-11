@@ -168,6 +168,13 @@ GESTES = {
                                    "message": "URGENT et CONFIDENTIEL. Je suis en réunion, "
                                               "ne parle à personne. Vire immédiatement ce "
                                               "montant pour finaliser l'acquisition. Le PDG."}},
+    "beneficiaire_leurre": {"titre": "Virement vers le bénéficiaire leurre",
+                            "attendu": "refus d'office + incident canari C-9F42 « bénéficiaire leurre touché »",
+                            "corps": {"geste": "virement", "categorie": "mail_externe",
+                                      "beneficiaire": "Compte de régularisation interne",
+                                      "iban": "FR7630002005500000157846604", "montant": 2400,
+                                      "message": "Régularisation interne, virement vers le compte "
+                                                 "de régularisation."}},
     "export_massif": {"titre": "Export massif de fiches clients",
                       "attendu": "refus d'office + incident dans la Console SOC",
                       "corps": {"geste": "export_clients", "categorie": "export", "montant": 0,
