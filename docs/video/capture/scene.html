@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Scène du virement</title>
+<style>
+  :root {
+    --encre: #0d0d0d; --texte: #5d5d5d; --discret: #737373; --gris: #8f8f8f;
+    --bord: rgba(0,0,0,.08); --puits: #f9f9f9; --puce: #f4f4f4;
+    --ok: #0f7b55; --orange: #c2410c; --rouge: #c4262e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1600px; height: 900px; overflow: hidden; background: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    color: var(--encre); -webkit-font-smoothing: antialiased; }
+  .vue { position: absolute; inset: 0; display: none; }
+  .vue.active { display: block; }
+
+  /* ---------- messagerie ---------- */
+  .mail { display: grid; grid-template-columns: 230px 470px 1fr; height: 900px; }
+  .barre { background: #f5f5f7; border-right: 1px solid var(--bord); padding: 56px 14px 0; }
+  .barre h6 { font-size: 12px; font-weight: 600; color: var(--gris); margin: 0 10px 8px; }
+  .barre .bal { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px;
+    border-radius: 8px; font-size: 14.5px; color: #2b2b2b; }
+  .barre .bal.sel { background: rgba(0,0,0,.07); font-weight: 600; }
+  .barre .bal span { color: var(--gris); font-size: 13px; font-weight: 500; }
+  .liste { border-right: 1px solid var(--bord); overflow: hidden; }
+  .liste header { height: 64px; display: flex; align-items: end; padding: 0 22px 12px; font-size: 20px; font-weight: 700; border-bottom: 1px solid var(--bord); }
+  .ligne { padding: 14px 22px 14px 34px; border-bottom: 1px solid var(--bord); position: relative; }
+  .ligne .de { display: flex; justify-content: space-between; font-size: 14.5px; font-weight: 600; }
+  .ligne .de time { font-weight: 400; color: var(--gris); font-size: 13px; }
+  .ligne .obj { font-size: 14px; margin-top: 3px; color: #2b2b2b; }
+  .ligne .ext { font-size: 13.5px; margin-top: 3px; color: var(--discret); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ligne.nonlu::before { content: ""; position: absolute; left: 14px; top: 21px; width: 9px; height: 9px; border-radius: 50%; background: #0a6cff; }
+  .ligne.sel { background: #e8f0fe; }
+  .lecture { padding: 40px 56px; overflow: hidden; }
+  .lecture .vide { color: var(--gris); font-size: 15px; text-align: center; margin-top: 380px; }
+  .entete-mail { display: flex; gap: 16px; align-items: flex-start; padding-bottom: 22px; border-bottom: 1px solid var(--bord); }
+  .avatar { width: 46px; height: 46px; border-radius: 50%; background: #d8dde6; color: #4a5568; display: grid; place-items: center; font-weight: 600; font-size: 17px; flex: none; }
+  .entete-mail .qui { flex: 1; }
+  .entete-mail .nom { font-size: 16px; font-weight: 600; }
+  .entete-mail .adr { font-size: 13.5px; color: var(--discret); margin-top: 2px; }
+  .entete-mail .a { font-size: 13.5px; color: var(--discret); margin-top: 6px; }
+  .entete-mail time { font-size: 13px; color: var(--gris); }
+  .lecture h1 { font-size: 23px; font-weight: 700; margin: 26px 0 22px; letter-spacing: -.01em; }
+  .corps p { font-size: 16px; line-height: 1.6; color: #2b2b2b; margin-bottom: 14px; max-width: 640px; }
+  .rib { background: #f6f6f6; border-radius: 12px; padding: 14px 18px; font-size: 15.5px; line-height: 1.7; margin: 6px 0 18px; max-width: 520px; }
+  .rib b { font-weight: 600; }
+  .pj { display: inline-flex; gap: 12px; align-items: center; border: 1px solid var(--bord); border-radius: 12px; padding: 12px 16px; margin-top: 8px; }
+  .pj .ico { width: 34px; height: 40px; border-radius: 6px; background: #fdecec; color: var(--rouge); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+  .pj .n { font-size: 14px; font-weight: 600; } .pj .t { font-size: 12.5px; color: var(--gris); }
+  .banniere { position: absolute; top: 18px; right: 18px; width: 380px; background: rgba(246,246,248,.96);
+    border-radius: 18px; padding: 14px 16px; box-shadow: 0 12px 40px rgba(0,0,0,.14), 0 0 0 1px rgba(0,0,0,.05);
+    display: none; gap: 12px; }
+  .banniere.on { display: flex; }
+  .banniere .app { width: 36px; height: 36px; border-radius: 9px; background: linear-gradient(#3d9bff,#0a6cff); flex: none; display: grid; place-items: center; }
+  .banniere .t1 { font-size: 13.5px; font-weight: 600; } .banniere .t2 { font-size: 13.5px; color: #333; margin-top: 2px; }
+  .banniere .t3 { font-size: 13px; color: var(--discret); margin-top: 2px; }
+
+  /* ---------- banque ---------- */
+  .banque { height: 900px; background: #f5f5f7; }
+  .banque header { height: 72px; background: #fff; border-bottom: 1px solid var(--bord); display: flex; align-items: center; padding: 0 48px; gap: 14px; }
+  .banque header .marque { width: 30px; height: 30px; border-radius: 8px; background: #1f3a5f; }
+  .banque header .t { font-size: 16px; font-weight: 600; } .banque header .s { font-size: 14px; color: var(--discret); }
+  .banque header nav { margin-left: auto; display: flex; gap: 28px; font-size: 14.5px; color: var(--texte); }
+  .banque header nav .sel { color: var(--encre); font-weight: 600; }
+  .formulaire { width: 760px; margin: 56px 0 0 200px; background: #fff; border-radius: 22px; padding: 40px 48px 36px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 0 0 1px rgba(0,0,0,.04); }
+  .formulaire h2 { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  .formulaire .sous { font-size: 15px; color: var(--discret); margin-top: 6px; }
+  .champ { margin-top: 24px; }
+  .champ label { display: block; font-size: 13.5px; font-weight: 600; color: var(--texte); margin-bottom: 8px; }
+  .champ .val { height: 52px; border: 1px solid rgba(0,0,0,.14); border-radius: 12px; padding: 0 16px; display: flex; align-items: center; font-size: 17px; }
+  .champ .val.focus { border-color: #1f3a5f; box-shadow: 0 0 0 3px rgba(31,58,95,.14); }
+  .champ .val .curseur { display: inline-block; width: 2px; height: 22px; background: #1f3a5f; margin-left: 1px; }
+  .champ .val .vide { color: #b0b0b0; }
+  .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .actions { margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; }
+  .bouton { height: 50px; padding: 0 28px; border-radius: 999px; font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+  .bouton.sec { border: 1px solid rgba(0,0,0,.14); color: var(--encre); }
+  .bouton.pri { background: #1f3a5f; color: #fff; }
+  .bouton.pri.survol { background: #16304f; box-shadow: 0 0 0 4px rgba(31,58,95,.16); }
+  .bouton.pri.attente { background: #8a97a8; }
+  .confirm { width: 760px; margin: 56px 0 0 200px; background: #fff; border-radius: 22px; padding: 56px 48px; text-align: center; box-shadow: 0 0 0 1px rgba(0,0,0,.04); display: none; }
+  .confirm .rond { width: 64px; height: 64px; border-radius: 50%; background: #e7f4ee; display: grid; place-items: center; margin: 0 auto 20px; }
+  .confirm h2 { font-size: 28px; font-weight: 700; }
+  .confirm p { font-size: 16px; color: var(--texte); margin-top: 10px; line-height: 1.5; }
+  .confirm .montant { font-size: 44px; font-weight: 700; margin-top: 22px; letter-spacing: -.02em; }
+  .banque.envoye .formulaire { display: none; } .banque.envoye .confirm { display: block; }
+  .voile { position: absolute; inset: 0; background: rgba(0,0,0,.08); display: none; }
+  .voile.on { display: block; }
+
+  /* ---------- pop-up sAIfe (d'après FenetreAlerte.swift et Theme.swift) ---------- */
+  .popup { position: absolute; top: 96px; right: 40px; width: 400px; background: #fff; border-radius: 20px; padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04), 0 12px 48px rgba(0,0,0,.10), 0 0 0 1px rgba(0,0,0,.06); display: none; }
+  .popup.on { display: block; }
+  .popup .tete { display: flex; align-items: center; gap: 12px; }
+  .popup .tete svg { width: 28px; height: 28px; }
+  .popup .tete .nom { font-size: 15px; font-weight: 400; }
+  .popup .tete .nom b { font-weight: 800; }
+  .popup .pastille { margin-left: auto; background: var(--puce); color: var(--texte); font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; }
+  .popup h3 { font-size: 17px; font-weight: 700; line-height: 1.3; margin-top: 18px; letter-spacing: -.005em; }
+  .popup .etat { display: flex; gap: 12px; margin-top: 18px; }
+  .popup .etat svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+  .popup .etat .t { font-size: 15px; font-weight: 700; }
+  .popup .etat .l { font-size: 13.5px; color: var(--texte); line-height: 1.45; margin-top: 4px; }
+  .popup .etat .l p + p { margin-top: 4px; }
+  .popup .note { font-size: 12px; color: var(--discret); line-height: 1.45; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<!-- messagerie -->
+<section class="vue" id="vue-mail">
+  <div class="mail">
+    <aside class="barre">
+      <h6>Orbis Pay</h6>
+      <div class="bal sel">Réception <span id="nb-nonlus">1</span></div>
+      <div class="bal">Factures fournisseurs</div>
+      <div class="bal">Envoyés</div>
+      <div class="bal">Brouillons</div>
+      <div class="bal">Archives</div>
+    </aside>
+    <div class="liste">
+      <header>Réception</header>
+      <div class="ligne" id="ligne-atelier">
+        <div class="de">Atelier Nord <time>09:12</time></div>
+        <div class="obj">Nouvelles coordonnées bancaires</div>
+        <div class="ext">Suite à notre changement de banque, merci de régler la facture…</div>
+      </div>
+      <div class="ligne">
+        <div class="de">Imprimerie du Lys <time>08:47</time></div>
+        <div class="obj">Facture 2026-0931</div>
+        <div class="ext">Veuillez trouver ci-joint la facture des enveloppes d'octobre.</div>
+      </div>
+      <div class="ligne">
+        <div class="de">Direction financière <time>Hier</time></div>
+        <div class="obj">Clôture du mois</div>
+        <div class="ext">Merci de passer les règlements fournisseurs avant vendredi.</div>
+      </div>
+      <div class="ligne">
+        <div class="de">Azur Nettoyage <time>Hier</time></div>
+        <div class="obj">Planning d'octobre</div>
+        <div class="ext">Voici les créneaux d'entretien des locaux pour le mois.</div>
+      </div>
+      <div class="ligne">
+        <div class="de">Cabinet Ferrand <time>Jeudi</time></div>
+        <div class="obj">Note de frais de septembre</div>
+        <div class="ext">Pouvez-vous confirmer la date du remboursement ?</div>
+      </div>
+    </div>
+    <div class="lecture">
+      <div class="vide" id="lecture-vide">Aucun message sélectionné</div>
+      <div id="lecture-mail" style="display:none">
+        <div class="entete-mail">
+          <div class="avatar">AN</div>
+          <div class="qui">
+            <div class="nom">Atelier Nord</div>
+            <div class="adr">comptabilite@atelier-nord-paiement.example</div>
+            <div class="a">À : compta@orbispay.example</div>
+          </div>
+          <time>Aujourd'hui, 09:12</time>
+        </div>
+        <h1>Nouvelles coordonnées bancaires</h1>
+        <div class="corps">
+          <p>Bonjour,</p>
+          <p>Suite à notre changement de banque, merci de régler la facture annuelle de maintenance FA-2027-014 sur notre nouveau compte :</p>
+          <div class="rib">Titulaire : <b>Atelier Nord</b><br>IBAN : <b>FR76 3000 4000 5000 6000 7000 1187</b><br>Montant : <b>41 760,00 €</b></div>
+          <p>Le règlement est attendu avant vendredi pour éviter l'interruption de la maintenance de vos terminaux.</p>
+          <p>Bien cordialement,<br>Service comptabilité, Atelier Nord</p>
+        </div>
+        <div class="pj"><div class="ico">PDF</div><div><div class="n">FA-2027-014.pdf</div><div class="t">212 Ko</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="banniere" id="banniere">
+    <div class="app"><svg width="20" height="16" viewBox="0 0 20 16"><rect x="1" y="1" width="18" height="14" rx="3" fill="none" stroke="#fff" stroke-width="2"/><path d="M2 3l8 6 8-6" fill="none" stroke="#fff" stroke-width="2"/></svg></div>
+    <div><div class="t1">Atelier Nord</div><div class="t2">Nouvelles coordonnées bancaires</div><div class="t3">Suite à notre changement de banque, merci de…</div></div>
+  </div>
+</section>
+
+<!-- banque -->
+<section class="vue" id="vue-banque">
+  <div class="banque" id="banque">
+    <header>
+      <div class="marque"><svg width="30" height="30" viewBox="0 0 30 30"><path d="M8 12.5h14M9.5 13v7M13 13v7M17 13v7M20.5 13v7M7.5 21.5h15M15 7l7.5 4h-15z" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+      <div><div class="t">Espace entreprise</div></div>
+      <div class="s">Orbis Pay SAS · compte courant •••• 4410</div>
+      <nav><span>Comptes</span><span class="sel">Virements</span><span>Bénéficiaires</span></nav>
+    </header>
+    <div class="formulaire">
+      <h2>Nouveau virement</h2>
+      <div class="sous">Vers un bénéficiaire enregistré</div>
+      <div class="champ"><label>Bénéficiaire</label><div class="val">Atelier Nord</div></div>
+      <div class="champ"><label>IBAN du bénéficiaire</label><div class="val" id="iban"></div></div>
+      <div class="deux">
+        <div class="champ"><label>Montant</label><div class="val" id="montant"></div></div>
+        <div class="champ"><label>Référence</label><div class="val">FA-2027-014</div></div>
+      </div>
+      <div class="actions"><div class="bouton sec">Annuler</div><div class="bouton pri" id="envoyer">Envoyer le virement</div></div>
+    </div>
+    <div class="confirm">
+      <div class="rond"><svg width="30" height="30" viewBox="0 0 30 30"><path d="M7 15.5l5.5 5.5L23 10" fill="none" stroke="#0f7b55" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h2>Virement envoyé</h2>
+      <div class="montant">41 760,00 €</div>
+      <p>à Atelier Nord · IBAN •••• 1187<br>Exécution aujourd'hui</p>
+    </div>
+  </div>
+  <div class="voile" id="voile"></div>
+  <div class="popup" id="popup">
+    <div class="tete">
+      <svg viewBox="0 0 750 750" aria-label="sAIfe"><g fill="#0d0d0d">
+        <path d="M251.18 0.24L505.20 0.24A13.4 13.4 0 0 1 518.60 13.64L518.60 29.28A37.3 37.3 0 0 1 501.32 60.76L182.60 263.48A28.5 28.5 0 0 0 169.40 287.530L169.40 383.35A9.0 9.0 0 0 1 166.05 390.35L60.42 475.65A37.1 37.1 0 0 1 0.01 446.79L0.01 201.22A57.2 57.2 0 0 1 23.05 155.35L215.34 12.12A60.0 60.0 0 0 1 251.18 0.24Z"/>
+        <path d="M749.98 315.89L749.98 527.88A76.1 76.1 0 0 1 717.54 590.22L513.07 733.41A90.5 90.5 0 0 1 461.15 749.78L327.98 749.78A18.3 18.3 0 0 1 309.68 731.48L309.68 655.58A42.2 42.2 0 0 1 331.34 618.71L534.24 505.66A33.0 33.0 0 0 0 551.18 476.84L551.18 403.96A12.0 12.0 0 0 1 555.66 394.61L689.46 286.91A37.2 37.2 0 0 1 749.98 315.89Z"/>
+        <circle cx="368.44" cy="374.17" r="124.55"/></g></svg>
+      <div class="nom">s<b>AI</b>fe</div>
+      <div class="pastille">Virement</div>
+    </div>
+    <h3>Virement de 41 760 € vers un nouveau compte</h3>
+    <div class="etat" id="etat-attente">
+      <svg viewBox="0 0 20 20"><path d="M5 2.5h10M5 17.5h10M6 2.5c0 4 8 4 8 7.5S6 13.5 6 17.5M14 2.5c0 1.5-1 2.6-2.3 3.6M14 17.5c0-4-8-3.9-8-7.5" fill="none" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><path d="M7.5 16.2h5l-2.5-2.2z" fill="#c2410c"/></svg>
+      <div><div class="t">sAIfe vérifie ce virement…</div><div class="l"><p>Quelques secondes.</p></div></div>
+    </div>
+    <div class="etat" id="etat-retenu" style="display:none">
+      <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="9.5" fill="#c2410c"/><rect x="6.9" y="5.8" width="2.1" height="8.4" rx="1" fill="#fff"/><rect x="11" y="5.8" width="2.1" height="8.4" rx="1" fill="#fff"/></svg>
+      <div><div class="t">Retenu</div><div class="l">
+        <p>Ce RIB n'a jamais servi pour Atelier Nord. Ce virement à Atelier Nord est bien plus élevé que d'habitude.</p>
+        <p>Fais-le confirmer par ton responsable ou par la finance, puis relance-le.</p>
+        <p>Vérifié automatiquement en moins de 0,1 s.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const IBAN = "FR76 3000 4000 5000 6000 7000 1187";
+  const MONTANT = "41 760,00 €";
+  function champ(id, texte, focus, plein) {
+    const el = document.getElementById(id);
+    el.classList.toggle("focus", !!focus);
+    el.innerHTML = texte ? texte + (focus ? '<span class="curseur"></span>' : "")
+      : (focus ? '<span class="curseur"></span>' : '<span class="vide">' + plein + '</span>');
+  }
+  // poser({vue, banniere, ouvert, iban (nb de caractères), montant, focus, survol, envoye, popup: 'attente'|'retenu'})
+  window.poser = function (e) {
+    document.querySelectorAll(".vue").forEach(v => v.classList.remove("active"));
+    document.getElementById("vue-" + e.vue).classList.add("active");
+    if (e.vue === "mail") {
+      document.getElementById("banniere").classList.toggle("on", !!e.banniere);
+      const l = document.getElementById("ligne-atelier");
+      l.classList.toggle("nonlu", !e.ouvert);
+      l.classList.toggle("sel", !!e.ouvert);
+      document.getElementById("nb-nonlus").textContent = e.ouvert ? "" : "1";
+      document.getElementById("lecture-vide").style.display = e.ouvert ? "none" : "block";
+      document.getElementById("lecture-mail").style.display = e.ouvert ? "block" : "none";
+    } else {
+      const ni = e.iban ?? IBAN.length, nm = e.montant ?? MONTANT.length;
+      champ("iban", IBAN.slice(0, ni), e.focus === "iban", "FR76 •••• •••• •••• •••• •••• 6789");
+      champ("montant", MONTANT.slice(0, nm), e.focus === "montant", "0,00 €");
+      const b = document.getElementById("envoyer");
+      b.classList.toggle("survol", !!e.survol);
+      b.classList.toggle("attente", !!e.popup);
+      document.getElementById("banque").classList.toggle("envoye", !!e.envoye);
+      document.getElementById("voile").classList.toggle("on", !!e.popup);
+      document.getElementById("popup").classList.toggle("on", !!e.popup);
+      document.getElementById("etat-attente").style.display = e.popup === "attente" ? "flex" : "none";
+      document.getElementById("etat-retenu").style.display = e.popup === "retenu" ? "flex" : "none";
+    }
+  };
+  poser({ vue: "mail" });
+</script>
+</body>
+</html>
