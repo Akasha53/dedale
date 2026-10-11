@@ -4,7 +4,8 @@
 // Vite pose son jeton, jamais le JavaScript servi.
 
 export type Geste = "virement" | "export_clients" | "autre";
-export type Statut = "en_attente" | "accorde" | "refuse";
+// « retenu_soc » : signes de fraude, le geste est retenu par l'équipe sécurité et ne s'accorde pas ici.
+export type Statut = "en_attente" | "retenu_soc" | "accorde" | "refuse";
 export type Qualite = "responsable" | "finance";
 
 export interface FicheGeste {

@@ -208,7 +208,7 @@ function Liste({ file, courante, ouvrir }: { file: FileValidation; courante: str
 }
 
 function Ligne({ fiche, active, ouvrir, rang }: { fiche: FicheGeste; active: boolean; ouvrir: (id: string) => void; rang: number }) {
-  const ton = fiche.statut === "en_attente" ? "attente" : fiche.statut === "accorde" ? "regle" : "refuse";
+  const ton = fiche.statut === "en_attente" || fiche.statut === "retenu_soc" ? "attente" : fiche.statut === "accorde" ? "regle" : "refuse";
   const quand = fiche.statut === "en_attente" ? heure(fiche.demande_le) : heure(fiche.decision?.horodatage);
   return (
     <li style={{ ["--rang" as string]: rang }}>
@@ -226,7 +226,7 @@ function Ligne({ fiche, active, ouvrir, rang }: { fiche: FicheGeste; active: boo
           </span>
         </span>
         <span className="val-ligne-heure">
-          {fiche.statut === "accorde" ? "Accordé" : fiche.statut === "refuse" ? "Refusé" : quand}
+          {fiche.statut === "accorde" ? "Accordé" : fiche.statut === "refuse" ? "Refusé" : fiche.statut === "retenu_soc" ? "Retenu" : quand}
         </span>
       </button>
     </li>
@@ -242,8 +242,8 @@ function Fiche({ fiche, apresDecision }: { fiche: FicheGeste; apresDecision: (f:
     <article className="val-coque val-apparait" aria-labelledby="val-fiche-titre">
       <div className="val-noyau">
         <div className="val-fiche-haut">
-          <span className={`val-pastille t-${enAttente ? "attente" : fiche.statut === "accorde" ? "regle" : "refuse"}`}>
-            {enAttente ? "À confirmer" : fiche.statut === "accorde" ? "Accordé" : "Refusé"}
+          <span className={`val-pastille t-${enAttente || fiche.statut === "retenu_soc" ? "attente" : fiche.statut === "accorde" ? "regle" : "refuse"}`}>
+            {enAttente ? "À confirmer" : fiche.statut === "retenu_soc" ? "Retenu par la sécurité" : fiche.statut === "accorde" ? "Accordé" : "Refusé"}
           </span>
           <span className="val-fiche-quand">Demandé {jourEtHeure(fiche.demande_le)}</span>
         </div>
@@ -307,7 +307,19 @@ function Fiche({ fiche, apresDecision }: { fiche: FicheGeste; apresDecision: (f:
           )}
         </dl>
 
-        {enAttente ? <Decision fiche={fiche} apresDecision={apresDecision} /> : <Tranche fiche={fiche} />}
+        {enAttente ? (
+          <Decision fiche={fiche} apresDecision={apresDecision} />
+        ) : fiche.statut === "retenu_soc" ? (
+          <div className="val-tranche t-refuse">
+            <p className="val-tranche-titre">Retenu par l'équipe sécurité</p>
+            <p className="val-note">
+              Ce virement porte des signes de fraude : il ne s'accorde pas ici. L'équipe sécurité a ouvert un dossier.
+              Ne donnez pas suite à la demande sans l'avoir vérifiée par un autre canal.
+            </p>
+          </div>
+        ) : (
+          <Tranche fiche={fiche} />
+        )}
       </div>
     </article>
   );

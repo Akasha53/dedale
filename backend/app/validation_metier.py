@@ -132,6 +132,10 @@ def _fiche(demande: dict, decision: dict | None) -> dict:
                                  "montant_habituel_eur": b.get("montant_habituel_eur")}
         fiche["iban"] = _iban(b)
         fiche["rib"] = d.get("rib") if d.get("rib") in ("habituel", "nouveau") else "non_precise"
+    if d.get("statut") == "retenu_soc" and decision is None:
+        # Signes de fraude : la finance voit le geste retenu, l'équipe sécurité a le dossier.
+        fiche["statut"] = "retenu_soc"
+        fiche["incident_ouvert"] = bool(d.get("incident_id"))
     if decision is not None:
         dd = decision.get("details") or {}
         fiche["statut"] = "accorde" if dd.get("verdict") == "accorde" else "refuse"
@@ -144,9 +148,9 @@ def file_metier() -> dict:
     with store.lock:
         demandes, decisions = _actes()
         fiches = [_fiche(e, decisions.get((e.get("details") or {}).get("demande_id"))) for e in demandes]
-    attente = sorted((f for f in fiches if f["statut"] == "en_attente"),
+    attente = sorted((f for f in fiches if f["statut"] in ("en_attente", "retenu_soc")),
                      key=lambda f: f["demande_le"] or "", reverse=True)
-    traites = sorted((f for f in fiches if f["statut"] != "en_attente"),
+    traites = sorted((f for f in fiches if f["statut"] not in ("en_attente", "retenu_soc")),
                      key=lambda f: (f["decision"] or {}).get("horodatage") or "", reverse=True)[:20]
     return {"gestes": attente, "traites": traites, "total": len(attente)}
 
@@ -188,7 +192,10 @@ async def decider_validation(did: str, corps: DecisionMetierIn):
     fiche = _trouver(did) if _ID.match(did) else None
     if fiche is None:
         raise HTTPException(status_code=404, detail="Geste inconnu.")
-    if fiche["statut"] != "en_attente":
+    if fiche["statut"] == "retenu_soc" and corps.decision == "accorder":
+        raise HTTPException(status_code=409, detail="Ce virement porte des signes de fraude : il est retenu par "
+                                                    "l'équipe sécurité et ne s'accorde pas ici.")
+    if fiche["statut"] not in ("en_attente", "retenu_soc"):
         raise HTTPException(status_code=409, detail="Ce geste a déjà été tranché.")
     verdict = "accorde" if corps.decision == "accorder" else "refuse"
     signataire = f"{nom[:28]} ({QUALITES[corps.qualite]})"

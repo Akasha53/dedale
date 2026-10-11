@@ -748,6 +748,87 @@ def faits_beneficiaire(details: dict, texte: str, domaine: str | None, montant: 
             "montant_dans_les_usages": montant is not None and montant <= b["montant_max"]}
 
 
+# ---------------------------------------------------------------- Fraude au président
+# Les marqueurs se lisent dans le geste lui-même : une fraude au président arrive souvent par
+# téléphone, sans mail avant, et c'est la finance que le fraudeur met sous pression.
+_PRESSION = {
+    "urgence": re.compile(r"\burgen(?:t|te|ts|tes|ce)\b|\bimm[ée]diat|\bau plus vite\b|\bsans d[ée]lai\b|"
+                          r"\btout de suite\b|\bavant ce soir\b|\basap\b", re.IGNORECASE),
+    "confidentialite": re.compile(r"\bconfidenti|\bdiscr[eè]t|\bsecr[eè]t(?:e|s)?\b|ne (?:pas |rien )?(?:en )?parler|"
+                                  r"n'en parle|\bsous embargo\b|\bstrictement\b", re.IGNORECASE),
+    "autorite": re.compile(r"\bp\.?d\.?g\b|\bpr[ée]sident|\bdirecteur g[ée]n[ée]ral|\bdg\b|\bceo\b|\bdirection\b|"
+                           r"\bdirigeant|\bpatron\b", re.IGNORECASE),
+}
+_LIBELLES_PRESSION = {"urgence": "urgence", "confidentialite": "confidentialité", "autorite": "dirigeant cité"}
+_RE_ETRANGER = re.compile(r"hong[ -]?kong|singapour|duba[iï]|chypre|\bchine\b|shanghai|[ée]mirats|lituanie|lettonie|"
+                          r"\bmalte\b|panama|seychelles|offshore|[àa] l'[ée]tranger|\bltd\b|\blimited\b|\bllc\b",
+                          re.IGNORECASE)
+PAYS_DOMESTIQUES = ("FR", "MC")
+_PARIS = None
+
+
+def _heure_paris(h: datetime | None) -> datetime:
+    global _PARIS
+    if _PARIS is None:
+        from zoneinfo import ZoneInfo
+        _PARIS = ZoneInfo("Europe/Paris")
+    return (h or datetime.now(timezone.utc)).astimezone(_PARIS)
+
+
+def horaire_inhabituel(h: datetime | None) -> bool:
+    """Le soir après 20 h, la nuit avant 7 h, ou le week-end (heure de Paris)."""
+    p = _heure_paris(h)
+    return p.weekday() >= 5 or p.hour < 7 or p.hour >= 20
+
+
+def _pays_iban(details: dict, texte: str) -> str | None:
+    v = details.get("iban")
+    brut = v if isinstance(v, str) else None
+    if brut is None:
+        m = _RE_IBAN.search(texte.upper())
+        brut = m.group(0) if m else None
+    brut = re.sub(r"\s", "", brut or "").upper()
+    return brut[:2] if re.match(r"^[A-Z]{2}\d{2}", brut) else None
+
+
+def fraude_president(f: dict) -> dict | None:
+    """Combinaison de marqueurs d'une fraude au président, ou None.
+
+    Quatre familles : bénéficiaire nouveau ou à l'étranger, montant très au-dessus de l'habitude,
+    pression (urgence, confidentialité, dirigeant cité), horaire inhabituel. La pression est le
+    cœur du scénario et doit y être : avec elle, trois familles, ou un bénéficiaire nouveau ou
+    étranger sous deux formes de pression, suffisent. Sans elle, un gros virement de nuit à un
+    nouveau bénéficiaire reste l'affaire de la finance."""
+    if f.get("geste") != "virement":
+        return None
+    b = f.get("beneficiaire") or {}
+    montant = f.get("montant_eur")
+    pays = f.get("pays_iban")
+    etranger = bool(pays and pays not in PAYS_DOMESTIQUES) or bool(f.get("mention_etranger"))
+    nouveau = not b.get("connu") and b.get("rib") != "habituel"
+    if b.get("connu"):
+        tres_eleve = montant is not None and montant > 2 * float(b.get("montant_max_eur") or 0)
+    else:
+        tres_eleve = montant is not None and montant > PLAFOND_VIREMENT
+    pression = [p for p in ("urgence", "confidentialite", "autorite") if p in (f.get("pression") or [])]
+    horaire = bool(f.get("horaire_inhabituel"))
+    familles = sum((nouveau or etranger, tres_eleve, bool(pression), horaire))
+    if not pression or not (familles >= 3 or ((nouveau or etranger) and len(pression) >= 2)):
+        return None
+    marqueurs = []
+    if nouveau:
+        marqueurs.append("bénéficiaire nouveau")
+    if etranger:
+        marqueurs.append("bénéficiaire à l'étranger")
+    if tres_eleve:
+        marqueurs.append("montant très au-dessus de l'habitude")
+    marqueurs += [_LIBELLES_PRESSION[p] for p in pression]
+    if horaire:
+        marqueurs.append("horaire inhabituel")
+    return {"marqueurs": marqueurs, "pays_iban": pays, "etranger": etranger, "nouveau": nouveau,
+            "montant_tres_eleve": tres_eleve, "pression": pression, "horaire_inhabituel": horaire}
+
+
 def faits_geste(sess, demande: dict) -> dict:
     """Faits d'une demande à quatre yeux. Appelé sous `store.lock`."""
     return faits_depuis(demande.get("details") or {}, sess.id, _horo(demande), demande.get("id"))
@@ -807,13 +888,24 @@ def faits_depuis(d: dict, sid: str, horodatage: datetime | None, exclure: int | 
                        _historique_poste(base, horodatage, exclure=exclure)["autres_demandes_quatre_yeux_10_min"]},
         "consigne_retiree": consigne,
     }
+    if geste == "virement":
+        faits["pays_iban"] = _pays_iban(d, texte)
+        faits["mention_etranger"] = bool(_RE_ETRANGER.search(texte))
+        faits["pression"] = [k for k, motif in _PRESSION.items() if motif.search(texte)]
+        faits["horaire_inhabituel"] = horaire_inhabituel(horodatage)
     if extrait:
         faits["donnees_non_fiables"] = {"texte_popup": extrait}
     faits["precedents"] = memoire.precedents(faits)
+    faits["fraude_president"] = fraude_president(faits)
     return faits
 
 
 # ---------------------------------------------------------------- Signaux de risque
+def raison_fraude_president(fp: dict) -> str:
+    """« Signes d'une fraude au président : bénéficiaire nouveau, urgence, dirigeant cité. »"""
+    return "Signes d'une fraude au président : " + ", ".join(fp.get("marqueurs") or []) + "."
+
+
 def signaux_geste(f: dict) -> list[dict]:
     """Ce qui justifie que Dédale se montre. Sans signal, le geste part sans pop-up.
 
@@ -839,6 +931,8 @@ def signaux_geste(f: dict) -> list[dict]:
         ajouter("apres_alerte", "Ce geste arrive juste après une alerte sur un mail ou un site douteux.", True)
     if f.get("consigne_retiree"):
         ajouter("injection", "Le message contenait une consigne cachée qui essayait de forcer l'accord.", True)
+    if f.get("fraude_president"):
+        ajouter("fraude_president", raison_fraude_president(f["fraude_president"]), True)
     if (f.get("historique") or {}).get("autres_demandes_quatre_yeux_10_min", 0) >= 2:
         ajouter("rafale", "Plusieurs gestes sensibles ont été demandés depuis ce poste en quelques minutes.", True)
     geste, montant, lecture = f.get("geste"), f.get("montant_eur"), f.get("lecture_du_montant")
@@ -973,6 +1067,11 @@ def regles_geste(f: dict) -> dict:
         return refus("Le texte du geste portait une consigne adressée à une IA, retirée avant lecture "
                      "(consigne_retiree) : refus d'office.",
                      "Le message contenait une consigne cachée qui essayait de forcer l'accord.", 0.95)
+    if f.get("fraude_president"):
+        return refus(raison_fraude_president(f["fraude_president"])[:-1] + " : refus d'office, à vérifier par un "
+                     "autre canal auprès de la personne citée.",
+                     "Ce virement présente les signes d'une fraude au président. Vérifiez la demande par un autre "
+                     "canal, auprès de la personne citée.", 0.9)
     if mail.get("verdict") == "suspect" and geste == "virement":
         return refus("Virement réclamé par un mail jugé suspect : refus d'office.",
                      "Ce virement est réclamé par un mail douteux.")
@@ -1637,6 +1736,20 @@ def _faits_memoire(faits: dict) -> dict:
                                       "lecture_du_montant")}
 
 
+def _validation_demandee(sess, did: str, faits: dict, signaux: list[dict], motif: str, statut: str = "a_valider",
+                         incident_id: str | None = None) -> dict:
+    """Acte `validation_demandee` pour l'espace de validation métier. Sous verrou.
+    `retenu_soc` : signes de fraude, la finance le voit sans pouvoir l'accorder."""
+    b = faits.get("beneficiaire") or {}
+    return memoire.sceller(sess, "validation_demandee", {
+        "acte": "validation_demandee", "demande_id": did, "geste": faits.get("geste"),
+        "montant_eur": faits.get("montant_eur"), "volume": faits.get("volume"),
+        "beneficiaire": b.get("nom"), "beneficiaire_connu": bool(b.get("connu")), "rib": b.get("rib"),
+        "texte": (faits.get("donnees_non_fiables") or {}).get("texte_popup"),
+        "signaux": signaux, "motif_salarie": motif, "statut": statut, "incident_id": incident_id,
+        "faits_memoire": _faits_memoire(faits)}, user_agent="dedale-relecteur")
+
+
 async def verifier_geste(corps: dict) -> dict:
     """`POST /api/relecteur/verifier` : passe, accorde, retient (responsable) ou refuse (fraude)."""
     debut = time.perf_counter()
@@ -1675,16 +1788,7 @@ async def verifier_geste(corps: dict) -> dict:
                             "signaux": [x["code"] for x in signaux]}, base, "geste_verifie")
             job = _job(res)
             if issue == "retenu":
-                sess = store.sessions[base]
-                enreg = memoire.sceller(sess, "validation_demandee", {
-                    "acte": "validation_demandee", "demande_id": did, "geste": faits.get("geste"),
-                    "montant_eur": faits.get("montant_eur"), "volume": faits.get("volume"),
-                    "beneficiaire": (faits.get("beneficiaire") or {}).get("nom"),
-                    "beneficiaire_connu": bool((faits.get("beneficiaire") or {}).get("connu")),
-                    "rib": (faits.get("beneficiaire") or {}).get("rib"),
-                    "texte": (faits.get("donnees_non_fiables") or {}).get("texte_popup"),
-                    "signaux": sortie["signaux"], "motif_salarie": motif, "statut": "a_valider",
-                    "faits_memoire": _faits_memoire(faits)}, user_agent="dedale-relecteur")
+                enreg = _validation_demandee(store.sessions[base], did, faits, sortie["signaux"], motif)
                 job["evenements"].append(enreg)
                 sortie["validation"] = True
         persister(job)
@@ -1723,6 +1827,11 @@ async def verifier_geste(corps: dict) -> dict:
         inc = _incident_de(sess) if sess else None
         if inc is not None:
             job = _sceller(sess, inc, resultat, {"demande_id": did})
+            if faits.get("fraude_president"):
+                # La finance, que le fraudeur met sous pression, voit le geste retenu et pourquoi.
+                job["evenements"].append(_validation_demandee(sess, did, faits, sortie["signaux"],
+                                                              raison_fraude_president(faits["fraude_president"]),
+                                                              statut="retenu_soc", incident_id=iid))
         else:
             job = None
     if job:
@@ -1771,6 +1880,8 @@ def valider_metier(demande_id: str, verdict: str, validateur: str, motif: str = 
                                   and (e.get("details") or {}).get("demande_id") == demande_id
                                   for e in store.evenements.values()):
             return None
+        if (demande.get("details") or {}).get("statut") == "retenu_soc" and verdict == "accorde":
+            raise ValueError("Ce virement porte des signes de fraude : il est retenu par l'équipe sécurité.")
         sess = store.sessions.get(demande["session_id"])
         moment = datetime.now(timezone.utc).isoformat()
         motif_propre_ = motif_propre(motif) if motif and motif.strip() else None
