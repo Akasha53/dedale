@@ -1,0 +1,188 @@
+/* Sosie d'Orbis Pay, servi par l'extension pour la démonstration. Reprend la
+   marque du site vitrine Orbis (leurres/orbis) : logo dégradé bleu/vert, cartes
+   claires. Le bandeau sAIfe en haut lève toute ambiguïté : c'est le piège. */
+
+:root {
+  --encre: #0b1020;
+  --encre2: #44506b;
+  --trait: #e4e8f2;
+  --accent: #4f7cff;
+  --accent2: #22d3a6;
+  --halo: rgba(79, 124, 255, 0.35);
+  --carte: #ffffff;
+  --ressort: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 16px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--encre);
+  background: #f6f8fc;
+  min-height: 100dvh;
+}
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* Bandeau d'avertissement sAIfe : rouge, collant, impossible à manquer. */
+.bandeau {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 24px;
+  color: #fff;
+  background: #b42318;
+  box-shadow: 0 8px 24px -12px rgba(180, 35, 24, 0.8);
+}
+
+.bandeau p { margin: 0; font-size: 14px; }
+.bandeau strong { font-weight: 700; }
+
+.bandeau-ico {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.nav {
+  background: rgba(246, 248, 252, 0.85);
+  backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--trait);
+}
+
+.nav .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-size: 18px;
+}
+
+.mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow: 0 4px 14px var(--halo);
+}
+
+.nav nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--encre2); }
+
+.formulaire {
+  max-width: 420px;
+  margin: 56px auto;
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: 20px;
+  padding: 34px;
+  box-shadow: 0 30px 70px -44px rgba(11, 16, 32, 0.45);
+  animation: montee 0.6s var(--ressort) both;
+}
+
+@keyframes montee {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.faux-tag {
+  display: inline-block;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  margin-bottom: 16px;
+}
+
+.formulaire h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.02em; }
+.sous { color: var(--encre2); font-size: 14px; margin: 0 0 8px; }
+
+.formulaire label { display: block; font-size: 13px; font-weight: 600; margin: 16px 0 6px; }
+
+.formulaire input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--trait);
+  border-radius: 11px;
+  font: inherit;
+  font-size: 15px;
+  background: #fbfcff;
+}
+
+.formulaire input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.btn {
+  width: 100%;
+  margin-top: 22px;
+  padding: 13px 18px;
+  border: 0;
+  border-radius: 11px;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 10px 22px -10px var(--halo);
+  cursor: pointer;
+  transition: transform 0.4s var(--ressort), filter 0.2s var(--ressort);
+}
+
+.btn:hover { filter: brightness(1.05); }
+.btn:active { transform: scale(0.985); }
+
+.demo-note {
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #7a271a;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+}
+
+.watermark {
+  position: fixed;
+  right: 18px;
+  bottom: 14px;
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(68, 80, 107, 0.45);
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { --carte: #121a33; --encre: #eaf0ff; --encre2: #9fb0d8; --trait: #243253; }
+  body { background: #0b1020; }
+  .nav { background: rgba(11, 16, 32, 0.85); }
+  .formulaire input { background: #0f1730; }
+  .faux-tag { color: #ffb4ab; background: #3b1e1c; border-color: #6b2a25; }
+  .demo-note { color: #ffd9d4; background: #3b1e1c; border-color: #6b2a25; }
+}
+
+@media (max-width: 480px) {
+  .nav nav { display: none; }
+  .formulaire { margin: 32px auto; padding: 26px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .formulaire { animation: none; }
+  .btn { transition: none; }
+}

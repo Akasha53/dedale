@@ -20,6 +20,8 @@ async function charger() {
   $("domaines").value = r.domaines.join("\n");
   $("backend").value = r.backend;
   $("jeton").value = r.jeton;
+  const { demo } = await chrome.storage.local.get("demo");
+  $("demo").checked = demo === true;
   tester();
   compteur();
 }
@@ -95,6 +97,9 @@ async function compteur() {
   $("compteur").textContent = `${evites}, ${passes}.`;
 }
 
+$("demo").addEventListener("change", () => {
+  chrome.storage.local.set({ demo: $("demo").checked }).catch(() => {});
+});
 $("formulaire").addEventListener("submit", enregistrer);
 $("essai").addEventListener("input", tester);
 $("domaines").addEventListener("input", tester);

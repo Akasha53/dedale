@@ -64,8 +64,22 @@ function lireRegles() {
   return regles;
 }
 
+// Mode démonstration (hors du schéma des réglages, clé « demo » à part). Éteint,
+// l'extension se comporte exactement comme en production. Allumé, un lien piégé qui
+// vise Orbis Pay ouvre le parcours pédagogique de demo/ au lieu du vrai site.
+let demoCache = null;
+async function demoActif() {
+  if (demoCache === null) {
+    const { demo } = await chrome.storage.local.get("demo");
+    demoCache = demo === true;
+  }
+  return demoCache;
+}
+
 chrome.storage.onChanged.addListener((changements, zone) => {
-  if (zone === "local" && changements.reglages) {
+  if (zone !== "local") return;
+  if (changements.demo) demoCache = changements.demo.newValue === true;
+  if (changements.reglages) {
     cache = null;
     majReglesBlocage().catch((e) => console.warn("sAIfe, règles :", e));
   }
@@ -170,6 +184,31 @@ async function reculer(tabId) {
   await chrome.tabs.goBack(tabId).catch(() => chrome.tabs.update(tabId, { url: "chrome://newtab/" }));
 }
 
+// ---------------------------------------------------------------- parcours de démonstration
+
+// Le moteur ne lit que l'hôte. Pour la démonstration, on regarde aussi le chemin :
+// un mot d'appât (« connexion », « securite »…) sur le vrai domaine suffit à
+// reconnaître un lien piégé reçu par mail.
+function cheminPiege(adresse, R) {
+  try {
+    const u = new URL(adresse);
+    const chemin = decodeURIComponent((u.pathname + u.search).toLowerCase());
+    return (R.appats ?? []).some((a) => a.length >= 4 && chemin.includes(a));
+  } catch {
+    return false;
+  }
+}
+
+// Un lien du parcours de démonstration : un sosie d'Orbis Pay repéré par le moteur,
+// ou le vrai domaine de l'organisation suivi d'un chemin d'hameçonnage. Les sosies
+// d'autres marques (PayPal…) gardent l'avertissement habituel.
+function estPiegeDemo(adresse, r, org, R) {
+  if (!r.domaine) return false;
+  if (r.verdict === "louche" && org.nom && r.marque === org.nom) return true;
+  const surOrg = (org.domaines ?? []).some((d) => r.domaine === d || r.domaine.endsWith("." + d));
+  return surOrg && cheminPiege(adresse, R);
+}
+
 /**
  * etape : « debut » (navigation demandée), « bloque » (Chrome a bloqué la
  * requête par une règle), « valide » (la page a commencé à s'afficher).
@@ -182,6 +221,20 @@ async function examiner(tabId, adresse, etape) {
   // garde que l'hôte et ce qui précède « @ ».
   const R = await lireRegles();
   const r = analyser(adresse, R, { nom, domaines });
+
+  // Démonstration : un lien piégé qui vise Orbis Pay ouvre l'interstitiel du parcours
+  // pédagogique, avant toute résolution DNS ou requête réseau. Éteint par défaut.
+  if ((etape === "debut" || etape === "bloque") && (await demoActif())
+      && estPiegeDemo(adresse, r, { nom, domaines }, R)) {
+    const ouvert = enCours.get(tabId);
+    const marque = "demo:" + r.domaine;
+    if (ouvert && ouvert.domaine === marque && Date.now() - ouvert.t < 5000) return;
+    enCours.set(tabId, { domaine: marque, t: Date.now() });
+    await chrome.tabs.update(tabId, {
+      url: chrome.runtime.getURL("demo/interstitiel.html#" + encodeURIComponent(r.affiche)),
+    });
+    return;
+  }
 
   const retour = retours.get(tabId);
   const recule = retour && retour.domaine === r.domaine && retour.echeance > Date.now();

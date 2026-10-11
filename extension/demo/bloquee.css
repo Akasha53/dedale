@@ -1,0 +1,95 @@
+/* Page de repli sûre : sobre, verte, rassurante. Même palette et police que le
+   reste de sAIfe (commun.css). Carte à double paroi, entrée en fondu. */
+
+:root {
+  --ressort: cubic-bezier(0.32, 0.72, 0, 1);
+  --vert-fond: #ecfdf3;
+  --vert-bord: #abefc6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { --vert-fond: #0f2a1b; --vert-bord: #1f5136; }
+}
+
+body {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 40px 16px;
+  background:
+    radial-gradient(900px 440px at 50% -8%, color-mix(in srgb, var(--vert) 12%, transparent) 0%, transparent 62%),
+    var(--fond);
+}
+
+.scene { width: 100%; max-width: 520px; }
+
+.carte {
+  background: color-mix(in srgb, var(--texte) 4%, var(--fond));
+  border: 1px solid var(--bord);
+  border-radius: calc(var(--rayon) + 8px);
+  padding: 8px;
+  box-shadow: 0 40px 80px -48px color-mix(in srgb, var(--texte) 55%, transparent);
+}
+
+.coque {
+  background: var(--fond);
+  border-radius: var(--rayon);
+  padding: 40px 34px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
+  align-items: center;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fond) 70%, #fff);
+  animation: entree 0.7s var(--ressort) both;
+}
+
+@keyframes entree {
+  from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+.pastille {
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  color: var(--vert);
+  background: var(--vert-fond);
+  border: 1px solid var(--vert-bord);
+}
+
+.marque {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--texte-faible);
+}
+
+h1 { font-size: 26px; font-weight: 650; letter-spacing: -0.015em; }
+
+.texte { color: var(--texte-doux); max-width: 40ch; }
+
+.compte {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--vert);
+  font-variant-numeric: tabular-nums;
+}
+
+.repli { display: flex; flex-direction: column; gap: 14px; align-items: center; margin-top: 6px; }
+
+.bouton { transition: transform 0.4s var(--ressort), opacity 0.2s var(--ressort); }
+.bouton:active { transform: scale(0.98); }
+
+@media (max-width: 480px) {
+  .coque { padding: 30px 22px 26px; }
+  h1 { font-size: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coque { animation: none; }
+  .bouton { transition: none; }
+}

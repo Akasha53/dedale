@@ -5,6 +5,7 @@
   "description": "Extension Chrome de sAIfe contre les sites sosies d'Orbis Pay.",
   "scripts": {
     "test": "node --test tests/comparateur.test.js",
-    "bout-en-bout": "node tests/bout_en_bout.js"
+    "bout-en-bout": "node tests/bout_en_bout.js",
+    "demo": "node tests/demo_hameconnage.js"
   }
 }

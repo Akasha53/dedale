@@ -63,6 +63,10 @@ input:hover, textarea:hover { border-color: var(--bord); }
 .resultat.confiance .verdict { color: var(--vert); }
 .resultat .explication { display: block; color: var(--texte-doux); font-size: 14px; }
 
+.bascule { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; cursor: pointer; }
+.bascule-texte { display: flex; flex-direction: column; gap: 6px; }
+.bascule input { width: 20px; height: 20px; flex: none; margin-top: 2px; accent-color: var(--vert); cursor: pointer; }
+
 .rangee { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 
 .compteur { color: var(--texte-doux); }

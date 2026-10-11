@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lien piégé arrêté — sAIfe</title>
+  <link rel="icon" href="../icones/icone-32.png">
+  <link rel="stylesheet" href="../commun.css">
+  <link rel="stylesheet" href="interstitiel.css">
+</head>
+<body>
+  <main class="scene">
+    <section class="carte" aria-labelledby="titre">
+      <div class="coque">
+        <div class="pastille" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+            <path d="M12 9v4"/><path d="M12 17h.01"/>
+          </svg>
+        </div>
+
+        <p class="marque">sAIfe</p>
+        <h1 id="titre">
+          <span>sAIfe a arrêté un lien piégé.</span>
+          <span class="suite">Il mène à une fausse page Orbis Pay.</span>
+        </h1>
+
+        <div class="adresse">
+          <p class="etiquette">Le lien voulait vous emmener sur</p>
+          <p class="domaine" id="domaine">orbispay.example</p>
+        </div>
+
+        <p class="raison">La page d'arrivée copie la connexion Orbis Pay pour récupérer votre identifiant et votre mot de passe. sAIfe l'a bloquée avant qu'elle ne s'ouvre.</p>
+
+        <div class="actions">
+          <button type="button" id="arreter" class="bouton principal" autofocus>
+            Me protéger
+            <span class="rond" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </span>
+          </button>
+          <button type="button" id="continuer" class="bouton discret">Continuer quand même</button>
+        </div>
+
+        <p class="note">« Continuer » ouvre une démonstration du faux site, servie par l'extension. Rien n'est envoyé, aucune page réelle n'est chargée.</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="interstitiel.js"></script>
+</body>
+</html>

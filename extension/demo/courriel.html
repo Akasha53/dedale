@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Démonstration sAIfe — le mail piégé</title>
+  <link rel="icon" href="../icones/icone-32.png">
+  <link rel="stylesheet" href="../commun.css">
+  <link rel="stylesheet" href="courriel.css">
+</head>
+<body>
+  <main class="page">
+    <header class="tete">
+      <p class="marque">sAIfe · démonstration</p>
+      <h1>Un mail piégé, comme on en reçoit.</h1>
+      <p class="intro">Cliquez le bouton du mail ci-dessous. sAIfe repère le lien d'hameçonnage et vous montre où il menait, sans jamais charger la page réelle.</p>
+      <p class="etat" id="etat" role="status">Mode démonstration : activation…</p>
+    </header>
+
+    <article class="mail">
+      <div class="mail-tete">
+        <div class="pastille-exp" aria-hidden="true">O</div>
+        <div class="exp">
+          <p class="de">Orbis Pay — Sécurité</p>
+          <p class="adr-exp">securite@orbispay-verification.example</p>
+        </div>
+        <p class="date">aujourd'hui, 09:12</p>
+      </div>
+
+      <h2 class="objet">Action requise : confirmez votre compte sous 24 h</h2>
+
+      <div class="corps">
+        <p>Bonjour,</p>
+        <p>Une connexion inhabituelle a été détectée sur votre compte Orbis Pay. Par sécurité, l'accès est suspendu. Confirmez votre identité pour le rétablir.</p>
+        <p>Sans confirmation sous 24 heures, votre compte sera clôturé.</p>
+        <p class="bouton-ligne">
+          <a class="btn-mail" id="piege" href="https://orbispay.example/connexion">Confirmer mon compte</a>
+        </p>
+        <p class="signature">L'équipe Orbis Pay</p>
+      </div>
+    </article>
+
+    <p class="pied">Le lien pointe vers <code>orbispay.example/connexion</code> : un chemin de connexion glissé dans un mail d'alerte. sAIfe l'intercepte au clic.</p>
+  </main>
+  <script type="module" src="courriel.js"></script>
+</body>
+</html>

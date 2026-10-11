@@ -1,0 +1,143 @@
+/* Interstitiel du parcours de démonstration. Reprend la palette et la police de
+   sAIfe (commun.css). Carte à double paroi, ombre très diffuse, entrée en fondu. */
+
+:root {
+  --ressort: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+body {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 40px 16px;
+  background:
+    radial-gradient(900px 440px at 50% -8%, color-mix(in srgb, var(--rouge) 9%, transparent) 0%, transparent 62%),
+    var(--fond);
+}
+
+.scene { width: 100%; max-width: 560px; }
+
+/* Coque extérieure (plateau) + cœur intérieur (plaque) : courbes concentriques. */
+.carte {
+  background: color-mix(in srgb, var(--texte) 4%, var(--fond));
+  border: 1px solid var(--bord);
+  border-radius: calc(var(--rayon) + 8px);
+  padding: 8px;
+  box-shadow: 0 40px 80px -48px color-mix(in srgb, var(--texte) 55%, transparent);
+}
+
+.coque {
+  background: var(--fond);
+  border-radius: var(--rayon);
+  padding: 36px 34px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fond) 70%, #fff);
+  animation: entree 0.7s var(--ressort) both;
+}
+
+@keyframes entree {
+  from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+.pastille {
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  color: var(--rouge);
+  background: var(--rouge-fond);
+  border: 1px solid var(--rouge-bord);
+}
+
+.marque {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--texte-faible);
+}
+
+h1 {
+  font-size: 27px;
+  line-height: 1.18;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+h1 .suite { color: var(--rouge); }
+
+.adresse {
+  background: var(--surface);
+  border-radius: var(--rayon-s);
+  padding: 16px 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.etiquette { font-size: 13px; color: var(--texte-doux); }
+
+.domaine {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--rouge);
+  overflow-wrap: anywhere;
+}
+
+.raison { color: var(--texte-doux); }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.bouton { transition: transform 0.4s var(--ressort), background-color 0.2s var(--ressort), opacity 0.2s var(--ressort); }
+.bouton:active { transform: scale(0.98); }
+
+.principal {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px 13px 24px;
+}
+
+/* Bouton-dans-le-bouton : l'icône vit dans son propre disque. */
+.rond {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--sur-principal) 16%, transparent);
+  transition: transform 0.4s var(--ressort);
+}
+
+.principal:hover .rond { transform: translateX(2px); }
+
+.note {
+  font-size: 13px;
+  color: var(--texte-faible);
+  margin-top: 2px;
+}
+
+@media (max-width: 480px) {
+  .coque { padding: 28px 22px 24px; }
+  h1 { font-size: 23px; }
+  .actions { flex-direction: column; align-items: stretch; }
+  .principal { justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coque { animation: none; }
+  .bouton, .rond { transition: none; }
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion — Orbis Pay</title>
+  <link rel="icon" href="../icones/icone-32.png">
+  <link rel="stylesheet" href="faux-orbis.css">
+</head>
+<body>
+  <div class="bandeau" role="alert">
+    <span class="bandeau-ico" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+        <path d="M12 9v4"/><path d="M12 17h.01"/>
+      </svg>
+    </span>
+    <p><strong>Exemple de faux site.</strong> C'est ici que le pirate voulait vous emmener pour voler vos identifiants. Rien n'est réel sur cette page.</p>
+  </div>
+
+  <header class="nav">
+    <div class="wrap">
+      <span class="logo"><span class="mark" aria-hidden="true"></span>Orbis&nbsp;Pay</span>
+      <nav aria-hidden="true">
+        <span>Produit</span><span>Tarifs</span><span>Développeurs</span><span>Sécurité</span>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="formulaire" aria-labelledby="t-connexion">
+      <span class="faux-tag">Démonstration sAIfe</span>
+      <h1 id="t-connexion">Connexion</h1>
+      <p class="sous">Accédez à votre espace Orbis Pay.</p>
+
+      <form id="form" novalidate>
+        <label for="id">Identifiant</label>
+        <input id="id" name="identifiant" type="email" placeholder="vous@entreprise.fr" autocomplete="off">
+        <label for="mp">Mot de passe</label>
+        <input id="mp" name="motdepasse" type="password" placeholder="••••••••" autocomplete="off">
+        <button class="btn" type="submit">Se connecter</button>
+      </form>
+
+      <p class="demo-note" id="note" hidden>
+        Sur un vrai site d'hameçonnage, tout ce que vous tapez ici partirait au pirate.
+        Cette page ne garde rien et n'envoie rien : c'est une démonstration de sAIfe.
+      </p>
+    </section>
+  </main>
+
+  <p class="watermark" aria-hidden="true">Démonstration</p>
+  <script type="module" src="faux-orbis.js"></script>
+</body>
+</html>

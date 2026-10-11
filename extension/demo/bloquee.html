@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page bloquée par sAIfe</title>
+  <link rel="icon" href="../icones/icone-32.png">
+  <link rel="stylesheet" href="../commun.css">
+  <link rel="stylesheet" href="bloquee.css">
+</head>
+<body>
+  <main class="scene">
+    <section class="carte" aria-labelledby="titre">
+      <div class="coque">
+        <div class="pastille" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3 4 6v5c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V6z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+
+        <p class="marque">sAIfe</p>
+        <h1 id="titre">Page bloquée par sAIfe</h1>
+        <p class="texte">Cette page a été bloquée par nos services. Vous pouvez fermer cette page — elle se fermera automatiquement dans <span id="reste" class="compte">3</span>&nbsp;secondes.</p>
+
+        <div class="repli" id="repli" hidden>
+          <p class="texte">Votre navigateur n'a pas autorisé la fermeture automatique. Fermez cet onglet, ou utilisez le bouton ci-dessous.</p>
+          <button type="button" id="fermer" class="bouton principal">Fermer</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="bloquee.js"></script>
+</body>
+</html>
