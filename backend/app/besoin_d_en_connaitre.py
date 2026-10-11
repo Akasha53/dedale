@@ -88,6 +88,8 @@ _CLES_INTACTES = identites._CLES_INTACTES | {
     "horodatage", "recu_a", "ouvert_le", "cree_a", "decide_a", "date", "signature", "decision_sceau",
     "sceau_incident", "type", "statut", "etat", "etape", "phase", "acte", "code", "source", "surface",
     "gravite", "classement", "leurre_id", "demande_id", "algorithme", "verdict", "decision", "action",
+    # Indicateurs de compromission : outil MCP piégé, empreintes.
+    "outil", "outils", "outil_mcp", "hash", "sha256", "empreinte_description",
 }
 
 # ------------------------------------------------------------------ textes
@@ -109,6 +111,18 @@ _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[  ]?[A-Z0-9•]{4}){2,7}(?:[  ]?[A-Z0-
 _FIN_IBAN = re.compile(r"•{2,}[  ]?\d{4}\b")
 _TERMINE_PAR = re.compile(r"((?:se termin\w*|finissant|termin\w*)\s+(?:par\s+)?)\d{4}\b", re.IGNORECASE)
 _DEJA_MASQUE = re.compile(r"(\[[^\[\]]{0,80}\])")
+
+# Indicateurs de compromission : domaines, adresses et URL (désarmés ou non), empreintes. Ce sont
+# les traces de l'attaquant, pas des données métier : la SOC et le SIEM en ont besoin en clair, et
+# aucun masque ne les touche, même quand un nom de bénéficiaire y est imité
+# (« rapprochement@atelier-nord-audit[.]example »).
+_IOC = re.compile(
+    r"(?:hxxps?|https?|ftp)://[^\s\"'<>]+"
+    r"|[\w.+-]+@[\w-]+(?:(?:\[\.\]|\.)[\w-]+)+"
+    r"|\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:(?:\[\.\]|\.)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*"
+    r"(?:\[\.\]|\.)[a-z]{2,24}\b(?![\w-])"
+    r"|\b[0-9a-f]{32,128}\b",
+    re.IGNORECASE)
 
 _cache_noms: dict[str, Any] = {"version": None, "motif": None}
 
@@ -192,8 +206,22 @@ def _masquer_montants(texte: str) -> str:
 
 def masquer_texte(texte: str, noms: re.Pattern | None = None) -> str:
     """Le texte sans montant exact, sans IBAN et sans nom de bénéficiaire ou de client.
-    Idempotent : ce qui est déjà entre crochets n'est pas relu."""
+    Les indicateurs de compromission (`_IOC`) restent tels quels. Idempotent : ce qui est déjà
+    entre crochets n'est pas relu."""
     if not texte or not any(c.isdigit() for c in texte) and noms is None:
+        return texte
+    if _IOC.search(texte):
+        parties = _IOC.split(texte)
+        indicateurs = _IOC.findall(texte)
+        sortie = [_masquer_morceaux(parties[0], noms)]
+        for ioc, suite in zip(indicateurs, parties[1:]):
+            sortie += [ioc, _masquer_morceaux(suite, noms)]
+        return "".join(sortie)
+    return _masquer_morceaux(texte, noms)
+
+
+def _masquer_morceaux(texte: str, noms: re.Pattern | None) -> str:
+    if not texte:
         return texte
     morceaux = _DEJA_MASQUE.split(texte)
     for i, morceau in enumerate(morceaux):
