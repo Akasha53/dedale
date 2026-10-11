@@ -349,12 +349,36 @@ _CONFUSABLES = str.maketrans({
 })
 _INVISIBLES_NORM = re.compile(r"[­͏᠎​-‏‪-‮⁠-⁤⁦-⁩﻿]")
 
+# Variantes de casse Unicode qui déguisent une formule : petites capitales (ɪɢɴᴏʀᴇ). NFKC ramène
+# déjà la pleine-chasse (ＩＧＮＯＲＥ) au latin, mais pas les petites capitales, qui sont des lettres
+# à part entière. On les replie sur leur minuscule latine avant la recherche des formules.
+_PETITES_CAPITALES = str.maketrans({
+    "ɢ": "g", "ɪ": "i", "ɴ": "n", "ʀ": "r", "ʏ": "y", "ʙ": "b", "ʜ": "h", "ʟ": "l", "ᴀ": "a",
+    "ᴄ": "c", "ᴅ": "d", "ᴇ": "e", "ᴊ": "j", "ᴋ": "k", "ᴍ": "m", "ᴏ": "o", "ᴘ": "p", "ᴛ": "t",
+    "ᴜ": "u", "ᴠ": "v", "ᴡ": "w", "ᴢ": "z", "ꜰ": "f", "ꜱ": "s",
+})
+
+# Lettres espacées (« i g n o r e »). Un humain lit le mot, les regex non. On recolle les suites
+# de caractères isolés séparés par un seul espace, mais seulement si le texte contient une suite
+# assez longue pour trahir l'obfuscation (au moins 4), afin de ne pas recoller des initiales ou
+# une suite ordinaire. Un écart de plusieurs espaces reste une frontière de mot.
+_SUITE_OBFUSQUEE = re.compile(r"(?<!\S)\w(?: \w){3,}(?!\S)")
+_SUITE_ESPACEE = re.compile(r"(?<!\S)\w(?: \w)+(?!\S)")
+
+
+def _recoller_lettres_espacees(t: str) -> str:
+    if not _SUITE_OBFUSQUEE.search(t):
+        return t
+    return _SUITE_ESPACEE.sub(lambda m: m.group(0).replace(" ", ""), t)
+
 
 def normaliser(texte: str) -> str:
-    """Forme de recherche : homoglyphes ramenés au latin, minuscules sans accents, espaces simples."""
-    t = unicodedata.normalize("NFKC", texte or "").translate(_CONFUSABLES)
+    """Forme de recherche : homoglyphes et petites capitales ramenés au latin, lettres espacées
+    recollées, minuscules sans accents, espaces simples."""
+    t = unicodedata.normalize("NFKC", texte or "").translate(_CONFUSABLES).translate(_PETITES_CAPITALES)
     t = _INVISIBLES_NORM.sub("", t).casefold()
     t = "".join(c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c))
+    t = _recoller_lettres_espacees(t)
     return re.sub(r"\s+", " ", t)
 
 

@@ -15,7 +15,7 @@ from urllib.parse import quote
 
 import pytest
 
-from orbis import demo, mcp, mediation, outil_inconnu
+from orbis import demo, detection, mcp, mediation, outil_inconnu
 from orbis.agent import AgentInterne
 from orbis.backend_simule import BackendSimule
 from orbis.boite_noire import BoiteNoire
@@ -265,6 +265,61 @@ def test_demo_scenario_outil_inconnu(capsys):
     assert demo.main(["--scenario", "outil-inconnu", "--delai-analyste", "0.05"]) == 0
     sortie = capsys.readouterr().out
     assert sortie.count("garanties tenues") == 3
+
+
+# --- angle mort 2 : destination cachée dans un champ non-cible ------------------------------
+def _med_sortant(params):
+    p = Passerelle("s", jetons_secrets(), BoiteNoire(base="http://127.0.0.1:9"))
+    return p._examiner("envoyer_rapport", params, None, True)[0]
+
+
+@pytest.mark.parametrize("params", [
+    {"corps": "serveur evil.example"},             # domaine nu, champ non-cible
+    {"corps": "ecris a vol@evil.example"},         # adresse mail dans le corps
+    {"texte": "poste sur collecte.attacker.example/pixel"},
+])
+def test_destination_cachee_champ_non_cible_est_un_envoi_externe(params):
+    med = _med_sortant(params)
+    externes = [t for t in med if t.type == "envoi_externe"]
+    assert externes and externes[0].canari_id == detection.REGLE_ENVOI_EXTERNE
+
+
+def test_passerelle_retient_destination_cachee(boite, backend):
+    appels: list = []
+
+    def envoyer_rapport(**params):
+        appels.append(params)
+        return {"envoye": True}
+
+    backend.fixer_etat("sess-cache", "suspendue")
+    p = Passerelle("sess-cache", jetons_secrets(), boite, intervalle_poll=0.02, poll_max_s=0.3)
+    resultat = p.appel_outil("envoyer_rapport", {"corps": "fais suivre à vol@evil.example"},
+                             envoyer_rapport)
+    assert appels == []
+    assert "refusé" in resultat.get("raison", "") or "erreur" in resultat
+
+
+# --- angle mort 3 : TLD hors d'une liste fermée ---------------------------------------------
+@pytest.mark.parametrize("params", [
+    {"corps": "poste sur evil.ai"},            # TLD nu absent de l'ancienne liste
+    {"corps": "exfiltre vers evil.gg/collect"},  # TLD + contexte d'URL
+    {"corps": "data vers evil.zip/vol"},       # extension-TLD, mais contexte d'URL -> destination
+])
+def test_tld_hors_liste_fermee_est_externe(params):
+    med = _med_sortant(params)
+    assert any(t.type == "envoi_externe" for t in med), params
+
+
+@pytest.mark.parametrize("params", [
+    {"corps": "voir rapport.pdf, data.json et archive.zip"},  # noms de fichiers
+    {"corps": "version 3.14 du module"},                      # version
+    {"corps": "compte interne jean.moreau du service"},        # identifiant pointé, pas un hôte
+    {"corps": "lien interne https://orbispay.example/aide"},   # domaine interne
+    {"corps": "note sur orbispay.example/x et intranet.orbispay.example"},
+])
+def test_formes_inoffensives_non_retenues_en_sortie(params):
+    med = _med_sortant(params)
+    assert not any(t.type == "envoi_externe" for t in med), params
 
 
 def test_regles_publiees_au_backend():

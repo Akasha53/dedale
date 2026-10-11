@@ -236,7 +236,8 @@ class Passerelle:
 
     def sortie_agent(self, texte: str) -> str:
         """Inspecte la sortie finale. Peut retenir et faire décider l'analyste."""
-        trouvailles = self._attribuer(detection.inspecter(texte, self.jetons))
+        # Sortie texte finale : l'adresse mail nue y compte comme vecteur d'exfiltration.
+        trouvailles = self._attribuer(detection.inspecter(texte, self.jetons, avec_mail=True))
         # Un canari encodé (base64, URL, hexadécimal) dans la réponse finale compte aussi.
         trouvailles = mediation.ordonner(mediation.canaris_encodes(texte, self.jetons), trouvailles)
         if trouvailles:
@@ -304,6 +305,7 @@ class Passerelle:
         # Médiation universelle : inventaire, description MCP changée, paramètres (lecture comprise).
         med, insp = self._examiner(nom, params, descripteur, sortant)
         trouvailles = mediation.ordonner(med, trouvailles)
+        trouvailles = self._envoi_externe_repli(trouvailles)
         if trouvailles:
             det["verdict"] = RETENU
             det["raison"] = self._raison_canaris(trouvailles)
@@ -643,6 +645,7 @@ class Passerelle:
             trouvailles = self._attribuer(detection.inspecter(charge, self.jetons))
             trouvailles = trouvailles or self._envoi_externe(params)
         trouvailles = mediation.ordonner(med, trouvailles)
+        trouvailles = self._envoi_externe_repli(trouvailles)
         if trouvailles:
             motif = self._motif_retenue(trouvailles)
             if motif not in mediation.MOTIFS:
@@ -1083,6 +1086,20 @@ class Passerelle:
         if self._tranche_par_une_regle():
             return []
         return self._attribuer(detection.detecter_envoi_externe(params))
+
+    def _envoi_externe_repli(self, trouvailles: list) -> list:
+        """L'« envoi externe » (C-4E6B) est un repli : il ne tient que seul. Dès qu'une autre
+        trouvaille est déjà là (exfiltration, faux secret, consigne attribuée, règle de médiation),
+        ou qu'une règle du SOC vient de trancher l'appel (alerte, ou retenue libérée), on le retire
+        — comme le faisait le `or` de la détection historique et le garde-fou de `_envoi_externe`.
+        Cela vaut aussi pour l'« envoi externe » que la médiation lève pour une destination cachée
+        dans un champ non-cible : il complète la détection, il ne la double pas."""
+        if not any(t.type == "envoi_externe" for t in trouvailles):
+            return trouvailles
+        autre_signal = any(t.type != "envoi_externe" for t in trouvailles)
+        if autre_signal or self._tranche_par_une_regle():
+            return [t for t in trouvailles if t.type != "envoi_externe"]
+        return trouvailles
 
     def _tranche_par_une_regle(self) -> bool:
         """Lu dans la trace locale que `politiques.appliquer` vient d'écrire pour cet appel."""

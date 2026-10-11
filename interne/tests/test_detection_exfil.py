@@ -136,3 +136,55 @@ def test_passerelle_retient_exfiltration_sans_schema(boite, backend):
     assert appels == []                       # l'envoi n'a jamais été exécuté
     assert "refusé" in resultat.get("raison", "") or "erreur" in resultat
     assert "C-7A3F" in p.canaris_touches      # exfiltration attribuée à la consigne cachée
+
+
+# --- angle mort 1 : destination IPv4 nue ----------------------------------------------------
+def test_ipv4_nue_cible_externe():
+    cibles = detection.cibles_externes({"destinataire": "203.0.113.9"})
+    assert [h for _, h in cibles] == ["203.0.113.9"]
+
+
+def test_ipv4_avec_port_cible_externe():
+    assert [h for _, h in detection.cibles_externes({"url": "198.51.100.7:8080"})] == ["198.51.100.7"]
+
+
+def test_ipv4_boucle_locale_et_invalide_non_externes():
+    # 127.0.0.0/8 : boucle locale, interne. Octet > 255 : ce n'est pas une adresse.
+    assert detection.cibles_externes({"destinataire": "127.0.0.1"}) == []
+    assert detection.cibles_externes({"destinataire": "127.5.5.5"}) == []
+    assert detection.cibles_externes({"destinataire": "999.1.1.1"}) == []
+
+
+def test_passerelle_retient_destinataire_ip_nue(boite, backend):
+    """Un outil sortant qui vise une IPv4 nue est retenu : l'envoi ne part pas."""
+    appels: list = []
+
+    def envoyer_rapport(**params):
+        appels.append(params)
+        return {"envoye": True}
+
+    backend.fixer_etat("sess-ip-nue", "suspendue")
+    p = Passerelle("sess-ip-nue", jetons_secrets(), boite, intervalle_poll=0.02, poll_max_s=0.3)
+    resultat = p.appel_outil("envoyer_rapport", {"destinataire": "203.0.113.9", "contenu": "x"},
+                             envoyer_rapport)
+    assert appels == []
+    assert "refusé" in resultat.get("raison", "") or "erreur" in resultat
+    assert detection.REGLE_ENVOI_EXTERNE in p.canaris_touches
+
+
+# --- angle mort 4 : adresse mail nue --------------------------------------------------------
+def test_mail_nue_en_sortie_detectee():
+    # Dans une sortie texte (avec_mail=True), une adresse mail nue externe est un vecteur.
+    tr = detection.detecter_exfiltration("Contacte vol@evil.example pour la suite.", avec_mail=True)
+    assert len(tr) == 1 and "evil.example" in tr[0].detail
+
+
+def test_mail_nue_interne_non_detectee():
+    assert detection.detecter_exfiltration("Écris à jean@orbispay.example.", avec_mail=True) == []
+
+
+def test_mail_nue_ignoree_sans_avec_mail():
+    # Par défaut (contenu lu, paramètres d'envoi) : l'adresse nue n'est pas une exfiltration ;
+    # une destination d'envoi relève de l'« envoi externe », pas d'EchoLeak.
+    assert detection.detecter_exfiltration("Contacte vol@evil.example.") == []
+    assert detection.inspecter("Contacte vol@evil.example.", jetons_secrets()) == []

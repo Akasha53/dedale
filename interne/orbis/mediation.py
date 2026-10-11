@@ -145,12 +145,21 @@ _WWW = re.compile(r"\bwww\.[a-z0-9-]+(?:\.[a-z0-9-]+)+", re.IGNORECASE)
 # temps quadratique.
 _MAIL = re.compile(r"[\w.+-]{1,64}@((?:[\w-]{1,63}\.){1,8}[\w-]{2,63})")
 _IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-# Domaine nu dans un texte libre : seulement sur un suffixe courant, pour ne pas prendre
-# « rapport.pdf » ou « jean.moreau » pour une destination.
-_TLD = ("com|net|org|io|fr|eu|de|uk|es|it|be|ch|nl|ru|cn|jp|br|in|us|co|me|info|biz|xyz|top|"
-        "app|dev|cloud|site|online|link|click|example|test|onion")
-_DOMAINE_TEXTE = re.compile(rf"\b(?:[a-z0-9](?:[a-z0-9-]{{0,61}}[a-z0-9])?\.){{1,8}}(?:{_TLD})\b",
-                            re.IGNORECASE)
+# Hôte nu dans un texte libre : contrôle de FORME (au moins un point, labels alphanumériques, TLD
+# alphabétique d'au moins deux lettres) plutôt qu'une liste de TLD fermée — sinon `evil.ai/x`,
+# `evil.gg`, `evil.lol` passaient. Deux garde-fous gardent les faux positifs d'avant :
+#   - un hôte suivi d'un contexte d'URL (chemin, port, requête) est pris quel que soit son TLD ;
+#   - un hôte nu (sans ce contexte) n'est retenu que si son TLD est un suffixe public connu, pour
+#     ne pas prendre un identifiant pointé (« jean.moreau ») pour une destination ;
+#   - une extension de fichier (`rapport.pdf`, `data.json`, `archive.zip`) est un nom de fichier,
+#     pas un hôte — sauf contexte d'URL (`evil.zip/vol` reste une destination).
+_HOTE_TEXTE = re.compile(r"\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){1,8}[a-z]{2,63}",
+                         re.IGNORECASE)
+_CONTEXTE_URL = frozenset("/:?#")
+_TLD_CONNUS = frozenset((
+    "com net org io fr eu de uk es it be ch nl ru cn jp br in us co me info biz xyz top app dev "
+    "cloud site online link click example test onion ai gg lol"
+).split())
 # Famille des canaris d'Orbis Pay, même hors du dictionnaire des jetons.
 _FAMILLE_CANARI = re.compile(r"ORBISPAY-?CANARY-?[0-9A-F]{4}", re.IGNORECASE)
 
@@ -320,8 +329,16 @@ def _destinations_dans(texte: str) -> list[str]:
     if "." not in texte:
         return hotes  # ni domaine ni adresse IP possibles
     sans_url = _URL.sub(" ", texte)
-    for m in _DOMAINE_TEXTE.finditer(sans_url):
-        garder(m.group(0))
+    for m in _HOTE_TEXTE.finditer(sans_url):
+        hote = m.group(0).lower()
+        suivant = sans_url[m.end():m.end() + 1]
+        tld = hote.rsplit(".", 1)[-1]
+        if suivant in _CONTEXTE_URL:               # evil.ai/x, evil.zip?d=1 : URL, tout TLD
+            garder(hote)
+        elif tld in detection._EXT_FICHIER:        # rapport.pdf, data.json : nom de fichier
+            continue
+        elif tld in _TLD_CONNUS:                   # hôte nu à suffixe public connu
+            garder(hote)
     for m in _IPV4.finditer(sans_url):
         octets = [int(o) for o in m.group(0).split(".")]
         if all(o <= 255 for o in octets) and octets[0] != 127:
@@ -441,6 +458,13 @@ def examiner(nom: str, params, descripteur, *, inventaire, empreintes: Empreinte
         trouvailles.append(detection.Trouvaille(
             type=CANAL_DETOURNE, canari_id=REGLE_CANAL_DETOURNE,
             detail=f"{nom} : contenu impossible à inspecter en entier ({insp.incomplete})"))
+    if raison is None and sortant and insp.destinations:
+        # Destination externe trouvée dans N'IMPORTE QUEL champ texte, pas seulement les clés-cibles
+        # (I2 : une adresse glissée dans `corps`/`texte` échappait à la détection historique, qui ne
+        # lit que les clés de destination). Même règle C-4E6B pour que l'incident reste nommé pareil.
+        trouvailles.append(detection.Trouvaille(
+            type="envoi_externe", canari_id=detection.REGLE_ENVOI_EXTERNE,
+            detail=detection.detail_envoi_externe([h for h, _ in insp.destinations])))
     for cid, enc in insp.canaris:
         if sortant and enc == "en clair":
             continue  # déjà vu par la détection historique d'un outil d'envoi
