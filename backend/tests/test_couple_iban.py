@@ -62,7 +62,8 @@ def test_couple_confirme_par_telephone_passe_le_mois_suivant(client):
     v = _verifier(client, nouveau, "cf1")
     assert v["issue"] == "retenu" and "rib_change" in _codes(v)
     _confirmer(client, "cf1", qualite="finance", motif="RIB confirmé par téléphone avec le client.")
-    entree = client.get("/api/relecteur/memoire").json()["entrees"][0]
+    with relecteur.store.lock:
+        entree = relecteur.memoire.entrees()[0]
     assert entree["verdict"] == "accorde" and entree["rib"] and entree["iban_pays"] == "FR"
     assert "9911" not in str(entree)  # l'IBAN n'entre dans la mémoire que haché
     # Le mois suivant, le même couple : aucun signal, aucune pop-up.

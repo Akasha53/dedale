@@ -166,7 +166,19 @@ def test_le_validateur_voit_le_detail_et_tranche(client, regles):
     texte = json.dumps(actes, ensure_ascii=False)
     for secret in ("3480", "Atelier Nord", "Claire", "téléphone", "0042"):
         assert secret not in texte, secret
-    assert any(e["details"]["validation_metier"] == "confirmé par le responsable" for e in actes)
+    # La finance a signé : l'écran le dit, sans son nom (répétition générale, point 4).
+    assert any(e["details"]["validation_metier"] == "confirmé par la finance" for e in actes)
+    # L'entrée de mémoire écrite après la validation métier : l'issue et le rôle, rien d'autre.
+    memoires = [e for e in evs if e["type"] == "memoire"]
+    assert memoires and memoires[0]["details"]["validation_metier"] == "confirmé par la finance"
+    texte = json.dumps(memoires, ensure_ascii=False)
+    for secret in ("Claire", "Dubois", "téléphone", "1 000 à 5 000", "Atelier", "motif_analyste"):
+        assert secret not in texte, secret
+    assert not {"analyste", "tranche", "ordre_de_grandeur", "cle", "rib"} & set(memoires[0]["details"])
+    vue_memoire = json.dumps(client.get("/api/relecteur/memoire", headers=jeton("analyste")).json(),
+                             ensure_ascii=False)
+    for secret in ("Claire", "téléphone", "1 000 à 5 000"):
+        assert secret not in vue_memoire, secret
 
 
 # ------------------------------------------------------------------ chacun chez soi

@@ -248,16 +248,40 @@ MENTION_METIER = {"validation_demandee": "À régler avec le responsable du sala
                                         "à la validation métier."}
 
 
+_QUI = {"finance": "la finance", "responsable": "le responsable"}
+
+
+def qualite_validateur(details: dict) -> str | None:
+    """« finance » ou « responsable » : le vrai rôle de qui a signé, jamais son nom."""
+    q = details.get("qualite")
+    if q in _QUI:
+        return q
+    m = re.search(r"\((responsable|finance)\)\s*$", str(details.get("validateur") or ""))
+    return m.group(1) if m else None
+
+
 def acte_metier_reduit(details: dict) -> dict:
-    sens = {"validation_demandee": "demandée", "validation_decidee": {"accorde": "confirmé par le responsable",
-                                                                      "refuse": "refusé par le responsable"}}
+    qui = _QUI.get(qualite_validateur(details) or "", "la validation métier")
+    sens = {"validation_demandee": "demandée", "validation_decidee": {"accorde": f"confirmé par {qui}",
+                                                                      "refuse": f"refusé par {qui}"}}
     acte = details.get("acte")
     issue = sens.get(acte)
     if isinstance(issue, dict):
-        issue = issue.get(details.get("verdict"), "tranché par le responsable")
+        issue = issue.get(details.get("verdict"), f"tranché par {qui}")
     return {"acte": acte, "demande_id": details.get("demande_id"), "statut": details.get("statut"),
-            "verdict": details.get("verdict"), "validation_metier": issue,
+            "verdict": details.get("verdict"), "validation_metier": issue, "qualite": qualite_validateur(details),
             "message": MENTION_METIER.get(acte, MENTION_METIER["validation_decidee"])}
+
+
+def memoire_metier_reduite(details: dict) -> dict:
+    """Entrée de mémoire écrite après une validation métier : la SOC n'en voit que l'issue et le
+    rôle de qui a signé. Ni nom, ni motif libre, ni tranche, ni bénéficiaire, ni empreinte."""
+    qui = _QUI.get(qualite_validateur({"validateur": details.get("analyste")}) or "", "la validation métier")
+    verbe = {"accorde": "confirmé", "refuse": "refusé"}.get(details.get("verdict"), "tranché")
+    return {"acte": "memoire", "geste": details.get("geste"), "verdict": details.get("verdict"),
+            "role": "validateur", "qualite": qualite_validateur({"validateur": details.get("analyste")}),
+            "demande_id": details.get("demande_id"), "date": details.get("date"),
+            "validation_metier": f"{verbe} par {qui}", "message": MENTION_METIER["validation_decidee"]}
 
 
 def minimiser(objet: Any, noms: re.Pattern | None = None, _cle: str | None = None,
@@ -268,6 +292,11 @@ def minimiser(objet: Any, noms: re.Pattern | None = None, _cle: str | None = Non
     if isinstance(objet, dict):
         if isinstance(objet.get("type"), str) and objet["type"] in ACTES_METIER and isinstance(objet.get("details"), dict):
             objet = {**objet, "details": acte_metier_reduit(objet["details"])}
+        if objet.get("type") == "memoire" and isinstance(objet.get("details"), dict) \
+                and objet["details"].get("role") == "validateur":
+            objet = {**objet, "details": memoire_metier_reduite(objet["details"])}
+        if objet.get("acte") == "memoire" and objet.get("role") == "validateur" and "analyste" in objet:
+            return memoire_metier_reduite(objet)
         sortie: dict = {}
         for cle, valeur in objet.items():
             if cle in _CLES_RETIREES:
