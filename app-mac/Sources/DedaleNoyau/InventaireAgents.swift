@@ -25,11 +25,29 @@ public enum InventaireAgents {
         public let droitsRisques: [String]
         /// `local` (commande lancée sur le Mac) ou `distant` (URL).
         public let transport: String
+        /// Vrai quand cette entrée n'est pas un serveur MCP mais l'assistant lui-même, un agent
+        /// qui tourne dans un terminal (Claude Code, Codex, Gemini CLI, Cursor…). Un tel agent a
+        /// un accès shell et lit/écrit tout le disque par nature, indépendamment de ses serveurs.
+        /// Champ d'affichage seulement : il ne part pas à la SOC (le risque est déjà dans les
+        /// types et les droits), d'où son absence de `CodingKeys`. La valeur par défaut permet
+        /// à la synthèse de `Decodable` de l'ignorer.
+        public var agentTerminal = false
 
         enum CodingKeys: String, CodingKey {
             case client, nom, types, transport
             case clientId = "client_id"
             case droitsRisques = "droits_risques"
+        }
+
+        public init(client: String, clientId: String, nom: String, types: [String],
+                    droitsRisques: [String], transport: String, agentTerminal: Bool = false) {
+            self.client = client
+            self.clientId = clientId
+            self.nom = nom
+            self.types = types
+            self.droitsRisques = droitsRisques
+            self.transport = transport
+            self.agentTerminal = agentTerminal
         }
     }
 
@@ -56,6 +74,10 @@ public enum InventaireAgents {
         let id: String
         let nom: String
         let fichiers: [(String, Lecture)]
+        /// Vrai pour un assistant qui s'exécute en terminal / CLI : il lance des commandes et
+        /// lit-écrit tout le disque par lui-même, serveurs MCP ou pas. Les apps sandboxées
+        /// (Claude Desktop, VS Code, LM Studio) valent `false` : moins de surface par défaut.
+        var agentTerminal = false
     }
 
     static let clients: [Client] = [
@@ -64,30 +86,30 @@ public enum InventaireAgents {
         ]),
         Client(id: "claude_code", nom: "Claude Code", fichiers: [
             (".claude.json", .json([["mcpServers"], ["projects", "*", "mcpServers"]])),
-        ]),
+        ], agentTerminal: true),
         Client(id: "cursor", nom: "Cursor", fichiers: [
             (".cursor/mcp.json", .json([["mcpServers"]])),
-        ]),
+        ], agentTerminal: true),
         Client(id: "vscode", nom: "VS Code", fichiers: [
             ("Library/Application Support/Code/User/mcp.json", .json([["servers"]])),
             ("Library/Application Support/Code/User/settings.json", .json([["mcp", "servers"]])),
         ]),
         Client(id: "windsurf", nom: "Windsurf", fichiers: [
             (".codeium/windsurf/mcp_config.json", .json([["mcpServers"]])),
-        ]),
+        ], agentTerminal: true),
         Client(id: "cline", nom: "Cline", fichiers: [
             ("Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
              .json([["mcpServers"]])),
-        ]),
+        ], agentTerminal: true),
         Client(id: "zed", nom: "Zed", fichiers: [
             (".config/zed/settings.json", .json([["context_servers"]])),
         ]),
         Client(id: "gemini_cli", nom: "Gemini CLI", fichiers: [
             (".gemini/settings.json", .json([["mcpServers"]])),
-        ]),
+        ], agentTerminal: true),
         Client(id: "codex", nom: "Codex", fichiers: [
             (".codex/config.toml", .tomlCodex),
-        ]),
+        ], agentTerminal: true),
         Client(id: "lm_studio", nom: "LM Studio", fichiers: [
             (".lmstudio/mcp.json", .json([["mcpServers"]])),
         ]),
@@ -140,7 +162,18 @@ public enum InventaireAgents {
                     if !r.serveurs.contains(s) { r.serveurs.append(s) }
                 }
             }
-            if trouve { r.clients.append(client.nom) }
+            if trouve {
+                r.clients.append(client.nom)
+                // L'assistant lui-même compte : un agent en terminal a le shell et tout le disque,
+                // quels que soient ses serveurs MCP. Une entrée par assistant trouvé.
+                if client.agentTerminal {
+                    let agent = Serveur(client: client.nom, clientId: client.id, nom: client.nom,
+                                        types: ["shell", "fichiers"],
+                                        droitsRisques: ["shell", "disque_entier"],
+                                        transport: "local", agentTerminal: true)
+                    if !r.serveurs.contains(agent) { r.serveurs.append(agent) }
+                }
+            }
         }
         return r
     }
@@ -292,6 +325,12 @@ public enum InventaireAgents {
             types.append(type)
         }
         if texte.contains("desktop-commander"), !types.contains("fichiers") { types.append("fichiers") }
+        // Un serveur peut tenir un accès shell sans le mot « shell » : il contrôle le poste
+        // (clavier/souris/écran), exécute du code arbitraire, ou sa commande ouvre un shell.
+        if !types.contains("shell"), controlePoste(texte) || executeurDeCode(i, texte: texte, jetons: jetons)
+            || lanceShell(i) {
+            types.append("shell")
+        }
         if i.distant, !types.contains("reseau") { types.append("reseau") }
         if types.isEmpty { types = ["autre"] }
 
@@ -328,6 +367,51 @@ public enum InventaireAgents {
                 if parties.first == "users" || parties.first == "home", parties.count <= 2 { return true }
                 if parties.first == "volumes", parties.count <= 1 { return true }
             }
+        }
+        return false
+    }
+
+    /// Serveur qui pilote le poste : clavier, souris, écran. Qui contrôle l'écran peut tout
+    /// faire comme l'utilisateur, donc un accès shell de fait (`computer-use` de Codex, etc.).
+    static func controlePoste(_ texte: String) -> Bool {
+        for motif in ["computer-use", "computer_use", "computeruse", "computer use", "skycomputeruse",
+                      "desktop-control", "gui-control", "screen-control"] where texte.contains(motif) {
+            return true
+        }
+        return false
+    }
+
+    /// Serveur qui exécute du code arbitraire (`node_repl`, un REPL Python/JS, un
+    /// « code interpreter ») : lancer du code vaut lancer n'importe quelle commande.
+    static func executeurDeCode(_ i: Indices, texte: String, jetons: [String]) -> Bool {
+        if ["repl", "pyrepl", "jsrepl", "ipython", "jupyter", "eval"].contains(where: jetons.contains) {
+            return true
+        }
+        for motif in ["node_repl", "node-repl", "noderepl", "python-repl", "python_repl", "js-repl",
+                      "code-interpreter", "code_interpreter", "codeinterpreter", "-interpreter"]
+            where texte.contains(motif) {
+            return true
+        }
+        if let c = i.commande {
+            let base = (c as NSString).lastPathComponent.lowercased()
+            if base.contains("repl") || base.contains("interpreter") { return true }
+        }
+        return false
+    }
+
+    /// Commande qui ouvre un shell directement (`bash`, `sh -c`, `sudo`, `osascript`…). Ces
+    /// lanceurs sont écartés de l'identité d'un serveur (trop génériques) : on les regarde ici
+    /// à part, car les voir aux commandes veut dire « n'importe quelle commande sur le poste ».
+    static let shellsDirects: Set<String> = ["bash", "sh", "zsh", "fish", "dash", "ksh", "csh", "tcsh",
+                                             "powershell", "pwsh", "sudo", "doas", "osascript", "expect"]
+    static func lanceShell(_ i: Indices) -> Bool {
+        if let c = i.commande {
+            let base = (c as NSString).lastPathComponent.lowercased()
+            if shellsDirects.contains(base) { return true }
+        }
+        for a in i.arguments {
+            let t = a.lowercased()
+            if t == "-c" || t == "--command" || t == "sudo" || t == "eval" || t == "exec" { return true }
         }
         return false
     }

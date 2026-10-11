@@ -156,7 +156,62 @@ final class InventaireAgentsTests: XCTestCase {
         XCTAssertEqual(serveur("tableur")?.transport, "distant")
 
         XCTAssertNotNil(serveur("nom masqué"), "un nom de serveur qui ressemble à un jeton est masqué")
-        XCTAssertEqual(r.risques, 3)
+
+        // Les assistants qui tournent en terminal comptent par eux-mêmes : Cursor et Codex ont
+        // le shell et tout le disque, serveurs MCP ou pas. Claude Desktop et VS Code, non.
+        let cursor = try XCTUnwrap(r.serveurs.first { $0.nom == "Cursor" && $0.agentTerminal })
+        XCTAssertEqual(cursor.client, "Cursor")
+        XCTAssertEqual(Set(cursor.droitsRisques), ["shell", "disque_entier"])
+        let codexAgent = try XCTUnwrap(r.serveurs.first { $0.nom == "Codex" && $0.agentTerminal })
+        XCTAssertEqual(Set(codexAgent.droitsRisques), ["shell", "disque_entier"])
+        XCTAssertFalse(r.serveurs.contains { $0.agentTerminal && $0.client == "Claude Desktop" },
+                       "Claude Desktop est une app sandboxée, pas un agent en terminal")
+        XCTAssertFalse(r.serveurs.contains { $0.agentTerminal && $0.client == "VS Code" })
+
+        // 3 serveurs MCP risqués (fichiers-camille, terminal, boîte mail) + 2 agents en terminal.
+        XCTAssertEqual(r.risques, 5)
+    }
+
+    func testServeursRisquesParNomEtCommande() throws {
+        try ecrire(".codex/config.toml", """
+        model = "gpt-5"
+
+        [mcp_servers.computer-use]
+        command = "./Codex Computer Use.app/Contents/MacOS/SkyComputerUseClient"
+        args = ["mcp"]
+
+        [mcp_servers.node_repl]
+        command = "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl"
+        args = []
+
+        [mcp_servers.console]
+        command = "bash"
+        args = ["-c", "serveur-maison"]
+
+        [mcp_servers.replicate-images]
+        command = "npx"
+        args = ["-y", "replicate-mcp"]
+        """)
+        let r = InventaireAgents.analyser(racine: racine)
+        func serveur(_ nom: String) -> InventaireAgents.Serveur? { r.serveurs.first { $0.nom == nom } }
+
+        let cu = try XCTUnwrap(serveur("computer-use"))
+        XCTAssertTrue(cu.types.contains("shell"), "le contrôle clavier/souris/écran vaut un accès shell")
+        XCTAssertEqual(cu.droitsRisques, ["shell"])
+
+        let repl = try XCTUnwrap(serveur("node_repl"))
+        XCTAssertTrue(repl.types.contains("shell"), "exécuter du code arbitraire vaut le shell")
+        XCTAssertEqual(repl.droitsRisques, ["shell"])
+
+        let console = try XCTUnwrap(serveur("console"))
+        XCTAssertTrue(console.types.contains("shell"), "une commande `bash -c` ouvre un shell")
+        XCTAssertEqual(console.droitsRisques, ["shell"])
+
+        // Un serveur dont le nom contient « repl » comme fragment (replicate) n'est pas un REPL.
+        XCTAssertEqual(serveur("replicate-images")?.droitsRisques, [], "pas de faux positif sur « repl »")
+
+        // Codex est lui-même un agent en terminal.
+        XCTAssertTrue(r.serveurs.contains { $0.nom == "Codex" && $0.agentTerminal })
     }
 
     func testLeJetonNeSortNullePart() throws {
@@ -204,5 +259,8 @@ final class InventaireAgentsTests: XCTestCase {
         XCTAssertEqual(r.serveurs.first { $0.nom == "gmail" }?.droitsRisques, ["mail"])
         XCTAssertEqual(r.serveurs.first { $0.nom == "execution" }?.droitsRisques, ["shell"])
         XCTAssertEqual(r.serveurs.first { $0.nom == "pages" }?.types, ["reseau"])
+        // Claude Code est un agent en terminal ; Zed, une app, ne l'est pas.
+        XCTAssertTrue(r.serveurs.contains { $0.nom == "Claude Code" && $0.agentTerminal })
+        XCTAssertFalse(r.serveurs.contains { $0.agentTerminal && $0.client == "Zed" })
     }
 }

@@ -29,13 +29,22 @@ final class FenetreAgents: FenetrePanneau {
         let r = agents.resultat
         let resume: String
         if let r {
-            let n = r.serveurs.count
+            let total = r.serveurs.count
+            let agentsT = r.serveurs.filter(\.agentTerminal).count
+            let mcp = total - agentsT
             let c = r.clients.count
-            resume = n == 0
-                ? "Aucun serveur MCP trouvé dans les assistants connus."
-                : "\(n) serveur\(n > 1 ? "s" : "") MCP dans \(c) assistant\(c > 1 ? "s" : ""). "
-                  + (r.risques == 0 ? "Aucun n'a de droit risqué."
-                     : "\(r.risques) \(r.risques > 1 ? "ont" : "a") des droits risqués.")
+            if total == 0 {
+                resume = "Aucun assistant IA trouvé parmi les clients connus."
+            } else {
+                var tete = "\(mcp) serveur\(mcp > 1 ? "s" : "") MCP dans \(c) assistant\(c > 1 ? "s" : "")"
+                if agentsT > 0 {
+                    tete += ", dont \(agentsT) agent\(agentsT > 1 ? "s" : "") en terminal"
+                }
+                let fin = r.risques == 0
+                    ? "Aucun n'a de droit risqué."
+                    : "\(r.risques) sur \(total) \(r.risques > 1 ? "ont" : "a") des droits risqués."
+                resume = tete + ". " + fin
+            }
         } else {
             resume = "Analyse en cours…"
         }
@@ -106,8 +115,10 @@ final class FenetreAgents: FenetrePanneau {
 
     private func ligne(_ s: InventaireAgents.Serveur, largeur: CGFloat) -> NSView {
         let nom = Gabarit.etiquette(s.nom, taille: Taille.texte, graisse: .semibold, couleur: Teinte.encre)
-        let client = Gabarit.etiquette(s.client + (s.transport == "distant" ? " · serveur distant" : ""), taille: Taille.note,
-                                       couleur: Teinte.discret)
+        let sousTitre = s.agentTerminal
+            ? "agent en terminal · accès shell et disque complet"
+            : s.client + (s.transport == "distant" ? " · serveur distant" : "")
+        let client = Gabarit.etiquette(sousTitre, taille: Taille.note, couleur: Teinte.discret)
         let textes = NSStackView(views: [nom, client])
         textes.orientation = .vertical
         textes.alignment = .leading

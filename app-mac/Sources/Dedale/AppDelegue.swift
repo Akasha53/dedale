@@ -251,6 +251,17 @@ final class AppDelegue: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 "serveurs": agentsPoste.resultat?.serveurs.count ?? 0,
                 "risques": agentsPoste.resultat?.risques ?? 0,
                 "envoye": agentsPoste.envoiOk ?? false,
+                "detail": (agentsPoste.resultat?.serveurs ?? []).map {
+                    [
+                        "nom": $0.nom,
+                        "client": $0.client,
+                        "types": $0.types,
+                        "droits_risques": $0.droitsRisques,
+                        "transport": $0.transport,
+                        "agent_terminal": $0.agentTerminal,
+                        "a_risque": !$0.droitsRisques.isEmpty,
+                    ] as [String: Any]
+                },
             ] as [String: Any],
         ]
     }
