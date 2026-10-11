@@ -7,10 +7,12 @@
 #   ./demarrer.sh --arreter   arrête la boîte et le service lancés par ce script
 #
 # Ports surchargeables : MESSAGERIE_PORT_WEB, MESSAGERIE_PORT_SMTP, MESSAGERIE_PORT.
+# MESSAGERIE_ETAT range la base Mailpit, les journaux et les PID ailleurs que dans .boite/ :
+# sans lui, une seconde boîte sur d'autres ports partagerait la base de la boîte de démo.
 set -euo pipefail
 
 ICI="$(cd "$(dirname "$0")" && pwd)"
-ETAT="$ICI/.boite"
+ETAT="${MESSAGERIE_ETAT:-$ICI/.boite}"
 PORT_WEB="${MESSAGERIE_PORT_WEB:-8716}"
 PORT_SMTP="${MESSAGERIE_PORT_SMTP:-8717}"
 PORT_SERVICE="${MESSAGERIE_PORT:-8715}"

@@ -49,7 +49,7 @@ Les numéros d'incident changent avec l'ordre des scènes : le lien imprimé par
 
 - Désarmeur : `cd interne && uv run python -m orbis.demo --scenario jury --desarmeur --backend http://127.0.0.1:8700`. `./demo.sh jury` ne l'active pas.
 - Preuve « vrai modèle, vrais accès » : `cd interne && uv run --extra reel python -m orbis.demo --scenario reel --essais 3`. Un vrai Haiku pilote l'agent sur de vrais services locaux (Mailpit, API bancaire, fichiers) ; sans sAIfe le mail d'exfiltration part vraiment, avec sAIfe il est retenu et coupé. Tout est isolé, le 8700 n'est pas touché. Détail et commandes : `docs/REEL_OU_SIMULE.md`.
-- Geste critique après un mail frauduleux : `envoyer_demo.py --cas fraude_president`, puis « Continuer ». Le relecteur refuse, l'incident arrive à la SOC (montant en tranche, bénéficiaire masqué), boutons « Accorder » et « Refuser » dans la console.
+- Geste critique après un mail frauduleux : `envoyer_demo.py --cas fraude_president`, puis « Continuer ». Le relecteur refuse en 7 s environ (il attend Haiku avant que les règles tranchent), l'incident arrive à la SOC : la liste ne montre ni montant ni bénéficiaire, le dossier s'ouvre en clair parce qu'il porte un signal de fraude, et cette consultation est notée au journal scellé. Boutons « Accorder » et « Refuser » dans la console.
 - Incident salarié en direct : `envoyer_demo.py --cas lien_menteur`, puis « Continuer ».
 
 ## Si ça casse
