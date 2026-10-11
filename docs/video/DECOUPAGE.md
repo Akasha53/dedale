@@ -33,7 +33,7 @@ Le scénario suit le guide (`docs/GUIDE_VIDEO.md`), avec un changement : la frau
 | 21 | 1:30,0 à 1:34,5 | « Tentative bloquée : ouvrir le coffre, droit retiré par la règle n°3 », puis le fil « Refusée » | zoom fixe 1,2 | « L'agent retente d'ouvrir le coffre : refusé. » | `orbis.demo --scenario jury` rejoué après le retrait |
 | 22 | 1:34,5 à 1:37,5 | page d'avertissement de l'extension Chrome, site sosie d'Orbis Pay | poussée 1 → 1,08 | « Il prévient aussi sur les sites sosies. » | `extension/avertissement.html`, rendu avec une réponse simulée du service worker |
 | 23 | 1:37,5 à 1:40,5 | pop-up de l'app Mac, « Facture-octobre.pdf.app » mis de côté | poussée 1 → 1,08 | « Et met de côté les fichiers piégés. » | `captures/saife/app-telechargement.png` |
-| 24 | 1:40,5 à 1:45,0 | incident d'outil MCP inconnu, pastille « Journal intact » | zoom 1 → 1,6 en 3 s | « Chaque décision est scellée. » | console réelle, `orbis.demo --scenario outil-inconnu` |
+| 24 | 1:40,5 à 1:45,0 | incident d'outil MCP inconnu, pastille « Journal intact » | zoom 1 → 1,25 en 3 s | « Chaque décision est scellée. » | console réelle, `orbis.demo --scenario outil-inconnu` |
 | 25 | 1:45,0 à 1:49,5 | rapport d'une page, encadré « Journal intact » et sceau SHA-256 | zoom 1 → 1,3 | « Une page pour le RSSI. » | `GET /api/incidents/INC-0003/rapport` |
 | 26 | 1:49,5 à 1:55,5 | menu « Exporter », puis extraits ECS 8.11 et Sigma | zoom 1,2 → 1,35, puis poussée | « Exports ECS, Sigma et CEF pour le SIEM. » | console réelle ; page de mise en forme des exports réels d'INC-0003 |
 | 27 | 1:55,5 à 2:00,0 | « Salariés en direct » : « Salarié 7751 · Finance » | zoom 1 → 1,3 | « La sécurité voit un pseudonyme, pas un nom. » | console réelle |

@@ -41,6 +41,7 @@ masque() { # masque LARGEUR HAUTEUR RAYON SORTIE.png
 #                 O0 et O1 (0 à 1) font défiler la fenêtre de haut en bas pendant ZD secondes.
 #   FIT=contain   pose l'image entière au centre d'un fond PAD (RRGGBB) ; pour une pop-up ou une carte large.
 #   Z0 Z1         zoom de départ et d'arrivée ; CX CY : point visé dans la fenêtre de 1600x900 ;
+#   CX0 CY0       point visé au départ (800, 450 par défaut) ; CX0=CX et CY0=CY gardent un cadrage fixe.
 #   ZD            durée du mouvement (défaut : toute la durée). Courbe 3p²-2p³, proche du standard (0,4 0 0,6 1).
 #   VIT           accélération d'un enregistrement (8 = huit fois plus vite).
 #   LEG_IN LEG_D LEG_OUT  début et durée du fondu d'entrée de la légende, durée du fondu de sortie
@@ -48,6 +49,7 @@ masque() { # masque LARGEUR HAUTEUR RAYON SORTIE.png
 plan_ui() {
   local in="$1" out="$2" d="$3" leg="${4:--}"
   local z0="${Z0:-1}" z1="${Z1:-1}" cx="${CX:-800}" cy="${CY:-450}" zd="${ZD:-$3}" vit="${VIT:-1}"
+  local cx0="${CX0:-800}" cy0="${CY0:-450}"
   local o0="${O0:-0}" o1="${O1:-0}" fit="${FIT:-crop}" pad="${PAD:-ffffff}" zn E Eo pre cadre
   local li="${LEG_IN:-0.4}" ld="${LEG_D:-0.5}" lo="${LEG_OUT:-0.4}"
   local -a src
@@ -70,7 +72,7 @@ plan_ui() {
   FF "${src[@]}" -loop 1 -framerate 30 -i "${T}/masque-ui.png" \
      -f lavfi -i "color=c=black:s=1600x900:r=30" -f lavfi -i "color=c=0x${FOND}:s=1920x1080:r=30" \
      -loop 1 -framerate 30 -t "${d}" -i "${leg}" \
-     -filter_complex "[0:v]${pre}${cadre},scale=3200:1800:flags=lanczos,zoompan=z='${z0}+(${z1}-${z0})*${E}':x='max(0,min(iw-iw/zoom,(800+(${cx}-800)*${E})*2-iw/zoom/2))':y='max(0,min(ih-ih/zoom,(450+(${cy}-450)*${E})*2-ih/zoom/2))':d=1:s=1600x900:fps=30,format=rgba[ui];\
+     -filter_complex "[0:v]${pre}${cadre},scale=3200:1800:flags=lanczos,zoompan=z='${z0}+(${z1}-${z0})*${E}':x='max(0,min(iw-iw/zoom,(${cx0}+(${cx}-${cx0})*${E})*2-iw/zoom/2))':y='max(0,min(ih-ih/zoom,(${cy0}+(${cy}-${cy0})*${E})*2-ih/zoom/2))':d=1:s=1600x900:fps=30,format=rgba[ui];\
 [1:v]format=gray,split[m1][m2];[ui][m1]alphamerge[rond];\
 [2:v]format=rgba[noir];[noir][m2]alphamerge,pad=1800:1100:100:100:color=black@0,gblur=sigma=30,colorchannelmixer=aa=0.18[ombre];\
 [3:v][ombre]overlay=60:-40[a];[a][rond]overlay=160:40[b];\

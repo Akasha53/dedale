@@ -129,7 +129,9 @@ plans_histoire() {
   # rembobinage : l'acte 1 lu à l'envers jusqu'au blanc de l'ouverture
   printf "file '01.mp4'\nfile '02.mp4'\nfile '03.mp4'\nfile '04.mp4'\nfile '05.mp4'\n" > "${P}/acte1.txt"
   assembler "${P}/acte1.txt" "${S}/acte1.mp4"
-  rembobine "${S}/acte1.mp4" "${P}/07.mp4" 4.5 "${C}/hud.png"
+  rembobine "${S}/acte1.mp4" "${S}/07.mp4" 4.5 "${C}/hud.png"
+  # le rembobinage sort parfois une image de moins : on garde la dernière pour tomber à 4,5 s pile
+  FF -i "${S}/07.mp4" -vf "tpad=stop_mode=clone:stop_duration=0.2,format=yuv420p" -t 4.5 "${ENC[@]}" "${P}/07.mp4"
   # ---- acte 2 : avec sAIfe ----------------------------------------------------------------
   plan_carton "${C}/c08.png" "${P}/08.mp4" 4.5
   # shellcheck disable=SC2046
@@ -142,12 +144,15 @@ plans_histoire() {
   Z0=1 Z1=1.35 CX=1010 CY=520 plan_ui "${VA}/v0-fiche.png" "${P}/12.mp4" 4.5 "${C}/l12.png"
   # shellcheck disable=SC2046
   suite "${S}/13.mp4" "${VA}/v1-decision.png:0.5" $(frappe "${VA}/f0*.png" 0.0667) "${VA}/v2-pret.png:0.4" "${VA}/v3-refuse.png:1.13"
-  Z0=1.55 Z1=1.55 CX=1000 CY=610 plan_ui "${S}/13.mp4" "${P}/13.mp4" 4.5 "${C}/l13.png"
+  Z0=1.55 Z1=1.55 CX=1000 CY=610 CX0=1000 CY0=610 plan_ui "${S}/13.mp4" "${P}/13.mp4" 4.5 "${C}/l13.png"
   plan_carton "${C}/c14.png" "${P}/14.mp4" 4.5
 }
 
 plans_logo() {
-  FF -loop 1 -framerate 30 -t 9 -i "${C}/c-logo.png" -vf "fade=t=in:st=0:d=0.8:color=white,fade=t=out:st=6:d=3:color=white,format=yuv420p" "${ENC[@]}" "${P}/99.mp4"
+  # le carton du logo est transparent : on le pose sur du blanc avant les fondus au blanc
+  FF -f lavfi -i "color=c=white:s=1920x1080:r=30:d=9" -loop 1 -framerate 30 -t 9 -i "${C}/c-logo.png" \
+     -filter_complex "[0:v][1:v]overlay=format=auto,fade=t=in:st=0:d=0.8:color=white,fade=t=out:st=6:d=3:color=white,format=yuv420p" \
+     -t 9 "${ENC[@]}" "${P}/99.mp4"
 }
 
 # Console du SOC et poste du salarié : les fichiers viennent de REC/console (voir MANIFESTE.txt)
@@ -155,29 +160,29 @@ plans_logo() {
 plans_console() {
   local A="${ICI}/../../captures/saife"
   # agent IA piégé : incident, consigne cachée, pré-tri et coupure
-  Z0=1 Z1=1.25 CX=750 CY=500 plan_ui "${CO}/a01-incident-ce-qui-sest-passe.png" "${P}/15.mp4" 4.5 "${C}/l15.png"
+  Z0=1 Z1=1.25 CX=960 CY=480 plan_ui "${CO}/a01-incident-ce-qui-sest-passe.png" "${P}/15.mp4" 4.5 "${C}/l15.png"
   Z0=1 Z1=1.3 CX=800 CY=470 plan_ui "${CO}/a03-mail-en-entier.png" "${P}/16.mp4" 4.5 "${C}/l16.png"
   suite "${S}/17.mp4" "${CO}/a02-boite-noire-pretri.png:1.5" "${CO}/a05-motif-saisi.png:1.5" "${CO}/a07-agent-coupe.png:1.5"
-  Z0=1.35 Z1=1.35 CX=1300 CY=560 plan_ui "${S}/17.mp4" "${P}/17.mp4" 4.5 "${C}/l17.png"
+  Z0=1.35 Z1=1.35 CX=1300 CY=560 CX0=1300 CY0=560 plan_ui "${S}/17.mp4" "${P}/17.mp4" 4.5 "${C}/l17.png"
   # règle écrite en français, puis l'agent des règles qui naît et se ferme
   # shellcheck disable=SC2046
   suite "${S}/18.mp4" "${CO}/b01-vide.png:0.3" $(frappe "${CO}/b0[2-7]-frappe.png" 0.45)
-  Z0=1.4 Z1=1.4 CX=920 CY=650 plan_ui "${S}/18.mp4" "${P}/18.mp4" 3.0 "${C}/l18.png"
+  Z0=1.4 Z1=1.4 CX=960 CY=650 CX0=960 CY0=650 plan_ui "${S}/18.mp4" "${P}/18.mp4" 3.0 "${C}/l18.png"
   suite "${S}/19.mp4" "${CO}/b08-agent.png:0.5" "${CO}/b12-agent.png:0.5" "${CO}/b16-agent.png:0.5" \
         "${CO}/b19-proposition.png:1.7" "${CO}/b20-appliquee.png:1.3"
-  Z0=1.4 Z1=1.4 CX=920 CY=650 plan_ui "${S}/19.mp4" "${P}/19.mp4" 4.5 "${C}/l19.png"
+  Z0=1.4 Z1=1.4 CX=960 CY=650 CX0=960 CY0=650 plan_ui "${S}/19.mp4" "${P}/19.mp4" 4.5 "${C}/l19.png"
   # droits en trop retirés, puis la tentative bloquée
   # shellcheck disable=SC2046
   suite "${S}/20.mp4" $(frappe "${CO}/c0[2-7]-frappe.png" 0.25) "${CO}/c12-agent.png:0.6" \
         "${CO}/c18-proposition.png:1.4" "${CO}/c20-appliquee.png:1.0"
-  Z0=1.15 Z1=1.15 CX=920 CY=500 plan_ui "${S}/20.mp4" "${P}/20.mp4" 4.5 "${C}/l20.png"
+  Z0=1.15 Z1=1.15 CX=920 CY=500 CX0=920 CY0=500 plan_ui "${S}/20.mp4" "${P}/20.mp4" 4.5 "${C}/l20.png"
   suite "${S}/21.mp4" "${CO}/c22-tentative-bloquee-chaine.png:2.25" "${CO}/c25-fil-refuse-droit-retire-bas.png:2.25"
-  Z0=1.2 Z1=1.2 CX=800 CY=650 plan_ui "${S}/21.mp4" "${P}/21.mp4" 4.5 "${C}/l21.png"
+  Z0=1.2 Z1=1.2 CX=800 CY=650 CX0=800 CY0=650 plan_ui "${S}/21.mp4" "${P}/21.mp4" 4.5 "${C}/l21.png"
   # sites sosies (extension Chrome) et fichiers piégés (app Mac)
   Z0=1 Z1=1.08 plan_ui "${SC}/s0-site-sosie.png" "${P}/22.mp4" 3.0 "${C}/l22.png"
   FIT=contain PAD=f9f9f9 Z0=1 Z1=1.08 plan_ui "${A}/app-telechargement.png" "${P}/23.mp4" 3.0 "${C}/l23.png"
   # journal scellé, rapport d'une page
-  Z0=1 Z1=1.6 CX=1312 CY=430 ZD=3 plan_ui "${CO}/d01-journal-intact.png" "${P}/24.mp4" 4.5 "${C}/l24.png"
+  Z0=1 Z1=1.25 CX=1000 CY=420 ZD=3 plan_ui "${CO}/d01-journal-intact.png" "${P}/24.mp4" 4.5 "${C}/l24.png"
   Z0=1 Z1=1.3 CX=1032 CY=500 plan_ui "${CO}/d02-rapport-haut.png" "${P}/25.mp4" 4.5 "${C}/l25.png"
   # export SIEM : le menu de la console, puis les extraits ECS et Sigma
   LEG_OUT=0.01 Z0=1.2 Z1=1.35 CX=1300 CY=600 plan_ui "${CO}/e01-menu-exporter.png" "${P}/26.mp4" 3.0 "${C}/l26.png"
