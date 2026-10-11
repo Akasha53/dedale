@@ -562,7 +562,8 @@ def test_geste_retenu_sans_fraude_previent_le_validateur(client, regles, siem, m
 def test_geste_accorde_ne_previent_personne(client, regles, tmp_path):
     r = client.post("/api/relecteur/verifier", headers=jeton("poste"), json={
         "demande_id": "a1", "session_id": "poste-camille", "geste": "virement", "categorie": "mail_externe",
-        "message": "Virement de 3 480 € à Atelier Nord pour la maintenance des terminaux."})
+        "message": "Virement de 3 480 € à Atelier Nord pour la maintenance des terminaux, "
+                   "IBAN FR76 3000 4000 0500 0012 3456 6789."})
     assert r.json()["issue"] in ("accorde", "passe")
     notifications.attendre()
     assert list(notifications.historique) == [] and _sms(tmp_path) == []

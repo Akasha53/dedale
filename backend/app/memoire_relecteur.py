@@ -84,9 +84,40 @@ def _ordre_de_grandeur(geste: str | None, montant: float | None, volume: int | N
     return None
 
 
+def empreinte(prefixe: str, valeur: str) -> str:
+    return _empreinte(prefixe, valeur)
+
+
 def _rib(faits: dict) -> str | None:
-    fin = ((faits.get("beneficiaire") or {}).get("rib_demande") or "").replace("•", "").strip()
+    """Empreinte de l'IBAN du geste (`beneficiaire.rib_cle`, posée par le relecteur)."""
+    b = faits.get("beneficiaire") or {}
+    if isinstance(b.get("rib_cle"), str):
+        return b["rib_cle"]
+    fin = (b.get("rib_demande") or "").replace("•", "").strip()
     return _empreinte("rib", fin) if re.fullmatch(r"\d{4}", fin) else None
+
+
+def couples(faits: dict) -> dict:
+    """Couples bénéficiaire et IBAN confirmés par un humain : `{"confirmes": {empreinte IBAN:
+    montant le plus haut accordé}, "pays": {pays d'IBAN accordés}}`. La dernière décision humaine
+    sur un couple l'emporte : un refus après un accord le retire. Sous verrou."""
+    cle, _ = cle_geste(faits)
+    confirmes: dict[str, float] = {}
+    pays: set[str] = set()
+    if cle is None or faits.get("geste") != "virement":
+        return {"confirmes": confirmes, "pays": pays}
+    vus: set[str] = set()
+    for e in entrees():  # de la plus récente à la plus ancienne
+        rib = e.get("rib")
+        if e.get("geste") != "virement" or e.get("cle") != cle or not isinstance(rib, str) or rib in vus:
+            continue
+        vus.add(rib)
+        if e.get("verdict") == "accorde":
+            og = e.get("ordre_de_grandeur")
+            confirmes[rib] = float(og) if isinstance(og, (int, float)) else 0.0
+            if isinstance(e.get("iban_pays"), str):
+                pays.add(e["iban_pays"])
+    return {"confirmes": confirmes, "pays": pays}
 
 
 # ---------------------------------------------------------------- Signature des entrées
@@ -171,7 +202,7 @@ def _entree(faits: dict, verdict: str, humain: str, role: str, date: str | None,
         "beneficiaire": b.get("nom") if b.get("connu") else None,
         "tranche": tranche(geste, faits.get("montant_eur"), faits.get("volume")),
         "ordre_de_grandeur": _ordre_de_grandeur(geste, faits.get("montant_eur"), faits.get("volume")),
-        "rib": _rib(faits),
+        "rib": _rib(faits), "iban_pays": b.get("pays_iban"),
         "frequence": sum(1 for x in entrees() if x.get("cle") == cle) + 1,
         "verdict": verdict, "role": role,
         "motif_analyste": relecteur.motif_propre(motif) if motif else None,
@@ -255,7 +286,10 @@ def precedents(faits: dict) -> list[dict]:
             "relecteur_avait_dit": e.get("relecteur"), "jours": _jours(e.get("date"), maintenant),
             "date": e.get("date"), "analyste": e.get("analyste"), "rapprochement": rapprochement,
             "tranche": e.get("tranche"), "ordre_de_grandeur": og, "montant_proche": proche,
-            "meme_rib": (e.get("rib") is None or e.get("rib") == _rib(faits)), "motif_analyste": e.get("motif_analyste"),
+            # Même compte : le précédent et le geste portent le même IBAN. Un accord donné sans IBAN
+            # ne vaut pour aucun compte.
+            "meme_rib": e.get("rib") is not None and e.get("rib") == _rib(faits),
+            "motif_analyste": e.get("motif_analyste"),
         })
     # Proches d'abord, puis les plus récents (la liste est déjà du plus récent au plus ancien).
     retenus.sort(key=lambda p: not p["montant_proche"])

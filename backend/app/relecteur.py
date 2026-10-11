@@ -730,22 +730,72 @@ def _nom_dans_texte(details: dict, texte: str) -> str | None:
     return _plat(nom)[:60] if len(nom) >= 3 else None
 
 
+def _iban_complet(details: dict, texte: str) -> str | None:
+    """L'IBAN entier, sans espace, s'il est écrit en entier ; sinon None."""
+    v = details.get("iban")
+    brut = v if isinstance(v, str) else None
+    if brut is None:
+        m = _RE_IBAN.search(texte.upper())
+        brut = m.group(0) if m else None
+    brut = re.sub(r"\s", "", brut or "").upper()
+    return brut if re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", brut) else None
+
+
+def cle_iban(complet: str | None, fin: str | None) -> str | None:
+    """Empreinte de l'IBAN demandé, jamais l'IBAN : l'IBAN entier s'il est écrit, sinon ses quatre
+    derniers chiffres. C'est la moitié « compte » du couple bénéficiaire et IBAN de la mémoire."""
+    if complet:
+        return memoire.empreinte("iban", complet)
+    return memoire.empreinte("iban", "fin:" + fin) if fin else None
+
+
 def faits_beneficiaire(details: dict, texte: str, domaine: str | None, montant: float | None) -> dict:
-    """Bénéficiaire d'un virement : connu ou non, RIB habituel ou nouveau, montant dans ses usages."""
+    """Bénéficiaire d'un virement : connu ou non, RIB habituel, nouveau ou absent, montant dans ses usages.
+
+    Un bénéficiaire connu, c'est un couple bénéficiaire et IBAN : le nom seul ne suffit pas. Sans
+    IBAN dans la demande, le RIB est `non_precise` et le geste ne passe pas comme « connu »."""
     b = reconnaitre_beneficiaire(details, texte, domaine)
     fin = _iban_fin(details, texte)
+    complet = _iban_complet(details, texte)
+    pays = complet[:2] if complet else _pays_iban(details, texte)
     annonce_nouveau = bool(_RE_RIB_NOUVEAU.search(texte))
+    commun = {"rib_demande": f"•••• {fin}" if fin else None, "pays_iban": pays,
+              # Empreinte du couple, jamais montrée au modèle ni à la SOC.
+              "rib_cle": cle_iban(complet, fin)}
     if b is None:
         return {"connu": False, "nom": _masquer_nom(details.get("beneficiaire")),
-                "rib": "nouveau" if annonce_nouveau else ("indique" if fin else "non_precise"),
-                "rib_demande": f"•••• {fin}" if fin else None,
+                "rib": "nouveau" if annonce_nouveau else ("indique" if fin else "non_precise"), **commun,
                 # Clé de rapprochement de la mémoire, hachée avant d'y entrer, jamais montrée au modèle.
                 "cle_nom": _nom_dans_texte(details, texte)}
-    rib = ("habituel" if fin == b["iban_fin"] else "nouveau") if fin else ("nouveau" if annonce_nouveau else "non_precise")
+    pays_connu = b.get("iban_pays") if isinstance(b.get("iban_pays"), str) else None
+    meme_pays = pays is None or pays_connu is None or pays == pays_connu
+    rib = (("habituel" if fin == b["iban_fin"] and meme_pays else "nouveau") if fin
+           else ("nouveau" if annonce_nouveau else "non_precise"))
     return {"connu": True, "nom": b["nom"], "nature": b.get("nature") or "fournisseur", "objet": b.get("objet"),
             "montant_habituel_eur": b.get("montant_habituel"), "montant_max_eur": b["montant_max"],
-            "rib": rib, "rib_enregistre": f"•••• {b['iban_fin']}", "rib_demande": f"•••• {fin}" if fin else None,
+            "rib": rib, "rib_enregistre": f"•••• {b['iban_fin']}", **commun,
+            "pays_habituels": [pays_connu] if pays_connu else [],
             "montant_dans_les_usages": montant is not None and montant <= b["montant_max"]}
+
+
+def confirmer_par_la_memoire(faits: dict) -> None:
+    """Le couple bénéficiaire et IBAN déjà confirmé par un humain (associé, finance, analyste) vaut
+    un RIB habituel ; un autre IBAN pour ce bénéficiaire, ou un pays d'IBAN qu'on ne lui connaît
+    pas, est un signal. Modifie `faits["beneficiaire"]`. Sous verrou."""
+    b = faits.get("beneficiaire")
+    if not isinstance(b, dict):
+        return
+    couples = memoire.couples(faits)
+    if not couples["confirmes"] and not couples["pays"]:
+        return
+    if b.get("rib_cle") and b["rib_cle"] in couples["confirmes"]:
+        b["rib"] = "habituel"
+        b["rib_confirme_par"] = "memoire"
+        b["montant_confirme_max_eur"] = couples["confirmes"][b["rib_cle"]]
+    elif b.get("rib_cle") and couples["confirmes"]:
+        b["rib"] = "nouveau"  # un IBAN différent de ceux déjà confirmés pour ce bénéficiaire
+    b["couples_confirmes"] = len(couples["confirmes"])
+    b["pays_habituels"] = sorted(set(b.get("pays_habituels") or []) | couples["pays"])
 
 
 # ---------------------------------------------------------------- Fraude au président
@@ -908,12 +958,25 @@ def faits_depuis(d: dict, sid: str, horodatage: datetime | None, exclure: int | 
         faits["horaire_inhabituel"] = horaire_inhabituel(horodatage)
     if extrait:
         faits["donnees_non_fiables"] = {"texte_popup": extrait}
+    if geste == "virement":
+        confirmer_par_la_memoire(faits)
+        b = faits["beneficiaire"]
+        pays = b.get("pays_iban")
+        b["pays_inhabituel"] = bool(pays and b.get("pays_habituels") and pays not in b["pays_habituels"])
+        if b["pays_inhabituel"]:
+            b["rib"] = "nouveau"
     faits["precedents"] = memoire.precedents(faits)
     faits["fraude_president"] = fraude_president(faits)
     return faits
 
 
 # ---------------------------------------------------------------- Signaux de risque
+def _plafond_confirme(b: dict) -> float:
+    """Montant au-delà duquel un couple confirmé redevient inhabituel : le plus haut déjà accordé,
+    à 30 % près (même tolérance que la mémoire)."""
+    return max(float(b.get("montant_confirme_max_eur") or 0), 1.0) * (1 + memoire.ECART_MONTANT)
+
+
 def raison_fraude_president(fp: dict) -> str:
     """« Signes d'une fraude au président : bénéficiaire nouveau, urgence, dirigeant cité. »"""
     return "Signes d'une fraude au président : " + ", ".join(fp.get("marqueurs") or []) + "."
@@ -953,19 +1016,31 @@ def signaux_geste(f: dict) -> list[dict]:
     if geste == "virement":
         b = f.get("beneficiaire") or {}
         nom = b.get("nom") if b.get("connu") else None
+        confirme = b.get("rib_confirme_par") == "memoire"
         if (f.get("destination") or {}).get("personnelle"):
             ajouter("compte_personnel", "Ce virement part vers un compte qui semble personnel.", True)
+        if b.get("rib") == "non_precise":
+            ajouter("iban_absent", f"IBAN absent : sAIfe ne peut pas vérifier que le compte est bien celui de {nom}."
+                    if nom else "IBAN absent : sAIfe ne peut pas vérifier le compte de ce bénéficiaire.", False)
+        if b.get("pays_inhabituel"):
+            ajouter("iban_pays", f"IBAN {b.get('pays_iban')} : un pays où {nom or 'ce bénéficiaire'} n'a jamais "
+                                 f"été payé.", False)
         if b.get("rib") == "nouveau":
             ajouter("rib_change", f"Ce RIB n'a jamais servi pour {nom}." if nom
+                    else "Cet IBAN n'a jamais été confirmé pour ce bénéficiaire." if b.get("couples_confirmes")
                     else "Ce virement part vers un RIB qui n'a jamais servi.", False)
         if lecture != "certain" or montant is None:
             ajouter("montant_illisible", "sAIfe n'a pas pu lire le montant de ce virement avec certitude.", False)
         elif nom and montant > b["montant_max_eur"] and not (avis and avis["conseil"] == "accorder"):
             ajouter("montant_inhabituel", f"Ce virement à {nom} est bien plus élevé que d'habitude.", False)
+        elif not nom and confirme:
+            if montant > _plafond_confirme(b):
+                ajouter("montant_inhabituel", "Ce virement est bien plus élevé que ceux déjà confirmés pour ce "
+                                              "bénéficiaire.", False)
         elif not nom and montant > PLAFOND_VIREMENT:
             ajouter("montant_eleve", f"{nombre(montant)} € vers un bénéficiaire hors de la liste, c'est au-dessus "
                                      f"du plafond sans second contrôle.", False)
-        if not nom and not (avis and avis["conseil"] == "accorder"):
+        if not nom and not confirme and not b.get("couples_confirmes") and not (avis and avis["conseil"] == "accorder"):
             ajouter("beneficiaire_inconnu", "Ce bénéficiaire n'a encore jamais été payé par l'entreprise.", False)
     elif geste == "export_clients":
         dest, volume = f.get("destination") or {}, f.get("volume")
@@ -990,7 +1065,7 @@ def faits_pour_le_modele(faits: dict) -> dict:
     """Les faits tels que le modèle les lit : sans clé interne, précédents sans nom ni date."""
     sortie = {k: v for k, v in faits.items() if k not in ("acte", "precedents")}
     if isinstance(sortie.get("beneficiaire"), dict):
-        sortie["beneficiaire"] = {k: v for k, v in sortie["beneficiaire"].items() if k != "cle_nom"}
+        sortie["beneficiaire"] = {k: v for k, v in sortie["beneficiaire"].items() if k not in ("cle_nom", "rib_cle")}
     if faits.get("precedents"):
         sortie["precedents_confirmes_par_un_analyste"] = memoire.pour_le_modele(faits["precedents"])
     return sortie
@@ -1123,6 +1198,11 @@ def regles_geste(f: dict) -> dict:
         b = f.get("beneficiaire") or {}
         if b.get("connu"):
             nom, nature = b["nom"], b.get("nature") or "fournisseur"
+            if b.get("rib") == "non_precise":
+                return retenu(f"Virement à {nom} sans IBAN : le couple {nature} et IBAN ne peut pas être vérifié, "
+                              f"à confirmer.",
+                              f"IBAN absent : sAIfe ne peut pas vérifier que le compte est bien celui de {nom}. "
+                              f"Le virement doit être confirmé.", 0.9)
             if b.get("rib") == "nouveau":
                 return retenu(f"RIB différent de celui enregistré pour {nom} ({b.get('rib_enregistre')} → "
                               f"{b.get('rib_demande') or 'nouveau, non précisé'}) : à confirmer avec le {nature} "
@@ -1149,7 +1229,8 @@ def regles_geste(f: dict) -> dict:
                           f"({nombre(b['montant_max_eur'])} € au plus) : à confirmer.",
                           f"Ce virement à {nom} est plus élevé que d'habitude : l'équipe sécurité doit le "
                           f"confirmer.", 0.8)
-        if montant is not None and montant > PLAFOND_VIREMENT:
+        confirme = b.get("rib_confirme_par") == "memoire"
+        if montant is not None and montant > PLAFOND_VIREMENT and not (confirme and montant <= _plafond_confirme(b)):
             # Même lu de façon incertaine (plusieurs montants), le plus élevé dépasse le plafond.
             return refus(f"Virement de {nombre(montant)} € à un bénéficiaire inconnu, au-dessus du plafond de "
                          f"10\u202f000 € : refus d'office.",
@@ -1160,8 +1241,20 @@ def regles_geste(f: dict) -> dict:
                          "Ce virement part vers un compte qui semble personnel.")
         if avis and avis["conseil"] == "retenir":
             return retenu_par_memoire()
+        if b.get("rib") == "non_precise":
+            return retenu("Bénéficiaire hors liste, IBAN absent : le couple bénéficiaire et IBAN ne peut pas être "
+                          "vérifié, à confirmer avant paiement.",
+                          "IBAN absent : sAIfe ne peut pas vérifier le compte de ce bénéficiaire. Le virement doit "
+                          "être confirmé.", 0.8)
+        if (confirme and montant is not None and f.get("lecture_du_montant") == "certain"
+                and montant <= _plafond_confirme(b) and not b.get("pays_inhabituel")):
+            return appuye({"decision": "accorde", "confiance": 0.85, "ferme": False, "force": False, "fort": True,
+                           "motif_soc": f"Couple bénéficiaire et IBAN déjà confirmé par un humain, montant proche "
+                                        f"({nombre(montant)} €) : accord.",
+                           "motif_salarie": f"Virement de {nombre(montant)} € vers un compte déjà confirmé pour ce "
+                                            f"bénéficiaire."})
         if (avis and avis["conseil"] == "accorder" and montant is not None
-                and f.get("lecture_du_montant") == "certain" and b.get("rib") != "nouveau"):
+                and f.get("lecture_du_montant") == "certain" and b.get("rib") == "habituel"):
             n = len(avis["appui"])
             return appuye({"decision": "accorde", "confiance": 0.8, "ferme": False, "force": False, "fort": True,
                            "motif_soc": f"Bénéficiaire hors liste, déjà accordé {n} fois par un analyste sans "
