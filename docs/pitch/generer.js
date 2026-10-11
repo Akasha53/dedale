@@ -2,6 +2,7 @@
 // Thème clair, celui de la console et de la landing. Les captures viennent du prototype.
 // Les chiffres de la slide 5 viennent de docs/mesures/resultats.md (python3 docs/mesures/mesurer.py).
 const path = require('path');
+const fs = require('fs');
 const pptxgen = require('pptxgenjs');
 
 const racine = path.resolve(__dirname, '../..');
@@ -71,9 +72,9 @@ function titre(slide, numero, rubrique, libelle, sousTitre) {
   // Une rubrique en runs (logotype) n'est pas passée en capitales.
   const enRuns = Array.isArray(rubrique);
   texte(slide, enRuns ? rubrique : rubrique.toUpperCase(), 0.65, 0.37, 8, 0.31,
-        {fontSize:11, color:C.accent, bold:!enRuns, charSpacing:1.2});
-  texte(slide, libelle, 0.65, 0.83, 12.05, 0.66,
-        {fontSize:30, bold:true, fit:'shrink'});
+        {fontSize:11, color:C.accent, bold:!enRuns, charSpacing:1.6});
+  texte(slide, libelle, 0.65, 0.82, 12.05, 0.68,
+        {fontSize:33, bold:true, fit:'shrink'});
   if (sousTitre) texte(slide, sousTitre, 0.67, 1.49, 11.95, 0.48,
                        {fontSize:15, color:C.doux, fit:'shrink'});
   pied(slide, numero);
@@ -106,6 +107,23 @@ function capture(slide,chemin,x,y,w,h,legende) {
   if (legende) texte(slide,legende,x,y+h+0.12,w,0.28,
                      {fontSize:9.2,color:C.faible,fontFace:'Courier New'});
 }
+// Extraits vidéo découpés depuis ~/Downloads/sAIfe-demo-FINALE-pass3.mp4 (ffmpeg),
+// rangés sous docs/pitch/media/. pptxgenjs les embarque dans le .pptx.
+const media = (nom) => path.join(__dirname, 'media', nom);
+// Coquille extérieure claire derrière une carte (double liseré, profondeur).
+function coquille(slide,x,y,w,h,rayon=0.16) {
+  slide.addShape(S.roundRect,{x,y,w,h,rectRadius:rayon,
+    line:{color:C.trait,width:0.75},fill:{color:C.panneau}});
+}
+// Tuile vidéo : coquille + lecteur embarqué, avec image d'affiche.
+// Dégrade proprement : si la lecture échoue chez le lecteur, l'affiche reste.
+// pptxgenjs 4.0.1 veut l'affiche (cover) en data URI base64, pas en chemin.
+const afficheData = (nom) =>
+  'data:image/png;base64,' + fs.readFileSync(media(nom)).toString('base64');
+function tuileVideo(slide,mp4,affiche,x,y,w,h) {
+  coquille(slide,x-0.09,y-0.09,w+0.18,h+0.18);
+  slide.addMedia({type:'video',path:media(mp4),cover:afficheData(affiche),x,y,w,h,objectName:mp4});
+}
 
 const URL_KB = 'https://www.knowbe4.com/resources/reports/2025-phishing-by-industry-benchmarking-report';
 const URL_ECHO = 'https://thehackernews.com/2025/06/zero-click-ai-vulnerability-exposes.html';
@@ -114,7 +132,7 @@ const URL_MCP = 'https://invariantlabs.ai/blog/mcp-github-vulnerability';
 // 1. Problème
 {
   const slide = pptx.addSlide();
-  titre(slide,1,marque('  /  LE PROBLÈME', true),'Un contenu piégé vise deux lecteurs : le salarié et l’agent',
+  titre(slide,1,marque('  /  LE PROBLÈME', true),'Un même piège, deux lecteurs : le salarié et l’agent',
         'Trois cas documentés, aucun ne vient de sAIfe.');
   const cartes = [
     {tag:'SALARIÉ', c:C.accent, gros:'33 %', txt:'des salariés non formés échouent aux tests de phishing simulés. Après un an de formation : 4 %.',
@@ -145,7 +163,7 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
 // 2. Solution
 {
   const slide = pptx.addSlide();
-  titre(slide,2,'La solution','Un seul moteur pour le salarié et pour l’agent','sAIfe intervient une seconde avant le geste, en local, et c’est un humain qui tranche.');
+  titre(slide,2,'La solution','Prévenir, retenir, trancher, prouver','Un seul moteur pour le salarié et l’agent. sAIfe agit une seconde avant le geste, en local ; un humain tranche.');
   const cartes = [
     {n:'01',t:'Prévenir',d:'Pop-up avant le clic sur le poste. Consigne cachée retirée avant que l’agent la lise.',c:C.accent},
     {n:'02',t:'Retenir',d:'Chaque appel d’outil passe la passerelle : envoi externe, outil inconnu ou détourné attend l’analyste.',c:C.ardoise},
@@ -190,23 +208,23 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
 // 4. Démo
 {
   const slide = pptx.addSlide();
-  titre(slide,4,'La démo','Ce que vous allez voir en direct','Deux minutes, sur la machine. Elle tourne aussi sans réseau.');
-  bloc(slide,0.68,2.15,4.9,3.98,{bord:C.accent});
-  const etapes = [
-    'Camille reçoit un mail sosie : la pop-up la prévient avant le clic.',
-    'L’assistant de Jean lit un mail qui cache une consigne et veut envoyer son rapport dehors.',
-    'La passerelle retient l’appel. La console montre la chaîne, preuve par preuve.',
-    'L’analyste coupe l’agent : rien n’est sorti, le rapport porte le sceau du journal.',
-    'Deux virements : l’habituel part sans rien afficher, celui au RIB nouveau attend le responsable.',
+  titre(slide,4,'La démo','La démo, en trois moments','Deux minutes sur la machine, aussi sans réseau. Trois extraits de la démo complète.');
+  const tuiles = [
+    {mp4:'01-argent-part.mp4',  aff:'01-argent-part.png',  n:'01', t:'Sans sAIfe, 41 760 € partent',  c:C.rouge},
+    {mp4:'02-agent-coupe.mp4',  aff:'02-agent-coupe.png',  n:'02', t:'L’agent détourné, coupé net',   c:C.accent},
+    {mp4:'03-argent-bloque.mp4',aff:'03-argent-bloque.png',n:'03', t:'Avec sAIfe, l’argent reste',     c:C.vert},
   ];
-  etapes.forEach((t,i)=>{
-    texte(slide,`${i+1}`,0.98,2.4+i*0.73,0.4,0.4,{fontFace:'Courier New',fontSize:14,color:i%2?C.ardoise:C.accent,bold:true});
-    texte(slide,t,1.45,2.3+i*0.73,3.95,0.66,{fontSize:14,fit:'shrink'});
+  const vw=3.86, vh=2.17, vy=2.72;
+  tuiles.forEach((o,i)=>{
+    const x=0.68+i*4.05;
+    tuileVideo(slide,o.mp4,o.aff,x,vy,vw,vh);
+    texte(slide,o.n,x+0.02,vy+vh+0.34,0.42,0.3,{fontFace:'Courier New',fontSize:12,color:o.c,bold:true});
+    texte(slide,o.t,x+0.46,vy+vh+0.3,vw-0.46,0.66,{fontSize:15.5,bold:true,fit:'shrink',valign:'top'});
   });
-  capture(slide,'docs/pitch/img/console-incident-agent.png',5.9,2.28,6.75,3.8,
-          'Console SOC, prototype local');
-  texte(slide,'Entreprise fictive Orbis Pay. L’agent est scripté pour que la démo se rejoue à l’identique.',
-        0.68,6.55,12.0,0.37,{fontSize:12,color:C.faible,fit:'shrink'});
+  texte(slide,'Cliquez une vignette pour lancer l’extrait. Démo complète (97 s) fournie à côté du deck : sAIfe-demo-FINALE-pass3.mp4.',
+        0.68,6.02,12.0,0.35,{fontSize:12.5,color:C.doux,fit:'shrink'});
+  texte(slide,'Entreprise fictive Orbis Pay, agent scripté pour rejouer à l’identique. Une tentative retenue n’est pas une fuite réussie : aucun taux de réussite d’attaque revendiqué.',
+        0.68,6.47,12.0,0.37,{fontSize:12,color:C.faible,fit:'shrink'});
   slide.addNotes('VERSION 3 MIN : garder cette slide, c’est le cœur.\nAvant de monter : cd messagerie && ./demarrer.sh --service ; cd app-mac && ./construire.sh --lancer. Ne pas lancer ./lancer.sh.\nSur scène : Entrée sur « uv run python envoyer_demo.py --cas sosie » (pop-up, Annuler, coach), puis Entrée sur « ./demo.sh jury » à la racine (base neuve, scènes, chrono). Ouvrir le lien de l’incident imprimé par le script, lire « Ce qui s’est passé », puis « Couper l’agent » (motif court, 5 s pour annuler). Le terminal confirme qu’aucun rapport n’est parti. Puis, depuis le dossier, « Exporter » et « Rapport » : le rapport d’une page avec le sceau (une adresse /api/…/rapport tapée à la main répond « Jeton absent ou invalide »). Puis les deux virements par curl sur 127.0.0.1:8712 (commandes dans docs/DEMO_JURY.md) : 320 € à Imprimerie du Lys passe sans pop-up, 3 480 € à Atelier Nord avec un nouveau RIB est retenu, à trancher sur /validation.\nDire clairement : une tentative retenue n’est pas une fuite réussie, et nous ne revendiquons aucun taux de réussite d’attaque sur des modèles réels. Déroulé complet : docs/DEMO_JURY.md.');
 }
 
@@ -220,10 +238,10 @@ Sources vérifiées en ligne le 10 octobre 2026.`);
   etiquette(slide,'LIMITES',7.75,2.49,1.5,C.ardoise);
   const res=[M.agents, M.fauxPositifs, M.mails, M.relecteur];
   const lim=[
-    'Trafic et mails écrits pour la démo',
-    'Agent scripté dans le banc ; en mode réel, Haiku a résisté à l’injection (0 tentative en 8 essais)',
-    'Désarmeur et analyseur par motifs : une paraphrase peut passer',
-    'Coupure envoyée par script : temps de décision humain non mesuré',
+    'Banc : trafic et mails écrits pour la démo, agent scripté',
+    'Désarmeur par motifs : une paraphrase peut passer',
+    'Virement déclaré à sAIfe, pas intercepté dans le flux bancaire',
+    'Journal signé par le backend : racine de confiance unique',
   ];
   res.forEach((t,i)=>texte(slide,t,1.0,3.05+i*0.75,6.05,0.66,{fontSize:14.5,fit:'shrink',valign:'top'}));
   lim.forEach((t,i)=>texte(slide,t,7.75,3.05+i*0.75,4.7,0.66,{fontSize:14.5,fit:'shrink',valign:'top'}));

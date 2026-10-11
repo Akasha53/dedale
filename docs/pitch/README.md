@@ -1,6 +1,8 @@
 # Deck sAIfe
 
-Huit slides pour cinq minutes, en thème clair comme la console. Version 3 minutes pour la finale : garder le problème (1), la solution (2), la démo (4), les résultats et limites (5) et le modèle (7) ; chaque slide le rappelle dans ses notes d'oral. Le [PPTX](saife-pitch-8-slides.pptx) se modifie dans Keynote, PowerPoint ou LibreOffice ; le [PDF](saife-pitch-8-slides.pdf) sert à projeter. `generer.js` est la source du deck.
+Huit slides pour cinq minutes, en thème clair comme la console. Version 3 minutes pour la finale : garder le problème (1), la solution (2), la démo (4), les résultats et limites (5) et le modèle (7) ; chaque slide le rappelle dans ses notes d'oral. `generer.js` est la source du deck.
+
+Le [PPTX](saife-pitch-8-slides.pptx) est le livrable : il se projette et se modifie dans Keynote, PowerPoint ou LibreOffice, et sa slide 4 embarque trois extraits vidéo de la démo (`media/`), découpés avec ffmpeg depuis `sAIfe-demo-FINALE-pass3.mp4`. Pour un PDF de projection (sans les vidéos), l'exporter depuis Keynote, PowerPoint ou LibreOffice avec la commande ci-dessous ; aucun de ces logiciels n'est installé sur la machine de build, donc `npm run build` ne produit que le PPTX.
 
 Depuis la racine du dépôt :
 
