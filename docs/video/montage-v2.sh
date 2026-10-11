@@ -50,6 +50,9 @@ cartons() {
   carton_png "${C}/stop.png" "Stop.|120|semibold|0d0d0d|-0.02" "Maintenant, avec s*AI*fe.|58|regular|6e6e73"
   carton_png "${C}/perte.png" "41 760 €|130|semibold|c4262e|-0.02" "partis sur un compte inconnu.|48|regular|3a3a3c"
   carton_png "${C}/garde.png" "41 760 €|130|semibold|0f7b55|-0.02" "restés chez Orbis Pay.|48|regular|3a3a3c"
+  # issue plein cadre après le beat « agent coupé » : le résultat, lisible instantanément (grammaire Apple).
+  carton_png "${C}/issue1.png" "Tentative d'exfiltration|52|regular|6e6e73" "Bloquée.|120|semibold|0f7b55|-0.02"
+  carton_png "${C}/issue2.png" "Rien n'est sorti.|104|semibold|0d0d0d|-0.02"
   carton_png "${C}/num.png" "41 760 €|130|semibold|ffffff|-0.02" "partis.|54|regular|e8686d"
   carton_png "${C}/hud.png" "◀◀|84|semibold|0d0d0d"
   rsvg-convert -w 200 -h 200 "${ICI}/../../console/src/assets/dedale.svg" -o "${C}/marque.png"
@@ -65,7 +68,7 @@ cartons() {
   # beat « agent coupé » en vraies images de l'incident réel : lit -> retient -> coupé
   leg l10a "Un agent IA lit un mail piégé."
   leg l10b "sAIfe retient l'envoi."
-  leg l10c "Agent coupé. Rien n'est sorti."
+  leg l10c "Agent coupé."
   leg l11 "Et retient le virement."
   leg l12 "La finance vérifie."
   leg l13 "Et refuse."
@@ -111,9 +114,17 @@ plans_saife() {
   # sAIfe retient l'envoi du faux secret hors d'Orbis Pay, puis coupe l'agent. Vraies images de la console.
   # Mouvement très retenu (grammaire Apple) : poussée douce et centrée sur l'élément clé, sans panoramique
   # latéral (CX0=CX, CY0=CY) — un seul message par plan, porté par la légende.
-  Z0=1 Z1=1.20 CX=800 CY=470 CX0=800 CY0=470 plan_ui "${CAPV}/a-lit-mail.png" "${P}/10.mp4" 2.0 "${C}/l10a.png"
-  Z0=1 Z1=1.24 CX=470 CY=410 CX0=470 CY0=410 plan_ui "${CAPV}/b-retenu.png" "${P}/10b.mp4" 2.0 "${C}/l10b.png"
-  Z0=1 Z1=1.16 CX=620 CY=400 CX0=620 CY0=400 plan_ui "${CAPV}/c-coupe.png" "${P}/10c.mp4" 2.0 "${C}/l10c.png"
+  # Recadrage sur l'élément héros de chaque capture (grammaire Apple) : cadre plus serré, beaucoup
+  # d'espace négatif, aucun panoramique (CX0=CX, CY0=CY), très léger zoom de maintien (delta 0,06).
+  #   10  : la consigne cachée surlignée (modale « Instruction cachée »)
+  #   10b : « sAIfe l'a retenue » + les canaris C-7A3F / C-2B91 (étape Action)
+  #   10c : les badges « Critique » et « Agent arrêté » + le titre de l'incident
+  Z0=1.26 Z1=1.32 CX=800 CY=532 CX0=800 CY0=532 plan_ui "${CAPV}/a-lit-mail.png" "${P}/10.mp4" 2.0 "${C}/l10a.png"
+  Z0=1.22 Z1=1.28 CX=720 CY=620 CX0=720 CY0=620 plan_ui "${CAPV}/b-retenu.png" "${P}/10b.mp4" 2.0 "${C}/l10b.png"
+  Z0=1.24 Z1=1.30 CX=640 CY=360 CX0=640 CY0=360 plan_ui "${CAPV}/c-coupe.png" "${P}/10c.mp4" 2.0 "${C}/l10c.png"
+  # issue plein cadre, deux beats nets : la tentative bloquée, puis rien n'est sorti.
+  plan_carton "${C}/issue1.png" "${P}/issue1.mp4" 2.2
+  plan_carton "${C}/issue2.png" "${P}/issue2.mp4" 2.0
   Z0=1 Z1=1.9 CX=1360 CY=250 ZD=2.6 plan_ui "${SC}/b5-retenu.png" "${P}/11.mp4" 3.0 "${C}/l11.png"
   Z0=1 Z1=1.3 CX=1010 CY=520 plan_ui "${VA}/v0-fiche.png" "${P}/12.mp4" 3.0 "${C}/l12.png"
   Z0=1.3 Z1=1.3 CX=1000 CY=760 CX0=1000 CY0=760 plan_ui "${VA}/v3-refuse.png" "${P}/13.mp4" 3.0 "${C}/l13.png"
@@ -144,15 +155,17 @@ plans_logo() {
      -t 9 "${ENC[@]}" "${P}/27.mp4"
 }
 
-PLANS=(01 02 03 04 05 06 07 08 09 10 10b 10c 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27)
+PLANS=(01 02 03 04 05 06 07 08 09 10 10b 10c issue1 issue2 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27)
 
 musique_v2() {
-  # Repères calés sur le découpage v2 avec la séquence agent réelle (plans 10/10b/10c) : +3 s à partir
-  # du beat « agent coupé ». Tout ce qui précède (gel 21,0 / rembobinage 24,0 / « Stop » 25,5) ne bouge pas ;
-  # l'accent clair tombe sur le plan « Agent coupé » (32,5). Total 93 s.
+  # Repères calés sur le découpage v2. Tout ce qui précède le beat « agent coupé » (gel 21,0 /
+  # rembobinage 24,0 / « Stop » 25,5 / acte 2 28,5) ne bouge pas ; l'accent clair tombe sur le plan
+  # « Agent coupé » (32,5). Les deux cartons d'issue plein cadre ajoutent +4,2 s juste après ce beat :
+  # tous les repères suivants (finance, fin d'acte 2, fin de montage, logo) sont décalés d'autant.
+  # Total 97,2 s.
   perl -e 'alarm 300; exec @ARGV' python3 "${ICI}/musique.py" --sortie "${MUSIQUE}" \
     --freeze 21.0 --silence-duree 1.5 --rewind 24.0 --stop 25.5 --acte2-debut 28.5 \
-    --accent 32.5 --finance 37.5 --acte2-fin 46.5 --montage-fin 54.0 --logo 84.0 --impact --duree 93 </dev/null
+    --accent 32.5 --finance 41.7 --acte2-fin 50.7 --montage-fin 58.2 --logo 88.2 --impact --duree 97.2 </dev/null
 }
 
 final() {
