@@ -51,7 +51,8 @@ Restent, du plus gênant au moins gênant pour la démo :
 4. Validation métier : la SOC lit encore, dans l'événement `memoire` du relecteur, le nom du validateur, son motif libre et une tranche fine (« 1 000 à 5 000 € »). `validation_metier` dit « confirmé par le responsable » quand c'est la finance qui a signé.
 5. « Couper l'agent » laisse 5 s pour annuler ; changer d'onglet pendant ce temps annule la coupure sans le dire (noté dans `DEMO_JURY.md`).
 6. Détails : un geste après une alerte ouvre deux incidents (le choix « Continuer » puis le virement) ; le rapport nomme « Document/mail piégé rencontré » la demande légitime de Jean ; le lien `cs6` du CEF vise toujours 5173 ; l'export Sigma n'a pas de nom de fichier ; `messagerie/README.md` annonce 72 tests, il y en a 73.
-7. Non vérifiable sans toucher à l'app de Guilhem : la pop-up de l'app Mac (8712), donc les deux `curl … 8712/avertir` de `DEMO_JURY.md`. Leur équivalent côté backend (`/api/relecteur/verifier`) passe.
+7. À 8 h 50, le backend 8700, la console 5173 et la Mailpit de démo (8716, 8717) ne tournaient plus ; seuls le service de verdicts 8715 et l'app Mac (8712) restaient. La Mailpit de démo et celle de la répétition ont reçu le même signal d'arrêt à la même seconde, 08:27:11, sans qu'aucune commande de la répétition ne les vise. Avant de monter sur scène, refaire la liste « T-10 min » en entier.
+8. Non vérifiable sans toucher à l'app de Guilhem : la pop-up de l'app Mac (8712), donc les deux `curl … 8712/avertir` de `DEMO_JURY.md`. Leur équivalent côté backend (`/api/relecteur/verifier`) passe.
 
 ## Détail
 
