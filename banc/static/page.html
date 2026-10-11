@@ -58,8 +58,8 @@
           <a class="lien-grand" href="http://localhost:5173" target="_blank" rel="noopener">
             <span class="ptitre">Console SOC</span><span class="url">localhost:5173</span>
           </a>
-          <a class="lien-grand" href="http://localhost:5173/validation" target="_blank" rel="noopener">
-            <span class="ptitre">Validation finance</span><span class="url">/validation</span>
+          <a class="lien-grand" href="http://localhost:5173/validation/" target="_blank" rel="noopener">
+            <span class="ptitre">Validation finance</span><span class="url">/validation/</span>
           </a>
           <a class="lien-grand" href="http://localhost:8716" target="_blank" rel="noopener">
             <span class="ptitre">Boîte mail d'Orbis</span><span class="url">localhost:8716</span>
@@ -82,14 +82,26 @@
       </div>
     </section>
 
-    <!-- 4. Côté salarié -->
+    <!-- 4. Côté salarié : mails -->
     <section class="carte">
       <div class="coeur">
-        <h2><span class="num">4</span>Côté salarié</h2>
-        <p class="quoi">Chaque bouton envoie un mail de test dans la boîte d'Orbis. La pop-up du
-          bouclier arrive à l'écran.</p>
+        <h2><span class="num">4</span>Salarié — mails reçus</h2>
+        <p class="quoi">Chaque bouton envoie un mail de test dans la boîte d'Orbis. sAIfe le relève
+          et pose son verdict (voir la Boîte d'Orbis ci-dessous).</p>
         <div class="rangee" id="mails"></div>
         <div class="console-sortie vide" id="sortie-mail">Aucun mail envoyé pour l'instant.</div>
+      </div>
+    </section>
+
+    <!-- 4b. Côté salarié : gestes critiques (relecteur) -->
+    <section class="carte large">
+      <div class="coeur">
+        <h2><span class="num">4</span>Salarié — gestes critiques</h2>
+        <p class="quoi">Le salarié s'apprête à faire un virement ou un export. Le relecteur IA de
+          sAIfe vérifie le geste (backend 8700) et rend un vrai verdict : il passe, il est retenu
+          pour une validation métier, ou il est refusé et la SOC est prévenue.</p>
+        <div class="palette" id="palette-geste"></div>
+        <div class="console-sortie vide" id="sortie-geste">Aucun geste vérifié pour l'instant.</div>
       </div>
     </section>
 
@@ -113,12 +125,14 @@
           <h2 style="margin:0"><span class="num">6</span>Agent IA</h2>
           <span class="etat-agent" id="etat-agent"></span>
         </div>
-        <p class="quoi" style="margin-top:8px">Un vrai agent, piloté par un modèle local Ollama,
-          lit la boîte mail et tombe sur un mail piégé. Il tape le vrai backend 8700 : l'incident
-          apparaît dans la console SOC. En direct ci-dessous : outils appelés, « retenu » et
-          « coupé » quand sAIfe agit.</p>
-        <div class="champ">
-          <label for="modele">Modèle</label>
+        <p class="quoi" style="margin-top:8px">Chaque bouton lance un VRAI parcours d'agent contre
+          le backend 8700 et ouvre un vrai incident dans la Console SOC. Les parcours « attaquant
+          scripté » sont déterministes (fiables en direct) ; chacun vise UNE défense. Le dernier,
+          le vrai modèle local <b>qwen</b>, décide seul : il lit le relevé piégé et tente
+          l'exfiltration — sAIfe coupe.</p>
+        <div class="palette" id="palette-agent"></div>
+        <div class="champ" style="margin-top:14px">
+          <label for="modele">Modèle (qwen)</label>
           <select id="modele"></select>
           <label for="essais">Essais</label>
           <select id="essais">
@@ -126,13 +140,8 @@
             <option value="2">2</option>
             <option value="3">3</option>
           </select>
-          <button class="cta" id="btn-agent" style="margin-left:auto">
-            Lancer un agent sur la boîte mail
-            <span class="fleche" aria-hidden="true">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 6h6M6.5 3.5 9 6l-2.5 2.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </span>
-          </button>
         </div>
+        <div class="resultat-agent" id="resultat-agent"></div>
         <div class="console-sortie vide" id="flux-agent">L'agent n'a pas encore tourné.</div>
       </div>
     </section>

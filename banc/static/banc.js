@@ -64,6 +64,31 @@ async function chargerEtat() {
     $("#mails").querySelectorAll("button").forEach((b) =>
       b.addEventListener("click", () => envoyerMail(b.dataset.cas, b)));
   }
+
+  const pa = $("#palette-agent");
+  if (d.scenarios && pa && !pa.dataset.pret) {
+    pa.innerHTML = d.scenarios.map((s) => `
+      <button class="tuile ${s.scripte ? "" : "vedette"}" data-scenario="${ech(s.cle)}" title="${ech(s.attendu)}">
+        <span class="t-titre">${ech(s.titre)}</span>
+        <span class="t-tag">${s.scripte ? "attaquant scripté" : "vrai modèle"}</span>
+        <span class="t-attendu">${ech(s.attendu)}</span>
+      </button>`).join("");
+    pa.dataset.pret = "1";
+    pa.querySelectorAll("button").forEach((b) =>
+      b.addEventListener("click", () => lancerAgent(b.dataset.scenario)));
+  }
+
+  const pg = $("#palette-geste");
+  if (d.gestes && pg && !pg.dataset.pret) {
+    pg.innerHTML = d.gestes.map((g) => `
+      <button class="tuile" data-geste="${ech(g.cle)}" title="${ech(g.attendu)}">
+        <span class="t-titre">${ech(g.titre)}</span>
+        <span class="t-attendu">${ech(g.attendu)}</span>
+      </button>`).join("");
+    pg.dataset.pret = "1";
+    pg.querySelectorAll("button").forEach((b) =>
+      b.addEventListener("click", () => verifierGeste(b.dataset.geste, b)));
+  }
 }
 
 // --- Démarrer tout ----------------------------------------------------------------------
@@ -111,29 +136,49 @@ async function chargerBoite() {
 
 // --- Agent IA ---------------------------------------------------------------------------
 let sondeAgent = null;
-$("#btn-agent").addEventListener("click", async () => {
+function paletteAgent() { return $("#palette-agent").querySelectorAll("button"); }
+
+async function lancerAgent(scenario) {
   const modele = $("#modele").value;
   const essais = $("#essais").value;
-  const b = $("#btn-agent");
-  b.disabled = true;
-  const d = await appel("POST", `/api/agent?modele=${encodeURIComponent(modele)}&essais=${essais}`);
+  paletteAgent().forEach((b) => (b.disabled = true));
+  $("#resultat-agent").textContent = "";
+  $("#resultat-agent").className = "resultat-agent";
+  const d = await appel("POST",
+    `/api/agent?scenario=${encodeURIComponent(scenario)}&modele=${encodeURIComponent(modele)}&essais=${essais}`);
   if (!d.ok) {
     $("#etat-agent").textContent = d.message || "refus";
-    b.disabled = false;
+    paletteAgent().forEach((b) => (b.disabled = false));
     return;
   }
   if (sondeAgent) clearInterval(sondeAgent);
   sondeAgent = setInterval(sonderAgent, 1500);
   sonderAgent();
-});
+}
 
 function rendreLignes(lignes) {
   return lignes.map((l) => {
     let cl = "";
-    if (/retenu|RETENU/.test(l)) cl = "retenu";
+    if (/RÉSULTAT/.test(l)) cl = "resultat";
+    else if (/retenu|RETENU/.test(l)) cl = "retenu";
     else if (/coupé|coupe=True|COUPÉ|couper/.test(l)) cl = "coupe";
     return `<span class="${cl}">${ech(l)}</span>`;
   }).join("\n");
+}
+
+function resumeAgent(lignes) {
+  // Lit la ligne « RÉSULTAT : incident INC-… · canaris [C-…] · coupé True » posée par le scénario.
+  const ligne = lignes.find((l) => /RÉSULTAT/.test(l)) || "";
+  const inc = ligne.match(/INC-\d+/);
+  const can = ligne.match(/C-[0-9A-F]{3,5}/g);
+  if (inc || can) {
+    return `Incident ${inc ? inc[0] : "—"} · canari ${can ? [...new Set(can)].join(", ") : "—"}`;
+  }
+  // Scénario de prévention (désarmeur) : aucune ligne RÉSULTAT, on lit le désarmement.
+  if (lignes.some((l) => /désarmé|désarmement|retiré avant lecture|retrait/i.test(l))) {
+    return "Prévention : consigne cachée retirée avant lecture, aucun incident.";
+  }
+  return "";
 }
 
 async function sonderAgent() {
@@ -145,12 +190,39 @@ async function sonderAgent() {
     flux.scrollTop = flux.scrollHeight;
   }
   const libelle = { en_cours: "en cours", fini: "terminé", erreur: "erreur", repos: "" }[d.etat] || "";
-  $("#etat-agent").textContent = d.modele ? `modèle ${d.modele} · ${libelle}` : "";
+  $("#etat-agent").textContent = d.scenario ? `${ech(d.modele)} · ${libelle}` : "";
   if (!d.en_cours) {
     if (sondeAgent) { clearInterval(sondeAgent); sondeAgent = null; }
-    $("#btn-agent").disabled = false;
+    paletteAgent().forEach((b) => (b.disabled = false));
+    const r = resumeAgent(d.lignes || []);
+    if (r) {
+      const el = $("#resultat-agent");
+      el.textContent = r;
+      el.className = "resultat-agent " + (/aucun incident/.test(r) ? "ok" : "touche");
+    }
     chargerJournal();
   }
+}
+
+// --- Gestes critiques du salarié (relecteur) --------------------------------------------
+const CLASSE_ISSUE = { passe: "autorise", accorde: "autorise", retenu: "suspect", refuse: "retenu" };
+const LIBELLE_ISSUE = { passe: "passe (aucun signal)", accorde: "accordé", retenu: "retenu → validation", refuse: "refusé" };
+async function verifierGeste(genre, bouton) {
+  bouton.disabled = true;
+  const out = $("#sortie-geste");
+  out.classList.remove("vide");
+  out.textContent = "Vérification du geste par le relecteur…";
+  const d = await appel("POST", "/api/geste?genre=" + encodeURIComponent(genre));
+  bouton.disabled = false;
+  if (!d.ok) { out.textContent = "Échec. " + (d.message || ""); return; }
+  const cl = CLASSE_ISSUE[d.issue] || "neutre";
+  const lib = LIBELLE_ISSUE[d.issue] || d.issue;
+  out.innerHTML =
+    `<span class="badge ${cl}">${ech(lib)}</span> <strong>${ech(d.titre)}</strong>` +
+    (d.incident_id ? `  → incident <strong>${ech(d.incident_id)}</strong>` : "") +
+    (d.signaux && d.signaux.length ? `<br><span class="d">signaux : ${ech(d.signaux.join(", "))}</span>` : "") +
+    (d.motif ? `<br><span class="d">${ech(d.motif)}</span>` : "");
+  chargerJournal();
 }
 
 // --- Virements --------------------------------------------------------------------------

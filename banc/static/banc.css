@@ -185,6 +185,29 @@ select {
 .note { font-size: 12.5px; color: var(--texte-faible); margin-top: 10px; }
 .note.alerte { color: var(--alerte); }
 
+/* Palette de scénarios : tuiles cliquables, chacune = une défense */
+.palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.tuile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+  text-align: left; padding: 13px 15px; width: 100%; height: 100%;
+}
+.tuile .t-titre { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.tuile .t-tag {
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; padding: 1px 7px; border-radius: 999px;
+  background: var(--puits); color: var(--texte-faible);
+}
+.tuile.vedette { border-color: var(--accent-fonce); background: linear-gradient(180deg, #ffffff, #f2fbfd); }
+.tuile.vedette .t-tag { background: #dff3f8; color: var(--accent); }
+.tuile .t-attendu { font-family: var(--mono); font-size: 10.5px; color: var(--texte-faible);
+  font-weight: 400; line-height: 1.4; }
+
+.resultat-agent { font-size: 13px; font-weight: 600; margin-top: 12px; min-height: 0; }
+.resultat-agent:empty { display: none; }
+.resultat-agent.touche { color: var(--alerte); }
+.resultat-agent.ok { color: var(--ok); }
+.console-sortie .resultat { color: var(--accent); font-weight: 700; }
+
 @media (max-width: 760px) {
   .page { padding: 28px 16px 60px; }
   .grille, .liens, .journal-grille { grid-template-columns: 1fr; }

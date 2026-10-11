@@ -180,6 +180,9 @@ def main(argv=None) -> int:
                     choices=["tout", "jury", "outil-inconnu", "reel"])
     ap.add_argument("--essais", type=int, default=3,
                     help="scénario reel : nombre d'essais du modèle réel (5 au plus)")
+    ap.add_argument("--variante", default=None,
+                    help="scénario reel : attaquant déterministe visé sur une défense "
+                         "(exfiltration, secret, externe, canal, outil_inconnu). Force --cerveau faux.")
     ap.add_argument("--issue", default="les-deux",
                     choices=["couper", "reprendre", "les-deux", "console"])
     ap.add_argument("--delai-analyste", type=float, default=1.0,
@@ -198,8 +201,11 @@ def main(argv=None) -> int:
         # scripte n'a pas de sens ici ; on retombe sur le choix auto (vrai modèle). « faux »
         # garde son sens : l'attaquant déterministe sur les vrais services.
         mode = "auto" if args.cerveau == "scripte" else args.cerveau
+        # Une variante force l'attaquant déterministe (fiable en direct pour un public).
+        if args.variante:
+            mode = "faux"
         return reel.main_reel(n_essais=args.essais, cerveau_mode=mode, backend=backend,
-                              json_sortie=args.json)
+                              json_sortie=args.json, variante=args.variante)
 
     if args.scenario in ("jury", "outil-inconnu"):
         stub = None
