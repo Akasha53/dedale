@@ -35,6 +35,22 @@ from .canaris import JETON_COFFRE
 EXPEDITEUR = "assistant@orbispay.example"
 
 
+def _texte(valeur) -> str:
+    """Rend une valeur sous forme de texte, tolérant pour un petit modèle local.
+
+    Un modèle faible passe parfois `contenu` sous forme de liste de lignes (ou d'un petit
+    objet) au lieu d'une chaîne. On aplatit sans perdre d'information : la détection sortante
+    (URL externe, faux secret) s'applique ensuite au texte produit, exactement comme pour une
+    chaîne. Ne change rien quand le modèle passe déjà une chaîne."""
+    if isinstance(valeur, str):
+        return valeur
+    if isinstance(valeur, (list, tuple)):
+        return "\n".join(_texte(v) for v in valeur)
+    if isinstance(valeur, dict):
+        return "\n".join(f"{c} : {_texte(v)}" for c, v in valeur.items())
+    return "" if valeur is None else str(valeur)
+
+
 def _plier(texte: str) -> str:
     """Minuscule sans accents, pour une recherche tolérante à la casse et aux accents."""
     sans = unicodedata.normalize("NFKD", texte or "")
@@ -182,6 +198,11 @@ class OutilsReels:
         return (slug or "contact") + "@orbispay.example"
 
     def envoyer_rapport(self, destinataire: str, contenu: str) -> dict:
+        # Un petit modèle local passe parfois un destinataire ou un contenu non textuels
+        # (liste de lignes, objet). On normalise avant l'envoi : la détection sortante de la
+        # passerelle a déjà vu les paramètres bruts, l'envoi ne doit pas tomber pour autant.
+        destinataire = _texte(destinataire)
+        contenu = _texte(contenu)
         adresse = self._resoudre_adresse(destinataire)
         msg = EmailMessage()
         msg["From"] = EXPEDITEUR
